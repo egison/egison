@@ -32,6 +32,8 @@ def isPrime (n: Integer) : Bool :=
 
 def primes : [Integer] := 2 :: filter isPrime (drop 2 nats)
 
+def (%) (n: Integer) (d: Integer) : Integer := i.% n d
+
 def divisor (n: Integer) (d: Integer) : Bool := 0 = n % d
 
 def findFactor : Integer -> Integer :=
@@ -103,18 +105,6 @@ def rtod' (x: Integer) : (Integer, [Integer], [Integer]) :=
       r := i.modulo m n
       (s, c) := findCycle (rtodHelper r n)
    in (q, map fst s, map fst c)
-
-def showDecimal (c: Integer) (x: Integer) : String :=
-  match (2)#($1, take c $2) (rtod x) as (integer, list integer) with
-    | ($q, $sc) -> foldl S.append (S.append (show q) ".") (map show sc)
-
-def showDecimal' (x: Integer) : String :=
-  match rtod' x as (integer, list integer, list integer) with
-    | ($q, $s, $c) ->
-      foldl
-        S.append
-        ""
-        (S.append (show q) "." :: map show s ++ " " :: map show c ++ [" ..."])
 
 --
 -- Continued Fraction

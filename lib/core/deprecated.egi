@@ -16,48 +16,58 @@ class Num a where
 
 -- | Num instances for basic types
 instance Num MathExpr where
-  (+) x y := plusForMathExpr x y
-  (-) x y := minusForMathExpr x y
-  (*) x y := multForMathExpr x y
-  negate x := neg x
-  abs x := abs x
-  fromInteger n := n
+  (+) x y        := plusForMathExpr x y
+  (-) x y        := minusForMathExpr x y
+  (*) x y        := multForMathExpr x y
+  negate x       := neg x
+  abs x          := abs x
+  fromInteger n  := n
 
 instance Num Float where
-  (+) x y := f.+ x y
-  (-) x y := f.- x y
-  (*) x y := f.* x y
-  negate x := f.neg x
-  abs x := f.abs x
-  fromInteger n := itof n
+  (+) x y        := f.+ x y
+  (-) x y        := f.- x y
+  (*) x y        := f.* x y
+  negate x       := f.neg x
+  abs x          := f.abs x
+  fromInteger n  := itof n
 
 def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
   match n as integer with
-    | #1 -> x
+    | #1      -> x
     | ?isEven ->
-      let y := repeatedSquaring fn x (quotient n 2)
-       in fn y y
-    | ?isOdd ->
-      let y := repeatedSquaring fn x (quotient n 2)
-       in fn (fn y y) x
-
+        let y := repeatedSquaring fn x (quotient n 2)
+         in fn y y
+    | ?isOdd  ->
+        let y := repeatedSquaring fn x (quotient n 2)
+         in fn (fn y y) x
 
 inductive pattern Integer :=
-       | o
-       | s Integer
-   
+  | o
+  | s Integer
+
 def nat : Matcher Integer :=
-     matcher
-       | o as () with
-         | 0 -> [()]
-         | _ -> []
-       | s $ as nat with
-         | $tgt ->
-           match compare tgt 0 as ordering with
-             | greater -> [tgt - 1]
-             | _ -> []
-       | #$n as () with
-         | $tgt -> if tgt = n then [()] else []
-       | $ as (something) with
-         | $tgt -> [tgt]
-   
+  matcher
+    | o as () with
+      | 0   -> [()]
+      | _   -> []
+    | s $ as nat with
+      | $tgt ->
+          match compare tgt 0 as ordering with
+            | greater -> [tgt - 1]
+            | _       -> []
+    | #$n as () with
+      | $tgt -> if tgt = n then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+def showDecimal (c: Integer) (x: Integer) : String :=
+  match (2)#($1, take c $2) (rtod x) as (integer, list integer) with
+    | ($q, $sc) -> foldl S.append (S.append (show q) ".") (map show sc)
+
+def showDecimal' (x: Integer) : String :=
+  match rtod' x as (integer, list integer, list integer) with
+    | ($q, $s, $c) ->
+        foldl
+          S.append
+          ""
+          (S.append (show q) "." :: map show s ++ " " :: map show c ++ [" ..."])
