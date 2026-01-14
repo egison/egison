@@ -20,29 +20,26 @@ def fromAssoc {a} (xs: [(a, Integer)]) : [a] :=
 -- Assoc Multiset
 --
 
-inductive pattern (a, b) :=
-    | (^) a b
-
 def assocMultiset {a} (m: Matcher a) : Matcher [(a, Integer)] :=
   matcher
     | [] as () with
       | [] -> [()]
       | _ -> []
-    | #$x ^ #$n :: $ as (assocMultiset m) with
+    | (#$x, #$n) :: $ as (assocMultiset m) with
       | $tgt ->
         matchAll tgt as list (m, integer) with
           | $hs ++ (#x, ?(>= n) & $k) :: $ts ->
-            if k - n = 0 then hs ++ ts else hs ++ (x, k - n) :: ts
-    | $ ^ #$n :: $ as (m, assocMultiset m) with
+            if k - n = 0 then hs ++ ts else hs ++ ((x, k - n) :: ts)
+    | ($, #$n) :: $ as (m, assocMultiset m) with
       | $tgt ->
         matchAll tgt as list (m, integer) with
           | $hs ++ ($x, ?(>= n) & $k) :: $ts ->
-            if k - n = 0 then (x, hs ++ ts) else (x, hs ++ (x, k - n) :: ts)
-    | #$x ^ $ :: $ as (integer, assocMultiset m) with
+            if k - n = 0 then (x, hs ++ ts) else (x, hs ++ ((x, k - n) :: ts))
+    | (#$x, $) :: $ as (integer, assocMultiset m) with
       | $tgt ->
         matchAll tgt as list (m, integer) with
           | $hs ++ (#x, $n) :: $ts -> (n, hs ++ ts)
-    | $ ^ $ :: $ as (m, integer, assocMultiset m) with
+    | ($, $) :: $ as (m, integer, assocMultiset m) with
       | $tgt ->
         matchAll tgt as list (m, integer) with
           | $hs ++ ($x, $n) :: $ts -> (x, n, hs ++ ts)
@@ -61,8 +58,8 @@ def assocMultiset {a} (m: Matcher a) : Matcher [(a, Integer)] :=
 
 def AC.intersect {Eq a} (xs : [a]) (ys : [a]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset something, assocMultiset something) with
-    | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
+    | (($x, $m) :: _, (#x, $n) :: _) -> (x, min m n)
 
 def AC.intersectAs {Eq a} (m : Matcher a) (xs : [a]) (ys : [a]) : [(a, Integer)] :=
   matchAll (xs, ys) as (assocMultiset m, assocMultiset m) with
-    | ($x ^ $m :: _, #x ^ $n :: _) -> (x, min m n)
+    | (($x, $m) :: _, (#x, $n) :: _) -> (x, min m n)
