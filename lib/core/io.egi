@@ -43,8 +43,8 @@ def eachFile (files: [String]) (proc: String -> IO ()) : IO () :=
     | [] -> return ()
     | $file :: $rest ->
       do let port := openInputFile file
-         eachLineFromPort port proc
-         closeInputPort port
+         () <- eachLineFromPort port proc
+         () <- closeInputPort port
          eachFile rest proc
 
 --
