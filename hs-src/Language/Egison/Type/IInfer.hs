@@ -808,7 +808,8 @@ inferIExprWithContext expr ctx = case expr of
         (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
         let s1'' = composeSubst s_pp s1'
             matchedType' = applySubst s1'' matchedType
-            patternHoleTypes' = map (applySubst s1'') patternHoleTypes
+            -- Wrap pattern hole types with TMatcher for unification with next matcher types
+            patternHoleTypes' = map (TMatcher . applySubst s1'') patternHoleTypes
             -- Apply substitution to variable bindings
             ppBindings' = [(var, applySubstScheme s1'' scheme) | (var, scheme) <- ppBindings]
         
@@ -817,7 +818,7 @@ inferIExprWithContext expr ctx = case expr of
         let numPatternHoles = length patternHoleTypes'
         nextMatcherTypes <- extractNextMatcherTypes numPatternHoles nextMatcherType'
         
-        -- Unify pattern hole types with next matcher types
+        -- Unify pattern hole types (now wrapped with TMatcher) with next matcher types
         s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherTypes ctx
         let s1''' = composeSubst s_unify s1''
         
@@ -843,7 +844,8 @@ inferIExprWithContext expr ctx = case expr of
       
       -- Infer PrimitivePatPattern type
       -- Returns (matched type, pattern hole types, variable bindings, substitution)
-      -- Pattern hole types correspond to the types that pattern holes ($) should match
+      -- Pattern hole types are the inner types (without TMatcher wrapper)
+      -- The caller should wrap them with TMatcher when unifying with next matcher types
       -- Variable bindings are for PPValuePat variables (#$val)
       -- Note: Pattern hole types are determined by the pattern constructor, not by external context
       inferPrimitivePatPattern :: PrimitivePatPattern -> TypeErrorContext -> Infer (Type, [Type], [(String, TypeScheme)], Subst)
@@ -855,12 +857,10 @@ inferIExprWithContext expr ctx = case expr of
         
         PPPatVar -> do
           -- Pattern variable ($): one pattern hole, no binding
-          -- Pattern hole type and matched type share the same fresh variable
-          -- This ensures that when pattern hole type is unified with next matcher type,
-          -- the matched type is automatically updated
+          -- Returns the matched type as the pattern hole type
+          -- The caller will wrap it with TMatcher when unifying with next matcher type
           matchedTy <- freshVar "matched"
-          let patternHoleTy = TMatcher matchedTy
-          return (matchedTy, [patternHoleTy], [], emptySubst)
+          return (matchedTy, [matchedTy], [], emptySubst)
         
         PPValuePat var -> do
           -- Value pattern (#$val): no pattern holes, binds variable to matched type
