@@ -886,7 +886,13 @@ doExpr = do
     _:_                         -> customFailure LastStmtInDoBlock
   where
     statement :: Parser BindingExpr
-    statement = (reserved "let" >> binding) <|> Bind (PDTuplePat []) <$> expr
+    statement = try bindArrow <|> (reserved "let" >> binding) <|> Bind (PDTuplePat []) <$> expr
+      where
+        bindArrow = do
+          pat <- pdPattern
+          symbol "<-"
+          e <- expr
+          return (Bind pat e)
 
     oneLiner :: Parser [BindingExpr]
     oneLiner = braces $ sepBy statement (symbol ";")
