@@ -227,6 +227,7 @@ prettyType (TMatcher t) = "Matcher " ++ prettyType t
 prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t
+prettyType TPort = "Port"
 prettyType TAny = "_"
 
 -- | Pretty print a tensor shape
