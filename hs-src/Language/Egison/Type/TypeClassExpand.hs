@@ -613,6 +613,7 @@ expandTypeClassMethodsT tiExpr = do
             go (TFun t1 t2) = TFun (go t1) (go t2)
             go (TIO t) = TIO (go t)
             go (TIORef t) = TIORef (go t)
+            go TPort = TPort
             go TAny = TAny
     
     
@@ -704,6 +705,7 @@ expandTypeClassMethodsT tiExpr = do
             go (TMatcher instT) (TMatcher actualT) = go instT actualT
             go (TIO instT) (TIO actualT) = go instT actualT
             go (TIORef instT) (TIORef actualT) = go instT actualT
+            go TPort TPort = []
             go _ _ = []
         
         -- Apply type substitutions to a constraint
@@ -732,6 +734,7 @@ expandTypeClassMethodsT tiExpr = do
             go (TFun t1 t2) = TFun (go t1) (go t2)
             go (TIO t) = TIO (go t)
             go (TIORef t) = TIORef (go t)
+            go TPort = TPort
             go TAny = TAny
     
     -- Helper: lowercase first character

@@ -63,6 +63,7 @@ applySubst s (TMatcher t)     = TMatcher (applySubst s t)
 applySubst s (TFun t1 t2)     = TFun (applySubst s t1) (applySubst s t2)
 applySubst s (TIO t)          = TIO (applySubst s t)
 applySubst s (TIORef t)       = TIORef (applySubst s t)
+applySubst _ TPort            = TPort
 applySubst _ TAny             = TAny
 
 -- | Apply a substitution to a type scheme

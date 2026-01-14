@@ -76,6 +76,8 @@ unify' (TIO t1) (TIO t2) = unify t1 t2
 
 unify' (TIORef t1) (TIORef t2) = unify t1 t2
 
+unify' TPort TPort = Right emptySubst
+
 -- Tensor types
 -- Tensor a and Tensor b unify if a and b unify
 unify' (TTensor t1) (TTensor t2) = unify t1 t2
@@ -182,6 +184,8 @@ unifyWithTopLevel' (TFun a1 r1) (TFun a2 r2) = do
 unifyWithTopLevel' (TIO t1) (TIO t2) = unifyWithTopLevel t1 t2
 
 unifyWithTopLevel' (TIORef t1) (TIORef t2) = unifyWithTopLevel t1 t2
+
+unifyWithTopLevel' TPort TPort = Right emptySubst
 
 -- TAny unifies with anything
 unifyWithTopLevel' TAny _ = Right emptySubst

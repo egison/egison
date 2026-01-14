@@ -47,6 +47,7 @@ prettyType (TFun t1 t2)     = prettyTypeArg t1 ++ " -> " ++ prettyType t2
     prettyTypeArg t            = prettyType t
 prettyType (TIO t)          = "IO " ++ prettyTypeAtom t
 prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
+prettyType TPort            = "Port"
 prettyType TAny             = "_"
 
 -- | Pretty print an atomic type (with parentheses if needed)
@@ -60,6 +61,8 @@ prettyTypeAtom t@(TTuple []) = prettyType t
 prettyTypeAtom t@(TVar _)    = prettyType t
 prettyTypeAtom t@(TTuple _) = prettyType t
 prettyTypeAtom t@(TCollection _) = prettyType t
+prettyTypeAtom t@TPort       = prettyType t
+prettyTypeAtom t@TAny        = prettyType t
 prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme

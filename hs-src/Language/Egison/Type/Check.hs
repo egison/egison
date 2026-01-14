@@ -150,19 +150,37 @@ builtinTypes = concat
     ioTypes =
       [ ("return", forallA $ TFun (TVar a) (TIO (TVar a)))
       , ("io", forallA $ TFun (TIO (TVar a)) (TVar a))
-      , ("openInputFile", unaryOp TString (TIO (TTuple [])))
-      , ("openOutputFile", unaryOp TString (TIO (TTuple [])))
-      , ("closeInputPort", unaryOp (TTuple []) (TIO (TTuple [])))
-      , ("closeOutputPort", unaryOp (TTuple []) (TIO (TTuple [])))
-      , ("readChar", Forall [] [] (TIO TChar))
-      , ("readLine", Forall [] [] (TIO TString))
+      -- File operations (Port type)
+      , ("openInputFile", unaryOp TString (TIO TPort))
+      , ("openOutputFile", unaryOp TString (TIO TPort))
+      , ("closeInputPort", unaryOp TPort (TIO (TTuple [])))
+      , ("closeOutputPort", unaryOp TPort (TIO (TTuple [])))
+      -- Standard input/output
+      , ("readChar", unaryOp (TTuple []) (TIO TChar))
+      , ("readLine", unaryOp (TTuple []) (TIO TString))
       , ("writeChar", unaryOp TChar (TIO (TTuple [])))
       , ("write", forallA $ TFun (TVar a) (TIO (TTuple [])))
+      -- Port-based input/output
+      , ("readCharFromPort", unaryOp TPort (TIO TChar))
+      , ("readLineFromPort", unaryOp TPort (TIO TString))
+      , ("writeCharToPort", binOp TPort TChar (TIO (TTuple [])))
+      , ("writeToPort", forallA $ binOpT TPort (TVar a) (TIO (TTuple [])))
+      -- File operations
       , ("readFile", unaryOp TString (TIO TString))
-      , ("isEof", Forall [] [] (TIO TBool))
+      -- EOF checking
+      , ("isEof", unaryOp (TTuple []) (TIO TBool))
+      , ("isEofPort", unaryOp TPort (TIO TBool))
+      -- Flushing
       , ("flush", unaryOp (TTuple []) (TIO (TTuple [])))
+      , ("flushPort", unaryOp TPort (TIO (TTuple [])))
+      -- Random numbers
       , ("rand", binOp TInt TInt (TIO TInt))
       , ("f.rand", binOp TFloat TFloat (TIO TFloat))
+      -- IORef operations
+      , ("newIORef", forallA $ TFun (TVar a) (TIO (TIORef (TVar a))))
+      , ("writeIORef", forallA $ binOpT (TIORef (TVar a)) (TVar a) (TIO (TTuple [])))
+      , ("readIORef", forallA $ TFun (TIORef (TVar a)) (TIO (TVar a)))
+      -- Process operations
       , ("readProcess", Forall [a] [] $ ternOpT TString (TCollection TString) TString (TIO TString))
       ]
 

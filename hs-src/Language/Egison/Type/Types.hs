@@ -74,6 +74,7 @@ data Type
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
   | TIO Type                          -- ^ IO type (for IO actions)
   | TIORef Type                       -- ^ IORef type
+  | TPort                             -- ^ Port type (file handles)
   | TAny                              -- ^ Any type (for gradual typing)
   deriving (Eq, Ord, Show, Generic, Hashable)
 
@@ -129,6 +130,7 @@ freeTyVars (TMatcher t)     = freeTyVars t
 freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
+freeTyVars TPort            = Set.empty
 freeTyVars TAny             = Set.empty
 
 -- | Check if a type is a tensor type
@@ -174,6 +176,7 @@ typeConstructorName (TMatcher _) = "Matcher"
 typeConstructorName (TFun _ _) = "Fun"
 typeConstructorName (TIO _) = "IO"
 typeConstructorName (TIORef _) = "IORef"
+typeConstructorName TPort = "Port"
 typeConstructorName TAny = "Any"
 
 -- | Sanitize method names for use in identifiers

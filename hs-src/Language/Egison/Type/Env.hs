@@ -122,6 +122,7 @@ instantiate (Forall vs cs t) counter =
     substVar old new (TFun t1 t2) = TFun (substVar old new t1) (substVar old new t2)
     substVar old new (TIO t') = TIO (substVar old new t')
     substVar old new (TIORef t') = TIORef (substVar old new t')
+    substVar _ _ TPort = TPort
     substVar _ _ TAny = TAny
 
 --------------------------------------------------------------------------------
