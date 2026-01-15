@@ -162,10 +162,10 @@ symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map scalarIndexToEgison js))
-symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1]))], toEgison n]
-symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2]))], toEgison n]
-symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2, a3]))], toEgison n]
-symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2, a3, a4]))], toEgison n]
+symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply1" [ScalarData fn, ScalarData a1], toEgison n]
+symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply2" [ScalarData fn, ScalarData a1, ScalarData a2], toEgison n]
+symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply3" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3], toEgison n]
+symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3, ScalarData a4], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
@@ -185,7 +185,16 @@ egisonToScalarData t1@(InductiveData "Term" _) = do
 egisonToScalarData s1@(InductiveData "Symbol" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
   return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Apply" _) = do
+egisonToScalarData s1@(InductiveData "Apply1" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ SingleTerm 1 [s1']
+egisonToScalarData s1@(InductiveData "Apply2" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ SingleTerm 1 [s1']
+egisonToScalarData s1@(InductiveData "Apply3" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ SingleTerm 1 [s1']
+egisonToScalarData s1@(InductiveData "Apply4" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Quote" _) = do
@@ -194,6 +203,7 @@ egisonToScalarData s1@(InductiveData "Quote" _) = do
 egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
+egisonToScalarData (ScalarData s) = return s
 egisonToScalarData val = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 egisonToPolyExpr :: EgisonValue -> EvalM PolyExpr
@@ -212,11 +222,32 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   case x of
     (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) ->
       return (Symbol id name js', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, Collection mExprs], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Apply1" [fn, a1], n]) = do
   fn' <- extractScalar fn
-  mExprs' <- mapM egisonToScalarData (toList mExprs)
+  a1' <- egisonToScalarData a1
   n' <- fromEgison n
-  return (makeApplyExpr fn' mExprs', n')
+  return (Apply1 fn' a1', n')
+egisonToSymbolExpr (Tuple [InductiveData "Apply2" [fn, a1, a2], n]) = do
+  fn' <- extractScalar fn
+  a1' <- egisonToScalarData a1
+  a2' <- egisonToScalarData a2
+  n' <- fromEgison n
+  return (Apply2 fn' a1' a2', n')
+egisonToSymbolExpr (Tuple [InductiveData "Apply3" [fn, a1, a2, a3], n]) = do
+  fn' <- extractScalar fn
+  a1' <- egisonToScalarData a1
+  a2' <- egisonToScalarData a2
+  a3' <- egisonToScalarData a3
+  n' <- fromEgison n
+  return (Apply3 fn' a1' a2' a3', n')
+egisonToSymbolExpr (Tuple [InductiveData "Apply4" [fn, a1, a2, a3, a4], n]) = do
+  fn' <- extractScalar fn
+  a1' <- egisonToScalarData a1
+  a2' <- egisonToScalarData a2
+  a3' <- egisonToScalarData a3
+  a4' <- egisonToScalarData a4
+  n' <- fromEgison n
+  return (Apply4 fn' a1' a2' a3' a4', n')
 egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
