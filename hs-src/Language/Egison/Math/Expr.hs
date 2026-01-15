@@ -43,6 +43,7 @@ module Language.Egison.Math.Expr
     , singleTermM
     , mathScalarMult
     , mathNegate
+    , makeApplyExpr
     ) where
 
 import           Data.List             (intercalate)
@@ -74,10 +75,21 @@ type Monomial = [(SymbolExpr, Integer)]
 
 data SymbolExpr
   = Symbol Id String [Index ScalarData]
-  | Apply ScalarData [ScalarData]
+  | Apply1 ScalarData ScalarData
+  | Apply2 ScalarData ScalarData ScalarData
+  | Apply3 ScalarData ScalarData ScalarData ScalarData
+  | Apply4 ScalarData ScalarData ScalarData ScalarData ScalarData
   | Quote ScalarData
   | FunctionData ScalarData [ScalarData] [ScalarData] -- fnname argnames args
   deriving Eq
+
+-- Helper function to create Apply constructors based on argument count
+makeApplyExpr :: ScalarData -> [ScalarData] -> SymbolExpr
+makeApplyExpr fn [a1] = Apply1 fn a1
+makeApplyExpr fn [a1, a2] = Apply2 fn a1 a2
+makeApplyExpr fn [a1, a2, a3] = Apply3 fn a1 a2 a3
+makeApplyExpr fn [a1, a2, a3, a4] = Apply4 fn a1 a2 a3 a4
+makeApplyExpr _ _ = error "makeApplyExpr: unsupported number of arguments (must be 1-4)"
 
 type Id = String
 
@@ -111,7 +123,10 @@ funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM)
 funcM SymbolM _ = (ScalarM, List ScalarM)
 
 apply :: Pattern (PP String, PP [ScalarData]) SymbolM SymbolExpr (String, [ScalarData])
-apply _ _ (Apply (SingleSymbol (Symbol _ fn _)) args) = pure (fn, args)
+apply _ _ (Apply1 (SingleSymbol (Symbol _ fn _)) a1) = pure (fn, [a1])
+apply _ _ (Apply2 (SingleSymbol (Symbol _ fn _)) a1 a2) = pure (fn, [a1, a2])
+apply _ _ (Apply3 (SingleSymbol (Symbol _ fn _)) a1 a2 a3) = pure (fn, [a1, a2, a3])
+apply _ _ (Apply4 (SingleSymbol (Symbol _ fn _)) a1 a2 a3 a4) = pure (fn, [a1, a2, a3, a4])
 apply _ _ _                                           = mzero
 applyM :: SymbolM -> p -> (Eql, List ScalarM)
 applyM SymbolM _ = (Eql, List ScalarM)
@@ -237,16 +252,18 @@ instance Printable PolyExpr where
 
 instance Printable SymbolExpr where
   isAtom Symbol{}     = True
-  isAtom (Apply _ []) = True
   isAtom Quote{}      = True
   isAtom _            = False
 
   pretty (Symbol _ (':':':':':':_) []) = "#"
   pretty (Symbol _ s [])               = s
   pretty (Symbol _ s js)               = s ++ concatMap show js
-  pretty (Apply fn mExprs)             = unwords (map pretty' (fn : mExprs))
+  pretty (Apply1 fn a1)                = unwords (map pretty' [fn, a1])
+  pretty (Apply2 fn a1 a2)             = unwords (map pretty' [fn, a1, a2])
+  pretty (Apply3 fn a1 a2 a3)          = unwords (map pretty' [fn, a1, a2, a3])
+  pretty (Apply4 fn a1 a2 a3 a4)       = unwords (map pretty' [fn, a1, a2, a3, a4])
   pretty (Quote mExprs)                = "`" ++ pretty' mExprs
-  pretty (FunctionData name _ _)    = pretty name
+  pretty (FunctionData name _ _)       = pretty name
 
 instance Printable TermExpr where
   isAtom (Term _ [])  = True

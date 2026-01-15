@@ -87,7 +87,7 @@ rewriteLog = mapTerms f
 
 makeApply :: String -> [ScalarData] -> SymbolExpr
 makeApply f args =
-  Apply (SingleSymbol (Symbol "" f [])) args
+  makeApplyExpr (SingleSymbol (Symbol "" f [])) args
 
 rewriteExp :: ScalarData -> ScalarData
 rewriteExp = mapTerms f

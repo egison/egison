@@ -645,7 +645,7 @@ applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol _ symName _, 1)]))) refs
   mExprs <- mapM (\arg -> case arg of
                             ScalarData _ -> extractScalar arg
                             _            -> throwErrorWithTrace (EgisonBug $ "to use undefined function '" ++ symName ++ "', you have to use ScalarData args")) args
-  return (Value (ScalarData (SingleTerm 1 [(Apply fn mExprs, 1)])))
+  return (Value (ScalarData (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
 -- Type class method dispatch: look up implementation based on first argument's type
 -- Uses Type from Types.hs for dispatch (not String-based typeName)
 applyRef env (Value (ClassMethodRef clsName methName)) refs = do

@@ -25,6 +25,7 @@ module Language.Egison.Math
   , mathNumerator
   , mathDenominator
   , mathNegate
+  , makeApplyExpr
   ) where
 
 import           Language.Egison.Math.Arith

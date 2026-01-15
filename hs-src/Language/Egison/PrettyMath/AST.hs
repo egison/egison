@@ -100,10 +100,18 @@ instance ToMathExpr E.SymbolExpr where
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
       toMathExpr' _ _ = undefined -- TODO
 
-  toMathExpr (E.Apply fn mExprs) =
-    case (toMathExpr fn, mExprs) of
-      (Atom "^" [], [x, y]) -> Power (toMathExpr x) (toMathExpr y)
-      _                     -> Func (toMathExpr fn) (map toMathExpr mExprs)
+  toMathExpr (E.Apply1 fn a1) =
+    case toMathExpr fn of
+      Atom "^" [] -> Power (toMathExpr fn) (toMathExpr a1)
+      _           -> Func (toMathExpr fn) [toMathExpr a1]
+  toMathExpr (E.Apply2 fn a1 a2) =
+    case toMathExpr fn of
+      Atom "^" [] -> Power (toMathExpr a1) (toMathExpr a2)
+      _           -> Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2]
+  toMathExpr (E.Apply3 fn a1 a2 a3) =
+    Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2, toMathExpr a3]
+  toMathExpr (E.Apply4 fn a1 a2 a3 a4) =
+    Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2, toMathExpr a3, toMathExpr a4]
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
   toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _ _) = toMathExpr' js (Atom s [])
     where
