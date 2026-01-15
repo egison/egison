@@ -20,14 +20,20 @@ def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
     | #'cos $g -> (- sin g) * ∂/∂ g x
     | #'sin $g -> cos g * ∂/∂ g x
     | #'arccos $g -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
-    | apply $g $args ->
-      sum (map2 (\nat arg -> (capply '(userRefs g [nat]) args) * ∂/∂ arg x) nats args)
+    | apply1 $g $a1 ->
+      `((userRefs g [1]) a1) * ∂/∂ a1 x
+    | apply2 $g $a1 $a2 ->
+      `((userRefs g [1]) a1 a2) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2) * ∂/∂ a2 x
+    | apply3 $g $a1 $a2 $a3 ->
+      `((userRefs g [1]) a1 a2 a3) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2 a3) * ∂/∂ a2 x + `((userRefs g [3]) a1 a2 a3) * ∂/∂ a3 x
+    | apply4 $g $a1 $a2 $a3 $a4 ->
+      `((userRefs g [1]) a1 a2 a3 a4) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2 a3 a4) * ∂/∂ a2 x + `((userRefs g [3]) a1 a2 a3 a4) * ∂/∂ a3 x + `((userRefs g [4]) a1 a2 a3 a4) * ∂/∂ a4 x
     -- quote
     | quote $g ->
       let g' := ∂/∂ g x
        in if isMonomial g'
             then g'
-            else let d := capply gcd (fromPoly g')
+            else let d := foldl1 (\a b -> `(gcd a b)) (fromPoly g')
                   in d *' `(mapPoly (/' d) g')
     -- term (constant)
     | #0 -> 0

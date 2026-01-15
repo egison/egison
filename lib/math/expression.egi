@@ -52,9 +52,21 @@ def mathExpr' {} : Matcher Integer :=
       | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
         [(v, js)]
       | _ -> []
-    | apply $ $ as (eq, list mathExpr) with
-      | Div (Plus [Term 1 [(Apply $v $mexprs, 1)]]) (Plus [Term 1 []]) ->
-        [(v, map toMathExpr' mexprs)]
+    | apply1 $ $ as (mathExpr, mathExpr) with
+      | Div (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+        [(toMathExpr' v, toMathExpr' a1)]
+      | _ -> []
+    | apply2 $ $ $ as (mathExpr, mathExpr, mathExpr) with
+      | Div (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
+        [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2)]
+      | _ -> []
+    | apply3 $ $ $ $ as (mathExpr, mathExpr, mathExpr, mathExpr) with
+      | Div (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
+        [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2, toMathExpr' a3)]
+      | _ -> []
+    | apply4 $ $ $ $ $ as (mathExpr, mathExpr, mathExpr, mathExpr, mathExpr) with
+      | Div (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
+        [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2, toMathExpr' a3, toMathExpr' a4)]
       | _ -> []
     | quote $ as (mathExpr) with
       | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
@@ -118,7 +130,10 @@ def isSymbol (mexpr: MathExpr) : Bool :=
 
 def isApply (mexpr: MathExpr) : Bool :=
   match mexpr as mathExpr with
-    | apply _ _ -> True
+    | apply1 _ _ -> True
+    | apply2 _ _ _ -> True
+    | apply3 _ _ _ _ -> True
+    | apply4 _ _ _ _ _ -> True
     | _ -> False
 
 def isSimpleTerm (mexpr: MathExpr) : Bool := isSymbol mexpr || isApply mexpr
@@ -179,11 +194,32 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
                (map
                   (\(x, n) -> match x as symbolExpr with
                     | symbol _ _ -> fn x ^' n
-                    | apply $g $args ->
-                      let args' := map (mapSymbols fn) args
-                       in if args = args'
+                    | apply1 $g $a1 ->
+                      let a1' := mapSymbols fn a1
+                       in if a1 = a1'
                             then x ^' n
-                            else fn (capply g args') ^' n)
+                            else fn `(g a1') ^' n
+                    | apply2 $g $a1 $a2 ->
+                      let a1' := mapSymbols fn a1
+                          a2' := mapSymbols fn a2
+                       in if a1 = a1' && a2 = a2'
+                            then x ^' n
+                            else fn `(g a1' a2') ^' n
+                    | apply3 $g $a1 $a2 $a3 ->
+                      let a1' := mapSymbols fn a1
+                          a2' := mapSymbols fn a2
+                          a3' := mapSymbols fn a3
+                       in if a1 = a1' && a2 = a2' && a3 = a3'
+                            then x ^' n
+                            else fn `(g a1' a2' a3') ^' n
+                    | apply4 $g $a1 $a2 $a3 $a4 ->
+                      let a1' := mapSymbols fn a1
+                          a2' := mapSymbols fn a2
+                          a3' := mapSymbols fn a3
+                          a4' := mapSymbols fn a4
+                       in if a1 = a1' && a2 = a2' && a3 = a3' && a4 = a4'
+                            then x ^' n
+                            else fn `(g a1' a2' a3' a4') ^' n)
                   xs))
     mexpr
 
@@ -198,7 +234,10 @@ def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
         any
           (\(y, _) -> match y as symbolExpr with
             | #x -> True
-            | apply _ $args -> any (containSymbol x) args
+            | apply1 _ $a1 -> containSymbol x a1
+            | apply2 _ $a1 $a2 -> containSymbol x a1 || containSymbol x a2
+            | apply3 _ $a1 $a2 $a3 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3
+            | apply4 _ $a1 $a2 $a3 $a4 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3 || containSymbol x a4
             | _ -> False)
           xs)
 
@@ -208,8 +247,14 @@ def containFunction (f: MathExpr) (mexpr: MathExpr) : Bool :=
       | term _ $xs ->
         any
           (\(y, _) -> match y as symbolExpr with
-            | apply #f _     -> True
-            | apply $g $args -> any (containFunction f) args
+            | apply1 #f _ -> True
+            | apply2 #f _ _ -> True
+            | apply3 #f _ _ _ -> True
+            | apply4 #f _ _ _ _ -> True
+            | apply1 $g $a1 -> containFunction f a1
+            | apply2 $g $a1 $a2 -> containFunction f a1 || containFunction f a2
+            | apply3 $g $a1 $a2 $a3 -> containFunction f a1 || containFunction f a2 || containFunction f a3
+            | apply4 $g $a1 $a2 $a3 $a4 -> containFunction f a1 || containFunction f a2 || containFunction f a3 || containFunction f a4
             | _ -> False)
           xs)
 
@@ -236,7 +281,10 @@ def expandAll (mexpr: MathExpr) : MathExpr :=
   match mexpr as mathExpr with
     | ?isSymbol -> mexpr
     -- function application
-    | apply $g $args -> capply g (map expandAll args)
+    | apply1 $g $a1 -> `(g (expandAll a1))
+    | apply2 $g $a1 $a2 -> `(g (expandAll a1) (expandAll a2))
+    | apply3 $g $a1 $a2 $a3 -> `(g (expandAll a1) (expandAll a2) (expandAll a3))
+    | apply4 $g $a1 $a2 $a3 $a4 -> `(g (expandAll a1) (expandAll a2) (expandAll a3) (expandAll a4))
     -- quote
     | quote $g -> g
     -- term (multiplication)
@@ -250,7 +298,10 @@ def expandAll' (mexpr: MathExpr) : MathExpr :=
   match mexpr as mathExpr with
     | ?isSymbol -> mexpr
     -- function application
-    | apply $g $args -> capply g (map expandAll' args)
+    | apply1 $g $a1 -> `(g (expandAll' a1))
+    | apply2 $g $a1 $a2 -> `(g (expandAll' a1) (expandAll' a2))
+    | apply3 $g $a1 $a2 $a3 -> `(g (expandAll' a1) (expandAll' a2) (expandAll' a3))
+    | apply4 $g $a1 $a2 $a3 $a4 -> `(g (expandAll' a1) (expandAll' a2) (expandAll' a3) (expandAll' a4))
     -- quote
     | quote $g -> g
     -- term (multiplication)
