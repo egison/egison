@@ -162,7 +162,10 @@ symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map scalarIndexToEgison js))
-symbolExprToEgison (Apply fn mExprs, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison mExprs))], toEgison n]
+symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1]))], toEgison n]
+symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2]))], toEgison n]
+symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2, a3]))], toEgison n]
+symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply" [ScalarData fn, Collection (Sq.fromList (map mathExprToEgison [a1, a2, a3, a4]))], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (FunctionData name argnames args, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
@@ -213,7 +216,7 @@ egisonToSymbolExpr (Tuple [InductiveData "Apply" [fn, Collection mExprs], n]) = 
   fn' <- extractScalar fn
   mExprs' <- mapM egisonToScalarData (toList mExprs)
   n' <- fromEgison n
-  return (Apply fn' mExprs', n')
+  return (makeApplyExpr fn' mExprs', n')
 egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n

@@ -68,7 +68,6 @@ coreLibraries =
 --  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
 --  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
 
-  --  , "lib/core/sort.egi"
 --  , "lib/math/common/constants.egi"
 --  , "lib/math/common/functions.egi"
 --  , "lib/math/algebra/root.egi"
