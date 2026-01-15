@@ -444,6 +444,14 @@ expandTypeClassMethodsT tiExpr = do
         pat2' <- expandTIPattern classEnv' cs pat2
         return $ TISeqConsPat pat1' pat2'
       
+      TISeqNilPat -> return TISeqNilPat
+      
+      TIVarPat name -> return $ TIVarPat name
+      
+      TIInductiveOrPApplyPat name pats -> do
+        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        return $ TIInductiveOrPApplyPat name pats'
+      
       -- Leaf patterns: no expansion needed
       TIWildCard -> return TIWildCard
       TIPatVar name -> return $ TIPatVar name
