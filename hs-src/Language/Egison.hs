@@ -60,8 +60,8 @@ coreLibraries =
   , "lib/core/number.egi"
   , "lib/core/random.egi"
   , "lib/core/assoc.egi"
---  , "lib/core/string.egi"
---  , "lib/core/io.egi"
+  , "lib/core/string.egi"
+  , "lib/core/io.egi"
 
 
 --  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')

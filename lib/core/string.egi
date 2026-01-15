@@ -4,35 +4,42 @@
 --
 --
 
+inductive pattern String :=
+  | regexCg String String [String] String
+  | regex String String String String
+  | s.empty
+  | s.cons Char String
+  | s.join String String
+
 def string : Matcher String :=
   matcher
-    | regexCg #$regexpr $ $ $ as (string, list string, string) with
-      | $tgt -> regexCg regexpr tgt
-    | regex #$regexpr $ $ $ as (string, string, string) with
-      | $tgt -> regex regexpr tgt
-    | [] as () with
+--    | regexCg #$regexpr $ $ $ as (string, list string, string) with
+--      | $tgt -> regexCg regexpr tgt
+--    | regex #$regexpr $ $ $ as (string, string, string) with
+--      | $tgt -> regex regexpr tgt
+    | s.empty as () with
       | $tgt -> if "" = tgt then [()] else []
-    | $ :: $ as (char, string) with
+    | s.cons $ $ as (char, string) with
       | $tgt -> if "" = tgt then [] else [unconsString tgt]
-    | $ ++ #$px :: $ as (string, string) with
-      | $tgt ->
-        matchAll S.split (pack [px]) tgt as list string with
-          | (![] & $xs) ++ ![] & $ys ->
-            (S.intercalate (pack [px]) xs, S.intercalate (pack [px]) ys)
-    | $ ++ #$pxs ++ $ as (string, string) with
-      | $tgt ->
-        matchAll S.split pxs tgt as list string with
-          | (![] & $xs) ++ ![] & $ys ->
-            (S.intercalate pxs xs, S.intercalate pxs ys)
-    | $ ++ $ as (string, string) with
+--    | s.join $ (s.cons #$px $) as (string, string) with
+--      | $tgt ->
+--        matchAll S.split (pack [px]) tgt as list string with
+--          | s.join (!s.empty & $xs) (!s.empty & $ys) ->
+--            (xs, ys)
+--    | s.join $ (s.join #$pxs $) as (string, string) with
+--      | $tgt ->
+--        matchAll S.split pxs tgt as list string with
+--          | s.join (!s.empty & $xs) (!s.empty & $ys) ->
+--            (S.intercalate pxs xs, S.intercalate pxs ys)
+    | s.join $ $ as (string, string) with
       | $tgt ->
         matchAll tgt as string with
           | loop $i (1, $n)
-              ($xa_i :: ...)
+              (s.cons $xa_i ...)
               $rs -> (pack (map (\i -> xa_i) (between 1 n)), rs)
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
-    | $ as (something) with
+    | $ as something with
       | $tgt -> [tgt]
 
 --
@@ -44,15 +51,15 @@ def S.cons (x: Char) (xs: String) : String := appendString (pack [x]) xs
 
 def S.head (xs: String) : Char :=
   match xs as string with
-    | $x :: _ -> x
+    | s.cons $x _ -> x
 
 def S.tail (xs: String) : String :=
   match xs as string with
-    | _ :: $r -> r
+    | s.cons _ $r -> r
 
 def S.last (str: String) : Char :=
   match str as string with
-    | _ ++ [$c] -> c
+    | s.join _ (s.cons $c s.empty) -> c
 
 def S.map (f: Char -> Char) (xs: String) : String := pack (map f (unpack xs))
 
