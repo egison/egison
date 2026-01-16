@@ -5,21 +5,21 @@
 --
 
 inductive pattern MathExpr' :=
-  | div MathExpr' MathExpr'
-  | (/) MathExpr' MathExpr'
-  | poly [MathExpr']
-  | plus [MathExpr']
-  | term Integer [MathExpr']
-  | (+) MathExpr' MathExpr'
-  | (*) MathExpr' MathExpr'
-  | (^) MathExpr' MathExpr'
+  | div MathExpr MathExpr
+  | (/) MathExpr MathExpr
+  | poly [MathExpr]
+  | plus [MathExpr]
+  | term Integer [MathExpr]
+  | (+) MathExpr MathExpr
+  | (*) MathExpr MathExpr
+  | (^) MathExpr Integer
   | symbol String [Index]
-  | apply1 MathExpr' MathExpr'
-  | apply2 MathExpr' MathExpr' MathExpr'
-  | apply3 MathExpr' MathExpr' MathExpr' MathExpr'
-  | apply4 MathExpr' MathExpr' MathExpr' MathExpr' MathExpr'
-  | quote MathExpr'
-  | func MathExpr' [MathExpr'] [MathExpr']
+  | apply1 MathExpr MathExpr
+  | apply2 MathExpr MathExpr MathExpr
+  | apply3 MathExpr MathExpr MathExpr MathExpr
+  | apply4 MathExpr MathExpr MathExpr MathExpr MathExpr
+  | quote MathExpr
+  | func MathExpr [MathExpr] [MathExpr]
 
 inductive MathExpr' :=
   | Div PolyExpr' PolyExpr'
@@ -82,10 +82,10 @@ def mathExpr' : Matcher MathExpr' :=
             matchAll (map toMathExpr' ts) as multiset something with
               | $t :: $tss -> (t, sum' tss)
         | _ -> []
-    | term $ $ as (integer, assocMultiset mathExpr) with
-        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-            [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
-        | _ -> []
+--    | term $ $ as (integer, assocMultiset mathExpr) with
+--        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+--            [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
+--        | _ -> []
 --    | mult $ $ as (integer, multExpr) with
 --        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
 --            [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
@@ -128,34 +128,37 @@ def mathExpr' : Matcher MathExpr' :=
     | $ as something with
         | $tgt -> [toMathExpr' tgt]
 
--- def multExpr : Matcher MathExpr :=
---   matcher
---     | [] as () with
---         | $tgt ->
---             match tgt as mathExpr with
---                 | #0 -> [()]
---                 | _ -> []
---     | $ ^ #$k * $ as (mathExpr, multExpr) with
---         | $tgt ->
---             matchAll tgt as mathExpr with
---                 | term _ ($x ^ #k :: $xs) -> (x, product' (map (uncurry (^')) xs))
---     | $ ^ $ * $ as (mathExpr, integer, multExpr) with
---         | $tgt ->
---             matchAll tgt as mathExpr with
---                 | term _ ($x ^ $n :: $xs) -> (x, n, product' (map (uncurry (^')) xs))
---     | $ ^ $ as (mathExpr, integer) with
---         | $tgt ->
---             match tgt as mathExpr with
---                 | term _ ($x ^ $n :: []) -> [(x, n)]
---                 | _ -> []
---     | $ * $ as (mathExpr, multExpr) with
---         | $tgt ->
---             matchAll tgt as mathExpr with
---                 | term _ ($x :: $rs) -> (x, product' (map (uncurry (^')) rs))
---     | $ as mathExpr with
---         | $tgt -> [tgt]
+def multExpr : Matcher MathExpr :=
+  matcher
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as multExpr' with
+        | $tgt -> [fromMathExpr tgt]
+
+def multExpr' : Matcher MathExpr' :=
+  matcher
+--    | $ ^ #$k * $ as (mathExpr, multExpr) with
+--        | $tgt ->
+--            matchAll tgt as mathExpr' with
+--                | term _ (($x, #k) :: $xs) -> (x, product' (map (uncurry (^')) (map toMathExpr' xs)))
+--    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
+--        | $tgt ->
+--            matchAll tgt as mathExpr' with
+--                | term _ (($x ^ $n) :: $xs) -> (toMathExpr' x, n, product' (map (uncurry (^')) (map (\(x, n) -> (toMathExpr' x, n)) xs)))
+--    | $ ^ $ as (mathExpr, integer) with
+--        | $tgt ->
+--            match tgt as mathExpr' with
+--                | term _ ($x ^ $n :: []) -> [(toMathExpr' x, n)]
+--                | _ -> []
+--    | $ * $ as (mathExpr, multExpr) with
+--        | $tgt ->
+--            matchAll tgt as mathExpr' with
+--                | term _ ($x :: $rs) -> (toMathExpr' x, product' (map (uncurry (^')) (map (\(x, n) -> (toMathExpr' x, n)) rs)))
+    | $ as something with
+        | $tgt -> [toMathExpr' tgt]
 
 def (+') : MathExpr -> MathExpr -> MathExpr := i.+
 def (*') : MathExpr -> MathExpr -> MathExpr := i.*
+def (^') : MathExpr -> Integer -> MathExpr := i.power
 def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
 def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
