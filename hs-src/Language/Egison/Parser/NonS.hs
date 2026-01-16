@@ -251,7 +251,7 @@ inductiveTypeExprInParen = typeExprWithApp
 inductiveTypeVar :: Parser String
 inductiveTypeVar = lexeme $ try $ do
   c <- lowerChar
-  cs <- many alphaNumChar
+  cs <- many identChar
   let name = c : cs
   -- Reject if it looks like a keyword or function name (> 2 chars usually)
   -- Common type vars: a, b, c, t, k, v, xs, elem
@@ -648,7 +648,7 @@ typeAtom =
 typeNameIdent :: Parser String
 typeNameIdent = lexeme $ do
   c <- upperChar
-  cs <- many alphaNumChar
+  cs <- many identChar
   let name = c : cs
   -- Don't consume reserved type keywords
   if name `elem` typeReservedKeywords
@@ -668,7 +668,7 @@ tensorTypeExpr = do
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do
   c <- lowerChar
-  cs <- many (alphaNumChar <|> char '_')
+  cs <- many identChar
   let name = c : cs
   if name `elem` typeReservedWords
     then fail $ "Reserved word: " ++ name
@@ -1401,7 +1401,7 @@ lowerId = (lexeme . try) (p >>= check)
 upperId :: Parser String
 upperId = (lexeme . try) (p >>= check)
   where
-    p = (:) <$> satisfy isAsciiUpper <*> many alphaNumChar
+    p = (:) <$> satisfy isAsciiUpper <*> identString
     check x = if x `elem` upperReservedWords
                 then fail $ "keyword " ++ show x ++ " cannot be an identifier"
                 else return x
