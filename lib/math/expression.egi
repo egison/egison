@@ -9,7 +9,8 @@ inductive pattern MathExpr' :=
   | (/) MathExpr MathExpr
   | poly [MathExpr]
   | plus [MathExpr]
-  | term Integer [MathExpr]
+  | term Integer [(MathExpr, Integer)]
+  | mult Integer MathExpr
   | (+) MathExpr MathExpr
   | (*) MathExpr MathExpr
   | (^) MathExpr Integer
@@ -82,22 +83,22 @@ def mathExpr' : Matcher MathExpr' :=
             matchAll (map toMathExpr' ts) as multiset something with
               | $t :: $tss -> (t, sum' tss)
         | _ -> []
---    | term $ $ as (integer, assocMultiset mathExpr) with
---        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
---            [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
---        | _ -> []
---    | mult $ $ as (integer, multExpr) with
---        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
---            [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
---        | _ -> []
---    | $ * $ as (integer, multExpr) with
---        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
---            [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
---        | _ -> []
---     | symbol $ $ as (eq, list indexExpr) with
---         | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
---             [(v, js)]
---         | _ -> []
+    | term $ $ as (integer, assocMultiset mathExpr) with
+        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, map (\(x, n) -> (toMathExpr' x, n)) xs)]
+        | _ -> []
+    | mult $ $ as (integer, multExpr) with
+        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
+        | _ -> []
+    | $ * $ as (integer, multExpr) with
+        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> toMathExpr' x ^' n) xs))]
+        | _ -> []
+    | symbol $ $ as (eq, list indexExpr) with
+        | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | _ -> []
     | apply1 $ $ as (mathExpr, mathExpr) with
         | Div (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
             [(toMathExpr' v, toMathExpr' a1)]
@@ -137,23 +138,19 @@ def multExpr : Matcher MathExpr :=
 
 def multExpr' : Matcher MathExpr' :=
   matcher
---    | $ ^ #$k * $ as (mathExpr, multExpr) with
---        | $tgt ->
---            matchAll tgt as mathExpr' with
---                | term _ (($x, #k) :: $xs) -> (x, product' (map (uncurry (^')) (map toMathExpr' xs)))
---    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
---        | $tgt ->
---            matchAll tgt as mathExpr' with
---                | term _ (($x ^ $n) :: $xs) -> (toMathExpr' x, n, product' (map (uncurry (^')) (map (\(x, n) -> (toMathExpr' x, n)) xs)))
---    | $ ^ $ as (mathExpr, integer) with
---        | $tgt ->
---            match tgt as mathExpr' with
---                | term _ ($x ^ $n :: []) -> [(toMathExpr' x, n)]
---                | _ -> []
---    | $ * $ as (mathExpr, multExpr) with
---        | $tgt ->
---            matchAll tgt as mathExpr' with
---                | term _ ($x :: $rs) -> (toMathExpr' x, product' (map (uncurry (^')) (map (\(x, n) -> (toMathExpr' x, n)) rs)))
+    | $ * $ as (mathExpr, multExpr) with
+        | $tgt ->
+            matchAll tgt as mathExpr' with
+                | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
+    | $ ^ $ as (mathExpr, integer) with
+        | $tgt ->
+            match tgt as mathExpr' with
+                | term _ (($x, $n) :: []) -> [(x, n)]
+                | _ -> []
+    | $ * $ as (mathExpr, multExpr) with
+        | $tgt ->
+            matchAll tgt as mathExpr' with
+                | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (uncurry (^')) (map (\(x, n) -> (x, n)) rs)))
     | $ as something with
         | $tgt -> [toMathExpr' tgt]
 
