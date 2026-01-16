@@ -1395,7 +1395,7 @@ inferIExprWithContext expr ctx = case expr of
     return (mkTIExpr TInt (TIQuoteExpr eTI), s)
   IQuoteSymbolExpr e -> do
     (eTI, s) <- inferIExprWithContext e ctx
-    return (mkTIExpr TInt (TIQuoteSymbolExpr eTI), s)
+    return (mkTIExpr (tiExprType eTI) (TIQuoteSymbolExpr eTI), s)
   
   -- Indexed expression (tensor indexing)
   IIndexedExpr isSupported baseExpr indices -> do

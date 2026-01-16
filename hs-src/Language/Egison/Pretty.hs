@@ -517,6 +517,7 @@ instance Pretty IPrimitiveDataPattern where
   pretty PDEmptyPat = pretty "[]"
   pretty (PDConsPat pat1 pat2) = pretty pat1 <+> pretty "::" <+> pretty pat2
   pretty (PDSnocPat pat1 pat2) = pretty pat1 <+> pretty "*:" <+> pretty pat2
+  pretty (PDConstantPat c) = pretty c
 
 instance Pretty IPattern where
   pretty IWildCard = pretty "_"
