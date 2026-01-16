@@ -35,27 +35,29 @@ inductive Monomial' :=
   | Monomial [(SymbolExpr', Integer)]
 
 inductive SymbolExpr' :=
-  | Symbol String [Index']
-  | Apply1 MathExpr' MathExpr'
-  | Apply2 MathExpr' MathExpr' MathExpr'
-  | Apply3 MathExpr' MathExpr' MathExpr' MathExpr'
-  | Apply4 MathExpr' MathExpr' MathExpr' MathExpr' MathExpr'
+  | Symbol String [IndexExpr]
+  | Function MathExpr [MathExpr] [MathExpr]
+  | Quote MathExpr
+  | Apply1 MathExpr MathExpr
+  | Apply2 MathExpr MathExpr MathExpr
+  | Apply3 MathExpr MathExpr MathExpr MathExpr
+  | Apply4 MathExpr MathExpr MathExpr MathExpr MathExpr
 
 inductive IndexExpr :=
-  | Sub MathExpr'
-  | Sup MathExpr'
-  | User MathExpr'
+  | Sub MathExpr
+  | Sup MathExpr
+  | User MathExpr
 
 inductive pattern IndexExpr :=
-  | sub MathExpr'
-  | sup MathExpr'
-  | user MathExpr'
+  | sub MathExpr
+  | sup MathExpr
+  | user MathExpr
 
 def indexExpr : Matcher IndexExpr :=
   algebraicDataMatcher
-    | sub mathExpr'
-    | sup mathExpr'
-    | user mathExpr'
+    | sub mathExpr
+    | sup mathExpr
+    | user mathExpr
 
 def mathExpr : Matcher MathExpr :=
   matcher
@@ -101,31 +103,30 @@ def mathExpr' : Matcher MathExpr' :=
         | _ -> []
     | apply1 $ $ as (mathExpr, mathExpr) with
         | Div (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
-            [(toMathExpr' v, toMathExpr' a1)]
+            [(v, a1)]
         | _ -> []
     | apply2 $ $ $ as (mathExpr, mathExpr, mathExpr) with
         | Div (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
-            [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2)]
+            [(v, a1, a2)]
         | _ -> []
     | apply3 $ $ $ $ as (mathExpr, mathExpr, mathExpr, mathExpr) with
         | Div (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
-            [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2, toMathExpr' a3)]
+            [(v, a1, a2, a3)]
         | _ -> []
     | apply4 $ $ $ $ $ as (mathExpr, mathExpr, mathExpr, mathExpr, mathExpr) with
         | Div (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
-            [(toMathExpr' v, toMathExpr' a1, toMathExpr' a2, toMathExpr' a3, toMathExpr' a4)]
+            [(v, a1, a2, a3, a4)]
         | _ -> []
---     | quote $ as (mathExpr) with
---         | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
---             [toMathExpr' mexpr]
---         | _ -> []
---     | func $ $ $ as
---         (mathExpr, list mathExpr, list mathExpr) with
---         | Div
---             (Plus [Term 1 [(Function $name $argnames $args, 1)]])
---             (Plus [Term 1 []]) ->
---             [(name, argnames, args, js)]
---         | _ -> []
+    | quote $ as (mathExpr) with
+        | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
+            [mexpr]
+        | _ -> []
+    | func $ $ $ as (mathExpr, list mathExpr, list mathExpr) with
+        | Div
+            (Plus [Term 1 [(Function $name $argnames $args, 1)]])
+            (Plus [Term 1 []]) ->
+            [(name, argnames, args)]
+        | _ -> []
     | $ as something with
         | $tgt -> [toMathExpr' tgt]
 
