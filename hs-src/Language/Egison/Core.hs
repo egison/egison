@@ -127,12 +127,14 @@ evalExprShallow env (IQuoteExpr expr) = do
     Value (ScalarData s) -> return . Value . ScalarData $ SingleTerm 1 [(Quote s, 1)]
     _                    -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
 
-evalExprShallow env (IQuoteSymbolExpr expr) = do
-  whnf <- evalExprShallow env expr
-  case whnf of
-    Value (Func (Just (Var name [])) _ _ _) -> return . Value $ symbolScalarData "" name
-    Value (ScalarData _)                    -> return whnf
-    _                                       -> throwErrorWithTrace (TypeMismatch "value in quote-function" whnf)
+evalExprShallow env (IQuoteSymbolExpr expr) =
+  case expr of
+    IVarExpr name -> return . Value $ symbolScalarData "" name
+    _ -> do
+      whnf <- evalExprShallow env expr
+      case whnf of
+        Value (ScalarData _) -> return whnf
+        _                    -> throwErrorWithTrace (TypeMismatch "scalar or symbol in quote-symbol" whnf)
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
