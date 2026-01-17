@@ -860,6 +860,12 @@ prettyTypeDoc (Types.TTensor t) = pretty "Tensor" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TInductive name []) = pretty name
 prettyTypeDoc (Types.TInductive name ts) = hsep (pretty name : map prettyTypeDoc ts)
 prettyTypeDoc Types.TAny = pretty "_"
+prettyTypeDoc Types.TPort = pretty "Port"
+prettyTypeDoc Types.TMathExpr = pretty "MathExpr"
+prettyTypeDoc Types.TPolyExpr = pretty "PolyExpr"
+prettyTypeDoc Types.TTermExpr = pretty "TermExpr"
+prettyTypeDoc Types.TSymbolExpr = pretty "SymbolExpr"
+prettyTypeDoc Types.TIndexExpr = pretty "IndexExpr"
 
 class Complex a where
   isAtom :: a -> Bool

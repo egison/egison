@@ -243,7 +243,7 @@ def scanAllTerms (mexpr: MathExpr) (f: MathExpr -> Bool) : Bool :=
 
 def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
   scanAllTerms mexpr
-    (\match as mathExpr with
+    (\t -> match t as mathExpr with
       | term _ $xs ->
           any
             (\(y, _) -> match y as mathExpr with
@@ -255,19 +255,26 @@ def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
               | _ -> False)
             xs)
 
-def containFunction (f: MathExpr) (mexpr: MathExpr) : Bool :=
+def containFunction1 (f : MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
   scanAllTerms mexpr
-    (\match as mathExpr with
+    (\t -> match t as mathExpr with
       | term _ $xs ->
           any
             (\(y, _) -> match y as mathExpr with
-              | apply1 #f _ -> True
-              | apply2 #f _ _ -> True
-              | apply3 #f _ _ _ -> True
-              | apply4 #f _ _ _ _ -> True
-              | apply1 $g $a1 -> containFunction f a1
-              | apply2 $g $a1 $a2 -> containFunction f a1 || containFunction f a2
-              | apply3 $g $a1 $a2 $a3 -> containFunction f a1 || containFunction f a2 || containFunction f a3
-              | apply4 $g $a1 $a2 $a3 $a4 -> containFunction f a1 || containFunction f a2 || containFunction f a3 || containFunction f a4
+              | apply1 $g _ -> f = g
+              | apply2 _ $a1 $a2 -> containFunction1 f a1 || containFunction1 f a2
+              | apply3 _ $a1 $a2 $a3 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3
+              | apply4 _ $a1 $a2 $a3 $a4 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3 || containFunction1 f a4
               | _ -> False)
             xs)
+
+matchAll ('fact 3) as mathExpr with
+  | apply1 $f $a1 -> (f, a1)
+
+matchAll ('fact 3) as mathExpr with
+  | apply1 $f $a1 -> f a1
+
+matchAll ('fact 3) as mathExpr with
+  | apply1 #fact $a1 -> a1
+
+-- containFunction1 fact ('fact 3)
