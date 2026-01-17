@@ -1129,6 +1129,11 @@ isPatternVar :: IPrimitiveDataPattern -> Bool
 isPatternVar (PDPatVar _) = True
 isPatternVar _            = False
 
+-- Helper: Extract function object from ScalarData if it contains QuoteFunction
+extractFunctionObject :: ScalarData -> WHNFData
+extractFunctionObject (SingleTerm 1 [(QuoteFunction funcWHNF, 1)]) = funcWHNF
+extractFunctionObject scalarData = Value (ScalarData scalarData)
+
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
 primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
@@ -1225,7 +1230,7 @@ primitiveDataPatternMatch (PDApply1Pat patFn patArg) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (Apply1 fn arg)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
       argRef <- lift $ newEvaluatedObjectRef (Value (ScalarData arg))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> primitiveDataPatternMatch patArg argRef
@@ -1234,7 +1239,7 @@ primitiveDataPatternMatch (PDApply2Pat patFn patArg1 patArg2) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (Apply2 fn arg1 arg2)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
       arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
       arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
       (++) <$> primitiveDataPatternMatch patFn fnRef
@@ -1245,7 +1250,7 @@ primitiveDataPatternMatch (PDApply3Pat patFn patArg1 patArg2 patArg3) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (Apply3 fn arg1 arg2 arg3)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
       arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
       arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
       arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))
@@ -1258,7 +1263,7 @@ primitiveDataPatternMatch (PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4) re
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (Apply4 fn arg1 arg2 arg3 arg4)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
       arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
       arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
       arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))

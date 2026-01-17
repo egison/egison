@@ -1298,16 +1298,18 @@ inferIExprWithContext expr ctx = case expr of
           return (applySubst s expectedType, bindings1 ++ bindings2, s)
         
         PDApply1Pat patFn patArg -> do
-          -- Apply1: SymbolExpr -> MathExpr, MathExpr
+          -- Apply1: SymbolExpr -> (MathExpr -> MathExpr), MathExpr
           let mathExprTy = TMathExpr
-          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+              fnTy = TFun mathExprTy mathExprTy
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
           (_, bindings2, s2) <- inferPrimitiveDataPattern patArg (applySubst s1 mathExprTy) ctx
           let s = composeSubst s2 s1
           return (applySubst s expectedType, bindings1 ++ bindings2, s)
         
         PDApply2Pat patFn patArg1 patArg2 -> do
           let mathExprTy = TMathExpr
-          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+              fnTy = TFun mathExprTy (TFun mathExprTy mathExprTy)
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
           (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
           (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
           let s = composeSubst s3 (composeSubst s2 s1)
@@ -1315,7 +1317,8 @@ inferIExprWithContext expr ctx = case expr of
         
         PDApply3Pat patFn patArg1 patArg2 patArg3 -> do
           let mathExprTy = TMathExpr
-          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+              fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy))
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
           (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
           (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
           (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
@@ -1324,7 +1327,8 @@ inferIExprWithContext expr ctx = case expr of
         
         PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4 -> do
           let mathExprTy = TMathExpr
-          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+              fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy)))
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
           (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
           (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
           (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
@@ -2380,16 +2384,20 @@ extractIBindingsFromPattern pat ty = case pat of
     in extractIBindingsFromPattern p1 TString ++ extractIBindingsFromPattern p2 (TCollection indexExprTy)
   PDApply1Pat p1 p2 ->
     let mathExprTy = TMathExpr
-    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy
+        fnTy = TFun mathExprTy mathExprTy
+    in extractIBindingsFromPattern p1 fnTy ++ extractIBindingsFromPattern p2 mathExprTy
   PDApply2Pat p1 p2 p3 ->
     let mathExprTy = TMathExpr
-    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy
+        fnTy = TFun mathExprTy (TFun mathExprTy mathExprTy)
+    in extractIBindingsFromPattern p1 fnTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy
   PDApply3Pat p1 p2 p3 p4 ->
     let mathExprTy = TMathExpr
-    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy
+        fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy))
+    in extractIBindingsFromPattern p1 fnTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy
   PDApply4Pat p1 p2 p3 p4 p5 ->
     let mathExprTy = TMathExpr
-    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy ++ extractIBindingsFromPattern p5 mathExprTy
+        fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy)))
+    in extractIBindingsFromPattern p1 fnTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy ++ extractIBindingsFromPattern p5 mathExprTy
   PDQuotePat p ->
     let mathExprTy = TMathExpr
     in extractIBindingsFromPattern p mathExprTy
