@@ -33,6 +33,7 @@ module Language.Egison.Data
     , ObjectRef
     , WHNFData (..)
     , Inner (..)
+    , prettyFunctionName
     -- * Environment
     , Env (..)
     , Binding
@@ -172,6 +173,8 @@ symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply2" [ScalarD
 symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply3" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3], toEgison n]
 symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3, ScalarData a4], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
+symbolExprToEgison (QuoteFunction (Value funcVal), n) = Tuple [InductiveData "QuoteFunction" [funcVal], toEgison n]
+symbolExprToEgison (QuoteFunction whnf, n) = error $ "symbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
 symbolExprToEgison (FunctionData name argnames args, n) =
   Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
 
@@ -207,6 +210,9 @@ egisonToScalarData s1@(InductiveData "Apply4" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Quote" _) = do
+  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
+  return $ SingleTerm 1 [s1']
+egisonToScalarData s1@(InductiveData "QuoteFunction" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
 egisonToScalarData s1@(InductiveData "Function" _) = do
@@ -261,6 +267,9 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
   mExpr' <- egisonToScalarData mExpr
   n' <- fromEgison n
   return (Quote mExpr', n')
+egisonToSymbolExpr (Tuple [InductiveData "QuoteFunction" [funcVal], n]) = do
+  n' <- fromEgison n
+  return (QuoteFunction (Value funcVal), n')
 egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args], n]) = do
   name' <- extractScalar name
   argnames' <- mapM extractScalar (toList argnames)
@@ -310,7 +319,9 @@ instance Show EgisonValue where
   show (CharHash hash) = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show (StrHash hash)  = "{|" ++ intercalate ", " (map (\(key, val) -> "[" ++ show key ++ ", " ++ show val ++ "]") $ HashMap.toList hash) ++ "|}"
   show UserMatcher{} = "#<user-matcher>"
-  show (Func _ _ args _) = "#<lambda [" ++ intercalate ", " (map show args) ++ "] ...>"
+  show (Func maybeName _ args _) = case maybeName of
+    Just name -> "#<lambda " ++ show name ++ " [" ++ intercalate ", " (map show args) ++ "] ...>"
+    Nothing -> "#<lambda [" ++ intercalate ", " (map show args) ++ "] ...>"
   show (CFunc _ name _) = "#<cambda " ++ name ++ " ...>"
   show (MemoizedFunc _ _ names _) = "#<memoized-lambda [" ++ intercalate ", " names ++ "] ...>"
   show PatternFunc{} = "#<pattern-function>"
@@ -470,6 +481,12 @@ data WHNFData
 data Inner
   = IElement ObjectRef
   | ISubCollection ObjectRef
+
+-- Helper to extract function name from WHNFData for pretty printing
+prettyFunctionName :: WHNFData -> String
+prettyFunctionName (Value (Func (Just (Var name _)) _ _ _)) = name
+prettyFunctionName (Value (MemoizedFunc _ _ _ _)) = "<function>"
+prettyFunctionName _ = "<function>"
 
 instance Show WHNFData where
   show (Value val)                = show val
