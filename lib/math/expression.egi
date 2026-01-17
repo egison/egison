@@ -262,6 +262,7 @@ def containFunction1 (f : MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
           any
             (\(y, _) -> match y as mathExpr with
               | apply1 #f _ -> True
+              | apply1 _ $a1 -> containFunction1 f a1
               | apply2 _ $a1 $a2 -> containFunction1 f a1 || containFunction1 f a2
               | apply3 _ $a1 $a2 $a3 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3 || containFunction1 f a4
@@ -274,8 +275,9 @@ def containFunction2 (f : MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : 
       | term _ $xs ->
           any
             (\(y, _) -> match y as mathExpr with
-              | apply2 $g _ _ -> f = g
+              | apply2 #f _ _ -> True
               | apply1 _ $a1 -> containFunction2 f a1
+              | apply2 _ $a1 $a2 -> containFunction2 f a1 || containFunction2 f a2
               | apply3 _ $a1 $a2 $a3 -> containFunction2 f a1 || containFunction2 f a2 || containFunction2 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction2 f a1 || containFunction2 f a2 || containFunction2 f a3 || containFunction2 f a4
               | _ -> False)
@@ -287,9 +289,10 @@ def containFunction3 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr) (mexpr: 
       | term _ $xs ->
           any
             (\(y, _) -> match y as mathExpr with
-              | apply3 $g _ _ _ -> f = g
+              | apply3 #f _ _ _ -> True
               | apply1 _ $a1 -> containFunction3 f a1
               | apply2 _ $a1 $a2 -> containFunction3 f a1 || containFunction3 f a2
+              | apply3 _ $a1 $a2 $a3 -> containFunction3 f a1 || containFunction3 f a2 || containFunction3 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction3 f a1 || containFunction3 f a2 || containFunction3 f a3 || containFunction3 f a4
               | _ -> False)
             xs)
@@ -300,9 +303,105 @@ def containFunction4 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathEx
       | term _ $xs ->
           any
             (\(y, _) -> match y as mathExpr with
-              | apply4 $g _ _ _ _ -> f = g
+              | apply4 #f _ _ _ _ -> True
               | apply1 _ $a1 -> containFunction4 f a1
               | apply2 _ $a1 $a2 -> containFunction4 f a1 || containFunction4 f a2
               | apply3 _ $a1 $a2 $a3 -> containFunction4 f a1 || containFunction4 f a2 || containFunction4 f a3
+              | apply4 _ $a1 $a2 $a3 $a4 -> containFunction4 f a1 || containFunction4 f a2 || containFunction4 f a3 || containFunction4 f a4
               | _ -> False)
             xs)
+
+--
+-- Substitute
+--
+def substitute (ls: [(MathExpr, MathExpr)]) (mexpr: MathExpr) : MathExpr :=
+  match ls as list (symbolExpr, mathExpr) with
+    | [] -> mathNormalize mexpr
+    | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
+
+def substitute' (x: MathExpr) (a: MathExpr) (mexpr: MathExpr) : MathExpr := 
+  mapSymbols (rewriteSymbol x a) mexpr
+
+def rewriteSymbol (x: MathExpr) (a: MathExpr) (sexpr: MathExpr) : MathExpr :=
+  match sexpr as symbolExpr with
+    | #x -> a
+    | _ -> sexpr
+
+def V.substitute (xs: Vector MathExpr) (ys: Vector MathExpr) (mexpr: MathExpr) : MathExpr :=
+  substitute (zip (tensorToList xs) (tensorToList ys)) mexpr
+
+def expandAll (mexpr: MathExpr) : MathExpr :=
+  match mexpr as mathExpr with
+    | ?isSymbol -> mexpr
+    -- function application
+    | apply1 $g $a1 -> `(g (expandAll a1))
+    | apply2 $g $a1 $a2 -> `(g (expandAll a1) (expandAll a2))
+    | apply3 $g $a1 $a2 $a3 -> `(g (expandAll a1) (expandAll a2) (expandAll a3))
+    | apply4 $g $a1 $a2 $a3 $a4 -> `(g (expandAll a1) (expandAll a2) (expandAll a3) (expandAll a4))
+    -- quote
+    | quote $g -> g
+    -- term (multiplication)
+    | term $a $ps -> a * product (map (\(x, n) -> expandAll x ^ expandAll n) ps)
+    -- polynomial
+    | poly $ts -> sum (map expandAll ts)
+    -- quotient
+    | $p1 / $p2 -> expandAll p1 / expandAll p2
+
+def expandAll' (mexpr: MathExpr) : MathExpr :=
+  match mexpr as mathExpr with
+    | ?isSymbol -> mexpr
+    -- function application
+    | apply1 $g $a1 -> `(g (expandAll' a1))
+    | apply2 $g $a1 $a2 -> `(g (expandAll' a1) (expandAll' a2))
+    | apply3 $g $a1 $a2 $a3 -> `(g (expandAll' a1) (expandAll' a2) (expandAll' a3))
+    | apply4 $g $a1 $a2 $a3 $a4 -> `(g (expandAll' a1) (expandAll' a2) (expandAll' a3) (expandAll' a4))
+    -- quote
+    | quote $g -> g
+    -- term (multiplication)
+    | term $a $ps -> a *' product' (map (\(x, n) -> expandAll' x ^' expandAll' n) ps)
+    -- polynomial
+    | poly $ts -> sum' (map expandAll' ts)
+    -- quotient
+    | $p1 / $p2 -> expandAll' p1 / expandAll' p2
+
+--
+-- Coefficient
+--
+def coefficients (f: MathExpr) (x: MathExpr) : [MathExpr] :=
+  let m := maximum
+    (0 :: (matchAll f as mathExpr with
+      | poly (term $a (#x ^ $k :: $ts) :: _) / _ -> k))
+   in map (coefficient f x) (between 0 m)
+
+def coefficient (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
+  if m = 0
+    then sum
+      (matchAll f as mathExpr with
+        | poly (term $a (!(#x :: _) & $ts) :: _) / _ ->
+          foldl (*') a (map (uncurry (^')) ts)) / denominator f
+    else coefficient' f x m
+
+def coefficient' (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
+  sum
+    (matchAll f as mathExpr with
+      | poly (term $a (#x ^ #m :: (!(#x :: _) & $ts)) :: _) / _ ->
+        foldl (*') a (map (uncurry (^')) ts)) / denominator f
+
+def coefficient2 (f: MathExpr) (x: MathExpr) (y: MathExpr) : MathExpr :=
+  sum
+    (matchAll f as mathExpr with
+      | poly (term $a (#x :: #y :: $ts) :: _) / _ ->
+        foldl (*') a (map (uncurry (^')) ts)) / denominator f
+
+def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
+  if length xs < length ys
+    then ([], xs)
+    else match (ys, xs) as (list mathExpr, list mathExpr) with
+      | ($y :: $yrs, $x :: $xrs) ->
+        let (zs, rs) := L./
+          (map2
+            (-)
+            (take (length yrs) xrs)
+            (map (* (x / y)) yrs) ++ drop (length yrs) xrs)
+          ys
+         in (x / y :: zs, rs)
