@@ -8,6 +8,7 @@ inductive pattern MathExpr :=
   | div MathExpr MathExpr
   | (/) MathExpr MathExpr
   | plus [MathExpr]
+  | poly [MathExpr]
   | term Integer [(MathExpr, Integer)]
   | mult Integer MathExpr
   | (+) MathExpr MathExpr
@@ -27,10 +28,20 @@ inductive pattern IndexExpr :=
   | user MathExpr
 
 def indexExpr : Matcher IndexExpr :=
-  algebraicDataMatcher
-    | sub mathExpr
-    | sup mathExpr
-    | user mathExpr
+  matcher
+    | sub $ as (mathExpr) with
+        | Sub $e -> [e]
+        | _ -> []
+    | sup $ as (mathExpr) with
+        | Sup $e -> [e]
+        | _ -> []
+    | user $ as (mathExpr) with
+        | User $e -> [e]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
 
 def mathExpr : Matcher MathExpr :=
   matcher
@@ -103,18 +114,18 @@ def multExpr : Matcher MathExpr :=
     | $ * $ as (mathExpr, multExpr) with
         | $tgt ->
             matchAll tgt as mathExpr with
-                | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
+              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
     | $ ^ $ as (mathExpr, integer) with
         | $tgt ->
             match tgt as mathExpr with
-                | term _ (($x, $n) :: []) -> [(x, n)]
-                | _ -> []
+              | term _ (($x, $n) :: []) -> [(x, n)]
+              | _ -> []
     | $ * $ as (mathExpr, multExpr) with
         | $tgt ->
             matchAll tgt as mathExpr with
-                | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (uncurry (^')) (map (\(x, n) -> (x, n)) rs)))
+              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (uncurry (^')) (map (\(x, n) -> (x, n)) rs)))
     | #$val as () with
-                | $tgt -> if val = tgt then [()] else []
+        | $tgt -> if val = tgt then [()] else []
     | $ as something with
         | $tgt -> [tgt]
 

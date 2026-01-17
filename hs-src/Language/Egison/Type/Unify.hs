@@ -17,7 +17,7 @@ import qualified Data.Set                    as Set
 import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
                                               emptySubst, singletonSubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
-import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars)
+import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes)
 
 -- | Unification errors
 data UnifyError
@@ -27,17 +27,30 @@ data UnifyError
 
 -- | Unify two types, returning a substitution if successful
 unify :: Type -> Type -> Either UnifyError Subst
--- Normalize tensor types first
+-- Normalize tensor types and inductive types first
 unify t1 t2 =
-  unify' (normalizeTensorType t1) (normalizeTensorType t2)
+  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
+      t2' = normalizeInductiveTypes (normalizeTensorType t2)
+  in unify' t1' t2'
 
 unify' :: Type -> Type -> Either UnifyError Subst
 -- Same types unify trivially
 unify' TInt TInt = Right emptySubst
+unify' TMathExpr TMathExpr = Right emptySubst
+unify' TPolyExpr TPolyExpr = Right emptySubst
+unify' TTermExpr TTermExpr = Right emptySubst
+unify' TSymbolExpr TSymbolExpr = Right emptySubst
+unify' TIndexExpr TIndexExpr = Right emptySubst
 unify' TFloat TFloat = Right emptySubst
 unify' TBool TBool = Right emptySubst
 unify' TChar TChar = Right emptySubst
 unify' TString TString = Right emptySubst
+
+-- Special rule: TInt and TMathExpr unify to TMathExpr
+-- In Egison, integers are automatically converted to MathExpr
+unify' TInt TMathExpr = Right emptySubst
+unify' TMathExpr TInt = Right emptySubst
+
 -- Unit type is represented as empty tuple TTuple []
 
 -- Type variables
@@ -144,15 +157,26 @@ unifyMatcherWithTuple b ts = do
 -- According to type-tensor-simple.md: "トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。"
 unifyWithTopLevel :: Type -> Type -> Either UnifyError Subst
 unifyWithTopLevel t1 t2 =
-  unifyWithTopLevel' (normalizeTensorType t1) (normalizeTensorType t2)
+  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
+      t2' = normalizeInductiveTypes (normalizeTensorType t2)
+  in unifyWithTopLevel' t1' t2'
 
 unifyWithTopLevel' :: Type -> Type -> Either UnifyError Subst
 -- Same types unify trivially
 unifyWithTopLevel' TInt TInt = Right emptySubst
+unifyWithTopLevel' TMathExpr TMathExpr = Right emptySubst
+unifyWithTopLevel' TPolyExpr TPolyExpr = Right emptySubst
+unifyWithTopLevel' TTermExpr TTermExpr = Right emptySubst
+unifyWithTopLevel' TSymbolExpr TSymbolExpr = Right emptySubst
+unifyWithTopLevel' TIndexExpr TIndexExpr = Right emptySubst
 unifyWithTopLevel' TFloat TFloat = Right emptySubst
 unifyWithTopLevel' TBool TBool = Right emptySubst
 unifyWithTopLevel' TChar TChar = Right emptySubst
 unifyWithTopLevel' TString TString = Right emptySubst
+
+-- Special rule: TInt and TMathExpr unify to TMathExpr
+unifyWithTopLevel' TInt TMathExpr = Right emptySubst
+unifyWithTopLevel' TMathExpr TInt = Right emptySubst
 
 -- Type variables
 unifyWithTopLevel' (TVar v) t = unifyVar v t

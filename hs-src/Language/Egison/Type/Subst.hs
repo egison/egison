@@ -49,6 +49,11 @@ composeSubst s2@(Subst m2) (Subst m1) =
 -- | Apply a substitution to a type
 applySubst :: Subst -> Type -> Type
 applySubst _ TInt             = TInt
+applySubst _ TMathExpr        = TMathExpr
+applySubst _ TPolyExpr        = TPolyExpr
+applySubst _ TTermExpr        = TTermExpr
+applySubst _ TSymbolExpr      = TSymbolExpr
+applySubst _ TIndexExpr       = TIndexExpr
 applySubst _ TFloat           = TFloat
 applySubst _ TBool            = TBool
 applySubst _ TChar            = TChar

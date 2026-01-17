@@ -29,4 +29,4 @@ normalizeTensorType (TMatcher t) = TMatcher (normalizeTensorType t)
 normalizeTensorType (TFun a r) = TFun (normalizeTensorType a) (normalizeTensorType r)
 normalizeTensorType (TIO t) = TIO (normalizeTensorType t)
 normalizeTensorType (TIORef t) = TIORef (normalizeTensorType t)
-normalizeTensorType t = t  -- TInt, TFloat, TBool, TChar, TString, TVar, TAny
+normalizeTensorType t = t  -- TInt, TMathExpr, TPolyExpr, TTermExpr, TSymbolExpr, TIndexExpr, TFloat, TBool, TChar, TString, TVar, TAny
