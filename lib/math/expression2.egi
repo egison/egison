@@ -1,35 +1,5 @@
-def isSymbol (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
-    | symbol _ _ -> True
-    | _ -> False
 
-def isApply (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
-    | apply1 _ _ -> True
-    | apply2 _ _ _ -> True
-    | apply3 _ _ _ _ -> True
-    | apply4 _ _ _ _ _ -> True
-    | _ -> False
 
-def isSimpleTerm (mexpr: MathExpr) : Bool := isSymbol mexpr || isApply mexpr
-
-def isTerm (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
-    | term _ _ -> True
-    | #0 -> True
-    | _ -> False
-
-def isPolynomial (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
-    | poly _ -> True
-    | #0 -> True
-    | _ -> False
-
-def isMonomial (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
-    | poly [term _ _] / poly [term _ _] -> True
-    | #0 -> True
-    | _ -> False
 
 --
 -- Accessor
@@ -61,13 +31,13 @@ def mapTerms (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
 
 def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
   mapTerms
-    (\match as termExpr with
+    (\match as mathExpr with
       | term $a $xs ->
         a *' foldl
                (*')
                1
                (map
-                  (\(x, n) -> match x as symbolExpr with
+                  (\(x, n) -> match x as mathExpr with
                     | symbol _ _ -> fn x ^' n
                     | apply1 $g $a1 ->
                       let a1' := mapSymbols fn a1
@@ -107,7 +77,7 @@ def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
     (\match as termExpr with
       | term _ $xs ->
         any
-          (\(y, _) -> match y as symbolExpr with
+          (\(y, _) -> match y as mathExpr with
             | #x -> True
             | apply1 _ $a1 -> containSymbol x a1
             | apply2 _ $a1 $a2 -> containSymbol x a1 || containSymbol x a2
@@ -121,7 +91,7 @@ def containFunction (f: MathExpr) (mexpr: MathExpr) : Bool :=
     (\match as termExpr with
       | term _ $xs ->
         any
-          (\(y, _) -> match y as symbolExpr with
+          (\(y, _) -> match y as mathExpr with
             | apply1 #f _ -> True
             | apply2 #f _ _ -> True
             | apply3 #f _ _ _ -> True
