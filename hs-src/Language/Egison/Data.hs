@@ -111,6 +111,11 @@ data EgisonValue
   -- ClassMethodRef className methodName
   -- Looks up implementation from the instance environment in EvalState
   | ClassMethodRef String String
+  -- MathExpr internal types for direct pattern matching
+  | PolyExprData PolyExpr
+  | TermExprData TermExpr
+  | SymbolExprData SymbolExpr
+  | IndexExprData (Index ScalarData)
 
 type Matcher = EgisonValue
 
@@ -174,6 +179,10 @@ scalarIndexToEgison :: Index ScalarData -> EgisonValue
 scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [ScalarData k]
 scalarIndexToEgison (Sub k)  = InductiveData "Sub"  [ScalarData k]
 scalarIndexToEgison (User k) = InductiveData "User" [ScalarData k]
+
+-- Direct index conversion for primitive pattern matching
+indexToEgison :: Index ScalarData -> EgisonValue
+indexToEgison = IndexExprData
 
 -- Implementation of 'toMathExpr' (Primitive function)
 egisonToScalarData :: EgisonValue -> EvalM ScalarData
@@ -314,12 +323,21 @@ instance Show EgisonValue where
   show Undefined = "undefined"
   show World = "#<world>"
   show (ClassMethodRef clsName methName) = "#<class-method " ++ clsName ++ "." ++ methName ++ ">"
+  -- MathExpr internal types
+  show (PolyExprData polyExpr) = show polyExpr
+  show (TermExprData termExpr) = show termExpr
+  show (SymbolExprData symbolExpr) = show symbolExpr
+  show (IndexExprData indexExpr) = show indexExpr
 
 -- False if we have to put parenthesis around it to make it an atomic expression.
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
 isAtomic (ScalarData m)       = isAtom m
+isAtomic (PolyExprData _)     = False
+isAtomic (TermExprData _)     = False
+isAtomic (SymbolExprData _)   = False
+isAtomic (IndexExprData _)    = False
 isAtomic _                    = True
 
 instance Eq EgisonValue where
@@ -335,6 +353,11 @@ instance Eq EgisonValue where
   (IntHash vals) == (IntHash vals')                                = vals == vals'
   (CharHash vals) == (CharHash vals')                              = vals == vals'
   (StrHash vals) == (StrHash vals')                                = vals == vals'
+  -- MathExpr internal types
+  (PolyExprData p) == (PolyExprData p')                            = p == p'
+  (TermExprData t) == (TermExprData t')                            = t == t'
+  (SymbolExprData s) == (SymbolExprData s')                        = s == s'
+  (IndexExprData i) == (IndexExprData i')                          = i == i'
   -- Temporary: searching a better solution
   (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _)           = name1 == name2
   _ == _                                                           = False

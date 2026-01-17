@@ -1245,6 +1245,109 @@ inferIExprWithContext expr ctx = case expr of
                   s = foldr composeSubst s0 substs
               
               return (applySubst s resultType', allBindings, s)
+        
+        -- ScalarData (MathExpr) primitive patterns
+        PDDivPat patNum patDen -> do
+          -- Div: MathExpr -> PolyExpr, PolyExpr
+          let polyExprTy = TInductive "PolyExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patNum polyExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patDen (applySubst s1 polyExprTy) ctx
+          let s = composeSubst s2 s1
+          return (applySubst s expectedType, bindings1 ++ bindings2, s)
+        
+        PDPlusPat patTerms -> do
+          -- Plus: PolyExpr -> [TermExpr]
+          let termExprTy = TInductive "TermExpr" []
+          (_, bindings, s) <- inferPrimitiveDataPattern patTerms (TCollection termExprTy) ctx
+          return (applySubst s expectedType, bindings, s)
+        
+        PDTermPat patCoeff patMonomials -> do
+          -- Term: TermExpr -> Integer, [(SymbolExpr, Integer)]
+          let symbolExprTy = TInductive "SymbolExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patCoeff TInt ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patMonomials 
+                                  (applySubst s1 (TCollection (TTuple [symbolExprTy, TInt]))) ctx
+          let s = composeSubst s2 s1
+          return (applySubst s expectedType, bindings1 ++ bindings2, s)
+        
+        PDSymbolPat patName patIndices -> do
+          -- Symbol: SymbolExpr -> String, [IndexExpr]
+          let indexExprTy = TInductive "IndexExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patName TString ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patIndices 
+                                  (applySubst s1 (TCollection indexExprTy)) ctx
+          let s = composeSubst s2 s1
+          return (applySubst s expectedType, bindings1 ++ bindings2, s)
+        
+        PDApply1Pat patFn patArg -> do
+          -- Apply1: SymbolExpr -> MathExpr, MathExpr
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg (applySubst s1 mathExprTy) ctx
+          let s = composeSubst s2 s1
+          return (applySubst s expectedType, bindings1 ++ bindings2, s)
+        
+        PDApply2Pat patFn patArg1 patArg2 -> do
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
+          let s = composeSubst s3 (composeSubst s2 s1)
+          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3, s)
+        
+        PDApply3Pat patFn patArg1 patArg2 patArg3 -> do
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
+          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
+          let s = composeSubst s4 (composeSubst s3 (composeSubst s2 s1))
+          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3 ++ bindings4, s)
+        
+        PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4 -> do
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patFn mathExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
+          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
+          (_, bindings5, s5) <- inferPrimitiveDataPattern patArg4 (applySubst s4 mathExprTy) ctx
+          let s = composeSubst s5 (composeSubst s4 (composeSubst s3 (composeSubst s2 s1)))
+          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3 ++ bindings4 ++ bindings5, s)
+        
+        PDQuotePat patExpr -> do
+          -- Quote: SymbolExpr -> MathExpr
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
+          return (applySubst s expectedType, bindings, s)
+        
+        PDFunctionPat patName patArgs patKwargs -> do
+          -- Function: SymbolExpr -> MathExpr, [MathExpr], [MathExpr]
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings1, s1) <- inferPrimitiveDataPattern patName mathExprTy ctx
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArgs 
+                                  (applySubst s1 (TCollection mathExprTy)) ctx
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patKwargs 
+                                  (applySubst s2 (TCollection mathExprTy)) ctx
+          let s = composeSubst s3 (composeSubst s2 s1)
+          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3, s)
+        
+        PDSubPat patExpr -> do
+          -- Sub: IndexExpr -> MathExpr
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
+          return (applySubst s expectedType, bindings, s)
+        
+        PDSupPat patExpr -> do
+          -- Sup: IndexExpr -> MathExpr
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
+          return (applySubst s expectedType, bindings, s)
+        
+        PDUserPat patExpr -> do
+          -- User: IndexExpr -> MathExpr
+          let mathExprTy = TInductive "MathExpr" []
+          (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
+          return (applySubst s expectedType, bindings, s)
   
   -- Match expressions (pattern matching)
   IMatchExpr mode target matcher clauses -> do
@@ -2091,6 +2194,20 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDConstantPat c) = do
       ty <- inferConstant c
       return (ty, emptySubst)
+    -- ScalarData primitive patterns
+    inferPatternType (PDDivPat _ _) = return (TInductive "MathExpr" [], emptySubst)
+    inferPatternType (PDPlusPat _) = return (TInductive "PolyExpr" [], emptySubst)
+    inferPatternType (PDTermPat _ _) = return (TInductive "TermExpr" [], emptySubst)
+    inferPatternType (PDSymbolPat _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply1Pat _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply2Pat _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply3Pat _ _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply4Pat _ _ _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDQuotePat _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDFunctionPat _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDSubPat _) = return (TInductive "IndexExpr" [], emptySubst)
+    inferPatternType (PDSupPat _) = return (TInductive "IndexExpr" [], emptySubst)
+    inferPatternType (PDUserPat _) = return (TInductive "IndexExpr" [], emptySubst)
 
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
@@ -2146,6 +2263,20 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDConstantPat c) = do
       ty <- inferConstant c
       return (ty, emptySubst)
+    -- ScalarData primitive patterns
+    inferPatternType (PDDivPat _ _) = return (TInductive "MathExpr" [], emptySubst)
+    inferPatternType (PDPlusPat _) = return (TInductive "PolyExpr" [], emptySubst)
+    inferPatternType (PDTermPat _ _) = return (TInductive "TermExpr" [], emptySubst)
+    inferPatternType (PDSymbolPat _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply1Pat _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply2Pat _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply3Pat _ _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDApply4Pat _ _ _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDQuotePat _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDFunctionPat _ _ _) = return (TInductive "SymbolExpr" [], emptySubst)
+    inferPatternType (PDSubPat _) = return (TInductive "IndexExpr" [], emptySubst)
+    inferPatternType (PDSupPat _) = return (TInductive "IndexExpr" [], emptySubst)
+    inferPatternType (PDUserPat _) = return (TInductive "IndexExpr" [], emptySubst)
 
 -- | Infer letrec bindings (recursive)
 
@@ -2202,6 +2333,46 @@ extractIBindingsFromPattern pat ty = case pat of
     case ty of
       TCollection elemTy -> extractIBindingsFromPattern p1 ty ++ extractIBindingsFromPattern p2 elemTy
       _ -> []
+  -- ScalarData primitive patterns
+  PDDivPat p1 p2 ->
+    let polyExprTy = TInductive "PolyExpr" []
+    in extractIBindingsFromPattern p1 polyExprTy ++ extractIBindingsFromPattern p2 polyExprTy
+  PDPlusPat p ->
+    let termExprTy = TInductive "TermExpr" []
+    in extractIBindingsFromPattern p (TCollection termExprTy)
+  PDTermPat p1 p2 ->
+    let symbolExprTy = TInductive "SymbolExpr" []
+    in extractIBindingsFromPattern p1 TInt ++ extractIBindingsFromPattern p2 (TCollection (TTuple [symbolExprTy, TInt]))
+  PDSymbolPat p1 p2 ->
+    let indexExprTy = TInductive "IndexExpr" []
+    in extractIBindingsFromPattern p1 TString ++ extractIBindingsFromPattern p2 (TCollection indexExprTy)
+  PDApply1Pat p1 p2 ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy
+  PDApply2Pat p1 p2 p3 ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy
+  PDApply3Pat p1 p2 p3 p4 ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy
+  PDApply4Pat p1 p2 p3 p4 p5 ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 mathExprTy ++ extractIBindingsFromPattern p3 mathExprTy ++ extractIBindingsFromPattern p4 mathExprTy ++ extractIBindingsFromPattern p5 mathExprTy
+  PDQuotePat p ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p mathExprTy
+  PDFunctionPat p1 p2 p3 ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 (TCollection mathExprTy) ++ extractIBindingsFromPattern p3 (TCollection mathExprTy)
+  PDSubPat p ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p mathExprTy
+  PDSupPat p ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p mathExprTy
+  PDUserPat p ->
+    let mathExprTy = TInductive "MathExpr" []
+    in extractIBindingsFromPattern p mathExprTy
   _ -> []
 
 -- | Infer top-level IExpr and return TITopExpr directly

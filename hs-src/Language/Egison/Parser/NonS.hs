@@ -1226,8 +1226,81 @@ pdPattern = makeExprParser pdApplyOrAtom table
       ]
 
     pdApplyOrAtom :: Parser PrimitiveDataPattern
-    pdApplyOrAtom = PDInductivePat <$> upperId <*> many pdAtom
+    pdApplyOrAtom = try mathExprPrimitivePattern
+                <|> PDInductivePat <$> upperId <*> many pdAtom
                 <|> pdAtom
+    
+    -- MathExpr primitive patterns
+    mathExprPrimitivePattern :: Parser PrimitiveDataPattern
+    mathExprPrimitivePattern = do
+      name <- upperId
+      case name of
+        "Div" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2] -> return $ PDDivPat p1 p2
+            _ -> fail "Div requires exactly 2 arguments"
+        "Plus" -> do
+          args <- many pdAtom
+          case args of
+            [p] -> return $ PDPlusPat p
+            _ -> fail "Plus requires exactly 1 argument"
+        "Term" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2] -> return $ PDTermPat p1 p2
+            _ -> fail "Term requires exactly 2 arguments"
+        "Symbol" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2] -> return $ PDSymbolPat p1 p2
+            _ -> fail "Symbol requires exactly 2 arguments"
+        "Apply1" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2] -> return $ PDApply1Pat p1 p2
+            _ -> fail "Apply1 requires exactly 2 arguments"
+        "Apply2" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2, p3] -> return $ PDApply2Pat p1 p2 p3
+            _ -> fail "Apply2 requires exactly 3 arguments"
+        "Apply3" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2, p3, p4] -> return $ PDApply3Pat p1 p2 p3 p4
+            _ -> fail "Apply3 requires exactly 4 arguments"
+        "Apply4" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2, p3, p4, p5] -> return $ PDApply4Pat p1 p2 p3 p4 p5
+            _ -> fail "Apply4 requires exactly 5 arguments"
+        "Quote" -> do
+          args <- many pdAtom
+          case args of
+            [p] -> return $ PDQuotePat p
+            _ -> fail "Quote requires exactly 1 argument"
+        "Function" -> do
+          args <- many pdAtom
+          case args of
+            [p1, p2, p3] -> return $ PDFunctionPat p1 p2 p3
+            _ -> fail "Function requires exactly 3 arguments"
+        "Sub" -> do
+          args <- many pdAtom
+          case args of
+            [p] -> return $ PDSubPat p
+            _ -> fail "Sub requires exactly 1 argument"
+        "Sup" -> do
+          args <- many pdAtom
+          case args of
+            [p] -> return $ PDSupPat p
+            _ -> fail "Sup requires exactly 1 argument"
+        "User" -> do
+          args <- many pdAtom
+          case args of
+            [p] -> return $ PDUserPat p
+            _ -> fail "User requires exactly 1 argument"
+        _ -> fail "Not a MathExpr primitive pattern"
 
 pdAtom :: Parser PrimitiveDataPattern
 pdAtom = PDWildCard    <$ symbol "_"

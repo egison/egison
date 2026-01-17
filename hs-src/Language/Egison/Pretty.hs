@@ -518,6 +518,20 @@ instance Pretty IPrimitiveDataPattern where
   pretty (PDConsPat pat1 pat2) = pretty pat1 <+> pretty "::" <+> pretty pat2
   pretty (PDSnocPat pat1 pat2) = pretty pat1 <+> pretty "*:" <+> pretty pat2
   pretty (PDConstantPat c) = pretty c
+  -- MathExpr primitive patterns
+  pretty (PDDivPat p1 p2) = applyLike [pretty "Div", pretty p1, pretty p2]
+  pretty (PDPlusPat p) = applyLike [pretty "Plus", pretty p]
+  pretty (PDTermPat p1 p2) = applyLike [pretty "Term", pretty p1, pretty p2]
+  pretty (PDSymbolPat p1 p2) = applyLike [pretty "Symbol", pretty p1, pretty p2]
+  pretty (PDApply1Pat p1 p2) = applyLike [pretty "Apply1", pretty p1, pretty p2]
+  pretty (PDApply2Pat p1 p2 p3) = applyLike [pretty "Apply2", pretty p1, pretty p2, pretty p3]
+  pretty (PDApply3Pat p1 p2 p3 p4) = applyLike [pretty "Apply3", pretty p1, pretty p2, pretty p3, pretty p4]
+  pretty (PDApply4Pat p1 p2 p3 p4 p5) = applyLike [pretty "Apply4", pretty p1, pretty p2, pretty p3, pretty p4, pretty p5]
+  pretty (PDQuotePat p) = applyLike [pretty "Quote", pretty p]
+  pretty (PDFunctionPat p1 p2 p3) = applyLike [pretty "Function", pretty p1, pretty p2, pretty p3]
+  pretty (PDSubPat p) = applyLike [pretty "Sub", pretty p]
+  pretty (PDSupPat p) = applyLike [pretty "Sup", pretty p]
+  pretty (PDUserPat p) = applyLike [pretty "User", pretty p]
 
 instance Pretty IPattern where
   pretty IWildCard = pretty "_"
