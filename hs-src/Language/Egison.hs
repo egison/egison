@@ -64,11 +64,11 @@ coreLibraries =
   , "lib/core/io.egi"
 
 
---  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
 --  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+--  , "lib/math/common/constants.egi"
+--  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
 --  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
 
---  , "lib/math/common/constants.egi"
 --  , "lib/math/common/functions.egi"
 --  , "lib/math/algebra/root.egi"
 --  , "lib/math/algebra/equations.egi"

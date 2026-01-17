@@ -129,10 +129,13 @@ def multExpr : Matcher MathExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
+def mathNormalize (x: MathExpr) : MathExpr := id x
 def (+') : MathExpr -> MathExpr -> MathExpr := i.+
 def (*') : MathExpr -> MathExpr -> MathExpr := i.*
+def (^) : MathExpr -> Integer -> MathExpr := i.power
 def (^') : MathExpr -> Integer -> MathExpr := i.power
 def (/') : MathExpr -> MathExpr -> MathExpr := i./
+def sum (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
 def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
 def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
 
@@ -315,7 +318,7 @@ def containFunction4 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathEx
 -- Substitute
 --
 def substitute (ls: [(MathExpr, MathExpr)]) (mexpr: MathExpr) : MathExpr :=
-  match ls as list (symbolExpr, mathExpr) with
+  match ls as list (mathExpr, mathExpr) with
     | [] -> mathNormalize mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
@@ -323,7 +326,7 @@ def substitute' (x: MathExpr) (a: MathExpr) (mexpr: MathExpr) : MathExpr :=
   mapSymbols (rewriteSymbol x a) mexpr
 
 def rewriteSymbol (x: MathExpr) (a: MathExpr) (sexpr: MathExpr) : MathExpr :=
-  match sexpr as symbolExpr with
+  match sexpr as mathExpr with
     | #x -> a
     | _ -> sexpr
 
@@ -368,29 +371,21 @@ def expandAll' (mexpr: MathExpr) : MathExpr :=
 -- Coefficient
 --
 def coefficients (f: MathExpr) (x: MathExpr) : [MathExpr] :=
-  let m := maximum
-    (0 :: (matchAll f as mathExpr with
-      | poly (term $a (#x ^ $k :: $ts) :: _) / _ -> k))
-   in map (coefficient f x) (between 0 m)
+  let m := maximum (0 :: (matchAll f as mathExpr with
+                           | poly (term $a (#x ^ $k :: $ts) :: _) / _ -> k))
+  in map (coefficient f x) (between 0 m)
 
 def coefficient (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
   if m = 0
-    then sum
-      (matchAll f as mathExpr with
-        | poly (term $a (!(#x :: _) & $ts) :: _) / _ ->
-          foldl (*') a (map (uncurry (^')) ts)) / denominator f
+    then sum (matchAll f as mathExpr with
+               | poly (term $a (!(#x ^ #1 :: _) & $ts) :: _) / _ ->
+                 foldl (*') a (map (uncurry (^')) ts)) / denominator f
     else coefficient' f x m
 
 def coefficient' (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
   sum
     (matchAll f as mathExpr with
-      | poly (term $a (#x ^ #m :: (!(#x :: _) & $ts)) :: _) / _ ->
-        foldl (*') a (map (uncurry (^')) ts)) / denominator f
-
-def coefficient2 (f: MathExpr) (x: MathExpr) (y: MathExpr) : MathExpr :=
-  sum
-    (matchAll f as mathExpr with
-      | poly (term $a (#x :: #y :: $ts) :: _) / _ ->
+      | poly (term $a (#x ^ #m :: (!(#x ^ _ :: _) & $ts)) :: _) / _ ->
         foldl (*') a (map (uncurry (^')) ts)) / denominator f
 
 def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
@@ -398,10 +393,5 @@ def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
     then ([], xs)
     else match (ys, xs) as (list mathExpr, list mathExpr) with
       | ($y :: $yrs, $x :: $xrs) ->
-        let (zs, rs) := L./
-          (map2
-            (-)
-            (take (length yrs) xrs)
-            (map (* (x / y)) yrs) ++ drop (length yrs) xrs)
-          ys
+        let (zs, rs) := L./ (map2 (-) (take (length yrs) xrs) (map (* (x / y)) yrs) ++ drop (length yrs) xrs) ys
          in (x / y :: zs, rs)

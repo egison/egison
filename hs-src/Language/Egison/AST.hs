@@ -443,6 +443,8 @@ data TypeExpr
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
   | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
   | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a
+  | TEVector TypeExpr                  -- ^ Vector type, e.g., Vector a (1D tensor)
+  | TEMatrix TypeExpr                  -- ^ Matrix type, e.g., Matrix a (2D tensor)
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
   | TEConstrained [ConstraintExpr] TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a

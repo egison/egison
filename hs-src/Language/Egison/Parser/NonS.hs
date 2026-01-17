@@ -620,6 +620,8 @@ typeAtomSimple =
   <|> TEIO      <$> (reserved "IO" >> typeAtomOrParenType)
   <|> TEList    <$> brackets typeExpr
   <|> try tensorTypeExpr
+  <|> try vectorTypeExpr
+  <|> try matrixTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -638,6 +640,8 @@ typeAtom =
   <|> TEIO      <$> (reserved "IO" >> typeAtomOrParenType)
   <|> TEList    <$> brackets typeExpr
   <|> try tensorTypeExpr
+  <|> try vectorTypeExpr
+  <|> try matrixTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -655,7 +659,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "IO"]
+    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -663,6 +667,18 @@ tensorTypeExpr = do
   elemType <- typeAtomOrParenType  -- Allow parenthesized types like (IORef [a])
   -- TETensor now only takes the element type
   return $ TETensor elemType
+
+vectorTypeExpr :: Parser TypeExpr
+vectorTypeExpr = do
+  _ <- reserved "Vector"
+  elemType <- typeAtomOrParenType
+  return $ TEVector elemType
+
+matrixTypeExpr :: Parser TypeExpr
+matrixTypeExpr = do
+  _ <- reserved "Matrix"
+  elemType <- typeAtomOrParenType
+  return $ TEMatrix elemType
 
 
 typeVarIdent :: Parser String
@@ -674,7 +690,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor"]
+    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix"]
 
 expr :: Parser Expr
 expr = do
