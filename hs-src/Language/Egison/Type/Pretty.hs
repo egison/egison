@@ -24,6 +24,11 @@ import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..)
 -- | Pretty print a Type
 prettyType :: Type -> String
 prettyType TInt             = "Integer"
+prettyType TMathExpr        = "MathExpr"
+prettyType TPolyExpr        = "PolyExpr"
+prettyType TTermExpr        = "TermExpr"
+prettyType TSymbolExpr      = "SymbolExpr"
+prettyType TIndexExpr       = "IndexExpr"
 prettyType TFloat           = "Float"
 prettyType TBool            = "Bool"
 prettyType TChar            = "Char"
@@ -53,6 +58,11 @@ prettyType TAny             = "_"
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String
 prettyTypeAtom t@TInt       = prettyType t
+prettyTypeAtom t@TMathExpr  = prettyType t
+prettyTypeAtom t@TPolyExpr  = prettyType t
+prettyTypeAtom t@TTermExpr  = prettyType t
+prettyTypeAtom t@TSymbolExpr = prettyType t
+prettyTypeAtom t@TIndexExpr = prettyType t
 prettyTypeAtom t@TFloat     = prettyType t
 prettyTypeAtom t@TBool      = prettyType t
 prettyTypeAtom t@TChar      = prettyType t

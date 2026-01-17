@@ -25,6 +25,7 @@ module Language.Egison.Type.Types
   , typeConstructorName
   , sanitizeMethodName
   , typeExprToType
+  , normalizeInductiveTypes
   , capitalizeFirst
   , lowerFirst
   , findMatchingInstanceForType
@@ -59,7 +60,12 @@ data TensorShape
 
 -- | Egison types
 data Type
-  = TInt                              -- ^ Integer (= MathExpr in Egison)
+  = TInt                              -- ^ Integer
+  | TMathExpr                         -- ^ MathExpr (mathematical expression, unifies with Integer)
+  | TPolyExpr                         -- ^ PolyExpr (polynomial expression)
+  | TTermExpr                         -- ^ TermExpr (term in polynomial)
+  | TSymbolExpr                       -- ^ SymbolExpr (symbolic variable)
+  | TIndexExpr                        -- ^ IndexExpr (subscript/superscript index)
   | TFloat                            -- ^ Float (Double)
   | TBool                             -- ^ Bool
   | TChar                             -- ^ Char
@@ -116,6 +122,11 @@ freshTyVar prefix n = TyVar (prefix ++ show n)
 -- | Get free type variables from a type
 freeTyVars :: Type -> Set TyVar
 freeTyVars TInt             = Set.empty
+freeTyVars TMathExpr        = Set.empty
+freeTyVars TPolyExpr        = Set.empty
+freeTyVars TTermExpr        = Set.empty
+freeTyVars TSymbolExpr      = Set.empty
+freeTyVars TIndexExpr       = Set.empty
 freeTyVars TFloat           = Set.empty
 freeTyVars TBool            = Set.empty
 freeTyVars TChar            = Set.empty
@@ -198,7 +209,7 @@ sanitizeMethodName name = name
 -- | Convert TypeExpr (from AST) to Type (internal representation)
 typeExprToType :: TypeExpr -> Type
 typeExprToType TEInt = TInt
-typeExprToType TEMathExpr = TInt  -- MathExpr = Integer in Egison
+typeExprToType TEMathExpr = TMathExpr  -- MathExpr is a primitive type
 typeExprToType TEFloat = TFloat
 typeExprToType TEBool = TBool
 typeExprToType TEChar = TChar
@@ -208,7 +219,15 @@ typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
 typeExprToType (TEList t) = TCollection (typeExprToType t)
 typeExprToType (TEApp t1 ts) = 
   case typeExprToType t1 of
-    TVar (TyVar name) -> TInductive name (map typeExprToType ts)  -- Type application: MyList a
+    TVar (TyVar name) -> 
+      -- Special case: convert inductive type names to primitive types
+      case (name, ts) of
+        ("MathExpr", [])   -> TMathExpr
+        ("PolyExpr", [])   -> TPolyExpr
+        ("TermExpr", [])   -> TTermExpr
+        ("SymbolExpr", []) -> TSymbolExpr
+        ("IndexExpr", [])  -> TIndexExpr
+        _                  -> TInductive name (map typeExprToType ts)
     TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
     baseType -> baseType  -- Can't apply to non-inductive types
 typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
@@ -217,6 +236,27 @@ typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
+
+-- | Normalize inductive type names to primitive types if applicable
+-- This is used to convert TInductive "MathExpr" [] to TMathExpr, etc.
+normalizeInductiveTypes :: Type -> Type
+normalizeInductiveTypes (TInductive name []) = case name of
+  "MathExpr"   -> TMathExpr
+  "PolyExpr"   -> TPolyExpr
+  "TermExpr"   -> TTermExpr
+  "SymbolExpr" -> TSymbolExpr
+  "IndexExpr"  -> TIndexExpr
+  _            -> TInductive name []
+normalizeInductiveTypes (TInductive name ts) = TInductive name (map normalizeInductiveTypes ts)
+normalizeInductiveTypes (TTuple ts) = TTuple (map normalizeInductiveTypes ts)
+normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t)
+normalizeInductiveTypes (THash k v) = THash (normalizeInductiveTypes k) (normalizeInductiveTypes v)
+normalizeInductiveTypes (TMatcher t) = TMatcher (normalizeInductiveTypes t)
+normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (normalizeInductiveTypes ret)
+normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
+normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
+normalizeInductiveTypes (TTensor t) = TTensor (normalizeInductiveTypes t)
+normalizeInductiveTypes t = t  -- Other types remain unchanged
 
 -- | Capitalize first character
 capitalizeFirst :: String -> String

@@ -212,6 +212,11 @@ formatTypeWarning warn = case warn of
 -- | Pretty print a type
 prettyType :: Type -> String
 prettyType TInt = "Integer"
+prettyType TMathExpr = "MathExpr"
+prettyType TPolyExpr = "PolyExpr"
+prettyType TTermExpr = "TermExpr"
+prettyType TSymbolExpr = "SymbolExpr"
+prettyType TIndexExpr = "IndexExpr"
 prettyType TFloat = "Float"
 prettyType TBool = "Bool"
 prettyType TChar = "Char"
