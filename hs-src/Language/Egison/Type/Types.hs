@@ -74,7 +74,7 @@ data Type
   | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b). Unit type () is TTuple []
   | TCollection Type                  -- ^ Collection type, e.g., [a]
   | TInductive String [Type]          -- ^ Inductive data type with type arguments
-  | TTensor Type                      -- ^ Tensor type (only element type is kept)
+  | TTensor Type                      -- ^ Tensor type (only element type is kept). Vector and Matrix are aliases for Tensor
   | THash Type Type                   -- ^ Hash map type
   | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
@@ -231,6 +231,8 @@ typeExprToType (TEApp t1 ts) =
     TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
     baseType -> baseType  -- Can't apply to non-inductive types
 typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
+typeExprToType (TEVector elemT) = TTensor (typeExprToType elemT)  -- Vector is an alias for Tensor
+typeExprToType (TEMatrix elemT) = TTensor (typeExprToType elemT)  -- Matrix is an alias for Tensor
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
@@ -247,6 +249,9 @@ normalizeInductiveTypes (TInductive name []) = case name of
   "SymbolExpr" -> TSymbolExpr
   "IndexExpr"  -> TIndexExpr
   _            -> TInductive name []
+-- Convert TInductive "Vector" and "Matrix" to Tensor (they are aliases)
+normalizeInductiveTypes (TInductive "Vector" [t]) = TTensor (normalizeInductiveTypes t)
+normalizeInductiveTypes (TInductive "Matrix" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive name ts) = TInductive name (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TTuple ts) = TTuple (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t)
