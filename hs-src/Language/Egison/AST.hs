@@ -327,6 +327,20 @@ data PDPatternBase var
   | PDConsPat (PDPatternBase var) (PDPatternBase var)
   | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
+  -- ScalarData (MathExpr) primitive patterns
+  | PDDivPat (PDPatternBase var) (PDPatternBase var)        -- Div: ScalarData -> PolyExpr, PolyExpr
+  | PDPlusPat (PDPatternBase var)                           -- Plus: PolyExpr -> [TermExpr]
+  | PDTermPat (PDPatternBase var) (PDPatternBase var)       -- Term: TermExpr -> Integer, [(SymbolExpr, Integer)]
+  | PDSymbolPat (PDPatternBase var) (PDPatternBase var)     -- Symbol: SymbolExpr -> String, [IndexExpr]
+  | PDApply1Pat (PDPatternBase var) (PDPatternBase var)     -- Apply1: SymbolExpr -> MathExpr, MathExpr
+  | PDApply2Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply2
+  | PDApply3Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply3
+  | PDApply4Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply4
+  | PDQuotePat (PDPatternBase var)                          -- Quote: SymbolExpr -> MathExpr
+  | PDFunctionPat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Function: SymbolExpr -> MathExpr, [MathExpr], [MathExpr]
+  | PDSubPat (PDPatternBase var)                            -- Sub: IndexExpr -> MathExpr
+  | PDSupPat (PDPatternBase var)                            -- Sup: IndexExpr -> MathExpr
+  | PDUserPat (PDPatternBase var)                           -- User: IndexExpr -> MathExpr
   deriving (Functor, Foldable, Show)
 
 type PrimitiveDataPattern = PDPatternBase String

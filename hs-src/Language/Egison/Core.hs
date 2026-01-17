@@ -1087,6 +1087,21 @@ bindPrimitiveDataPattern pdp ref = do
     Nothing      -> throwErrorWithTrace PrimitiveMatchFailure
     Just binding -> return binding
 
+-- Helper functions to convert internal math types to ScalarData (MathExpr)
+polyExprToScalarData :: PolyExpr -> ScalarData
+polyExprToScalarData polyExpr = Div polyExpr (Plus [Term 1 []])
+
+termExprToScalarData :: TermExpr -> ScalarData
+termExprToScalarData termExpr = Div (Plus [termExpr]) (Plus [Term 1 []])
+
+symbolExprToScalarData :: SymbolExpr -> ScalarData
+symbolExprToScalarData symbolExpr = Div (Plus [Term 1 [(symbolExpr, 1)]]) (Plus [Term 1 []])
+
+-- Check if pattern is a pattern variable
+isPatternVar :: IPrimitiveDataPattern -> Bool
+isPatternVar (PDPatVar _) = True
+isPatternVar _            = False
+
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
 primitiveDataPatternMatch (PDPatVar name) ref = return [(name, ref)]
@@ -1127,6 +1142,147 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
   case whnf of
     Value val | val == evalConstant expr -> return []
     _                                    -> matchFail
+-- ScalarData (MathExpr) primitive patterns
+primitiveDataPatternMatch (PDDivPat patNum patDen) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (ScalarData (Div num den)) -> do
+      -- Pattern variable の場合は PolyExpr -> ScalarData に変換
+      let numVal = if isPatternVar patNum 
+                   then Value (ScalarData (polyExprToScalarData num))
+                   else Value (PolyExprData num)
+      let denVal = if isPatternVar patDen
+                   then Value (ScalarData (polyExprToScalarData den))
+                   else Value (PolyExprData den)
+      numRef <- lift $ newEvaluatedObjectRef numVal
+      denRef <- lift $ newEvaluatedObjectRef denVal
+      (++) <$> primitiveDataPatternMatch patNum numRef
+           <*> primitiveDataPatternMatch patDen denRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDPlusPat patTerms) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (PolyExprData (Plus terms)) -> do
+      -- Pattern variable の場合は [TermExpr] -> [ScalarData] に変換
+      let termsCol = if isPatternVar patTerms
+                     then Value $ Collection $ Sq.fromList $ map (ScalarData . termExprToScalarData) terms
+                     else Value $ Collection $ Sq.fromList $ map TermExprData terms
+      termsRef <- lift $ newEvaluatedObjectRef termsCol
+      primitiveDataPatternMatch patTerms termsRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDTermPat patCoeff patMonomials) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (TermExprData (Term coeff monomials)) -> do
+      coeffRef <- lift $ newEvaluatedObjectRef (Value (toEgison coeff))
+      -- Pattern variable の場合は [(SymbolExpr, Integer)] -> [(ScalarData, Integer)] に変換
+      let monomialsCol = if isPatternVar patMonomials
+                         then Value $ Collection $ Sq.fromList $ map (\(sym, exp) -> Tuple [ScalarData (symbolExprToScalarData sym), toEgison exp]) monomials
+                         else Value $ Collection $ Sq.fromList $ map (\(sym, exp) -> Tuple [SymbolExprData sym, toEgison exp]) monomials
+      monomialsRef <- lift $ newEvaluatedObjectRef monomialsCol
+      (++) <$> primitiveDataPatternMatch patCoeff coeffRef
+           <*> primitiveDataPatternMatch patMonomials monomialsRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDSymbolPat patName patIndices) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Symbol _ name indices)) -> do
+      nameRef <- lift $ newEvaluatedObjectRef (Value (String (T.pack name)))
+      -- [Index ScalarData]をCollectionに変換
+      let indicesCol = Value $ Collection $ Sq.fromList $ map IndexExprData indices
+      indicesRef <- lift $ newEvaluatedObjectRef indicesCol
+      (++) <$> primitiveDataPatternMatch patName nameRef
+           <*> primitiveDataPatternMatch patIndices indicesRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDApply1Pat patFn patArg) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Apply1 fn arg)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      argRef <- lift $ newEvaluatedObjectRef (Value (ScalarData arg))
+      (++) <$> primitiveDataPatternMatch patFn fnRef
+           <*> primitiveDataPatternMatch patArg argRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDApply2Pat patFn patArg1 patArg2) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Apply2 fn arg1 arg2)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
+      (++) <$> primitiveDataPatternMatch patFn fnRef
+           <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
+                     <*> primitiveDataPatternMatch patArg2 arg2Ref)
+    _ -> matchFail
+primitiveDataPatternMatch (PDApply3Pat patFn patArg1 patArg2 patArg3) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Apply3 fn arg1 arg2 arg3)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))
+      (++) <$> primitiveDataPatternMatch patFn fnRef
+           <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
+                     <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
+                               <*> primitiveDataPatternMatch patArg3 arg3Ref))
+    _ -> matchFail
+primitiveDataPatternMatch (PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Apply4 fn arg1 arg2 arg3 arg4)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (Value (ScalarData fn))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))
+      arg4Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg4))
+      (++) <$> primitiveDataPatternMatch patFn fnRef
+           <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
+                     <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
+                               <*> ((++) <$> primitiveDataPatternMatch patArg3 arg3Ref
+                                         <*> primitiveDataPatternMatch patArg4 arg4Ref)))
+    _ -> matchFail
+primitiveDataPatternMatch (PDQuotePat patExpr) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (Quote expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      primitiveDataPatternMatch patExpr exprRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDFunctionPat patName patArgs patKwargs) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (SymbolExprData (FunctionData name args kwargs)) -> do
+      nameRef <- lift $ newEvaluatedObjectRef (Value (ScalarData name))
+      let argsCol = Value $ Collection $ Sq.fromList $ map ScalarData args
+      argsRef <- lift $ newEvaluatedObjectRef argsCol
+      let kwargsCol = Value $ Collection $ Sq.fromList $ map ScalarData kwargs
+      kwargsRef <- lift $ newEvaluatedObjectRef kwargsCol
+      (++) <$> primitiveDataPatternMatch patName nameRef
+           <*> ((++) <$> primitiveDataPatternMatch patArgs argsRef
+                     <*> primitiveDataPatternMatch patKwargs kwargsRef)
+    _ -> matchFail
+primitiveDataPatternMatch (PDSubPat patExpr) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (IndexExprData (Sub expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      primitiveDataPatternMatch patExpr exprRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDSupPat patExpr) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (IndexExprData (Sup expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      primitiveDataPatternMatch patExpr exprRef
+    _ -> matchFail
+primitiveDataPatternMatch (PDUserPat patExpr) ref = do
+  whnf <- lift $ evalRef ref
+  case whnf of
+    Value (IndexExprData (User expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      primitiveDataPatternMatch patExpr exprRef
+    _ -> matchFail
 
 extendEnvForNonLinearPatterns :: Env -> [Binding] -> [LoopPatContext] -> Env
 extendEnvForNonLinearPatterns env bindings loops = extendEnv env $ bindings ++ map (\(LoopPatContext (name, ref) _ _ _ _) -> (stringToVar name, ref)) loops
