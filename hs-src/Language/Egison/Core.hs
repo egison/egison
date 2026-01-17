@@ -129,7 +129,21 @@ evalExprShallow env (IQuoteExpr expr) = do
 
 evalExprShallow env (IQuoteSymbolExpr expr) =
   case expr of
-    IVarExpr name -> return . Value $ symbolScalarData "" name
+    IVarExpr name -> do
+      -- Try to evaluate the variable
+      case refVar env (stringToVar name) of
+        Just ref -> do
+          val <- evalRef ref
+          case val of
+            Value func@(Func _ _ _ _) -> 
+              -- Quote the function object itself
+              return . Value . ScalarData $ SingleTerm 1 [(QuoteFunction val, 1)]
+            Value func@(MemoizedFunc _ _ _ _) -> 
+              -- Quote the memoized function object itself
+              return . Value . ScalarData $ SingleTerm 1 [(QuoteFunction val, 1)]
+            Value (ScalarData _) -> return val
+            _ -> return . Value $ symbolScalarData "" name
+        Nothing -> return . Value $ symbolScalarData "" name
     _ -> do
       whnf <- evalExprShallow env expr
       case whnf of
@@ -648,6 +662,15 @@ applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol _ symName _, 1)]))) refs
                             ScalarData _ -> extractScalar arg
                             _            -> throwErrorWithTrace (EgisonBug $ "to use undefined function '" ++ symName ++ "', you have to use ScalarData args")) args
   return (Value (ScalarData (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
+-- QuoteFunction pattern: ('fact 3) should create Apply1 fact 3
+-- The quoted function object is stored in QuoteFunction
+applyRef env (Value (ScalarData fn@(SingleTerm 1 [(QuoteFunction funcWHNF, 1)]))) refs = do
+  args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
+  mExprs <- mapM (\arg -> case arg of
+                            ScalarData scalar -> return scalar
+                            _                 -> throwErrorWithTrace (EgisonBug $ "to use quoted function, you have to use ScalarData args")) args
+  -- Create Apply1/Apply2/etc with the function object
+  return (Value (ScalarData (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
 -- Type class method dispatch: look up implementation based on first argument's type
 -- Uses Type from Types.hs for dispatch (not String-based typeName)
 applyRef env (Value (ClassMethodRef clsName methName)) refs = do
@@ -721,7 +744,11 @@ recursiveBind env bindings = do
   forM_ bindings $ \(var, expr) -> do
     let env'' = memorizeVarInEnv env' var
     let ref = fromJust (refVar env' var)
-    liftIO $ writeIORef ref (newThunk env'' expr)
+    -- Set function name for top-level lambda definitions
+    let expr' = case expr of
+                  ILambdaExpr Nothing args body -> ILambdaExpr (Just var) args body
+                  _ -> expr
+    liftIO $ writeIORef ref (newThunk env'' expr')
   return env'
 
 recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env

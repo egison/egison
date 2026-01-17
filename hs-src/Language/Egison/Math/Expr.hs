@@ -53,6 +53,7 @@ import           Control.Egison
 import           Control.Monad         (MonadPlus (..))
 
 import           Language.Egison.IExpr (Index (..))
+import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
 
 --
 -- Data
@@ -79,9 +80,21 @@ data SymbolExpr
   | Apply2 ScalarData ScalarData ScalarData
   | Apply3 ScalarData ScalarData ScalarData ScalarData
   | Apply4 ScalarData ScalarData ScalarData ScalarData ScalarData
-  | Quote ScalarData
+  | Quote ScalarData                     -- For backtick quote: `expr
+  | QuoteFunction WHNFData              -- For single quote on functions: 'func
   | FunctionData ScalarData [ScalarData] [ScalarData] -- fnname argnames args
-  deriving Eq
+
+-- Manual Eq instance (QuoteFunction comparison always returns False)
+instance Eq SymbolExpr where
+  Symbol id1 s1 js1 == Symbol id2 s2 js2 = id1 == id2 && s1 == s2 && js1 == js2
+  Apply1 f1 a1 == Apply1 f2 a2 = f1 == f2 && a1 == a2
+  Apply2 f1 a1 b1 == Apply2 f2 a2 b2 = f1 == f2 && a1 == a2 && b1 == b2
+  Apply3 f1 a1 b1 c1 == Apply3 f2 a2 b2 c2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2
+  Apply4 f1 a1 b1 c1 d1 == Apply4 f2 a2 b2 c2 d2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+  Quote m1 == Quote m2 = m1 == m2
+  QuoteFunction _ == QuoteFunction _ = False  -- Function objects cannot be compared
+  FunctionData n1 a1 k1 == FunctionData n2 a2 k2 = n1 == n2 && a1 == a2 && k1 == k2
+  _ == _ = False
 
 -- Helper function to create Apply constructors based on argument count
 makeApplyExpr :: ScalarData -> [ScalarData] -> SymbolExpr
@@ -251,9 +264,10 @@ instance Printable PolyExpr where
       withSign t                   = " + " ++ pretty t
 
 instance Printable SymbolExpr where
-  isAtom Symbol{}     = True
-  isAtom Quote{}      = True
-  isAtom _            = False
+  isAtom Symbol{}        = True
+  isAtom Quote{}         = True
+  isAtom QuoteFunction{} = True
+  isAtom _               = False
 
   pretty (Symbol _ (':':':':':':_) []) = "#"
   pretty (Symbol _ s [])               = s
@@ -263,6 +277,7 @@ instance Printable SymbolExpr where
   pretty (Apply3 fn a1 a2 a3)          = unwords (map pretty' [fn, a1, a2, a3])
   pretty (Apply4 fn a1 a2 a3 a4)       = unwords (map pretty' [fn, a1, a2, a3, a4])
   pretty (Quote mExprs)                = "`" ++ pretty' mExprs
+  pretty (QuoteFunction whnf)          = "'" ++ prettyFunctionName whnf
   pretty (FunctionData name _ _)       = pretty name
 
 instance Printable TermExpr where
