@@ -9,15 +9,19 @@
 --
 def rt (n: MathExpr) (x: MathExpr) : MathExpr :=
   if isInteger n
-    then match x as mathExpr with
-      | #0 -> 0
-      | ?isMonomial -> rtMonomial n x
-      | poly $xs / poly $ys ->
-        let xd := reduce gcd xs
-            yd := reduce gcd ys
-            d := rtMonomial n (xd / yd)
-         in d *' rt'' n (sum' (map (/' xd) xs) /' sum' (map (/' yd) ys))
-      | _ -> rt'' n x
+    then
+      if n = 1
+        then x
+        else
+          match x as mathExpr with
+            | #0 -> 0
+            | ?isMonomial -> rtMonomial n x
+            | poly $xs / poly $ys ->
+                let xd := reduce gcd xs
+                    yd := reduce gcd ys
+                    d := rtMonomial n (xd / yd)
+                 in d *' rt'' n (sum' (map (/' xd) xs) /' sum' (map (/' yd) ys))
+            | _ -> rt'' n x
     else rt'' n x
 
 def rtMonomial (n: MathExpr) (x: MathExpr) : MathExpr :=
@@ -36,39 +40,37 @@ def rtTerm (n: MathExpr) (x: MathExpr) : MathExpr :=
 def rtPositiveTerm (n: MathExpr) (x: MathExpr) : MathExpr :=
   match (n, x) as (mathExpr, mathExpr) with
     | (#3, $a * #i * $r) -> (- i) * rt 3 (a *' r)
-    | (_, $a * #sqrt $b * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
-    | (_, $a * #rt $n' $b * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
+    | (_, $a * (apply1 #sqrt $b) * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
+    | (_, $a * (apply2 #rt $n' $b) * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
     | (_, _) -> rtPositiveTerm1 n x
   where
     rtPositiveTerm1 (n: MathExpr) (x: MathExpr) : MathExpr :=
       let f (xs: [(MathExpr, MathExpr)]) : (MathExpr, MathExpr) :=
             match xs as assocMultiset mathExpr with
               | [] -> (1, 1)
-              | $p ^ $k :: $rs ->
-                let (a, b) := f rs
-                 in (p ^' quotient k n *' a, p ^' (k % n) *' b)
+              | ($p, $k) :: $rs ->
+                  let (a, b) := f rs
+                   in (p ^' i.quotient k n *' a, p ^' (k % n) *' b)
           g (n: MathExpr) (x: MathExpr) : MathExpr :=
             let d := match x as termExpr with
-                       | term $m $xs ->
-                         gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
+                        | term $m $xs ->
+                            gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
              in rt'' (n / d) (rt d x)
-       in match x as termExpr with
+          in match x as termExpr with
             | term $m $xs ->
-              match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
-                | ($a, #1) -> a
-                | ($a, $b) -> a *' g n b
+                match f (toAssoc (pF (abs m)) ++ xs) as (integer, integer) with
+                  | ($a, #1) -> a
+                  | ($a, $b) -> a *' g n b
 
 def rt'' (n: MathExpr) (x: MathExpr) : MathExpr :=
   match (n, x) as (integer, integer) with
     | (#2, _) -> 'sqrt x
     | (_, _) -> 'rt n x
 
-def sqrt {a} (x: a) : a :=
-  if isScalar x
-    then let m := numerator x
-             n := denominator x
-          in rt 2 (m * n) / n
-    else f.sqrt x
+def sqrt (x: MathExpr) : MathExpr :=
+  let m := numerator x
+      n := denominator x
+   in rt 2 (m *' n) /' n
 
 def rtOfUnity : MathExpr -> MathExpr := rtu
 

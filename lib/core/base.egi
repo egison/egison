@@ -52,11 +52,16 @@ class Num a where
   (*) (x: a) (y: a) : a
   (/) (x: a) (y: a) : a
 
-instance Num Integer where
-  (+) x y := i.+ x y
-  (-) x y := i.- x y
-  (*) x y := i.* x y
-  (/) x y := i./ x y
+--instance Num Integer where
+--  (+) x y := i.+ x y
+--  (-) x y := i.- x y
+--  (*) x y := i.* x y
+--  (/) x y := i./ x y
+instance Num MathExpr where
+  (+) x y := plusForMathExpr x y
+  (-) x y := minusForMathExpr x y
+  (*) x y := multForMathExpr x y
+  (/) x y := divForMathExpr x y
 
 instance Num Float where
   (+) x y := f.+ x y

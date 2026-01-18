@@ -3,7 +3,7 @@
 -- Arithmetic Operation
 --
 --
-declare symbol i, e, π: MathExpr
+declare symbol i, w, e, π: MathExpr
 
 def toMathExpr {a} (arg: a) : MathExpr := mathNormalize (toMathExpr' arg)
 
@@ -33,13 +33,15 @@ def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
 def power (x: MathExpr) (n: MathExpr) : MathExpr := mathNormalize (power' x n)
 def power' (x: MathExpr) (n: MathExpr) : MathExpr := foldl (*') 1 (take n (repeat1 x))
 
+def exp (x: MathExpr) : MathExpr := 'exp x
+
 def (^) (x: MathExpr) (n: MathExpr) : MathExpr :=
   if x = e
     then exp n
     else if isRational n
       then if n >= 0
         then if isInteger n then power x n else '(^) x n
-        else 1 / x ^ neg n
+        else 1 / x ^ i.neg n
       else '(^) x n
 
 def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
@@ -48,7 +50,7 @@ def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
     else if isRational n
       then if n >= 0
         then if isInteger n then power' x n else '(^) x n
-        else 1 /' x ^' neg n
+        else 1 /' x ^' i.neg n
       else '(^) x n
 
 def gcd (x: MathExpr) (y: MathExpr) : MathExpr :=
@@ -56,7 +58,7 @@ def gcd (x: MathExpr) (y: MathExpr) : MathExpr :=
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
-      gcd' (abs a) (abs b) *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
+      gcd' (i.abs a) (i.abs b) *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
 
 def gcd' (x: Integer) (y: Integer) : Integer :=
   match (x, y) as (integer, integer) with
