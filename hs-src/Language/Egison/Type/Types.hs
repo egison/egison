@@ -28,7 +28,6 @@ module Language.Egison.Type.Types
   , normalizeInductiveTypes
   , capitalizeFirst
   , lowerFirst
-  , findMatchingInstanceForType
   ) where
 
 import           Data.Char        (toLower, toUpper)
@@ -277,40 +276,4 @@ capitalizeFirst (c:cs) = toUpper c : cs
 lowerFirst :: String -> String
 lowerFirst []     = []
 lowerFirst (c:cs) = toLower c : cs
-
--- | Find a matching instance for a given target type
--- This searches through a list of instances and returns the first one that unifies with the target type
--- Used by both type inference (IInfer.hs) and type class expansion (TypeClassExpand.hs)
-findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo
-findMatchingInstanceForType targetType instances = go instances
-  where
-    go [] = Nothing
-    go (inst:rest) =
-      -- Try to unify the instance type with the target type
-      -- We need to import unify from Type.Unify, but to avoid circular dependency,
-      -- we'll use a simple structural equality check for now
-      -- and rely on the caller to use unify externally
-      if canMatch (instType inst) targetType
-        then Just inst
-        else go rest
-    
-    -- Simple structural matching (approximate)
-    -- For precise matching, the caller should use unify
-    canMatch :: Type -> Type -> Bool
-    canMatch t1 t2
-      | t1 == t2 = True  -- Exact match
-      | otherwise = case (t1, t2) of
-          (TVar _, _) -> True  -- Type variable matches anything
-          (_, TVar _) -> True  -- Type variable matches anything
-          -- MathExpr and Integer are aliases (MathExpr = Integer)
-          (TMathExpr, TInt) -> True
-          (TInt, TMathExpr) -> True
-          (TTensor e1, TTensor e2) -> canMatch e1 e2
-          (TCollection e1, TCollection e2) -> canMatch e1 e2
-          (TFun a1 r1, TFun a2 r2) -> canMatch a1 a2 && canMatch r1 r2
-          (TTuple ts1, TTuple ts2) 
-            | length ts1 == length ts2 -> all (uncurry canMatch) (zip ts1 ts2)
-          (TInductive n1 ts1, TInductive n2 ts2)
-            | n1 == n2 && length ts1 == length ts2 -> all (uncurry canMatch) (zip ts1 ts2)
-          _ -> False
 

@@ -76,6 +76,7 @@ import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstr
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
+import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 --------------------------------------------------------------------------------
 -- * Infer Monad and State
