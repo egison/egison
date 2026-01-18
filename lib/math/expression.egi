@@ -129,6 +129,8 @@ def multExpr : Matcher MathExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
+def termExpr : Matcher MathExpr := mathExpr
+
 def isSymbol (mexpr: MathExpr) : Bool :=
   match mexpr as mathExpr with
     | symbol _ _ -> True
@@ -386,14 +388,3 @@ def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
       | ($y :: $yrs, $x :: $xrs) ->
         let (zs, rs) := L./ (map2 (-) (take (length yrs) xrs) (map (* (x / y)) yrs) ++ drop (length yrs) xrs) ys
          in (x / y :: zs, rs)
-
-def mathNormalize (x: MathExpr) : MathExpr := id x
-def (+') : MathExpr -> MathExpr -> MathExpr := i.+
-def (*') : MathExpr -> MathExpr -> MathExpr := i.*
-def (^) : MathExpr -> Integer -> MathExpr := i.power
-def (^') : MathExpr -> Integer -> MathExpr := i.power
-def (/') : MathExpr -> MathExpr -> MathExpr := i./
-def sum (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
-def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
-def product (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
-def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs

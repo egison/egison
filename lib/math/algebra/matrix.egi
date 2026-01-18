@@ -81,37 +81,6 @@ def M.join {a} (A: Matrix a) (B: Matrix a) (C: Matrix a) (D: Matrix a)
 --
 -- Determinant
 --
-def evenAndOddPermutations {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
-  let (es, os) := evenAndOddPermutations' n
-   in (map 1#(\i -> nth i $1) es, map 1#(\i -> nth i $1) os)
-
-def evenAndOddPermutations0 {a} (n: Integer) : ([[a] -> a], [[a] -> a]) :=
-  let (es, os) := evenAndOddPermutations' n
-   in ( map 1#(\i -> nth (i + 1) (map 1#($1 - 1) $1)) es
-      , map 1#(\i -> nth (i + 1) (map 1#($1 - 1) $1)) os )
-
-def evenAndOddPermutations' (n: Integer) : ([[Integer]], [[Integer]]) :=
-  match n as integer with
-    | #1 -> ([[1]], [])
-    | #2 -> ([[1, 2]], [[2, 1]])
-    | _ ->
-      let (es, os) := evenAndOddPermutations' (n - 1)
-          es' := map (++ [n]) es
-          os' := map (++ [n]) os
-       in ( es' ++ concat
-                     (map
-                        (\i -> map (permutate i n) os')
-                        (between 1 (n - 1)))
-          , os' ++ concat
-                     (map
-                        (\i -> map (permutate i n) es')
-                        (between 1 (n - 1))) )
-
-def permutate {Eq a} (x: a) (y: a) (xs: [a]) : [a] :=
-  match xs as list eq with
-    | $hs ++ #x :: $ms ++ #y :: $ts -> hs ++ y :: ms ++ x :: ts
-    | $hs ++ #y :: $ms ++ #x :: $ts -> hs ++ x :: ms ++ y :: ts
-
 def M.determinant {Num a} (m: Matrix a) : a :=
   match tensorShape m as list integer with
     | [#0, #0] -> 1

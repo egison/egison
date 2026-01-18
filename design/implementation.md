@@ -450,7 +450,7 @@ def add : ∀. Integer -> Integer -> Integer
 一つ一つの構文を実行できるか--no-preludesオプションを使ってライブラリをロードせずにテストする。
 -tオプションを使うとmain関数を呼ばないテストができる。
 ライブラリをロードするときは、-lオプションを使う。
-% cabal run egison -- --no-prelude --dump-typed -l lib/core/base.egi -l lib/core/typeclass.egi -t mini-test/34-tuple-matcher.egi
+% cabal run egison -- --no-prelude --no-normalize --dump-typed -l lib/core/base.egi -l lib/core/typeclass.egi -t mini-test/34-tuple-matcher.egi
 
 stackは使わずにcabalを使ってください。
 

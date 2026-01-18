@@ -2362,10 +2362,11 @@ extractIBindingsFromPattern pat ty = case pat of
         -- Types match: bind each pattern variable to corresponding type
         concat $ zipWith extractIBindingsFromPattern pats tys
       _ -> 
-        -- Type is not a matching tuple: this might be a type variable
-        -- In this case, we cannot extract precise types, so return empty
-        -- The type inference will handle this later
-        []
+        -- Type is not a resolved tuple (might be type variable or mismatch)
+        -- Extract pattern variables but assign them the full tuple type for now
+        -- This is imprecise but allows variables to be in scope
+        -- The actual element types will be determined during later unification
+        concatMap (\p -> extractIBindingsFromPattern p ty) pats
   PDEmptyPat -> []
   PDConsPat p1 p2 ->
     case ty of
