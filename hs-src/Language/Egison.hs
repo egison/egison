@@ -53,13 +53,14 @@ initialEnv = do
 coreLibraries :: [String]
 coreLibraries =
   -- Libs that defines user-defined infixes comes first
-  [ "lib/core/base.egi"              -- Defines (&&) (||)
+  [
+    "lib/core/base.egi"              -- Defines (&&) (||)
   , "lib/core/order.egi"
   , "lib/core/collection.egi"        -- Defines (++) for patterns
   , "lib/core/maybe.egi"
   , "lib/core/number.egi"
   , "lib/core/random.egi"
-  , "lib/core/assoc.egi"
+--  , "lib/core/assoc.egi"
   , "lib/core/string.egi"
   , "lib/core/io.egi"
 

@@ -25,6 +25,7 @@ This eliminates the need for runtime dispatch functions like resolveEq.
 module Language.Egison.Type.TypeClassExpand
   ( expandTypeClassMethodsT
   , addDictionaryParametersT
+  , applyConcreteConstraintDictionaries
   ) where
 
 import           Data.Char                  (toLower)
@@ -262,7 +263,21 @@ expandTypeClassMethodsT tiExpr = do
         exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
         return $ TIInductiveDataExpr name exprs'
       
-      TIMatcherExpr patDefs -> return $ TIMatcherExpr patDefs  -- TODO: Process matcher definitions
+      TIMatcherExpr patDefs -> do
+        -- Expand expressions inside matcher definitions
+        -- patDefs is a list of (PrimitivePatPattern, TIExpr, [TIBindingExpr])
+        -- where TIBindingExpr is (IPrimitiveDataPattern, TIExpr)
+        -- Note: cs contains the constraints from the matcher definition itself (e.g., {Eq a})
+        patDefs' <- mapM (\(pat, matcherExpr, bindings) -> do
+          -- Expand the next-matcher expression with parent constraints
+          matcherExpr' <- expandTIExprWithConstraints classEnv' cs matcherExpr
+          -- Expand expressions in primitive-data-match clauses with parent constraints
+          -- These expressions may use type class methods from the matcher's constraints
+          bindings' <- mapM (\(dp, expr) -> do
+            expr' <- expandTIExprWithConstraints classEnv' cs expr
+            return (dp, expr')) bindings
+          return (pat, matcherExpr', bindings')) patDefs
+        return $ TIMatcherExpr patDefs'
       TIIndexedExpr b base indices -> do
         base' <- expandTIExprWithConstraints classEnv' cs base
         return $ TIIndexedExpr b base' indices  -- TODO: Process indices
@@ -942,6 +957,18 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           return (k', v)) pairs
         return $ TIHashExpr pairs'
       
+      -- Matcher: recursively process expressions inside matcher definitions
+      TIMatcherExpr patDefs -> do
+        patDefs' <- mapM (\(pat, matcherExpr, bindings) -> do
+          -- Process the next-matcher expression
+          matcherExpr' <- replaceMethodCallsWithDictAccessT env cs matcherExpr
+          -- Process expressions in primitive-data-match clauses
+          bindings' <- mapM (\(dp, expr) -> do
+            expr' <- replaceMethodCallsWithDictAccessT env cs expr
+            return (dp, expr')) bindings
+          return (pat, matcherExpr', bindings')) patDefs
+        return $ TIMatcherExpr patDefs'
+      
       -- Other expressions: return as-is for now
       _ -> return node
     
@@ -960,3 +987,58 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     getMethodArity :: Type -> Int
     getMethodArity (TFun _ t2) = 1 + getMethodArity t2
     getMethodArity _ = 0
+
+-- | Apply dictionaries to expressions with concrete type constraints
+-- This is used for top-level definitions like: def integer : Matcher Integer := eq
+-- where the right-hand side (eq) has concrete type constraints {Eq Integer}
+applyConcreteConstraintDictionaries :: TIExpr -> EvalM TIExpr
+applyConcreteConstraintDictionaries expr = do
+  classEnv <- getClassEnv
+  let scheme@(Forall _ constraints _) = tiScheme expr
+  
+  -- Check if all constraints are on concrete types
+  let isConcreteConstraint (Constraint _ (TVar _)) = False
+      isConcreteConstraint _ = True
+      hasOnlyConcreteConstraints = not (null constraints) && all isConcreteConstraint constraints
+  
+  if hasOnlyConcreteConstraints
+    then do
+      -- Apply dictionaries for concrete constraints
+      dictArgs <- mapM (resolveDictionaryForConstraint classEnv) constraints
+      -- Create application: expr dict1 dict2 ...
+      let resultType = tiExprType expr
+          -- Update scheme to remove constraints since they are now applied
+          newScheme = Forall [] [] resultType
+      return $ TIExpr newScheme (TIApplyExpr expr dictArgs)
+    else
+      -- No concrete constraints, return as-is
+      return expr
+  where
+    -- Resolve dictionary for a concrete constraint
+    resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
+    resolveDictionaryForConstraint classEnv (Constraint className tyArg) = do
+      let instances = lookupInstances className classEnv
+          lowerFirstChar [] = []
+          lowerFirstChar (c:cs) = toLower c : cs
+      case findMatchingInstanceForType tyArg instances of
+        Just inst -> do
+          -- Generate dictionary name (e.g., "eqInteger", "numInteger")
+          let instTypeName = typeConstructorName (instType inst)
+              dictName = lowerFirstChar className ++ instTypeName
+              dictType = TVar (TyVar "dict")
+              dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+          
+          -- Check if instance has nested constraints
+          if null (instContext inst)
+            then do
+              -- No constraints: return simple dictionary reference
+              return dictExpr
+            else do
+              -- Has constraints: need to resolve them recursively
+              nestedDictArgs <- mapM (resolveDictionaryForConstraint classEnv) (instContext inst)
+              return $ TIExpr (Forall [] [] dictType) (TIApplyExpr dictExpr nestedDictArgs)
+        Nothing -> do
+          -- No instance found - return dummy dictionary
+          let dictName = "dict_" ++ className ++ "_NOT_FOUND"
+              dictType = TVar (TyVar "dict")
+          return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
