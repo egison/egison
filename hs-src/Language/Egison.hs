@@ -64,7 +64,8 @@ coreLibraries =
   , "lib/core/string.egi"
   , "lib/core/io.egi"
 
-
+  , "lib/math/no-normalize.egi"
+  
   , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
   , "lib/math/common/constants.egi"
 --  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')

@@ -45,15 +45,22 @@ run = do
   -- Collect all files to load (core libs, user libs, load files, and test files)
   -- Load core libraries first unless --no-prelude is set
   isNoPrelude <- asks optNoPrelude
+  mathNormalize <- asks optMathNormalize
   let coreLibExprs = if isNoPrelude then [] else map Load coreLibraries
+      -- Add math normalization library based on option
+      mathLibExpr = if isNoPrelude
+                      then []
+                      else [Load (if mathNormalize
+                                    then "lib/math/normalize.egi"
+                                    else "lib/math/no-normalize.egi")]
       libExprs = map Load (optLoadLibs opts)
       loadFileExprs = map LoadFile (optLoadFiles opts)
       -- Include test file in the initial load to preserve type class environment
       testFileExprs = case (optTestOnly opts, optExecFile opts) of
         (True, Just (file, _)) -> [LoadFile file]
         _                      -> []
-      -- Load core libraries first, then user libraries and files
-      allLoadExprs = coreLibExprs ++ libExprs ++ loadFileExprs ++ testFileExprs
+      -- Load core libraries first, then math library, then user libraries and files
+      allLoadExprs = coreLibExprs ++ mathLibExpr ++ libExprs ++ loadFileExprs ++ testFileExprs
   -- Load all libraries and user files in a single EvalM context to preserve EvalState
   mResult <- fromEvalTWithState initialEvalState $ do
     env <- initialEnv  -- Only primitive environment
