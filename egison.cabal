@@ -124,6 +124,7 @@ Library
                    Language.Egison.Type.TypedDesugar
                    Language.Egison.Type.Types
                    Language.Egison.Type.Unify
+                   Language.Egison.Type.Instance
                    Language.Egison.Type.Pretty
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison

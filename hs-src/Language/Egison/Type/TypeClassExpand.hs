@@ -43,7 +43,8 @@ import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), Instanc
                                              lookupInstances, lookupClass, lookupEnv)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, typeConstructorName,
-                                            sanitizeMethodName, findMatchingInstanceForType)
+                                            sanitizeMethodName)
+import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 -- | Expand type class method calls in a typed expression (TIExpr)
 -- This function recursively processes TIExpr and replaces type class method calls
