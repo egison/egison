@@ -30,7 +30,7 @@ import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar)
 import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT, applyConcreteConstraintDictionaries)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
@@ -56,9 +56,11 @@ desugarTypedTopExprT :: TITopExpr -> EvalM (Maybe TITopExpr)
 desugarTypedTopExprT topExpr = case topExpr of
   TIDefine scheme var tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
+    -- Apply dictionaries to right-hand side if it has concrete type constraints
+    tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
     -- Add dictionary parameters for constrained functions
-    tiexpr'' <- addDictionaryParametersT scheme tiexpr'
-    return $ Just (TIDefine scheme var tiexpr'')
+    tiexpr''' <- addDictionaryParametersT scheme tiexpr''
+    return $ Just (TIDefine scheme var tiexpr''')
   
   TITest tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr

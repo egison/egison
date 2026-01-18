@@ -1414,12 +1414,16 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: this should not happen, but handle gracefully
         resultTy <- freshVar "matchResult"
-        return (mkTIExpr (applySubst s1234 resultTy) (TIMatchExpr mode targetTI matcherTI []), s1234)
+        let targetTI' = applySubstToTIExpr s1234 targetTI
+            matcherTI' = applySubstToTIExpr s1234 matcherTI
+        return (mkTIExpr (applySubst s1234 resultTy) (TIMatchExpr mode targetTI' matcherTI' []), s1234)
       _ -> do
         -- Infer type of each clause and unify them
         (resultTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-        return (mkTIExpr (applySubst finalS resultTy) (TIMatchExpr mode targetTI matcherTI clauseTIs), finalS)
+            targetTI' = applySubstToTIExpr finalS targetTI
+            matcherTI' = applySubstToTIExpr finalS matcherTI
+        return (mkTIExpr (applySubst finalS resultTy) (TIMatchExpr mode targetTI' matcherTI' clauseTIs), finalS)
   
   -- MatchAll expressions
   IMatchAllExpr mode target matcher clauses -> do
@@ -1464,12 +1468,16 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: return empty collection type
         resultElemTy <- freshVar "matchAllElem"
-        return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI []), s1234)
+        let targetTI' = applySubstToTIExpr s1234 targetTI
+            matcherTI' = applySubstToTIExpr s1234 matcherTI
+        return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' []), s1234)
       _ -> do
         -- Infer type of each clause (they should all have the same type)
         (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-        return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI matcherTI clauseTIs), finalS)
+            targetTI' = applySubstToTIExpr finalS targetTI
+            matcherTI' = applySubstToTIExpr finalS matcherTI
+        return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' clauseTIs), finalS)
   
   -- Memoized Lambda
   IMemoizedLambdaExpr args body -> do
