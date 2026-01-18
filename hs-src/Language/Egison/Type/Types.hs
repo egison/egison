@@ -173,6 +173,11 @@ typeToName _ = "Unknown"
 -- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
 typeConstructorName :: Type -> String
 typeConstructorName TInt = "Integer"
+typeConstructorName TMathExpr = "MathExpr"
+typeConstructorName TPolyExpr = "PolyExpr"
+typeConstructorName TTermExpr = "TermExpr"
+typeConstructorName TSymbolExpr = "SymbolExpr"
+typeConstructorName TIndexExpr = "IndexExpr"
 typeConstructorName TFloat = "Float"
 typeConstructorName TBool = "Bool"
 typeConstructorName TChar = "Char"
@@ -297,6 +302,9 @@ findMatchingInstanceForType targetType instances = go instances
       | otherwise = case (t1, t2) of
           (TVar _, _) -> True  -- Type variable matches anything
           (_, TVar _) -> True  -- Type variable matches anything
+          -- MathExpr and Integer are aliases (MathExpr = Integer)
+          (TMathExpr, TInt) -> True
+          (TInt, TMathExpr) -> True
           (TTensor e1, TTensor e2) -> canMatch e1 e2
           (TCollection e1, TCollection e2) -> canMatch e1 e2
           (TFun a1 r1, TFun a2 r2) -> canMatch a1 a2 && canMatch r1 r2
