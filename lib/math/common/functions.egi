@@ -24,7 +24,7 @@ def log (x: MathExpr) : MathExpr :=
 def cos (x: MathExpr) : MathExpr :=
   match x as mathExpr with
     | #0 -> 1
-    | term $n [#π] -> (-1) ^ abs n
+    | mult $n #π -> (-1) ^ abs n
     | (mult _ #π) / #2 -> 0
     | _ -> 'cos x
 
@@ -40,9 +40,9 @@ def tan (x: MathExpr) : MathExpr :=
     | #0 -> 0
     | _ -> 'tan x
 
-def acos : MathExpr -> MathExpr := f.acos
-def asin : MathExpr -> MathExpr := f.asin
-def atan : MathExpr -> MathExpr := f.atan
+--def acos : MathExpr -> MathExpr := f.acos
+--def asin : MathExpr -> MathExpr := f.asin
+--def atan : MathExpr -> MathExpr := f.atan
 
 def cosh (x: MathExpr) : MathExpr :=
   match x as mathExpr with
@@ -59,9 +59,9 @@ def tanh (x: MathExpr) : MathExpr :=
     | #0 -> 0
     | _ -> 'tanh x
 
-def acosh : MathExpr -> MathExpr := f.acosh
-def asinh : MathExpr -> MathExpr := f.asinh
-def atanh : MathExpr -> MathExpr := f.atanh
+--def acosh : MathExpr -> MathExpr := f.acosh
+--def asinh : MathExpr -> MathExpr := f.asinh
+--def atanh : MathExpr -> MathExpr := f.atanh
 
 def sinc (x: MathExpr) : MathExpr :=
   match x as mathExpr with

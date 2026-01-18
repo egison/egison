@@ -3,20 +3,9 @@
 -- Arithmetic Operation
 --
 --
+declare symbol i, e, π: MathExpr
 
 def toMathExpr {a} (arg: a) : MathExpr := mathNormalize (toMathExpr' arg)
-
-infixl expression 6 +
-infixl expression 6 -
-infixl expression 7 *
-infixl expression 7 /
-infixl expression 8 ^
-
-infixl expression 6 +'
-infixl expression 6 -'
-infixl expression 7 *'
-infixl expression 7 /'
-infixl expression 8 ^'
 
 def (+') : MathExpr -> MathExpr -> MathExpr := i.+
 def (-') : MathExpr -> MathExpr -> MathExpr := i.-
@@ -73,7 +62,7 @@ def gcd' (x: Integer) (y: Integer) : Integer :=
   match (x, y) as (integer, integer) with
     | (_, #0) -> x
     | (#0, _) -> y
-    | (_, ?(>= x)) -> gcd' (modulo y x) x
+    | (_, ?(>= x)) -> gcd' (i.modulo y x) x
     | (_, _) -> gcd' y x
 
 def P./ fx gx x :=
