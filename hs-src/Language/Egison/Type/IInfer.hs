@@ -1786,16 +1786,23 @@ inferIPattern pat expectedType ctx = case pat of
     let exprType = tiExprType exprTI
     s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
     let finalS = composeSubst s' s
+        exprTI' = applySubstToTIExpr finalS exprTI
         finalType = applySubst finalS expectedType
-        tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI)
+        tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI')
     return (tipat, [], finalS)
   
   IPredPat expr -> do
     -- Predicate pattern: infer predicate expression
+    -- Expected type for predicate is: expectedType -> Bool
+    let predicateType = TFun expectedType TBool
     (exprTI, s) <- inferIExprWithContext expr ctx
-    let finalType = applySubst s expectedType
-        tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI)
-    return (tipat, [], s)
+    -- Unify with expected predicate type to concretize type variables
+    s' <- unifyTypesWithContext (applySubst s (tiExprType exprTI)) (applySubst s predicateType) ctx
+    let finalS = composeSubst s' s
+        exprTI' = applySubstToTIExpr finalS exprTI
+        finalType = applySubst finalS expectedType
+        tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI')
+    return (tipat, [], finalS)
   
   ITuplePat pats -> do
     -- Tuple pattern: decompose expected type

@@ -60,13 +60,13 @@ coreLibraries =
   , "lib/core/maybe.egi"
   , "lib/core/number.egi"
   , "lib/core/random.egi"
---  , "lib/core/assoc.egi"
+  , "lib/core/assoc.egi"
   , "lib/core/string.egi"
   , "lib/core/io.egi"
 
 
---  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
---  , "lib/math/common/constants.egi"
+  , "lib/math/expression.egi"        -- Defines (+) (*) (/) (^) for patterns
+  , "lib/math/common/constants.egi"
 --  , "lib/math/common/arithmetic.egi" -- Defines (+) (-) (*) (/) (+') (-') (*') (/')
 --  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
 
