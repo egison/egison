@@ -4,4 +4,4 @@
 --
 --
 
-def mathNormalize {a} : a -> a := id
+def mathNormalize : (MathExpr -> MathExpr) := id
