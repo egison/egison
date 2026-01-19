@@ -382,60 +382,9 @@ expandTypeClassMethodsT tiExpr = do
                           dictArgs = map makeDict exprConstraints
                           varExpr = TIExpr scheme (TIVarExpr varName)
                       return $ TIApplyExpr varExpr dictArgs
-                else do
-                  -- No constraints in current expression
-                  -- But the original definition might have constraints that were instantiated away
-                  -- Check the type environment for the original definition
-                  typeEnv <- getTypeEnv
-                  case lookupEnv varName typeEnv of
-                    Just originalScheme@(Forall _ origConstraints _) | not (null origConstraints) -> do
-                      -- Original definition has constraints
-                      -- Substitute type variables to match current type
-                      let currentType = tiExprType expr
-                          concretizedConstraints = substituteConstraintsForType originalScheme currentType
-                          hasOnlyConcreteConstraints = all isConcreteConstraint concretizedConstraints
-                      
-                      if hasOnlyConcreteConstraints
-                        then do
-                          -- Apply dictionaries for concrete constraints
-                          dictArgs <- mapM (resolveDictionaryArg classEnv') concretizedConstraints
-                          let varExpr = TIExpr scheme (TIVarExpr varName)
-                          return $ TIApplyExpr varExpr dictArgs
-                        else
-                          -- Has type variable constraints - no dictionary application needed yet
-                          expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
-                    _ ->
-                      -- No constraints in original definition either
-                      expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
-              where
-                -- Substitute type variables in constraints to match current type
-                substituteConstraintsForType :: TypeScheme -> Type -> [Constraint]
-                substituteConstraintsForType (Forall _tyVars constraints schemeType) actualType =
-                  let substs = extractTypeSubsts schemeType actualType
-                  in map (applySubstsToConstraint substs) constraints
-                
-                extractTypeSubsts :: Type -> Type -> [(TyVar, Type)]
-                extractTypeSubsts (TVar v) actual = [(v, actual)]
-                extractTypeSubsts (TFun s1 s2) (TFun a1 a2) = 
-                  extractTypeSubsts s1 a1 ++ extractTypeSubsts s2 a2
-                extractTypeSubsts (TTensor s) (TTensor a) = extractTypeSubsts s a
-                extractTypeSubsts (TCollection s) (TCollection a) = extractTypeSubsts s a
-                extractTypeSubsts (TTuple ss) (TTuple as)
-                  | length ss == length as = concatMap (uncurry extractTypeSubsts) (zip ss as)
-                extractTypeSubsts _ _ = []
-                
-                applySubstsToConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
-                applySubstsToConstraint substs (Constraint cName cType) =
-                  Constraint cName (applySubstsToType substs cType)
-                
-                applySubstsToType :: [(TyVar, Type)] -> Type -> Type
-                applySubstsToType substs ty = case ty of
-                  TVar v -> maybe ty id (lookup v substs)
-                  TFun t1 t2 -> TFun (applySubstsToType substs t1) (applySubstsToType substs t2)
-                  TTensor t -> TTensor (applySubstsToType substs t)
-                  TCollection t -> TCollection (applySubstsToType substs t)
-                  TTuple ts -> TTuple (map (applySubstsToType substs) ts)
-                  _ -> ty
+                else
+                  -- Regular variable, no constraints
+                  expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
             
             isConcreteConstraint (Constraint _ (TVar _)) = False
             isConcreteConstraint _ = True
@@ -911,13 +860,13 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     -- Replace method calls with dictionary access in TIExpr
     replaceMethodCallsWithDictAccessT :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     replaceMethodCallsWithDictAccessT env cs tiExpr = do
-      let scheme = tiScheme tiExpr
-      newNode <- replaceMethodCallsInNode env cs (tiExprNode tiExpr)
+      let scheme@(Forall _ exprConstraints _) = tiScheme tiExpr
+      newNode <- replaceMethodCallsInNode env cs exprConstraints (tiExprNode tiExpr)
       return $ TIExpr scheme newNode
     
     -- Replace method calls in TIExprNode
-    replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> TIExprNode -> EvalM TIExprNode
-    replaceMethodCallsInNode env cs node = case node of
+    replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> [Constraint] -> TIExprNode -> EvalM TIExprNode
+    replaceMethodCallsInNode env cs exprConstraints node = case node of
       -- Standalone method reference: eta-expand
       TIVarExpr methodName -> do
         case findConstraintForMethodInList env methodName cs of
@@ -940,7 +889,23 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                     body = TIExpr (Forall [] [] ty) (TIApplyExpr dictAccess paramExprs)
                 return $ TILambdaExpr Nothing paramVars body
               Nothing -> return $ TIVarExpr methodName
-          Nothing -> return $ TIVarExpr methodName
+          Nothing -> do
+            -- Not a method - check if it's a constrained variable (e.g., dotProduct)
+            -- and the expression itself has constraints that match the parent constraints
+            if not (null exprConstraints)
+              then do
+                -- Check which constraints from exprConstraints match parent constraints cs
+                let matchingConstraints = filter (\(Constraint eName _) ->
+                      any (\(Constraint pName _) -> eName == pName) cs) exprConstraints
+                if null matchingConstraints
+                  then return $ TIVarExpr methodName
+                  else do
+                    -- Apply matching dictionary parameters
+                    let dictParams = map constraintToDictParam matchingConstraints
+                        dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p)) dictParams
+                        varExpr = TIExpr (Forall [] exprConstraints (TVar (TyVar "var"))) (TIVarExpr methodName)
+                    return $ TIApplyExpr varExpr dictArgExprs
+              else return $ TIVarExpr methodName
       
       -- Method call: replace with dictionary access
       TIApplyExpr func args -> do
