@@ -443,8 +443,11 @@ desugar (LambdaExpr' vwis expr) = do
   where
     desugarInvertedArgs :: Arg VarWithIndices -> ([VarWithIndices], Expr) -> ([VarWithIndices], Expr)
     desugarInvertedArgs (Arg x) (args, expr) = (x : args, expr)
-    desugarInvertedArgs (InvertedArg x) (args, _expr) =
-      (x : args, FlipIndicesExpr (VarExpr (extractNameFromVarWithIndices x)))
+    desugarInvertedArgs (InvertedArg x) (args, expr) =
+      let varName = extractNameFromVarWithIndices x
+          flippedExpr = FlipIndicesExpr (VarExpr varName)
+          bindPat = PDPatVar varName
+      in (x : args, LetExpr [Bind bindPat flippedExpr] expr)
 
 desugar (MemoizedLambdaExpr names expr) =
   IMemoizedLambdaExpr names <$> desugar expr
