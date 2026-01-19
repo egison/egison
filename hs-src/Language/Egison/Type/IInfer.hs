@@ -1519,7 +1519,10 @@ inferIExprWithContext expr ctx = case expr of
   
   -- With symbols
   IWithSymbolsExpr syms body -> do
-    (bodyTI, s) <- inferIExprWithContext body ctx
+    -- Add symbols to type environment as MathExpr (TMathExpr = TInt)
+    -- Symbols introduced by withSymbols are mathematical symbols
+    let symbolBindings = [(sym, Forall [] [] TMathExpr) | sym <- syms]
+    (bodyTI, s) <- withEnv symbolBindings $ inferIExprWithContext body ctx
     let bodyType = tiExprType bodyTI
     return (mkTIExpr bodyType (TIWithSymbolsExpr syms bodyTI), s)
   
