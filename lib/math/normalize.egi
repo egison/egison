@@ -7,7 +7,7 @@
 def mathNormalize (x: MathExpr) : MathExpr :=
   if isInteger x
     then x
-    else if containFunction 'rtu x
+    else if containFunction1 rtu x
           then rewriteRuleForRtu (symbolNormalize x)
           else symbolNormalize x
 
@@ -17,10 +17,13 @@ def mathNormalize (x: MathExpr) : MathExpr :=
 def rewriteRuleForRtu : MathExpr -> MathExpr := mapPolys rewriteRuleForRtuPoly
   where
     rewriteRuleForRtuPoly : MathExpr -> MathExpr := mapPolys rewriteRuleForRtuPoly'
-    rewriteRuleForRtuPoly' (poly: MathExpr) : MathExpr :=
-      match poly as mathExpr with
-        | $a * #rtu $n ^ #1 * $mr + (loop $i (2, #(n - 1))
-                                       (#a * #(rtu n) ^ #i * #mr + ...)
-                                       $pr) ->
-          rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
-        | _ -> poly
+    rewriteRuleForRtuPoly' (x: MathExpr) : MathExpr :=
+      match x as mathExpr with
+        | poly ($a * (apply1 #rtu #5) ^ #1 * $mr :: _) -> 300
+        | poly (term $a ((apply1 #rtu #5, #1) :: _) :: _) -> 200
+        | $a * (apply1 #rtu #5) ^ #1 * $mr -> 100
+--        | $a * (apply1 #rtu $n) ^ #1 * $mr + (loop $i (2, #(n - 1))
+--                                       (#a * (apply1 #rtu #n) ^ #i * #mr + ...)
+--                                       $pr) ->
+--          rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
+        | _ -> x
