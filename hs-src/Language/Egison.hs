@@ -70,9 +70,9 @@ coreLibraries =
 
   , "lib/math/common/constants.egi"
   , "lib/math/common/functions.egi"
---  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/math/algebra/root.egi"
+  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
 
---  , "lib/math/algebra/root.egi"
 --  , "lib/math/algebra/equations.egi"
 --  , "lib/math/algebra/inverse.egi"
 --  , "lib/math/analysis/derivative.egi"
