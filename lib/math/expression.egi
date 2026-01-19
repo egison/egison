@@ -234,6 +234,7 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
 def scanAllTerms (mexpr: MathExpr) (f: MathExpr -> Bool) : Bool :=
   match mexpr as mathExpr with
     | poly $ts1 / poly $ts2 -> any f (ts1 ++ ts2)
+    | _ -> not ((debug2 "scanAllTerms" mexpr) = mexpr)
 
 def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
   scanAllTerms mexpr
@@ -260,8 +261,7 @@ def containFunction1 (f : MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
               | apply2 _ $a1 $a2 -> containFunction1 f a1 || containFunction1 f a2
               | apply3 _ $a1 $a2 $a3 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3 || containFunction1 f a4
-              | _ -> False)
-            xs)
+              | _ -> False) xs)
 
 def containFunction2 (f : MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
   scanAllTerms mexpr
