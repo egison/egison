@@ -111,10 +111,10 @@ def mathExpr : Matcher MathExpr :=
 
 def multExpr : Matcher MathExpr :=
   matcher
-    | $ * $ as (mathExpr, multExpr) with
+    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
         | $tgt ->
             matchAll tgt as mathExpr with
-              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
+              | term _ (($x, $n) :: $rs) -> (x, n, product' (map (\(x, n) -> x ^' n) rs))
     | $ ^ $ as (mathExpr, integer) with
         | $tgt ->
             match tgt as mathExpr with
@@ -123,7 +123,7 @@ def multExpr : Matcher MathExpr :=
     | $ * $ as (mathExpr, multExpr) with
         | $tgt ->
             matchAll tgt as mathExpr with
-              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (uncurry (^')) (map (\(x, n) -> (x, n)) rs)))
+              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
     | #$val as () with
         | $tgt -> if val = tgt then [()] else []
     | $ as something with
