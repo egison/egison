@@ -523,8 +523,8 @@ applySubstToTIExprNode s node = case node of
   TITensorExpr shape elems ->
     TITensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s elems)
   
-  TITransposeExpr tensor perm ->
-    TITransposeExpr (applySubstToTIExpr s tensor) (applySubstToTIExpr s perm)
+  TITransposeExpr perm tensor ->
+    TITransposeExpr (applySubstToTIExpr s perm) (applySubstToTIExpr s tensor)
   
   TIFlipIndicesExpr tensor ->
     TIFlipIndicesExpr (applySubstToTIExpr s tensor)
@@ -1675,14 +1675,18 @@ inferIExprWithContext expr ctx = case expr of
       _ -> return (mkTIExpr t1Type (TITensorMap2Expr funcTI tensor1TI tensor2TI), s123)
   
   -- Transpose expression
-  ITransposeExpr tensorExpr permExpr -> do
+  -- ITransposeExpr takes (permutation, tensor) to match tTranspose signature
+  ITransposeExpr permExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
-    (permTI, s2) <- inferIExprWithContext permExpr exprCtx
+    (permTI, s) <- inferIExprWithContext permExpr exprCtx
+    let permType = tiExprType permTI
+    -- Unify permutation type with [MathExpr]
+    s2 <- unifyTypesWithContext (applySubst s permType) (TCollection TMathExpr) exprCtx
+    (tensorTI, s3) <- inferIExprWithContext tensorExpr exprCtx
     let tensorType = tiExprType tensorTI
-        finalS = composeSubst s2 s
+        finalS = composeSubst s3 (composeSubst s2 s)
     -- Transpose preserves tensor type
-    return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr tensorTI permTI), finalS)
+    return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr permTI tensorTI), finalS)
   
   -- Flip indices expression
   IFlipIndicesExpr tensorExpr -> do

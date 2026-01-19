@@ -292,10 +292,10 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         tensor' <- insertTensorMapsWithConstraints env cs tensor
         return $ TITensorContractExpr tensor'
       
-      TITransposeExpr tensor perm -> do
-        tensor' <- insertTensorMapsWithConstraints env cs tensor
+      TITransposeExpr perm tensor -> do
         perm' <- insertTensorMapsWithConstraints env cs perm
-        return $ TITransposeExpr tensor' perm'
+        tensor' <- insertTensorMapsWithConstraints env cs tensor
+        return $ TITransposeExpr perm' tensor'
       
       TIFlipIndicesExpr tensor -> do
         tensor' <- insertTensorMapsWithConstraints env cs tensor
