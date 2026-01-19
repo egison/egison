@@ -48,6 +48,25 @@ This extension provides syntax highlighting and basic language support for Egiso
 
 Once installed, the extension will automatically activate when you open a file with the `.egi` extension.
 
+### Auto-Indentation
+
+By default, auto-indentation is **disabled** to preserve the original formatting when copying and pasting code. If you prefer automatic indentation, you can enable it in your VS Code/Cursor settings:
+
+```json
+{
+  "[egison]": {
+    "editor.autoIndent": "full"
+  }
+}
+```
+
+Available options:
+- `"none"`: No auto-indentation (default behavior)
+- `"keep"`: Keep the indentation from the previous line
+- `"brackets"`: Auto-indent based on brackets
+- `"advanced"`: Language-aware indentation
+- `"full"`: Full auto-indentation
+
 ## Examples
 
 Here's what Egison code looks like with syntax highlighting:
