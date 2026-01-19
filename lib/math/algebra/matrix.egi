@@ -2,17 +2,54 @@
 -- Matrices
 --
 
-def M.* {Num a} (s: Matrix a) (t: Matrix a) : Matrix a := 
-  withSymbols [i, j, k] s~i~j . t_j
+inductive pattern Matrix a:=
+  | quadCons (Matrix a) (Matrix a) (Matrix a) (Matrix a)
+  | matCons Integer Integer a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
+
+def matrix {} : Matcher Integer :=
+  matcher
+    | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
+      | $tgt ->
+        match tensorShape tgt as list integer with
+          | $m :: $n :: _ ->
+            [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
+          | _ -> []
+    | matCons #$i #$j $ $ $ $ $ as (mathExpr, matrix, matrix, matrix, matrix) with
+      | $tgt ->
+        let ns := tensorShape tgt
+            m := nth 1 ns
+            n := nth 2 ns
+         in [ ( tgt_i_j
+            , tgt_(1, i - 1)_(1, j - 1)
+            , tgt_(1, i - 1)_(j + 1, n)
+            , tgt_(i + 1, m)_(1, j - 1)
+            , tgt_(i + 1, m)_(j + 1, n) ) ]
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+def M.inverse {Num a} (m: Matrix a) : Matrix a :=
+  let d := M.det m
+   in generateTensor
+        (\[i, j] ->
+          match m as matrix with
+          | matCons #j #i _ $A $B $C $D ->
+            if isEven (i + j)
+              then M.det (M.join A B C D) / d
+              else - (M.det (M.join A B C D) / d))
+        (tensorShape m)
+
+def M.* (s: Matrix MathExpr) (t: Matrix MathExpr) : Matrix MathExpr := 
+  withSymbols [i, j, k] (s~i~j . t_j_k)
 
 def M.*' (s: Matrix MathExpr) (t: Matrix MathExpr) : Matrix MathExpr := 
-  withSymbols [i, j, k] s~i~j .' t_j
+  withSymbols [i, j, k] (s~i~j .' t_j_k)
 
-def M.power {Num a} (t: Matrix a) (k: Integer) : Matrix a := 
+def M.power (t: Matrix MathExpr) (k: Integer) : Matrix MathExpr := 
   foldl M.* t (take (k - 1) (repeat1 t))
---M.power (m: Matrix a) k := repeatedSquaring M.* m k
 
-def M.comm {Num a} (m1: Matrix a) (m2: Matrix a) : Matrix a := 
+def M.comm (m1: Matrix MathExpr) (m2: Matrix MathExpr) : Matrix MathExpr := 
   withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
 def M.join {a} (A: Matrix a) (B: Matrix a) (C: Matrix a) (D: Matrix a) 
@@ -54,73 +91,3 @@ def M.determinant {Num a} (m: Matrix a) : a :=
     | _ -> undefined
 
 def M.det {Num a} : Matrix a -> a := M.determinant
-
---
--- Eigenvalues and eigenvectors
---
-def M.eigenvalues {Num a} (m: Matrix a) : [a] :=
-  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
-   in [e1, e2]
-
-def M.eigenvectors {Num a} (m: Matrix a) : [(a, Vector a)] :=
-  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
-   in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
-      , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
-
---
--- LU decomposition
---
-def M.LU {Num a} (x: Matrix a) : (Matrix a, Matrix a) :=
-  match tensorShape x as list integer with
-    | [#2, #2] ->
-      let L := generateTensor
-                 (\[i, j] -> match compare i j as ordering with
-                   | less -> 0
-                   | equal -> 1
-                   | greater -> b_i_j)
-                 [2, 2]
-          U := generateTensor
-                 (\[i, j] -> match compare i j as ordering with
-                   | greater -> 0
-                   | _ -> c_i_j)
-                 [2, 2]
-          m := M.* L U
-          ret := solve
-                   [ (m_1_1, x_1_1, c_1_1)
-                   , (m_1_2, x_1_2, c_1_2)
-                   , (m_2_1, x_2_1, b_2_1)
-                   , (m_2_2, x_2_2, c_2_2) ]
-       in (substitute ret L, substitute ret U)
-    | [#3, #3] ->
-      let L := generateTensor
-                 (\[i, j] -> match compare i j as ordering with
-                   | less -> 0
-                   | equal -> 1
-                   | greater -> b_i_j)
-                 [3, 3]
-          U := generateTensor
-                 (\[i, j] -> match compare i j as ordering with
-                   | greater -> 0
-                   | _ -> c_i_j)
-                 [3, 3]
-          m := M.* L U
-          ret := solve
-                   [ (m_1_1, x_1_1, c_1_1)
-                   , (m_1_2, x_1_2, c_1_2)
-                   , (m_1_3, x_1_3, c_1_3)
-                   , (m_2_1, x_2_1, b_2_1)
-                   , (m_2_2, x_2_2, c_2_2)
-                   , (m_2_3, x_2_3, c_2_3)
-                   , (m_3_1, x_3_1, b_3_1)
-                   , (m_3_2, x_3_2, b_3_2)
-                   , (m_3_3, x_3_3, c_3_3) ]
-       in (substitute ret L, substitute ret U)
-    | _ -> undefined
-
---
--- Utility
---
-def generateMatrixFromQuadraticExpr {a} (f: a) (xs: [a]) : Matrix a :=
-  generateTensor
-    (\[i, j] -> coefficient2 f (nth i xs) (nth j xs))
-    [length xs, length xs]

@@ -2135,6 +2135,39 @@ inferIApplication funcName funcType args initSubst = do
 -- TensorMap insertion logic has been moved to Language.Egison.Type.TensorMapInsertion
 -- This keeps type inference focused on type checking only
 
+-- | Lift function type when arguments are Tensor types
+-- If argument is Tensor a but parameter is a, lift parameter to Tensor a
+-- If any argument is Tensor, the return type is also lifted to Tensor
+liftFunctionTypeForTensorArgs :: Type -> [Type] -> Type
+liftFunctionTypeForTensorArgs funcType argTypes = 
+  let hasTensorArg = any isTensorType argTypes
+  in if hasTensorArg
+       then go funcType argTypes
+       else funcType
+  where
+    isTensorType (TTensor _) = True
+    isTensorType _ = False
+    
+    go (TFun paramType restType) (argType:restArgs) =
+      case argType of
+        TTensor elemType -> 
+          -- Argument is Tensor type → lift parameter to Tensor type
+          let liftedParam = case paramType of
+                TTensor _ -> paramType  -- Already Tensor, keep as is
+                TVar v -> TTensor (TVar v)  -- Type variable → wrap in Tensor
+                _ -> TTensor paramType  -- Concrete type → wrap in Tensor
+          in TFun liftedParam (go restType restArgs)
+        _ -> 
+          -- Argument is non-Tensor type → keep parameter as is
+          TFun paramType (go restType restArgs)
+    go returnType [] = 
+      -- Lift return type if any argument was Tensor
+      case returnType of
+        TTensor _ -> returnType  -- Already Tensor
+        TVar v -> TTensor (TVar v)  -- Type variable → wrap in Tensor
+        _ -> TTensor returnType  -- Concrete type → wrap in Tensor
+    go ty _ = ty
+
 -- | Infer application (helper) with context
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
 -- TensorMap insertion has been moved to Phase 8 (TensorMapInsertion module)
@@ -2147,15 +2180,20 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
   
+  -- Lift function type if arguments are Tensor types
+  let liftedFuncType = liftFunctionTypeForTensorArgs (applySubst argSubst funcType) argTypes
+  
   -- Normal function application (no tensorMap insertion)
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType argTypes
   
-  case unify (applySubst argSubst funcType) expectedFuncType of
+  -- Use lifted function type for unification
+  case unify liftedFuncType expectedFuncType of
     Right s -> do
       -- Unification succeeded
       let finalS = composeSubst s argSubst
           finalType = applySubst finalS resultType
+          finalLiftedType = applySubst finalS liftedFuncType
           -- Include constraints from function's type scheme
           funcScheme = tiScheme funcTIExpr
           (Forall _tvs constraints _) = funcScheme
@@ -2166,14 +2204,16 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       let updatedConstraints = map (resolveConstraintWithInstances classEnv finalS) constraints
           -- Create result with updated constraints
           resultScheme = Forall [] updatedConstraints finalType
+          -- Update function's type scheme to reflect lifted type
+          liftedFuncScheme = Forall [] updatedConstraints finalLiftedType
+          updatedFuncTI = TIExpr liftedFuncScheme (tiExprNode (applySubstToTIExpr finalS funcTIExpr))
           -- Apply substitution to all subexpressions to keep type information accurate
-          updatedFuncTI = applySubstToTIExpr finalS funcTIExpr
           updatedArgTIs = map (applySubstToTIExpr finalS) argTIExprs
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
     
     Left _ -> do
-      -- Unification failed
-      throwError $ UnificationError (applySubst argSubst funcType) expectedFuncType ctx
+      -- Unification failed (use lifted type in error message for clarity)
+      throwError $ UnificationError liftedFuncType expectedFuncType ctx
 
 -- | Infer let bindings (non-recursive)
 

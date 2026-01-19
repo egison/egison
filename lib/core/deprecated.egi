@@ -120,36 +120,72 @@ def sortWithSign {Ord a} (xs: [[a]]) : (Integer, [a]) :=
     writeIORef ts_j tmpi
 
 
-def M.inverse {Num a} (m: Matrix a) : Matrix a :=
-  let d := M.det m
-   in generateTensor
-        (\[i, j] ->
-          match m as matrix with
-          | cons #j #i _ $A $B $C $D ->
-            if isEven (i + j)
-              then M.det (M.join A B C D) / d
-              else - (M.det (M.join A B C D) / d))
-        (tensorShape m)
+--
+-- Eigenvalues and eigenvectors
+--
+def M.eigenvalues {Num a} (m: Matrix a) : [a] :=
+  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
+   in [e1, e2]
 
-def matrix {} : Matcher Integer :=
-  matcher
-    | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
-      | $tgt ->
-        match tensorShape tgt as list integer with
-          | $m :: $n :: _ ->
-            [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
-          | _ -> []
-    | cons #$i #$j $ $ $ $ $ as (mathExpr, matrix, matrix, matrix, matrix) with
-      | $tgt ->
-        let ns := tensorShape tgt
-            m := nth 1 ns
-            n := nth 2 ns
-         in [ ( tgt_i_j
-            , tgt_(1, i - 1)_(1, j - 1)
-            , tgt_(1, i - 1)_(j + 1, n)
-            , tgt_(i + 1, m)_(1, j - 1)
-            , tgt_(i + 1, m)_(j + 1, n) ) ]
-    | #$val as () with
-      | $tgt -> if val = tgt then [()] else []
-    | $ as (something) with
-      | $tgt -> [tgt]
+def M.eigenvectors {Num a} (m: Matrix a) : [(a, Vector a)] :=
+  let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
+   in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
+      , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
+
+--
+-- LU decomposition
+--
+def M.LU {Num a} (x: Matrix a) : (Matrix a, Matrix a) :=
+  match tensorShape x as list integer with
+    | [#2, #2] ->
+      let L := generateTensor
+                 (\[i, j] -> match compare i j as ordering with
+                   | less -> 0
+                   | equal -> 1
+                   | greater -> b_i_j)
+                 [2, 2]
+          U := generateTensor
+                 (\[i, j] -> match compare i j as ordering with
+                   | greater -> 0
+                   | _ -> c_i_j)
+                 [2, 2]
+          m := M.* L U
+          ret := solve
+                   [ (m_1_1, x_1_1, c_1_1)
+                   , (m_1_2, x_1_2, c_1_2)
+                   , (m_2_1, x_2_1, b_2_1)
+                   , (m_2_2, x_2_2, c_2_2) ]
+       in (substitute ret L, substitute ret U)
+    | [#3, #3] ->
+      let L := generateTensor
+                 (\[i, j] -> match compare i j as ordering with
+                   | less -> 0
+                   | equal -> 1
+                   | greater -> b_i_j)
+                 [3, 3]
+          U := generateTensor
+                 (\[i, j] -> match compare i j as ordering with
+                   | greater -> 0
+                   | _ -> c_i_j)
+                 [3, 3]
+          m := M.* L U
+          ret := solve
+                   [ (m_1_1, x_1_1, c_1_1)
+                   , (m_1_2, x_1_2, c_1_2)
+                   , (m_1_3, x_1_3, c_1_3)
+                   , (m_2_1, x_2_1, b_2_1)
+                   , (m_2_2, x_2_2, c_2_2)
+                   , (m_2_3, x_2_3, c_2_3)
+                   , (m_3_1, x_3_1, b_3_1)
+                   , (m_3_2, x_3_2, b_3_2)
+                   , (m_3_3, x_3_3, c_3_3) ]
+       in (substitute ret L, substitute ret U)
+    | _ -> undefined
+
+--
+-- Utility
+--
+def generateMatrixFromQuadraticExpr {a} (f: a) (xs: [a]) : Matrix a :=
+  generateTensor
+    (\[i, j] -> coefficient2 f (nth i xs) (nth j xs))
+    [length xs, length xs]
