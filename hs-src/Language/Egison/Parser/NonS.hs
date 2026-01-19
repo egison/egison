@@ -1102,9 +1102,25 @@ constantExpr = numericExpr
            <|> UndefinedExpr <$ reserved "undefined"
 
 numericExpr :: Parser ConstantExpr
-numericExpr = FloatExpr <$> try positiveFloatLiteral
+numericExpr = try negativeFloatLiteral
+          <|> try negativeIntegerLiteral
+          <|> FloatExpr <$> try positiveFloatLiteral
           <|> IntegerExpr <$> positiveIntegerLiteral
           <?> "numeric expression"
+  where
+    -- Parse negative number literals (-1, -2.5, etc.)
+    -- Only recognize as negative literal if there's no space after '-'
+    negativeFloatLiteral = lexeme $ do
+      char '-'
+      notFollowedBy spaceChar
+      n <- L.float
+      return $ FloatExpr (negate n)
+    
+    negativeIntegerLiteral = lexeme $ do
+      char '-'
+      notFollowedBy spaceChar
+      n <- L.decimal
+      return $ IntegerExpr (negate n)
 --
 -- Pattern
 --
