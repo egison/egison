@@ -92,7 +92,7 @@ instance Eq SymbolExpr where
   Apply3 f1 a1 b1 c1 == Apply3 f2 a2 b2 c2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2
   Apply4 f1 a1 b1 c1 d1 == Apply4 f2 a2 b2 c2 d2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
   Quote m1 == Quote m2 = m1 == m2
-  QuoteFunction _ == QuoteFunction _ = False  -- Function objects cannot be compared
+  QuoteFunction whnf1 == QuoteFunction whnf2 = prettyFunctionName whnf1 == prettyFunctionName whnf2
   FunctionData n1 a1 k1 == FunctionData n2 a2 k2 = n1 == n2 && a1 == a2 && k1 == k2
   _ == _ = False
 
