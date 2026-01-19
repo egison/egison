@@ -47,8 +47,23 @@ import           Language.Egison.Type.Unify as Unify
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   TTensor elemType -> case paramType of
-    -- Tensor matched with Tensor → no insertion needed
-    TTensor _ -> False
+    -- Tensor matched with Tensor → check if this was a lifted type
+    -- If there are NO constraints, it's likely a lifted type that needs tensorMap
+    -- If there ARE constraints with Tensor instances, tensorMap is not needed
+    TTensor paramElemType -> 
+      case paramElemType of
+        TVar tyVar ->
+          -- Parameter is Tensor of type variable
+          let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar || t == TTensor (TVar tyVar)) constraints
+          in case relevantConstraints of
+               -- No constraints → likely lifted type, needs tensorMap
+               [] -> True
+               -- Has constraints → check if Tensor instance exists
+               cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
+        _ -> 
+          -- Parameter is Tensor of concrete type
+          -- No constraints means likely lifted, needs tensorMap
+          null constraints
     
     -- Tensor matched with type variable → check type class instances
     TVar tyVar -> 
@@ -77,6 +92,34 @@ hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
                      Right _ -> True   -- Instance type unifies with Tensor type
                      Left _  -> False  -- No match
          ) instances
+
+-- | Check if function type was lifted to accept Tensors during type inference
+-- Returns True if any parameter is Tensor type AND there are no type class constraints
+-- (type class methods with Tensor instances don't need tensorMap)
+checkIfTypeLiftedForTensors :: Type -> [Type] -> Bool
+checkIfTypeLiftedForTensors funcType argTypes =
+  -- Check if function has any Tensor parameters
+  let paramTypes = getParamTypes funcType (length argTypes)
+      hasTensorParams = any isTensorType paramTypes
+      correspondingArgsTensor = zipWith (\p a -> isTensorType p && isTensorType a) paramTypes argTypes
+  in hasTensorParams && all id correspondingArgsTensor
+  where
+    isTensorType (TTensor _) = True
+    isTensorType _ = False
+    
+    getParamTypes :: Type -> Int -> [Type]
+    getParamTypes (TFun param rest) n | n > 0 = param : getParamTypes rest (n - 1)
+    getParamTypes _ _ = []
+
+-- | Unlift a function type that was lifted for Tensor arguments
+-- Tensor a -> Tensor b -> Tensor c  becomes  a -> b -> c
+unliftFunctionType :: Type -> Type
+unliftFunctionType (TFun (TTensor paramType) restType) =
+  TFun paramType (unliftFunctionType restType)
+unliftFunctionType (TFun paramType restType) =
+  TFun paramType (unliftFunctionType restType)
+unliftFunctionType (TTensor returnType) = returnType
+unliftFunctionType ty = ty
 
 -- | Get the parameter type at the specified index from a function type
 -- Example: (a -> b -> c) at index 0 → Just a, at index 1 → Just b
@@ -159,18 +202,29 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
         
         -- Check if tensorMap insertion is needed
+        -- The function type may have been lifted during type inference
+        -- We need to check if any parameter was lifted to Tensor type
         let funcType = tiExprType func'
             argTypes = map tiExprType args'
-            -- Get constraints from the function's type scheme
             (Forall _ funcConstraints _) = tiScheme func'
-            -- Combine parent scope constraints with function constraints
             allConstraints = cs ++ funcConstraints
+            
+            -- Check if function type contains lifted Tensor parameters
+            -- by checking if any parameter is Tensor but would normally be non-Tensor
+            needsTensorMapForLifting = checkIfTypeLiftedForTensors funcType argTypes
         
-        -- Try to insert tensorMap if needed, using all available constraints
-        result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args' argTypes
-        case result of
-          Just wrappedNode -> return wrappedNode
-          Nothing -> return $ TIApplyExpr func' args'
+        if needsTensorMapForLifting && null allConstraints
+          then do
+            -- Type was lifted (no constraints means not a type class method)
+            -- Force tensorMap insertion
+            wrapped <- wrapWithTensorMapRecursive env allConstraints func' funcType args' argTypes
+            return wrapped
+          else do
+            -- Normal processing
+            result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args' argTypes
+            case result of
+              Just wrappedNode -> return wrappedNode
+              Nothing -> return $ TIApplyExpr func' args'
       
       -- Collections
       TITupleExpr exprs -> do
@@ -418,12 +472,17 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                       varTIExpr1 = TIExpr varScheme1 (TIVarExpr varName1)
                       varTIExpr2 = TIExpr varScheme2 (TIVarExpr varName2)
                       
-                      -- Build inner expression with both variables applied
-                      innerType2 = applyOneArgType innerType
+                      -- Unlift the function type for use inside tensorMap
+                      unliftedFuncType = unliftFunctionType currentType
                       funcScheme = tiScheme currentFunc
-                      (Forall _ funcConstraints _) = funcScheme
+                      (Forall tvs funcConstraints _) = funcScheme
+                      unliftedFuncScheme = Forall tvs funcConstraints unliftedFuncType
+                      unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
+                      
+                      -- Build inner expression with both variables applied
+                      innerType2 = applyOneArgType (applyOneArgType unliftedFuncType)
                       innerFuncScheme = Forall [] funcConstraints innerType2
-                      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr1, varTIExpr2])
+                      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr1, varTIExpr2])
                   
                   -- Process remaining arguments after consuming two
                   innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType2 restArgs' restArgTypes'
@@ -483,12 +542,17 @@ insertSingleTensorMap classEnv constraints currentFunc currentType arg argType r
       varScheme = Forall [] [] elemType
       varTIExpr = TIExpr varScheme (TIVarExpr varName)
       
-      -- Build inner expression (recursive call)
-      innerType = applyOneArgType currentType
+      -- Unlift the function type for use inside tensorMap
+      unliftedFuncType = unliftFunctionType currentType
       funcScheme = tiScheme currentFunc
-      (Forall _ funcConstraints _) = funcScheme
+      (Forall tvs funcConstraints _) = funcScheme
+      unliftedFuncScheme = Forall tvs funcConstraints unliftedFuncType
+      unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
+      
+      -- Build inner expression (recursive call)
+      innerType = applyOneArgType unliftedFuncType
       innerFuncScheme = Forall [] funcConstraints innerType
-      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
+      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr])
   
   -- Process remaining arguments
   innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType restArgs restArgTypes
