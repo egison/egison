@@ -72,12 +72,14 @@ coreLibraries =
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
   , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/math/algebra/vector.egi"
 
---  , "lib/math/algebra/equations.egi"
+  , "lib/math/algebra/equations.egi"
+
+  , "lib/math/analysis/derivative.egi"
+
 --  , "lib/math/algebra/inverse.egi"
---  , "lib/math/analysis/derivative.egi"
 --  , "lib/math/analysis/integral.egi"
---  , "lib/math/algebra/vector.egi"
 --  , "lib/math/algebra/matrix.egi"
 --  , "lib/math/geometry/differential-form.egi"
   ]
