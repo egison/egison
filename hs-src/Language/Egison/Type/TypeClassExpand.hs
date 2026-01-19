@@ -382,9 +382,60 @@ expandTypeClassMethodsT tiExpr = do
                           dictArgs = map makeDict exprConstraints
                           varExpr = TIExpr scheme (TIVarExpr varName)
                       return $ TIApplyExpr varExpr dictArgs
-                else
-                  -- Regular variable, no constraints
-                  expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+                else do
+                  -- No constraints in current expression
+                  -- But the original definition might have constraints that were instantiated away
+                  -- Check the type environment for the original definition
+                  typeEnv <- getTypeEnv
+                  case lookupEnv varName typeEnv of
+                    Just originalScheme@(Forall _ origConstraints _) | not (null origConstraints) -> do
+                      -- Original definition has constraints
+                      -- Substitute type variables to match current type
+                      let currentType = tiExprType expr
+                          concretizedConstraints = substituteConstraintsForType originalScheme currentType
+                          hasOnlyConcreteConstraints = all isConcreteConstraint concretizedConstraints
+                      
+                      if hasOnlyConcreteConstraints
+                        then do
+                          -- Apply dictionaries for concrete constraints
+                          dictArgs <- mapM (resolveDictionaryArg classEnv') concretizedConstraints
+                          let varExpr = TIExpr scheme (TIVarExpr varName)
+                          return $ TIApplyExpr varExpr dictArgs
+                        else
+                          -- Has type variable constraints - no dictionary application needed yet
+                          expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+                    _ ->
+                      -- No constraints in original definition either
+                      expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+              where
+                -- Substitute type variables in constraints to match current type
+                substituteConstraintsForType :: TypeScheme -> Type -> [Constraint]
+                substituteConstraintsForType (Forall _tyVars constraints schemeType) actualType =
+                  let substs = extractTypeSubsts schemeType actualType
+                  in map (applySubstsToConstraint substs) constraints
+                
+                extractTypeSubsts :: Type -> Type -> [(TyVar, Type)]
+                extractTypeSubsts (TVar v) actual = [(v, actual)]
+                extractTypeSubsts (TFun s1 s2) (TFun a1 a2) = 
+                  extractTypeSubsts s1 a1 ++ extractTypeSubsts s2 a2
+                extractTypeSubsts (TTensor s) (TTensor a) = extractTypeSubsts s a
+                extractTypeSubsts (TCollection s) (TCollection a) = extractTypeSubsts s a
+                extractTypeSubsts (TTuple ss) (TTuple as)
+                  | length ss == length as = concatMap (uncurry extractTypeSubsts) (zip ss as)
+                extractTypeSubsts _ _ = []
+                
+                applySubstsToConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
+                applySubstsToConstraint substs (Constraint cName cType) =
+                  Constraint cName (applySubstsToType substs cType)
+                
+                applySubstsToType :: [(TyVar, Type)] -> Type -> Type
+                applySubstsToType substs ty = case ty of
+                  TVar v -> maybe ty id (lookup v substs)
+                  TFun t1 t2 -> TFun (applySubstsToType substs t1) (applySubstsToType substs t2)
+                  TTensor t -> TTensor (applySubstsToType substs t)
+                  TCollection t -> TCollection (applySubstsToType substs t)
+                  TTuple ts -> TTuple (map (applySubstsToType substs) ts)
+                  _ -> ty
             
             isConcreteConstraint (Constraint _ (TVar _)) = False
             isConcreteConstraint _ = True

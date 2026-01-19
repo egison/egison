@@ -77,10 +77,10 @@ handleOptionWithState env evalState opts =
   case opts of
     -- Evaluate the given string
     EgisonOpts { optEvalString = Just expr } ->
-      runAndPrintExpr env expr
+      runAndPrintExprWithState env evalState expr
     -- Execute the given string
     EgisonOpts { optExecuteString = Just cmd } ->
-      executeTopExpr env $ "execute (" ++ cmd ++ ")"
+      executeTopExprWithState env evalState $ "execute (" ++ cmd ++ ")"
     -- Operate input in tsv format as infinite stream
     EgisonOpts { optSubstituteString = Just sub } ->
       let (sopts, copts) = unzip (optFieldInfo opts)
@@ -90,7 +90,7 @@ handleOptionWithState env evalState opts =
               ++ "execute (let SH.input := SH.genInput " ++ sopts' ++ " " ++ copts' ++ "\n"
               ++ if optTsvOutput opts then "          in each (\\x -> print (showTsv x)) ((" ++ sub ++ ") SH.input))"
                                       else "          in each (\\x -> print (show x)) ((" ++ sub ++ ") SH.input))"
-        in executeTopExpr env expr
+        in executeTopExprWithState env evalState expr
     -- Execute a script (test only)
     -- Note: The test file has already been loaded in the run function
     -- to preserve the type class environment from library files.
@@ -120,12 +120,26 @@ runAndPrintExpr env expr = do
      then executeTopExpr env $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
      else executeTopExpr env $ "execute (print (show (" ++ expr ++ ")))"
 
+runAndPrintExprWithState :: Env -> EvalState -> String -> RuntimeM ()
+runAndPrintExprWithState env evalState expr = do
+  isTsvOutput <- asks optTsvOutput
+  if isTsvOutput
+     then executeTopExprWithState env evalState $ "execute (each (\\x -> print (showTsv x)) (" ++ expr ++ "))"
+     else executeTopExprWithState env evalState $ "execute (print (show (" ++ expr ++ ")))"
+
 executeTopExpr :: Env -> String -> RuntimeM ()
 executeTopExpr env expr = do
   cmdRet <- fromEvalT (runTopExprs env expr)
   case cmdRet of
     Left err -> liftIO $ hPrint stderr err >> exitFailure
     _        -> liftIO exitSuccess
+
+executeTopExprWithState :: Env -> EvalState -> String -> RuntimeM ()
+executeTopExprWithState env evalState expr = do
+  cmdRet <- fromEvalTWithState evalState (runTopExprs env expr)
+  case cmdRet of
+    Left err -> liftIO $ hPrint stderr err >> exitFailure
+    Right _ -> liftIO exitSuccess
 
 showBanner :: IO ()
 showBanner = do
