@@ -370,7 +370,7 @@ stripType (TIExpr _ node) = case node of
   TITensorContractExpr e -> ITensorContractExpr (stripType e)
   TITensorMapExpr func tensor -> ITensorMapExpr (stripType func) (stripType tensor)
   TITensorMap2Expr func t1 t2 -> ITensorMap2Expr (stripType func) (stripType t1) (stripType t2)
-  TITransposeExpr tensor perm -> ITransposeExpr (stripType tensor) (stripType perm)
+  TITransposeExpr perm tensor -> ITransposeExpr (stripType perm) (stripType tensor)
   TIFlipIndicesExpr tensor -> IFlipIndicesExpr (stripType tensor)
   TIFunctionExpr names -> IFunctionExpr names
   where

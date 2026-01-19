@@ -555,6 +555,7 @@ desugar (TensorMap2Expr fnExpr t1Expr t2Expr) =
   ITensorMap2Expr <$> desugar fnExpr <*> desugar t1Expr <*> desugar t2Expr
 
 desugar (TransposeExpr vars expr) =
+  -- ITransposeExpr takes (permutation, tensor) as arguments to match tTranspose
   ITransposeExpr <$> desugar vars <*> desugar expr
 
 desugar (FlipIndicesExpr expr) =
@@ -731,6 +732,7 @@ desugarDefineWithIndices (VarWithIndices name is) expr = do
   body <- desugar expr
   let indexNamesCollection = ICollectionExpr (map IVarExpr indexNames)
   let is' = map (\b -> if b then Sub Nothing else Sup Nothing) isSubs
+  -- ITransposeExpr takes (permutation, tensor) as arguments to match tTranspose
   return (Var name is', IWithSymbolsExpr indexNames (ITransposeExpr indexNamesCollection body))
 
 varWithIndicesToVar :: VarWithIndices -> Var

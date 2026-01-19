@@ -697,8 +697,8 @@ prettyTIExprNode node = case node of
   TIGenerateTensorExpr shape func ->
     pretty "generateTensor" <+> prettyTIExprWithType shape <+> prettyTIExprWithType func
   
-  TITransposeExpr tensor perm ->
-    pretty "transpose" <+> prettyTIExprWithType tensor <+> prettyTIExprWithType perm
+  TITransposeExpr perm tensor ->
+    pretty "transpose" <+> prettyTIExprWithType perm <+> prettyTIExprWithType tensor
   
   TIFlipIndicesExpr tensor ->
     pretty "flipIndices" <+> prettyTIExprWithType tensor

@@ -225,10 +225,10 @@ expandTypeClassMethodsT tiExpr = do
         tensor' <- expandTIExprWithConstraints classEnv' cs tensor
         return $ TITensorContractExpr tensor'
       
-      TITransposeExpr tensor perm -> do
-        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+      TITransposeExpr perm tensor -> do
         perm' <- expandTIExprWithConstraints classEnv' cs perm
-        return $ TITransposeExpr tensor' perm'
+        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+        return $ TITransposeExpr perm' tensor'
       
       TIFlipIndicesExpr tensor -> do
         tensor' <- expandTIExprWithConstraints classEnv' cs tensor
