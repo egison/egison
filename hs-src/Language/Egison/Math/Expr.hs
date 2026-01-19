@@ -92,7 +92,10 @@ instance Eq SymbolExpr where
   Apply3 f1 a1 b1 c1 == Apply3 f2 a2 b2 c2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2
   Apply4 f1 a1 b1 c1 d1 == Apply4 f2 a2 b2 c2 d2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
   Quote m1 == Quote m2 = m1 == m2
-  QuoteFunction whnf1 == QuoteFunction whnf2 = prettyFunctionName whnf1 == prettyFunctionName whnf2
+  QuoteFunction whnf1 == QuoteFunction whnf2 = 
+    case (prettyFunctionName whnf1, prettyFunctionName whnf2) of
+      (Just n1, Just n2) -> n1 == n2
+      _ -> False  -- Anonymous functions are never equal
   FunctionData n1 a1 k1 == FunctionData n2 a2 k2 = n1 == n2 && a1 == a2 && k1 == k2
   _ == _ = False
 
@@ -277,7 +280,7 @@ instance Printable SymbolExpr where
   pretty (Apply3 fn a1 a2 a3)          = unwords (map pretty' [fn, a1, a2, a3])
   pretty (Apply4 fn a1 a2 a3 a4)       = unwords (map pretty' [fn, a1, a2, a3, a4])
   pretty (Quote mExprs)                = "`" ++ pretty' mExprs
-  pretty (QuoteFunction whnf)          = "'" ++ prettyFunctionName whnf
+  pretty (QuoteFunction whnf)          = "'" ++ maybe "<function>" id (prettyFunctionName whnf)
   pretty (FunctionData name _ _)       = pretty name
 
 instance Printable TermExpr where

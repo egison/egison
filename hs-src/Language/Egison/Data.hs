@@ -483,10 +483,10 @@ data Inner
   | ISubCollection ObjectRef
 
 -- Helper to extract function name from WHNFData for pretty printing
-prettyFunctionName :: WHNFData -> String
-prettyFunctionName (Value (Func (Just (Var name _)) _ _ _)) = name
-prettyFunctionName (Value (MemoizedFunc _ _ _ _)) = "<function>"
-prettyFunctionName _ = "<function>"
+-- Returns Nothing for anonymous functions
+prettyFunctionName :: WHNFData -> Maybe String
+prettyFunctionName (Value (Func (Just (Var name _)) _ _ _)) = Just name
+prettyFunctionName _ = Nothing
 
 instance Show WHNFData where
   show (Value val)                = show val
