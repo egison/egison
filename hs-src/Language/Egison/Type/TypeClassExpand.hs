@@ -295,8 +295,7 @@ expandTypeClassMethodsT tiExpr = do
     -- Helper: expand a TIExpr with constraints
     expandTIExprWithConstraints :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     expandTIExprWithConstraints classEnv' cs expr = do
-      let scheme = tiScheme expr
-          (Forall _ exprConstraints _) = scheme
+      let scheme@(Forall _ exprConstraints exprType) = tiScheme expr
           -- Merge parent constraints with expression's own constraints
           -- This ensures that nested expressions like "contract (* x y)" can resolve
           -- the method call (*) using the constraints from the inner expression
@@ -311,11 +310,14 @@ expandTypeClassMethodsT tiExpr = do
               -- Get method type to determine arity
               typeEnv <- getTypeEnv
               case lookupEnv (stringToVar varName) typeEnv of
-                Just (Forall _ _ ty) -> do
-                  let arity = getMethodArity ty
+                Just (Forall _ _ _ty) -> do
+                  -- Use the expression's actual type (exprType) instead of the method's declared type (ty)
+                  -- because eta-expansion should create parameters matching the expected usage context
+                  let arity = getMethodArity exprType
+                      paramTypes = getParamTypes exprType
                       paramNames = ["etaVar" ++ show i | i <- [1..arity]]
                       paramVars = map stringToVar paramNames
-                      paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
+                      paramExprs = zipWith (\n t -> TIExpr (Forall [] [] t) (TIVarExpr n)) paramNames paramTypes
                       methodKey = sanitizeMethodName varName
                   
                   -- Determine dictionary name based on type
@@ -516,6 +518,11 @@ expandTypeClassMethodsT tiExpr = do
     getMethodArity :: Type -> Int
     getMethodArity (TFun _ t2) = 1 + getMethodArity t2
     getMethodArity _ = 0
+    
+    -- Helper to get parameter types from function type
+    getParamTypes :: Type -> [Type]
+    getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
+    getParamTypes _ = []
     
     -- Try to resolve a method call using type class constraints
     -- Dictionary passing: convert method calls to dictionary access
@@ -977,13 +984,13 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     -- Replace method calls with dictionary access in TIExpr
     replaceMethodCallsWithDictAccessT :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     replaceMethodCallsWithDictAccessT env cs tiExpr = do
-      let scheme@(Forall _ exprConstraints _) = tiScheme tiExpr
-      newNode <- replaceMethodCallsInNode env cs exprConstraints (tiExprNode tiExpr)
+      let scheme@(Forall _ exprConstraints exprType) = tiScheme tiExpr
+      newNode <- replaceMethodCallsInNode env cs exprConstraints exprType (tiExprNode tiExpr)
       return $ TIExpr scheme newNode
     
     -- Replace method calls in TIExprNode
-    replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> [Constraint] -> TIExprNode -> EvalM TIExprNode
-    replaceMethodCallsInNode env cs exprConstraints node = case node of
+    replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> [Constraint] -> Type -> TIExprNode -> EvalM TIExprNode
+    replaceMethodCallsInNode env cs exprConstraints exprType node = case node of
       -- Standalone method reference: eta-expand
       TIVarExpr methodName -> do
         case findConstraintForMethodInList env methodName cs of
@@ -991,11 +998,14 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             -- Get method type to determine arity
             typeEnv <- getTypeEnv
             case lookupEnv (stringToVar methodName) typeEnv of
-              Just (Forall _ _ ty) -> do
-                let arity = getMethodArity ty
+              Just (Forall _ _ _ty) -> do
+                -- Use the expression's actual type (exprType) instead of the method's declared type (ty)
+                -- because eta-expansion should create parameters matching the expected usage context
+                let arity = getMethodArity exprType
+                    paramTypes = getParamTypes exprType
                     paramNames = ["etaVar" ++ show i | i <- [1..arity]]
                     paramVars = map stringToVar paramNames
-                    paramExprs = map (\n -> TIExpr (Forall [] [] (TVar (TyVar "eta"))) (TIVarExpr n)) paramNames
+                    paramExprs = zipWith (\n t -> TIExpr (Forall [] [] t) (TIVarExpr n)) paramNames paramTypes
                     -- Create dictionary access
                     dictParam = constraintToDictParam constraint
                     Constraint className tyArg = constraint
@@ -1139,6 +1149,11 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     getMethodArity :: Type -> Int
     getMethodArity (TFun _ t2) = 1 + getMethodArity t2
     getMethodArity _ = 0
+    
+    -- Get parameter types from function type
+    getParamTypes :: Type -> [Type]
+    getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
+    getParamTypes _ = []
 
 -- | Apply dictionaries to expressions with concrete type constraints
 -- This is used for top-level definitions like: def integer : Matcher Integer := eq

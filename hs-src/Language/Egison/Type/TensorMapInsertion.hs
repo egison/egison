@@ -30,7 +30,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopEx
 import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..))
 import           Language.Egison.Type.Tensor ()
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..))
-import           Language.Egison.Type.Unify as Unify
+import           Language.Egison.Type.Unify as Unify (unifyStrict)
 
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Decision Logic
@@ -83,12 +83,14 @@ shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   _ -> False
 
 -- | Check if a type class has an instance for Tensor elemType
--- Uses unify to check if an instance type matches the query type
+-- Uses strict unify to check if an instance type matches the query type
+-- IMPORTANT: We use unifyStrict here to ensure Tensor a does NOT unify with a
+-- This prevents incorrectly detecting scalar instances as tensor instances
 hasInstanceForTensor :: ClassEnv -> Type -> Constraint -> Bool
 hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
   let tensorType = TTensor elemType
       instances = lookupInstances className classEnv
-  in any (\inst -> case Unify.unify (instType inst) tensorType of
+  in any (\inst -> case Unify.unifyStrict (instType inst) tensorType of
                      Right _ -> True   -- Instance type unifies with Tensor type
                      Left _  -> False  -- No match
          ) instances
