@@ -47,23 +47,24 @@ import           Language.Egison.Type.Unify as Unify (unifyStrict)
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   TTensor elemType -> case paramType of
-    -- Tensor matched with Tensor → check if this was a lifted type
-    -- If there are NO constraints, it's likely a lifted type that needs tensorMap
-    -- If there ARE constraints with Tensor instances, tensorMap is not needed
+    -- Tensor matched with Tensor → both are Tensor types, so types match perfectly
+    -- No tensorMap insertion needed (functions like tensorShape : Tensor a -> b)
+    -- Exceptions: only if there are type class constraints that require lifting
     TTensor paramElemType -> 
       case paramElemType of
         TVar tyVar ->
           -- Parameter is Tensor of type variable
           let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar || t == TTensor (TVar tyVar)) constraints
           in case relevantConstraints of
-               -- No constraints → likely lifted type, needs tensorMap
-               [] -> True
+               -- No constraints → types match directly (Tensor a -> b applied to Tensor c)
+               -- No tensorMap needed
+               [] -> False
                -- Has constraints → check if Tensor instance exists
                cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
         _ -> 
           -- Parameter is Tensor of concrete type
-          -- No constraints means likely lifted, needs tensorMap
-          null constraints
+          -- Types match directly, no tensorMap needed
+          False
     
     -- Tensor matched with type variable → check type class instances
     TVar tyVar -> 
