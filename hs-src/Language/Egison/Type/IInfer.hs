@@ -64,7 +64,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IPattern (..), ILoopRange (..)
                                             , TIPattern (..), TIPatternNode (..), TILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
-                                            , extractNameFromVar, Var (..), Index (..)
+                                            , extractNameFromVar, Var (..), Index (..), stringToVar
                                             , tiExprType)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
@@ -308,7 +308,7 @@ resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
 withEnv bindings action = do
   oldEnv <- getEnv
-  setEnv $ extendEnvMany bindings oldEnv
+  setEnv $ extendEnvMany (map (\(name, scheme) -> (stringToVar name, scheme)) bindings) oldEnv
   result <- action
   setEnv oldEnv
   return result
@@ -317,7 +317,7 @@ withEnv bindings action = do
 lookupVar :: String -> Infer Type
 lookupVar name = do
   env <- getEnv
-  case lookupEnv name env of
+  case lookupEnv (stringToVar name) env of
     Just scheme -> do
       st <- get
       let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
@@ -343,7 +343,7 @@ lookupVar name = do
 lookupVarWithConstraints :: String -> Infer (Type, [Constraint])
 lookupVarWithConstraints name = do
   env <- getEnv
-  case lookupEnv name env of
+  case lookupEnv (stringToVar name) env of
     Just scheme -> do
       st <- get
       let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
@@ -744,7 +744,7 @@ inferIExprWithContext expr ctx = case expr of
   IInductiveDataExpr name args -> do
     -- Look up constructor type in environment
     env <- getEnv
-    case lookupEnv name env of
+    case lookupEnv (stringToVar name) env of
       Just scheme -> do
         -- Instantiate the type scheme
         st <- get
@@ -1204,7 +1204,7 @@ inferIExprWithContext expr ctx = case expr of
         PDInductivePat name pats -> do
           -- Inductive pattern: look up data constructor type from environment
           env <- getEnv
-          case lookupEnv name env of
+          case lookupEnv (stringToVar name) env of
             Just scheme -> do
               -- Found in environment: use the declared type
               st <- get
@@ -1537,7 +1537,30 @@ inferIExprWithContext expr ctx = case expr of
   -- Indexed expression (tensor indexing)
   IIndexedExpr isSupported baseExpr indices -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (baseTI, s) <- inferIExprWithContext baseExpr exprCtx
+    -- Special handling for IVarExpr: lookup with Var including index info
+    -- Use the same strategy as refVar in Data.hs (Core.hs:235)
+    (baseTI, s) <- case baseExpr of
+      IVarExpr varName -> do
+        -- Convert indices to index types (structure only, no content)
+        -- Like: map (fmap (const Nothing)) indices in Core.hs
+        let indexTypes = map (fmap (const Nothing)) indices
+            varWithIndices = Var varName indexTypes
+        env <- getEnv
+        -- lookupEnv will try: Var "e" [Sub Nothing, Sub Nothing]
+        --                 -> Var "e" [Sub Nothing]
+        --                 -> Var "e" []
+        case lookupEnv varWithIndices env of
+          Just scheme -> do
+            st <- get
+            let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
+            modify $ \s' -> s' { inferCounter = newCounter }
+            addConstraints constraints
+            return (TIExpr (Forall [] constraints t) (TIVarExpr varName), emptySubst)
+          Nothing -> do
+            -- No variable found in type environment - fall back to normal inference
+            -- This is necessary for lambda parameters, let-bound variables, etc.
+            inferIExprWithContext baseExpr exprCtx
+      _ -> inferIExprWithContext baseExpr exprCtx
     let baseType = tiExprType baseTI
     -- Check if all indices are concrete (constants) or symbolic (variables)
     let isSymbolicIndex idx = case idx of
@@ -1881,7 +1904,7 @@ inferIPattern pat expectedType ctx = case pat of
         -- Not found in pattern environment: try data constructor from value environment
         -- This handles data constructors used as patterns
         env <- getEnv
-        case lookupEnv name env of
+        case lookupEnv (stringToVar name) env of
           Just scheme -> do
             st <- get
             let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
@@ -2487,7 +2510,7 @@ inferITopExpr topExpr = case topExpr of
     env <- getEnv
     -- Check if there's an explicit type signature in the environment
     -- (added by EnvBuilder from DefineWithType)
-    case lookupEnv varName env of
+    case lookupEnv var env of
       Just existingScheme -> do
         -- There's an explicit type signature: check that the inferred type matches
         st <- get
@@ -2540,8 +2563,8 @@ inferITopExpr topExpr = case topExpr of
             genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
             scheme = Forall genVars updatedConstraints exprType
         
-        -- Add to environment
-        modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
+        -- Add to environment using the Var directly (preserves index info)
+        modify $ \s -> s { inferEnv = extendEnv var scheme (inferEnv s) }
         
         return (Just (TIDefine scheme var exprTI), subst)
   
@@ -2572,7 +2595,7 @@ inferITopExpr topExpr = case topExpr of
       inferBinding env (var, expr) = do
         let varName = extractNameFromVar var
         -- Check if there's an existing type signature
-        case lookupEnv varName env of
+        case lookupEnv var env of
           Just existingScheme -> do
             -- With type signature: check type
             st <- get
@@ -2604,8 +2627,8 @@ inferITopExpr topExpr = case topExpr of
                 genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
                 scheme = Forall genVars updatedConstraints exprType
             
-            -- Add to environment for subsequent bindings
-            modify $ \s -> s { inferEnv = extendEnv varName scheme (inferEnv s) }
+            -- Add to environment for subsequent bindings using Var directly
+            modify $ \s -> s { inferEnv = extendEnv var scheme (inferEnv s) }
             
             return ((var, exprTI), subst)
   
@@ -2622,7 +2645,7 @@ inferITopExpr topExpr = case topExpr of
     -- Also add to type environment so they can be used in subsequent expressions
     let scheme = Forall [] [] ty
     modify $ \s -> s { inferEnv = 
-                        foldr (\name e -> extendEnv name scheme e) 
+                        foldr (\name e -> extendEnv (stringToVar name) scheme e) 
                               (inferEnv s) 
                               names }
     -- Return the typed declaration

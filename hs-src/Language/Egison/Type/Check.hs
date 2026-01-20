@@ -12,12 +12,13 @@ module Language.Egison.Type.Check
     builtinEnv
   ) where
 
+import           Language.Egison.IExpr      (stringToVar)
 import           Language.Egison.Type.Env
 import           Language.Egison.Type.Types
 
 -- | Built-in type environment with primitive functions
 builtinEnv :: TypeEnv
-builtinEnv = extendEnvMany builtinTypes emptyEnv
+builtinEnv = extendEnvMany (map (\(name, scheme) -> (stringToVar name, scheme)) builtinTypes) emptyEnv
 
 -- | Types for built-in functions
 -- Only functions defined in Primitives.hs are included here.

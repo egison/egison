@@ -40,12 +40,13 @@ import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 
+import           Language.Egison.IExpr      (Var(..), Index(..))
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
                                              Constraint(..), ClassInfo(..), InstanceInfo(..),
                                              freeTyVars, freshTyVar)
 
--- | Type environment: maps variable names to type schemes
-newtype TypeEnv = TypeEnv { unTypeEnv :: Map String TypeScheme }
+-- | Type environment: maps variables (with indices) to type schemes
+newtype TypeEnv = TypeEnv { unTypeEnv :: Map Var TypeScheme }
   deriving (Eq, Show)
 
 -- | Pattern type environment: maps pattern function names to type schemes
@@ -58,23 +59,29 @@ emptyEnv :: TypeEnv
 emptyEnv = TypeEnv Map.empty
 
 -- | Extend the environment with a new binding
-extendEnv :: String -> TypeScheme -> TypeEnv -> TypeEnv
-extendEnv name scheme (TypeEnv env) = TypeEnv $ Map.insert name scheme env
+extendEnv :: Var -> TypeScheme -> TypeEnv -> TypeEnv
+extendEnv var scheme (TypeEnv env) = TypeEnv $ Map.insert var scheme env
 
 -- | Extend the environment with multiple bindings
-extendEnvMany :: [(String, TypeScheme)] -> TypeEnv -> TypeEnv
+extendEnvMany :: [(Var, TypeScheme)] -> TypeEnv -> TypeEnv
 extendEnvMany bindings env = foldr (uncurry extendEnv) env bindings
 
 -- | Look up a variable in the environment
-lookupEnv :: String -> TypeEnv -> Maybe TypeScheme
-lookupEnv name (TypeEnv env) = Map.lookup name env
+-- Follows the same strategy as refVar in Data.hs:
+-- Try exact match first, then progressively reduce indices
+lookupEnv :: Var -> TypeEnv -> Maybe TypeScheme
+lookupEnv var@(Var _ []) (TypeEnv env) = Map.lookup var env
+lookupEnv var@(Var name is) env@(TypeEnv envMap) =
+  case Map.lookup var envMap of
+    Just scheme -> Just scheme
+    Nothing -> lookupEnv (Var name (init is)) env
 
 -- | Remove a variable from the environment
-removeFromEnv :: String -> TypeEnv -> TypeEnv
-removeFromEnv name (TypeEnv env) = TypeEnv $ Map.delete name env
+removeFromEnv :: Var -> TypeEnv -> TypeEnv
+removeFromEnv var (TypeEnv env) = TypeEnv $ Map.delete var env
 
 -- | Convert environment to list
-envToList :: TypeEnv -> [(String, TypeScheme)]
+envToList :: TypeEnv -> [(Var, TypeScheme)]
 envToList (TypeEnv env) = Map.toList env
 
 -- | Get free type variables in the environment

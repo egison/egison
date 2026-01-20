@@ -27,7 +27,7 @@ module Language.Egison.Type.TypedDesugar
 
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar)
+import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar, stringToVar)
 import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT, applyConcreteConstraintDictionaries)
@@ -84,7 +84,7 @@ desugarTypedTopExprT topExpr = case topExpr of
       -- may not have constraints, but the variable has constraints in its type scheme
       typeEnv <- getTypeEnv
       let varName = extractNameFromVar var
-          scheme = case lookupEnv varName typeEnv of
+          scheme = case lookupEnv (stringToVar varName) typeEnv of
                      Just ts -> ts  -- Use type scheme from environment
                      Nothing -> tiScheme tiexpr'  -- Fallback to expression's scheme
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'

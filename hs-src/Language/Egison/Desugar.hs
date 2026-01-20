@@ -23,6 +23,7 @@ module Language.Egison.Desugar
     ( desugarTopExpr
     , desugarTopExprs
     , desugarExpr
+    , transVarIndex
     ) where
 
 import           Control.Monad.Except   (throwError)

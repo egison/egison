@@ -51,7 +51,7 @@ import           Language.Egison.Data
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), Var, stringToVar, stripTypeTopExpr)
+import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), Var(..), stringToVar, stripTypeTopExpr)
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
@@ -468,8 +468,11 @@ dumpEnvironment typeEnv classEnv ctorEnv patternCtorEnv patternEnv = do
     let typeBindings = envToList typeEnv
     if null typeBindings
       then putStrLn "  (none)"
-      else forM_ typeBindings $ \(name, scheme) ->
-        putStrLn $ "  " ++ name ++ " : " ++ prettyTypeScheme scheme
+      else forM_ typeBindings $ \(Var varName indices, scheme) ->
+        let displayName = if null indices 
+                          then varName
+                          else varName ++ concatMap (const "_") indices
+        in putStrLn $ "  " ++ displayName ++ " : " ++ prettyTypeScheme scheme
     putStrLn ""
     
     -- 2. Type Classes

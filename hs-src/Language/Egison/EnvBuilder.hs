@@ -29,6 +29,8 @@ import qualified Data.HashMap.Strict        as HashMap
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.IExpr      (Var(..), Index(..), stringToVar)
+import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
@@ -150,6 +152,11 @@ processTopExpr result topExpr = case topExpr of
   -- Inferred types will be added during type inference.
   DefineWithType typedVar _expr -> do
     let name = typedVarName typedVar
+        varIndices = typedVarIndices typedVar
+        -- Convert VarIndex to Index (Maybe Var) - like transVarIndex but with Nothing content
+        indexTypes = concatMap transVarIndex varIndices
+        -- Create Var with index structure (content is Just Var, so map to Nothing)
+        var = Var name (map (fmap (const Nothing)) indexTypes)
         params = typedVarParams typedVar
         retType = typeExprToType (typedVarRetType typedVar)
         paramTypes = map typedParamToType params
@@ -166,7 +173,7 @@ processTopExpr result topExpr = case topExpr of
         typeScheme = Types.Forall freeVars constraints funType
         
         typeEnv = ebrTypeEnv result
-        typeEnv' = extendEnv name typeScheme typeEnv
+        typeEnv' = extendEnv var typeScheme typeEnv
     
     return result { ebrTypeEnv = typeEnv' }
   
@@ -219,7 +226,7 @@ processTopExpr result topExpr = case topExpr of
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
         -- Add each symbol to the type environment
-        typeEnv' = foldr (\name env -> extendEnv name scheme env) typeEnv names
+        typeEnv' = foldr (\name env -> extendEnv (stringToVar name) scheme env) typeEnv names
     return result { ebrTypeEnv = typeEnv' }
 
 --------------------------------------------------------------------------------
@@ -242,7 +249,7 @@ registerConstructor typeName typeParams resultType (typeEnv, ctorEnv)
       typeScheme = Types.Forall tyVars [] constructorType
       
       -- Add to type environment
-      typeEnv' = extendEnv ctorName typeScheme typeEnv
+      typeEnv' = extendEnv (stringToVar ctorName) typeScheme typeEnv
       
       -- Add to constructor environment (for pattern matching and evaluation)
       ctorInfo = ConstructorInfo
@@ -264,7 +271,7 @@ registerClassMethod tyVar className typeEnv (ClassMethod methName params retType
       constraint = Types.Constraint className (TVar tyVar)
       typeScheme = Types.Forall [tyVar] [constraint] methodType
   in
-    extendEnv methName typeScheme typeEnv
+    extendEnv (stringToVar methName) typeScheme typeEnv
 
 -- | Register type signatures for instance methods (generated during desugaring)
 -- This prevents "Unbound variable" warnings during type inference
@@ -296,7 +303,7 @@ registerInstanceMethods className instType instConstraints methods classEnv type
           freeVars = Set.toList (freeTyVars dictType)
           dictScheme = Types.Forall freeVars instConstraints dictType
       in
-        extendEnv dictName dictScheme typeEnv'
+        extendEnv (stringToVar dictName) dictScheme typeEnv'
   where
     instanceMethodName :: InstanceMethod -> String
     instanceMethodName (InstanceMethod name _ _) = name
@@ -324,7 +331,7 @@ registerInstanceMethods className instType instConstraints methods classEnv type
               -- e.g., {Eq a} [a] -> [a] -> Bool for instance {Eq a} Eq [a]
               typeScheme = Types.Forall freeVars constraints substitutedType
           in
-            extendEnv generatedMethodName typeScheme env
+            extendEnv (stringToVar generatedMethodName) typeScheme env
     
     -- Substitute type variable with concrete type in a type expression
     substituteTypeVar :: TyVar -> Type -> Type -> Type

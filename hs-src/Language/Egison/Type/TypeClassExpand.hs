@@ -308,7 +308,7 @@ expandTypeClassMethodsT tiExpr = do
             Just (Constraint className tyArg) -> do
               -- Get method type to determine arity
               typeEnv <- getTypeEnv
-              case lookupEnv varName typeEnv of
+              case lookupEnv (stringToVar varName) typeEnv of
                 Just (Forall _ _ ty) -> do
                   let arity = getMethodArity ty
                       paramNames = ["etaVar" ++ show i | i <- [1..arity]]
@@ -323,7 +323,7 @@ expandTypeClassMethodsT tiExpr = do
                       typeEnv <- getTypeEnv
                       let dictParamName = "dict_" ++ className
                       -- Look up dictionary type from type environment
-                      dictHashType <- case lookupEnv dictParamName typeEnv of
+                      dictHashType <- case lookupEnv (stringToVar dictParamName) typeEnv of
                         Just (Forall _ _ dictType) -> return dictType
                         Nothing -> return $ THash TString TAny  -- Fallback
                       -- Extract the value type from the dictionary hash type
@@ -347,7 +347,7 @@ expandTypeClassMethodsT tiExpr = do
                               dictName = lowerFirst className ++ instTypeName
 
                           -- Look up dictionary type from type environment
-                          dictHashType <- case lookupEnv dictName typeEnv of
+                          dictHashType <- case lookupEnv (stringToVar dictName) typeEnv of
                             Just (Forall _ _ dictType) -> return dictType
                             Nothing -> return $ THash TString TAny  -- Fallback
 
@@ -537,7 +537,7 @@ expandTypeClassMethodsT tiExpr = do
                       typeEnv <- getTypeEnv
                       let dictParamName = "dict_" ++ className
                       -- Look up dictionary type from type environment
-                      dictHashType <- case lookupEnv dictParamName typeEnv of
+                      dictHashType <- case lookupEnv (stringToVar dictParamName) typeEnv of
                         Just (Forall _ _ dictType) -> return dictType
                         Nothing -> return $ THash TString TAny  -- Fallback
                       -- Extract the value type from the dictionary hash type
@@ -565,7 +565,7 @@ expandTypeClassMethodsT tiExpr = do
                           typeEnv <- getTypeEnv
                           let dictParamName = "dict_" ++ className
                           -- Look up dictionary type from type environment
-                          dictHashType <- case lookupEnv dictParamName typeEnv of
+                          dictHashType <- case lookupEnv (stringToVar dictParamName) typeEnv of
                             Just (Forall _ _ dictType) -> return dictType
                             Nothing -> return $ THash TString TAny  -- Fallback
                           -- Extract the value type from the dictionary hash type
@@ -587,7 +587,7 @@ expandTypeClassMethodsT tiExpr = do
                                 dictName = lowerFirst className ++ instTypeName
 
                             -- Look up dictionary type from type environment
-                            dictHashType <- case lookupEnv dictName typeEnv of
+                            dictHashType <- case lookupEnv (stringToVar dictName) typeEnv of
                               Just (Forall _ _ dictType) -> return dictType
                               Nothing -> return $ THash TString TAny  -- Fallback
 
@@ -882,7 +882,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           let vNode = tiExprNode v
           case vNode of
             TIVarExpr methodName -> do
-              case lookupEnv methodName typeEnv of
+              case lookupEnv (stringToVar methodName) typeEnv of
                 Just (Forall _ vConstraints _) | not (null vConstraints) -> do
                   -- Method has constraints, apply dictionary parameters
                   let dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p)) dictParams
@@ -923,7 +923,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           Just constraint -> do
             -- Get method type to determine arity
             typeEnv <- getTypeEnv
-            case lookupEnv methodName typeEnv of
+            case lookupEnv (stringToVar methodName) typeEnv of
               Just (Forall _ _ ty) -> do
                 let arity = getMethodArity ty
                     paramNames = ["etaVar" ++ show i | i <- [1..arity]]
@@ -932,7 +932,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                     -- Create dictionary access
                     dictParam = constraintToDictParam constraint
                 -- Look up dictionary type from type environment
-                dictHashType <- case lookupEnv dictParam typeEnv of
+                dictHashType <- case lookupEnv (stringToVar dictParam) typeEnv of
                   Just (Forall _ _ dictType) -> return dictType
                   Nothing -> return $ THash TString TAny  -- Fallback
                 -- Extract the value type from the dictionary hash type
@@ -975,7 +975,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 typeEnv <- getTypeEnv
                 let dictParam = constraintToDictParam constraint
                 -- Look up dictionary type from type environment
-                dictHashType <- case lookupEnv dictParam typeEnv of
+                dictHashType <- case lookupEnv (stringToVar dictParam) typeEnv of
                   Just (Forall _ _ dictType) -> return dictType
                   Nothing -> return $ THash TString TAny  -- Fallback
                 -- Extract the value type from the dictionary hash type

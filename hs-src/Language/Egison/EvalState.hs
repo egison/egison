@@ -84,7 +84,7 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Type environment operations
   getTypeEnv :: m TypeEnv
   setTypeEnv :: TypeEnv -> m ()
-  extendTypeEnv :: String -> TypeScheme -> m ()
+  extendTypeEnv :: Var -> TypeScheme -> m ()
   -- Class environment operations
   getClassEnv :: m ClassEnv
   setClassEnv :: ClassEnv -> m ()
