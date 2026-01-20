@@ -2,10 +2,10 @@
 -- Vectors
 --
 
-def dotProduct {Num a} (v1: Vector a) (v2: Vector a) : a := 
+def dotProduct {Num a} (v1: Tensor a) (v2: Tensor a) : Tensor a := 
   withSymbols [i] v1~i . v2_i
 
-def V.* {Num a} : Vector a -> Vector a -> a := dotProduct
+def V.* {Num a} : Tensor a -> Tensor a -> Tensor a := dotProduct
 
 --def crossProduct/fn {Num a} (fn: a -> a -> a) (a: Vector a) (b: Vector a) : Vector a :=
 --  [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]
