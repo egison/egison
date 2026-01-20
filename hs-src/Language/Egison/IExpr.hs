@@ -146,7 +146,7 @@ data Index a
   | SupSub a
   | User a
   | DF Integer Integer
-  deriving (Show, Eq, Functor, Foldable, Generic, Traversable)
+  deriving (Show, Eq, Ord, Functor, Foldable, Generic, Traversable)
 
 extractSupOrSubIndex :: Index a -> Maybe a
 extractSupOrSubIndex (Sub x)    = Just x
@@ -164,9 +164,9 @@ extractIndex DF{}       = undefined
 data Var = Var String [Index (Maybe Var)]
   deriving (Generic, Show)
 
--- for eq and hashable
+-- for eq, ord and hashable
 data Var' = Var' String [Index ()]
-  deriving (Eq, Generic, Show)
+  deriving (Eq, Ord, Generic, Show)
 
 instance Eq Var where
   Var name (MultiSup _ _ _:_) == Var name' is' = Var name [] == Var name' is'
@@ -174,6 +174,14 @@ instance Eq Var where
   Var name is == Var name' (MultiSup _ _ _:_)  = Var name is == Var name' []
   Var name is == Var name' (MultiSub _ _ _:_)  = Var name is == Var name' []
   Var name is == Var name' is'                 = Var' name (map (fmap (\_ -> ())) is) == Var' name' (map (fmap (\_ -> ())) is')
+
+instance Ord Var where
+  compare (Var name (MultiSup _ _ _:_)) (Var name' is') = compare (Var name []) (Var name' is')
+  compare (Var name (MultiSub _ _ _:_)) (Var name' is') = compare (Var name []) (Var name' is')
+  compare (Var name is) (Var name' (MultiSup _ _ _:_))  = compare (Var name is) (Var name' [])
+  compare (Var name is) (Var name' (MultiSub _ _ _:_))  = compare (Var name is) (Var name' [])
+  compare (Var name is) (Var name' is') = 
+    compare (Var' name (map (fmap (\_ -> ())) is)) (Var' name' (map (fmap (\_ -> ())) is'))
 
 instance Hashable a => Hashable (Index a)
 instance Hashable Var'
