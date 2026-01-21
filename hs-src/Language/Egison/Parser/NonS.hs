@@ -949,6 +949,7 @@ tensorExpr =
   <|> (reserved "tensorMap"      >> TensorMapExpr      <$> atomExpr <*> atomExpr)
   <|> (reserved "tensorMap2"     >> TensorMap2Expr     <$> atomExpr <*> atomExpr <*> atomExpr)
   <|> (reserved "transpose"      >> TransposeExpr      <$> atomExpr <*> atomExpr)
+  <|> (reserved "flipIndices"    >> FlipIndicesExpr    <$> atomExpr)
 
 functionExpr :: Parser Expr
 functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy ident comma))
@@ -1573,6 +1574,7 @@ lowerReservedWords =
   , "tensorMap"
   , "tensorMap2"
   , "transpose"
+  , "flipIndices"
   , "subrefs"
   , "subrefs!"
   , "suprefs"

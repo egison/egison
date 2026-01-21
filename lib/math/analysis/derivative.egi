@@ -4,33 +4,36 @@
 --
 --
 
-def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
+def ∂/∂ (f : Tensor MathExpr) (x : Tensor MathExpr) : Tensor MathExpr :=
+  tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)
+  
+def ∂/∂' (f : MathExpr) (!x : MathExpr) : MathExpr :=
   match f as mathExpr with
     -- symbol
     | #x -> 1
     | ?isSymbol -> 0
     -- function expression
     -- | func _ $argnames $args ->
-    --   sum (map2 (\s r -> (userRefs f [s]) * ∂/∂ r x) argnames args)
+    --   sum (map2 (\s r -> (userRefs f [s]) * ∂/∂' r x) argnames args)
     -- function application
-    | (apply1 #exp $g) -> exp g * ∂/∂ g x
-    | (apply1 #log $g) -> 1 / g * ∂/∂ g x
-    | (apply1 #sqrt $g) -> 1 / (2 * sqrt g) * ∂/∂ g x
-    --| (apply2 (^) $g $h) -> f * ∂/∂ (log g * h) x
-    | (apply1 #cos $g) -> (- sin g) * ∂/∂ g x
-    | (apply1 #sin $g) -> cos g * ∂/∂ g x
-    --| (apply1 #arccos $g) -> 1 / sqrt (1 - g ^ 2) * ∂/∂ g x
+    | (apply1 #exp $g) -> exp g * ∂/∂' g x
+    | (apply1 #log $g) -> 1 / g * ∂/∂' g x
+    | (apply1 #sqrt $g) -> 1 / (2 * sqrt g) * ∂/∂' g x
+    --| (apply2 (^) $g $h) -> f * ∂/∂' (log g * h) x
+    | (apply1 #cos $g) -> (- sin g) * ∂/∂' g x
+    | (apply1 #sin $g) -> cos g * ∂/∂' g x
+    --| (apply1 #arccos $g) -> 1 / sqrt (1 - g ^ 2) * ∂/∂' g x
     -- | apply1 $g $a1 ->
-    --   `((userRefs g [1]) a1) * ∂/∂ a1 x
+    --   `((userRefs g [1]) a1) * ∂/∂' a1 x
     -- | apply2 $g $a1 $a2 ->
-    --   `((userRefs g [1]) a1 a2) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2) * ∂/∂ a2 x
+    --   `((userRefs g [1]) a1 a2) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2) * ∂/∂' a2 x
     -- | apply3 $g $a1 $a2 $a3 ->
-    --   `((userRefs g [1]) a1 a2 a3) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2 a3) * ∂/∂ a2 x + `((userRefs g [3]) a1 a2 a3) * ∂/∂ a3 x
+    --   `((userRefs g [1]) a1 a2 a3) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2 a3) * ∂/∂' a2 x + `((userRefs g [3]) a1 a2 a3) * ∂/∂' a3 x
     -- | apply4 $g $a1 $a2 $a3 $a4 ->
-    --   `((userRefs g [1]) a1 a2 a3 a4) * ∂/∂ a1 x + `((userRefs g [2]) a1 a2 a3 a4) * ∂/∂ a2 x + `((userRefs g [3]) a1 a2 a3 a4) * ∂/∂ a3 x + `((userRefs g [4]) a1 a2 a3 a4) * ∂/∂ a4 x
+    --   `((userRefs g [1]) a1 a2 a3 a4) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2 a3 a4) * ∂/∂' a2 x + `((userRefs g [3]) a1 a2 a3 a4) * ∂/∂' a3 x + `((userRefs g [4]) a1 a2 a3 a4) * ∂/∂' a4 x
     -- quote
     -- | quote $g ->
-    --   let g' := ∂/∂ g x
+    --   let g' := ∂/∂' g x
     --    in if isMonomial g'
     --         then g'
     --         else let d := foldl1 (\a b -> `(gcd a b)) (fromPoly g')
@@ -39,14 +42,14 @@ def ∂/∂ (f : MathExpr) (!x : MathExpr) : MathExpr :=
     | #0 -> 0
     | _ * #1 -> 0
     -- term (multiplication)
-    | #1 * $fx ^ $n -> n * fx ^ (n - 1) * ∂/∂ fx x
-    | $a * $fx ^ $n * $r -> a * ∂/∂ (fx ^' n) x * r + a * fx ^' n * ∂/∂ r x
+    | #1 * $fx ^ $n -> n * fx ^ (n - 1) * ∂/∂' fx x
+    | $a * $fx ^ $n * $r -> a * ∂/∂' (fx ^' n) x * r + a * fx ^' n * ∂/∂' r x
     -- polynomial
-    | poly $ts -> sum (map 1#(∂/∂ $1 x) ts)
+    | poly $ts -> sum (map 1#(∂/∂' $1 x) ts)
     -- quotient
     | $p1 / $p2 ->
-      let p1' := ∂/∂ p1 x
-          p2' := ∂/∂ p2 x
+      let p1' := ∂/∂' p1 x
+          p2' := ∂/∂' p2 x
        in (p1' * p2 - p2' * p1) / p2 ^ 2
 
 def d/d : MathExpr -> MathExpr -> MathExpr := ∂/∂
