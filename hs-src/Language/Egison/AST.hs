@@ -219,7 +219,7 @@ data Expr
   | TensorMapExpr Expr Expr
   | TensorMap2Expr Expr Expr Expr
   | TransposeExpr Expr Expr
-  | FlipIndicesExpr Expr                              -- Does not appear in user program
+  | FlipIndicesExpr Expr
 
   | FunctionExpr [String]
 
