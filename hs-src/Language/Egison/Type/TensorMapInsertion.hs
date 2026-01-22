@@ -48,23 +48,8 @@ shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   TTensor elemType -> case paramType of
     -- Tensor matched with Tensor → both are Tensor types, so types match perfectly
-    -- No tensorMap insertion needed (functions like tensorShape : Tensor a -> b)
-    -- Exceptions: only if there are type class constraints that require lifting
-    TTensor paramElemType -> 
-      case paramElemType of
-        TVar tyVar ->
-          -- Parameter is Tensor of type variable
-          let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar || t == TTensor (TVar tyVar)) constraints
-          in case relevantConstraints of
-               -- No constraints → types match directly (Tensor a -> b applied to Tensor c)
-               -- No tensorMap needed
-               [] -> False
-               -- Has constraints → check if Tensor instance exists
-               cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
-        _ -> 
-          -- Parameter is Tensor of concrete type
-          -- Types match directly, no tensorMap needed
-          False
+    -- No tensorMap insertion needed (functions like tensorShape : Tensor a -> b, or . : Tensor a -> Tensor a -> Tensor a)
+    TTensor _ -> False
     
     -- Tensor matched with type variable → check type class instances
     TVar tyVar -> 
@@ -95,24 +80,6 @@ hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
                      Right _ -> True   -- Instance type unifies with Tensor type
                      Left _  -> False  -- No match
          ) instances
-
--- | Check if function type was lifted to accept Tensors during type inference
--- Returns True if any parameter is Tensor type AND there are no type class constraints
--- (type class methods with Tensor instances don't need tensorMap)
-checkIfTypeLiftedForTensors :: Type -> [Type] -> Bool
-checkIfTypeLiftedForTensors funcType argTypes =
-  -- Check if function has any Tensor parameters
-  let paramTypes = getParamTypes funcType (length argTypes)
-      hasTensorParams = any isTensorType paramTypes
-      correspondingArgsTensor = zipWith (\p a -> isTensorType p && isTensorType a) paramTypes argTypes
-  in hasTensorParams && all id correspondingArgsTensor
-  where
-    isTensorType (TTensor _) = True
-    isTensorType _ = False
-    
-    getParamTypes :: Type -> Int -> [Type]
-    getParamTypes (TFun param rest) n | n > 0 = param : getParamTypes rest (n - 1)
-    getParamTypes _ _ = []
 
 -- | Unlift a function type that was lifted for Tensor arguments
 -- Tensor a -> Tensor b -> Tensor c  becomes  a -> b -> c
@@ -205,29 +172,16 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
         
         -- Check if tensorMap insertion is needed
-        -- The function type may have been lifted during type inference
-        -- We need to check if any parameter was lifted to Tensor type
         let funcType = tiExprType func'
             argTypes = map tiExprType args'
             (Forall _ funcConstraints _) = tiScheme func'
             allConstraints = cs ++ funcConstraints
-            
-            -- Check if function type contains lifted Tensor parameters
-            -- by checking if any parameter is Tensor but would normally be non-Tensor
-            needsTensorMapForLifting = checkIfTypeLiftedForTensors funcType argTypes
         
-        if needsTensorMapForLifting && null allConstraints
-          then do
-            -- Type was lifted (no constraints means not a type class method)
-            -- Force tensorMap insertion
-            wrapped <- wrapWithTensorMapRecursive env allConstraints func' funcType args' argTypes
-            return wrapped
-          else do
-            -- Normal processing
-            result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args' argTypes
-            case result of
-              Just wrappedNode -> return wrappedNode
-              Nothing -> return $ TIApplyExpr func' args'
+        -- Normal processing: check if tensorMap is needed based on parameter types
+        result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args' argTypes
+        case result of
+          Just wrappedNode -> return wrappedNode
+          Nothing -> return $ TIApplyExpr func' args'
       
       -- Collections
       TITupleExpr exprs -> do
