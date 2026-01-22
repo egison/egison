@@ -30,11 +30,19 @@ module Language.Egison.Math.Expr
     , symbolM
     , func
     , funcM
-    , apply
-    , applyM
+    , apply1
+    , apply1M
+    , apply2
+    , apply2M
+    , apply3
+    , apply3M
+    , apply4
+    , apply4M
     , quote
     , negQuote
     , negQuoteM
+    , quoteFunction
+    , quoteFunctionM
     , equalMonomial
     , equalMonomialM
     , zero
@@ -138,14 +146,41 @@ func _ _ _                             = mzero
 funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM)
 funcM SymbolM _ = (ScalarM, List ScalarM)
 
-apply :: Pattern (PP String, PP [ScalarData]) SymbolM SymbolExpr (String, [ScalarData])
-apply _ _ (Apply1 (SingleSymbol (Symbol _ fn _)) a1) = pure (fn, [a1])
-apply _ _ (Apply2 (SingleSymbol (Symbol _ fn _)) a1 a2) = pure (fn, [a1, a2])
-apply _ _ (Apply3 (SingleSymbol (Symbol _ fn _)) a1 a2 a3) = pure (fn, [a1, a2, a3])
-apply _ _ (Apply4 (SingleSymbol (Symbol _ fn _)) a1 a2 a3 a4) = pure (fn, [a1, a2, a3, a4])
-apply _ _ _                                           = mzero
-applyM :: SymbolM -> p -> (Eql, List ScalarM)
-applyM SymbolM _ = (Eql, List ScalarM)
+apply1 :: Pattern (PP String, PP WHNFData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData)
+apply1 _ _ (Apply1 (SingleSymbol (QuoteFunction fnWhnf)) a1) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1)
+    Nothing -> mzero
+apply1 _ _ _ = mzero
+apply1M :: SymbolM -> p -> (Eql, Something, ScalarM)
+apply1M SymbolM _ = (Eql, Something, ScalarM)
+
+apply2 :: Pattern (PP String, PP WHNFData, PP ScalarData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData, ScalarData)
+apply2 _ _ (Apply2 (SingleSymbol (QuoteFunction fnWhnf)) a1 a2) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2)
+    Nothing -> mzero
+apply2 _ _ _ = mzero
+apply2M :: SymbolM -> p -> (Eql, Something, ScalarM, ScalarM)
+apply2M SymbolM _ = (Eql, Something, ScalarM, ScalarM)
+
+apply3 :: Pattern (PP String, PP WHNFData, PP ScalarData, PP ScalarData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData, ScalarData, ScalarData)
+apply3 _ _ (Apply3 (SingleSymbol (QuoteFunction fnWhnf)) a1 a2 a3) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2, a3)
+    Nothing -> mzero
+apply3 _ _ _ = mzero
+apply3M :: SymbolM -> p -> (Eql, Something, ScalarM, ScalarM, ScalarM)
+apply3M SymbolM _ = (Eql, Something, ScalarM, ScalarM, ScalarM)
+
+apply4 :: Pattern (PP String, PP WHNFData, PP ScalarData, PP ScalarData, PP ScalarData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData, ScalarData, ScalarData, ScalarData)
+apply4 _ _ (Apply4 (SingleSymbol (QuoteFunction fnWhnf)) a1 a2 a3 a4) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2, a3, a4)
+    Nothing -> mzero
+apply4 _ _ _ = mzero
+apply4M :: SymbolM -> p -> (Eql, Something, ScalarM, ScalarM, ScalarM, ScalarM)
+apply4M SymbolM _ = (Eql, Something, ScalarM, ScalarM, ScalarM, ScalarM)
 
 quote :: Pattern (PP ScalarData) SymbolM SymbolExpr ScalarData
 quote _ _ (Quote m) = pure m
@@ -156,6 +191,14 @@ negQuote _ _ (Quote m) = pure (mathNegate m)
 negQuote _ _ _         = mzero
 negQuoteM :: SymbolM -> p -> ScalarM
 negQuoteM SymbolM _ = ScalarM
+
+quoteFunction :: Pattern (PP String, PP WHNFData) SymbolM SymbolExpr (String, WHNFData)
+quoteFunction _ _ (QuoteFunction whnf) = case prettyFunctionName whnf of
+  Just name -> pure (name, whnf)
+  Nothing   -> mzero
+quoteFunction _ _ _ = mzero
+quoteFunctionM :: SymbolM -> p -> Eql
+quoteFunctionM SymbolM _ = Eql
 
 equalMonomial :: Pattern (PP Integer, PP Monomial) (Multiset (SymbolM, Eql)) Monomial (Integer, Monomial)
 equalMonomial (_, VP xs) _ ys = case isEqualMonomial xs ys of
