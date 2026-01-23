@@ -6,7 +6,7 @@ inductive pattern Matrix a:=
   | quadCons (Matrix a) (Matrix a) (Matrix a) (Matrix a)
   | matCons Integer Integer a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
 
-def matrix {} : Matcher Integer :=
+def matrix : Matcher (Matrix MathExpr) :=
   matcher
     | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
       | $tgt ->
@@ -29,7 +29,7 @@ def matrix {} : Matcher Integer :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def M.inverse {Num a} (m: Matrix a) : Matrix a :=
+def M.inverse (m: Matrix MathExpr) : Matrix MathExpr :=
   let d := M.det m
    in generateTensor
         (\[i, j] ->
@@ -52,36 +52,36 @@ def M.power (t: Matrix MathExpr) (k: Integer) : Matrix MathExpr :=
 def M.comm (m1: Matrix MathExpr) (m2: Matrix MathExpr) : Matrix MathExpr := 
   withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
-def M.join {a} (A: Matrix a) (B: Matrix a) (C: Matrix a) (D: Matrix a) 
-  : Matrix a :=
+def M.join (A: Matrix MathExpr) (B: Matrix MathExpr) (C: Matrix MathExpr) (D: Matrix MathExpr)
+  : Matrix MathExpr :=
   let ashape := tensorShape A
-      a1 := nth 1 ashape
-      a2 := nth 2 ashape
       bshape := tensorShape B
-      b1 := nth 1 bshape
-      b2 := nth 2 bshape
       cshape := tensorShape C
-      c1 := nth 1 cshape
-      c2 := nth 2 cshape
       dshape := tensorShape D
-      d1 := nth 1 dshape
-      d2 := nth 2 dshape
-      m1 := max a1 b1
-      m2 := max a2 c2
-      n1 := max c1 d1
-      n2 := max b2 d2
-   in generateTensor
-        (\match as list integer with
-          | [$i & ?(<= a1), $j & ?(<= a2)] -> A_i_j
-          | [$i & ?(<= m1), $j]            -> B_i_(j - a2)
-          | [$i,            $j & ?(<= m2)] -> C_(i - a1)_j
-          | [$i,            $j]            -> D_(i - m1)_(j - m2))
-        [m1 + n1, m2 + n2]
+  in let a1 := nth 1 ashape
+         a2 := nth 2 ashape
+         b1 := nth 1 bshape
+         b2 := nth 2 bshape
+         c1 := nth 1 cshape
+         c2 := nth 2 cshape
+         d1 := nth 1 dshape
+         d2 := nth 2 dshape
+     in let m1 := max a1 b1
+            m2 := max a2 c2
+            n1 := max c1 d1
+            n2 := max b2 d2
+        in generateTensor
+             (\match as list integer with
+               | [$i & ?(<= a1), $j & ?(<= a2)] -> A_i_j
+               | [$i & ?(<= m1), $j]            -> B_i_(j - a2)
+               | [$i,            $j & ?(<= m2)] -> C_(i - a1)_j
+               | [$i,            $j]            -> D_(i - m1)_(j - m2))
+             [m1 + n1, m2 + n2]
 
 --
 -- Determinant
 --
-def M.determinant {Num a} (m: Matrix a) : a :=
+def M.determinant (m: Matrix MathExpr) : MathExpr :=
   match tensorShape m as list integer with
     | [#0, #0] -> 1
     | [$n, #n] ->
@@ -90,4 +90,4 @@ def M.determinant {Num a} (m: Matrix a) : a :=
             sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
     | _ -> undefined
 
-def M.det {Num a} : Matrix a -> a := M.determinant
+def M.det (m: Matrix MathExpr) : MathExpr := M.determinant m
