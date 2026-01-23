@@ -283,7 +283,9 @@ expandTypeClassMethodsT tiExpr = do
         return $ TIMatcherExpr patDefs'
       TIIndexedExpr override base indices -> do
         base' <- expandTIExprWithConstraints classEnv' cs base
-        return $ TIIndexedExpr override base' indices  -- TODO: Process indices
+        -- Expand indices (which are already typed as TIExpr)
+        indices' <- mapM (traverse (\tiexpr -> expandTIExprWithConstraints classEnv' cs tiexpr)) indices
+        return $ TIIndexedExpr override base' indices'
       
       TIWedgeApplyExpr func args -> do
         func' <- expandTIExprWithConstraints classEnv' cs func
@@ -335,9 +337,10 @@ expandTypeClassMethodsT tiExpr = do
                           methodConstraint = Constraint className tyArg
                           methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
                           dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
+                          indexExpr = TIExpr (Forall [] [] TString) 
+                                            (TIConstantExpr (StringExpr (pack methodKey)))
                           dictAccess = TIExpr methodScheme $
-                                       TIIndexedExpr False dictExpr
-                                         [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                                       TIIndexedExpr False dictExpr [Sub indexExpr]
                           body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
                       return $ TILambdaExpr Nothing paramVars body
                     _ -> do
@@ -375,9 +378,10 @@ expandTypeClassMethodsT tiExpr = do
                               dictArgs <- mapM (resolveDictionaryArg classEnv') (instContext inst)
                               return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
 
-                          let dictAccess = TIExpr methodScheme $
-                                           TIIndexedExpr False dictExprBase
-                                             [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                          let indexExpr = TIExpr (Forall [] [] TString) 
+                                               (TIConstantExpr (StringExpr (pack methodKey)))
+                              dictAccess = TIExpr methodScheme $
+                                           TIIndexedExpr False dictExprBase [Sub indexExpr]
                               body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
                           return $ TILambdaExpr Nothing paramVars body
                         Nothing -> checkConstrainedVariable
@@ -554,9 +558,10 @@ expandTypeClassMethodsT tiExpr = do
                           methodConstraint = Constraint className tyArg
                           methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
                           dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
+                          indexExpr = TIExpr (Forall [] [] TString) 
+                                            (TIConstantExpr (StringExpr (pack methodKey)))
                           dictAccess = TIExpr methodScheme $
-                                       TIIndexedExpr False dictExpr
-                                         [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                                       TIIndexedExpr False dictExpr [Sub indexExpr]
                       -- Apply arguments: dictAccess arg1 arg2 ...
                       return $ Just $ TIApplyExpr dictAccess expandedArgs
                     _ -> do
@@ -582,9 +587,10 @@ expandTypeClassMethodsT tiExpr = do
                               methodConstraint = Constraint className actualType
                               methodScheme = Forall (Set.toList $ freeTyVars actualType) [methodConstraint] methodType
                               dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
+                              indexExpr = TIExpr (Forall [] [] TString) 
+                                                (TIConstantExpr (StringExpr (pack methodKey)))
                               dictAccess = TIExpr methodScheme $
-                                           TIIndexedExpr False dictExpr
-                                             [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                                           TIIndexedExpr False dictExpr [Sub indexExpr]
                           -- Apply arguments: dictAccess arg1 arg2 ...
                           return $ Just $ TIApplyExpr dictAccess expandedArgs
                         _ -> case findMatchingInstanceForType actualType instances of
@@ -636,9 +642,10 @@ expandTypeClassMethodsT tiExpr = do
                                     return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
 
                                 -- Now index into the dictionary (which is now a hash)
-                            let dictAccess = TIExpr methodScheme $
-                                             TIIndexedExpr False dictExprBase
-                                               [Sub (IConstantExpr (StringExpr (pack methodKey)))]
+                            let indexExpr = TIExpr (Forall [] [] TString) 
+                                                  (TIConstantExpr (StringExpr (pack methodKey)))
+                                dictAccess = TIExpr methodScheme $
+                                             TIIndexedExpr False dictExprBase [Sub indexExpr]
                             -- Apply arguments: dictAccess arg1 arg2 ...
                             return $ Just $ TIApplyExpr dictAccess expandedArgs
                           Nothing -> return Nothing
@@ -1017,10 +1024,12 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 let methodType = getMethodTypeFromClass env className (sanitizeMethodName methodName) tyArg
                     methodConstraint = Constraint className tyArg
                     methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
+                    indexExpr = TIExpr (Forall [] [] TString) 
+                                      (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
                     dictAccess = TIExpr methodScheme $
                                  TIIndexedExpr False
                                    (TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParam))
-                                   [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+                                   [Sub indexExpr]
                     -- Create: dictAccess etaVar1 etaVar2 ... etaVarN
                     body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
                 return $ TILambdaExpr Nothing paramVars body
@@ -1061,9 +1070,11 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 let methodType = getMethodTypeFromClass env className (sanitizeMethodName methodName) tyArg
                     methodConstraint = Constraint className tyArg
                     methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
+                    indexExpr = TIExpr (Forall [] [] TString) 
+                                      (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
                     dictAccessNode = TIIndexedExpr False
                                      (TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParam))
-                                     [Sub (IConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))]
+                                     [Sub indexExpr]
                     dictAccess = TIExpr methodScheme dictAccessNode
                 -- Recursively process arguments
                 args' <- mapM (replaceMethodCallsWithDictAccessT env cs) args

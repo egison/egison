@@ -284,8 +284,7 @@ data TIExprNode
   | TIQuoteSymbolExpr TIExpr
   
   -- Indexed expressions
-  -- TODO: Change [Index IExpr] to [Index TIExpr] later
-  | TIIndexedExpr Bool TIExpr [Index IExpr]
+  | TIIndexedExpr Bool TIExpr [Index TIExpr]
   | TISubrefsExpr Bool TIExpr TIExpr
   | TISuprefsExpr Bool TIExpr TIExpr
   | TIUserrefsExpr Bool TIExpr TIExpr
@@ -366,7 +365,7 @@ stripType (TIExpr _ node) = case node of
   TIInductiveDataExpr name exprs -> IInductiveDataExpr name (map stripType exprs)
   TIQuoteExpr e -> IQuoteExpr (stripType e)
   TIQuoteSymbolExpr e -> IQuoteSymbolExpr (stripType e)
-  TIIndexedExpr override expr indices -> IIndexedExpr override (stripType expr) indices
+  TIIndexedExpr override expr indices -> IIndexedExpr override (stripType expr) (fmap stripType <$> indices)
   TISubrefsExpr b e1 e2 -> ISubrefsExpr b (stripType e1) (stripType e2)
   TISuprefsExpr b e1 e2 -> ISuprefsExpr b (stripType e1) (stripType e2)
   TIUserrefsExpr b e1 e2 -> IUserrefsExpr b (stripType e1) (stripType e2)
