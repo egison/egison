@@ -372,7 +372,7 @@ stripType (TIExpr _ node) = case node of
   TIWedgeApplyExpr func args -> IWedgeApplyExpr (stripType func) (map stripType args)
   TIDoExpr bindings body -> IDoExpr (map stripTypeBinding bindings) (stripType body)
   TISeqExpr e1 e2 -> ISeqExpr (stripType e1) (stripType e2)
-  TIGenerateTensorExpr shape func -> IGenerateTensorExpr (stripType shape) (stripType func)
+  TIGenerateTensorExpr func shape -> IGenerateTensorExpr (stripType func) (stripType shape)
   TITensorExpr shape elems -> ITensorExpr (stripType shape) (stripType elems)
   TITensorContractExpr e -> ITensorContractExpr (stripType e)
   TITensorMapExpr func tensor -> ITensorMapExpr (stripType func) (stripType tensor)
