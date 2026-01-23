@@ -249,9 +249,9 @@ resolveConstraintsInNode classEnv subst node = case node of
   TIIndexedExpr override expr indices ->
     TIIndexedExpr override (resolveConstraintsInTIExpr classEnv subst expr) 
                   (fmap (resolveConstraintsInTIExpr classEnv subst) <$> indices)
-  TIGenerateTensorExpr shape func ->
-    TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
-                         (resolveConstraintsInTIExpr classEnv subst func)
+  TIGenerateTensorExpr func shape ->
+    TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst func)
+                         (resolveConstraintsInTIExpr classEnv subst shape)
   TITensorExpr shape elems ->
     TITensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
                  (resolveConstraintsInTIExpr classEnv subst elems)
@@ -518,8 +518,8 @@ applySubstToTIExprNode s node = case node of
   TIHashExpr pairs ->
     TIHashExpr (map (\(k, v) -> (applySubstToTIExpr s k, applySubstToTIExpr s v)) pairs)
   
-  TIGenerateTensorExpr shape func ->
-    TIGenerateTensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s func)
+  TIGenerateTensorExpr func shape ->
+    TIGenerateTensorExpr (applySubstToTIExpr s func) (applySubstToTIExpr s shape)
   
   TITensorExpr shape elems ->
     TITensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s elems)
@@ -1626,10 +1626,10 @@ inferIExprWithContext expr ctx = case expr of
     inferIApplicationWithContext funcTI funcType args s1 exprCtx
   
   -- Generate tensor expression
-  IGenerateTensorExpr shapeExpr genFunc -> do
+  IGenerateTensorExpr funcExpr shapeExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (shapeTI, s1) <- inferIExprWithContext shapeExpr exprCtx
-    (funcTI, s2) <- inferIExprWithContext genFunc exprCtx
+    (funcTI, s1) <- inferIExprWithContext funcExpr exprCtx
+    (shapeTI, s2) <- inferIExprWithContext shapeExpr exprCtx
     let funcType = tiExprType funcTI
     -- Extract element type from function result
     elemType <- case funcType of
@@ -1637,7 +1637,7 @@ inferIExprWithContext expr ctx = case expr of
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
         resultType = normalizeTensorType (TTensor (applySubst finalS elemType))
-    return (mkTIExpr resultType (TIGenerateTensorExpr shapeTI funcTI), finalS)
+    return (mkTIExpr resultType (TIGenerateTensorExpr funcTI shapeTI), finalS)
   
   -- Tensor expression
   ITensorExpr shapeExpr elemsExpr -> do

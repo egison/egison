@@ -289,10 +289,10 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         t2' <- insertTensorMapsWithConstraints env cs t2
         return $ TITensorMap2Expr func' t1' t2'
       
-      TIGenerateTensorExpr shape func -> do
-        shape' <- insertTensorMapsWithConstraints env cs shape
+      TIGenerateTensorExpr func shape -> do
         func' <- insertTensorMapsWithConstraints env cs func
-        return $ TIGenerateTensorExpr shape' func'
+        shape' <- insertTensorMapsWithConstraints env cs shape
+        return $ TIGenerateTensorExpr func' shape'
       
       TITensorExpr shape elems -> do
         shape' <- insertTensorMapsWithConstraints env cs shape
