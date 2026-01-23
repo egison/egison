@@ -344,9 +344,9 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       
       TIMatcherExpr patDefs -> return $ TIMatcherExpr patDefs
       
-      TIIndexedExpr b base indices -> do
+      TIIndexedExpr override base indices -> do
         base' <- insertTensorMapsWithConstraints env cs base
-        return $ TIIndexedExpr b base' indices
+        return $ TIIndexedExpr override base' indices
       
       TIWedgeApplyExpr func args -> do
         func' <- insertTensorMapsWithConstraints env cs func

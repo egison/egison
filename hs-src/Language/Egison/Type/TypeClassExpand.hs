@@ -281,9 +281,9 @@ expandTypeClassMethodsT tiExpr = do
             return (dp, expr')) bindings
           return (pat, matcherExpr', bindings')) patDefs
         return $ TIMatcherExpr patDefs'
-      TIIndexedExpr b base indices -> do
+      TIIndexedExpr override base indices -> do
         base' <- expandTIExprWithConstraints classEnv' cs base
-        return $ TIIndexedExpr b base' indices  -- TODO: Process indices
+        return $ TIIndexedExpr override base' indices  -- TODO: Process indices
       
       TIWedgeApplyExpr func args -> do
         func' <- expandTIExprWithConstraints classEnv' cs func
