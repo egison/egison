@@ -346,7 +346,8 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       
       TIIndexedExpr override base indices -> do
         base' <- insertTensorMapsWithConstraints env cs base
-        return $ TIIndexedExpr override base' indices
+        indices' <- mapM (traverse (\tiexpr -> insertTensorMapsWithConstraints env cs tiexpr)) indices
+        return $ TIIndexedExpr override base' indices'
       
       TIWedgeApplyExpr func args -> do
         func' <- insertTensorMapsWithConstraints env cs func

@@ -247,7 +247,8 @@ resolveConstraintsInNode classEnv subst node = case node of
     TILetRecExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
                  (resolveConstraintsInTIExpr classEnv subst body)
   TIIndexedExpr override expr indices ->
-    TIIndexedExpr override (resolveConstraintsInTIExpr classEnv subst expr) indices
+    TIIndexedExpr override (resolveConstraintsInTIExpr classEnv subst expr) 
+                  (fmap (resolveConstraintsInTIExpr classEnv subst) <$> indices)
   TIGenerateTensorExpr shape func ->
     TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
                          (resolveConstraintsInTIExpr classEnv subst func)
@@ -494,7 +495,7 @@ applySubstToTIExprNode s node = case node of
     TIQuoteSymbolExpr (applySubstToTIExpr s e)
   
   TIIndexedExpr override base indices ->
-    TIIndexedExpr override (applySubstToTIExpr s base) indices
+    TIIndexedExpr override (applySubstToTIExpr s base) (fmap (applySubstToTIExpr s) <$> indices)
   
   TISubrefsExpr override base ref ->
     TISubrefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
@@ -1562,14 +1563,18 @@ inferIExprWithContext expr ctx = case expr of
             inferIExprWithContext baseExpr exprCtx
       _ -> inferIExprWithContext baseExpr exprCtx
     let baseType = tiExprType baseTI
+    -- Infer indices as TIExpr
+    indicesTI <- mapM (traverse (\idxExpr -> do
+      (idxTI, _) <- inferIExprWithContext idxExpr exprCtx
+      return idxTI)) indices
     -- Check if all indices are concrete (constants) or symbolic (variables)
     let isSymbolicIndex idx = case idx of
-          Sub (IVarExpr _) -> True
-          Sup (IVarExpr _) -> True
-          SupSub (IVarExpr _) -> True
-          User (IVarExpr _) -> True
+          Sub (TIExpr _ (TIVarExpr _)) -> True
+          Sup (TIExpr _ (TIVarExpr _)) -> True
+          SupSub (TIExpr _ (TIVarExpr _)) -> True
+          User (TIExpr _ (TIVarExpr _)) -> True
           _ -> False
-        hasSymbolicIndex = any isSymbolicIndex indices
+        hasSymbolicIndex = any isSymbolicIndex indicesTI
     -- For tensors with symbolic indices, keep the tensor type
     -- For concrete indices (numeric), return element type
     let resultType = case baseType of
@@ -1580,8 +1585,7 @@ inferIExprWithContext expr ctx = case expr of
           TCollection elemType -> elemType
           THash _keyType valType -> valType  -- Hash access returns value type
           _ -> baseType  -- Fallback: return base type
-    -- TODO: Infer indices as TIExpr instead of IExpr
-    return (mkTIExpr resultType (TIIndexedExpr override baseTI indices), s)
+    return (mkTIExpr resultType (TIIndexedExpr override baseTI indicesTI), s)
   
   -- Subrefs expression (subscript references)
   ISubrefsExpr override baseExpr refExpr -> do
