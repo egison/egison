@@ -366,7 +366,7 @@ stripType (TIExpr _ node) = case node of
   TIInductiveDataExpr name exprs -> IInductiveDataExpr name (map stripType exprs)
   TIQuoteExpr e -> IQuoteExpr (stripType e)
   TIQuoteSymbolExpr e -> IQuoteSymbolExpr (stripType e)
-  TIIndexedExpr b expr indices -> IIndexedExpr b (stripType expr) indices
+  TIIndexedExpr override expr indices -> IIndexedExpr override (stripType expr) indices
   TISubrefsExpr b e1 e2 -> ISubrefsExpr b (stripType e1) (stripType e2)
   TISuprefsExpr b e1 e2 -> ISuprefsExpr b (stripType e1) (stripType e2)
   TIUserrefsExpr b e1 e2 -> IUserrefsExpr b (stripType e1) (stripType e2)

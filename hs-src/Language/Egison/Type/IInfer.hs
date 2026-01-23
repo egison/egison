@@ -246,8 +246,8 @@ resolveConstraintsInNode classEnv subst node = case node of
   TILetRecExpr bindings body ->
     TILetRecExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
                  (resolveConstraintsInTIExpr classEnv subst body)
-  TIIndexedExpr b expr indices ->
-    TIIndexedExpr b (resolveConstraintsInTIExpr classEnv subst expr) indices
+  TIIndexedExpr override expr indices ->
+    TIIndexedExpr override (resolveConstraintsInTIExpr classEnv subst expr) indices
   TIGenerateTensorExpr shape func ->
     TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
                          (resolveConstraintsInTIExpr classEnv subst func)
@@ -493,17 +493,17 @@ applySubstToTIExprNode s node = case node of
   TIQuoteSymbolExpr e ->
     TIQuoteSymbolExpr (applySubstToTIExpr s e)
   
-  TIIndexedExpr isSupported base indices ->
-    TIIndexedExpr isSupported (applySubstToTIExpr s base) indices
+  TIIndexedExpr override base indices ->
+    TIIndexedExpr override (applySubstToTIExpr s base) indices
   
-  TISubrefsExpr isSupported base ref ->
-    TISubrefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  TISubrefsExpr override base ref ->
+    TISubrefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
   
-  TISuprefsExpr isSupported base ref ->
-    TISuprefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  TISuprefsExpr override base ref ->
+    TISuprefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
   
-  TIUserrefsExpr isSupported base ref ->
-    TIUserrefsExpr isSupported (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
+  TIUserrefsExpr override base ref ->
+    TIUserrefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
   
   TIWedgeApplyExpr func args ->
     TIWedgeApplyExpr (applySubstToTIExpr s func) (map (applySubstToTIExpr s) args)
@@ -1535,7 +1535,7 @@ inferIExprWithContext expr ctx = case expr of
     return (mkTIExpr (tiExprType eTI) (TIQuoteSymbolExpr eTI), s)
   
   -- Indexed expression (tensor indexing)
-  IIndexedExpr isSupported baseExpr indices -> do
+  IIndexedExpr override baseExpr indices -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     -- Special handling for IVarExpr: lookup with Var including index info
     -- Use the same strategy as refVar in Data.hs (Core.hs:235)
@@ -1581,37 +1581,37 @@ inferIExprWithContext expr ctx = case expr of
           THash _keyType valType -> valType  -- Hash access returns value type
           _ -> baseType  -- Fallback: return base type
     -- TODO: Infer indices as TIExpr instead of IExpr
-    return (mkTIExpr resultType (TIIndexedExpr isSupported baseTI indices), s)
+    return (mkTIExpr resultType (TIIndexedExpr override baseTI indices), s)
   
   -- Subrefs expression (subscript references)
-  ISubrefsExpr isSupported baseExpr refExpr -> do
+  ISubrefsExpr override baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
     let baseType = tiExprType baseTI
         finalS = composeSubst s2 s1
     -- TODO: Properly handle subscript semantics
-    return (mkTIExpr baseType (TISubrefsExpr isSupported baseTI refTI), finalS)
+    return (mkTIExpr baseType (TISubrefsExpr override baseTI refTI), finalS)
   
   -- Suprefs expression (superscript references)
-  ISuprefsExpr isSupported baseExpr refExpr -> do
+  ISuprefsExpr override baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
     let baseType = tiExprType baseTI
         finalS = composeSubst s2 s1
     -- TODO: Properly handle superscript semantics
-    return (mkTIExpr baseType (TISuprefsExpr isSupported baseTI refTI), finalS)
+    return (mkTIExpr baseType (TISuprefsExpr override baseTI refTI), finalS)
   
   -- Userrefs expression (user-defined references)
-  IUserrefsExpr isSupported baseExpr refExpr -> do
+  IUserrefsExpr override baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
     let baseType = tiExprType baseTI
         finalS = composeSubst s2 s1
     -- TODO: Properly handle user-defined references
-    return (mkTIExpr baseType (TIUserrefsExpr isSupported baseTI refTI), finalS)
+    return (mkTIExpr baseType (TIUserrefsExpr override baseTI refTI), finalS)
   
   -- Wedge apply expression (exterior product)
   IWedgeApplyExpr func args -> do
