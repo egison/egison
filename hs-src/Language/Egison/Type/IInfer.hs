@@ -278,32 +278,19 @@ resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =
       instances = lookupInstances className classEnv
   in case resolvedType of
        TTensor elemType ->
-         -- Tensor型の場合、まず要素型が型変数かチェック
-         case elemType of
-           TVar _ ->
-             -- 要素が型変数の場合、無条件に要素型の制約を使う
-             -- (Tensor t0 の場合、instance Num (Tensor t0) は存在しないが、
-             --  instance Num t0 は型パラメータとして渡されるため)
+         -- For Tensor types, search for an instance
+         case findMatchingInstanceForType resolvedType instances of
+           Just _ -> 
+             -- If Tensor itself has an instance, use it
+             Constraint className resolvedType
+           Nothing -> 
+             -- If Tensor has no instance, use the element type's constraint
+             -- This assumes tensorMap will apply element-wise
+             -- Use element type's constraint even if no instance is found for it
+             -- (Error will be detected in a later phase)
              Constraint className elemType
-           _ ->
-             -- 要素が具体的な型の場合、インスタンスを探す
-             case findMatchingInstanceForType resolvedType instances of
-               Just _ -> 
-                 -- Tensor自体のインスタンスがある場合はそれを使う
-                 Constraint className resolvedType
-               Nothing -> 
-                 -- Tensorのインスタンスがなければ、要素型で試す
-                 case findMatchingInstanceForType elemType instances of
-                   Just _ -> 
-                     -- 要素型のインスタンスがある場合はそれを使う
-                     -- tensorMapで要素ごとに適用することを想定
-                     Constraint className elemType
-                   Nothing -> 
-                     -- どちらもない場合は、解決された型をそのまま使う
-                     -- (エラーは後のPhaseで検出される)
-                     Constraint className resolvedType
        _ -> 
-         -- 非Tensor型の場合は、単純に代入を適用
+         -- For non-Tensor types, simply apply the substitution
          Constraint className resolvedType
 
 -- | Extend the environment temporarily
