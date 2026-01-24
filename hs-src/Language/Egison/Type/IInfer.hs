@@ -77,6 +77,7 @@ import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstr
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import           Language.Egison.Type.Unify as TU
+import qualified Language.Egison.Type.Unify as Unify
 import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 --------------------------------------------------------------------------------
@@ -2168,30 +2169,33 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
   
+  -- Collect constraints from arguments
+  let argConstraints = concatMap (\tiExpr -> let (Forall _ cs _) = tiScheme tiExpr in cs) argTIExprs
+  
   -- Normal function application (no tensorMap insertion)
   -- unify already handles Tensor a and a unification, so no need to lift function type
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType argTypes
       appliedFuncType = applySubst argSubst funcType
   
-  -- Unify function type with expected type
-  -- unify handles Tensor a <-> a unification automatically
-  -- IMPORTANT: We use unify only to get type variable substitutions.
-  -- The function's type scheme should preserve the original type (e.g., t0 -> t0 -> t0)
+  -- Unify function type with expected type using constraint-aware unification
+  -- This ensures that type variables are unified with types that satisfy their constraints
+  -- For example, if {Num t0} and Tensor MathExpr is passed, t0 = MathExpr (not Tensor MathExpr)
+  -- IMPORTANT: The function's type scheme preserves the original type (e.g., t0 -> t0 -> t0)
   -- even when applied to Tensor arguments. tensorMap insertion will handle the conversion.
-  case unify appliedFuncType expectedFuncType of
+  let funcScheme = tiScheme funcTIExpr
+      (Forall _tvs constraints _) = funcScheme
+      -- Combine function constraints and argument constraints
+      allConstraints = constraints ++ argConstraints
+  classEnv <- getClassEnv
+  case Unify.unifyWithConstraints classEnv allConstraints appliedFuncType expectedFuncType of
     Right s -> do
       -- Unification succeeded
       let finalS = composeSubst s argSubst
           finalType = applySubst finalS resultType
-          -- Include constraints from function's type scheme
-          funcScheme = tiScheme funcTIExpr
-          (Forall _tvs constraints _) = funcScheme
-      -- Resolve constraints based on available instances
-      -- If constraint type is Tensor T and no instance exists for Tensor T,
-      -- use instance for T instead (tensorMap will be inserted later)
-      classEnv <- getClassEnv
-      let updatedConstraints = map (resolveConstraintWithInstances classEnv finalS) constraints
+      -- Constraints are already resolved by unifyWithConstraints
+      -- Apply substitution to constraints to get final form
+      let updatedConstraints = map (applySubstConstraint finalS) allConstraints
           -- Create result with updated constraints
           resultScheme = Forall [] updatedConstraints finalType
           -- IMPORTANT: Keep the original function's type from funcTIExpr, but update constraints
