@@ -336,7 +336,7 @@ def expandAll (mexpr: MathExpr) : MathExpr :=
     -- quote
     | quote $g -> g
     -- term (multiplication)
-    | term $a $ps -> a * product (map (\(x, n) -> expandAll x ^ expandAll n) ps)
+    | term $a $ps -> a * product (map (\(x, n) -> expandAll x ^ n) ps)
     -- polynomial
     | poly $ts -> sum (map expandAll ts)
     -- quotient
@@ -354,7 +354,7 @@ def expandAll' (mexpr: MathExpr) : MathExpr :=
     -- quote
     | quote $g -> g
     -- term (multiplication)
-    | term $a $ps -> a *' product' (map (\(x, n) -> expandAll' x ^' expandAll' n) ps)
+    | term $a $ps -> a *' product' (map (\(x, n) -> expandAll' x ^' n) ps)
     -- polynomial
     | poly $ts -> sum' (map expandAll' ts)
     -- quotient
