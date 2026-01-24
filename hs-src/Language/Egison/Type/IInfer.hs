@@ -53,6 +53,7 @@ module Language.Egison.Type.IInfer
 import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
+import           Data.List                  (isPrefixOf)
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -558,9 +559,15 @@ inferIExprWithContext expr ctx = case expr of
   -- Variables
   IVarExpr name -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (ty, constraints) <- lookupVarWithConstraints name
-    let scheme = Forall [] constraints ty
-    return (TIExpr scheme (TIVarExpr name), emptySubst)
+    -- Variables starting with ":::" are treated as Any type without warning
+    if ":::" `isPrefixOf` name
+      then do
+        let scheme = Forall [] [] TAny
+        return (TIExpr scheme (TIVarExpr name), emptySubst)
+      else do
+        (ty, constraints) <- lookupVarWithConstraints name
+        let scheme = Forall [] constraints ty
+        return (TIExpr scheme (TIVarExpr name), emptySubst)
   
   -- Tuples
   ITupleExpr elems -> do
