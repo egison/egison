@@ -401,6 +401,42 @@ inferConstant c = case c of
 mkTIExpr :: Type -> TIExprNode -> TIExpr
 mkTIExpr ty node = TIExpr (Forall [] [] ty) node
 
+-- | Simplify Tensor constraints in type schemes
+-- Rewrites C (Tensor a) to C a when C (Tensor a) has no instance but C a does
+-- This enables correct type class expansion for higher-order functions with Tensor arguments
+simplifyTensorConstraints :: ClassEnv -> [Constraint] -> [Constraint]
+simplifyTensorConstraints classEnv = map simplifyConstraint
+  where
+    hasInstance :: String -> Type -> Bool
+    hasInstance cls ty =
+      case findMatchingInstanceForType ty (lookupInstances cls classEnv) of
+        Just _  -> True
+        Nothing -> False
+    
+    simplifyConstraint :: Constraint -> Constraint
+    simplifyConstraint (Constraint cls ty) = Constraint cls (unwrapTensorInType cls ty)
+      where
+        unwrapTensorInType :: String -> Type -> Type
+        unwrapTensorInType cls' ty0 = case ty0 of
+          TTensor inner
+            | hasInstance cls' ty0   -> ty0           -- Tensor has instance, keep it
+            | hasInstance cls' inner -> unwrapTensorInType cls' inner  -- Unwrap recursively
+            | otherwise              -> ty0           -- No instance for either, keep original
+          _ -> ty0
+
+-- | Simplify Tensor constraints in a type scheme
+simplifyTensorConstraintsInScheme :: ClassEnv -> TypeScheme -> TypeScheme
+simplifyTensorConstraintsInScheme classEnv (Forall _ cs ty) =
+  let cs' = simplifyTensorConstraints classEnv cs
+      tvs' = Set.toList $ freeTyVars ty `Set.union` 
+             Set.unions (map (freeTyVars . constraintType) cs')
+  in Forall tvs' cs' ty
+
+-- | Simplify Tensor constraints in a TIExpr
+simplifyTensorConstraintsInTIExpr :: ClassEnv -> TIExpr -> TIExpr
+simplifyTensorConstraintsInTIExpr classEnv (TIExpr scheme node) =
+  TIExpr (simplifyTensorConstraintsInScheme classEnv scheme) node
+
 -- | Apply a substitution to a TIExpr, updating both the type scheme and all subexpressions
 applySubstToTIExpr :: Subst -> TIExpr -> TIExpr
 applySubstToTIExpr s (TIExpr scheme node) =
@@ -2169,50 +2205,39 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
   
-  -- Collect constraints from arguments
-  let argConstraints = concatMap (\tiExpr -> let (Forall _ cs _) = tiScheme tiExpr in cs) argTIExprs
-  
   -- Normal function application (no tensorMap insertion)
-  -- unify already handles Tensor a and a unification, so no need to lift function type
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType argTypes
       appliedFuncType = applySubst argSubst funcType
   
   -- Unify function type with expected type using constraint-aware unification
-  -- This ensures that type variables are unified with types that satisfy their constraints
-  -- For example, if {Num t0} and Tensor MathExpr is passed, t0 = MathExpr (not Tensor MathExpr)
-  -- IMPORTANT: The function's type scheme preserves the original type (e.g., t0 -> t0 -> t0)
-  -- even when applied to Tensor arguments. tensorMap insertion will handle the conversion.
   let funcScheme = tiScheme funcTIExpr
       (Forall _tvs constraints _) = funcScheme
-      -- Combine function constraints and argument constraints
-      allConstraints = constraints ++ argConstraints
   classEnv <- getClassEnv
-  case Unify.unifyWithConstraints classEnv allConstraints appliedFuncType expectedFuncType of
+  case Unify.unifyWithConstraints classEnv constraints appliedFuncType expectedFuncType of
     Right s -> do
       -- Unification succeeded
       let finalS = composeSubst s argSubst
           finalType = applySubst finalS resultType
-      -- Constraints are already resolved by unifyWithConstraints
-      -- Apply substitution to constraints to get final form
-      let updatedConstraints = map (applySubstConstraint finalS) allConstraints
-          -- Create result with updated constraints
-          resultScheme = Forall [] updatedConstraints finalType
-          -- Apply substitution to function type to replace type variables with concrete types
-          -- For example, if t0 = Integer, then t0 -> t0 -> t0 becomes Integer -> Integer -> Integer
-          (Forall tvs _ originalFuncType) = funcScheme
-          -- Apply substitution to function type to get concrete type
+      
+      -- Apply substitution to constraints and simplify Tensor constraints
+      -- This rewrites C (Tensor a) to C a when appropriate, while keeping types as Tensor a
+      let updatedConstraints = map (applySubstConstraint finalS) constraints
+          simplifiedConstraints = simplifyTensorConstraints classEnv updatedConstraints
+          resultScheme = Forall [] simplifiedConstraints finalType
+          
+          -- Update function type and scheme
+          (Forall _tvs _ originalFuncType) = funcScheme
           updatedFuncType = applySubst finalS originalFuncType
-          -- Extract remaining free type variables from updated type and constraints
-          -- These are type variables that were not unified with concrete types
           remainingTvs = Set.toList $ freeTyVars updatedFuncType `Set.union` 
-                        Set.unions (map (freeTyVars . constraintType) updatedConstraints)
-          -- Update function scheme with concrete type and updated constraints
-          originalFuncScheme = Forall remainingTvs updatedConstraints updatedFuncType
+                        Set.unions (map (freeTyVars . constraintType) simplifiedConstraints)
+          updatedFuncScheme = Forall remainingTvs simplifiedConstraints updatedFuncType
+          
+          -- Update function and argument TIExprs
           updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
-          updatedFuncTI = TIExpr originalFuncScheme updatedFuncNode
-          -- Apply substitution to all subexpressions to keep type information accurate
-          updatedArgTIs = map (applySubstToTIExpr finalS) argTIExprs
+          updatedFuncTI = TIExpr updatedFuncScheme updatedFuncNode
+          updatedArgTIs = map (simplifyTensorConstraintsInTIExpr classEnv . applySubstToTIExpr finalS) argTIExprs
+      
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
     
     Left _ -> do

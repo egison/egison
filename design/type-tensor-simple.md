@@ -269,3 +269,26 @@ eta展開して `tensorMap` でラップします。
 
 - `mini-test/91-index-notation.egi` - テンソル添字記法とシンボル宣言のテスト
 - `mini-test/91-index-notation-with-declare.egi` - declare symbol のテスト
+
+
+## 高階関数の型推論の流れ
+
+```
+foldl1 (+) [t1, t2]
+```
+
+foldl1 : (a -> a -> a) -> [a] -> a
++ : {Num b} b -> b -> b
+[t1, t2] : [Tensor Integer]
+
+まずfoldl1の第一引数と+をunifyすると
+foldl1 : {Num b} (b -> b -> b) -> [b] -> b
+となる。
+次に第二引数と[t1, t2]をunifyすると
+unify [b] [Tensor Integer]
+の結果で
+foldl1 : {Num (Tensor Integer)} (Tensor Integer -> Tensor Integer -> Tensor Integer) -> [Tensor Integer] -> Tensor Integer
+となる。
+ただし、ここでTensor IntegerはNumのインスタンではないが、IntegerはNumのインスタンスであるので、クラス制限だけテンソルの要素を取り出し、
+foldl1 : {Num Integer} (Tensor Integer -> Tensor Integer -> Tensor Integer) -> [Tensor Integer] -> Tensor Integer
+と型推論するようにしたい。

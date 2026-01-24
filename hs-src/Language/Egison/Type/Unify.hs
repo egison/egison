@@ -20,8 +20,8 @@ import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
                                               emptySubst, singletonSubst, applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
-                                              Constraint(..), InstanceInfo(..))
-import           Language.Egison.Type.Env    (ClassEnv, lookupInstances)
+                                              Constraint(..))
+import           Language.Egison.Type.Env    (ClassEnv)
 
 -- | Unification errors
 data UnifyError
@@ -466,29 +466,16 @@ unifyWithConstraints' _ _ t1 t2 = Left $ TypeMismatch t1 t2
 
 -- | Unify type variable with another type, considering constraints
 unifyVarWithConstraints :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError Subst
-unifyVarWithConstraints classEnv constraints v t
+unifyVarWithConstraints _classEnv _constraints v t
   | TVar v == t = Right emptySubst
   | v `Set.member` freeTyVars t = Left $ OccursCheck v t
   | otherwise = case t of
       -- Special handling for Tensor types
-      TTensor elemType ->
-        -- Check if this variable has any constraints
-        let varConstraints = filter (\(Constraint _ ty) -> ty == TVar v) constraints
-        in if null varConstraints
-             then Right $ singletonSubst v t  -- No constraints, unify normally
-             else
-               -- Try both candidates and choose the one that satisfies constraints
-               let candidate1 = singletonSubst v t  -- v = Tensor elemType
-                   candidate2 = singletonSubst v elemType  -- v = elemType
-                   constraint1 = map (applySubstConstraint candidate1) varConstraints
-                   constraint2 = map (applySubstConstraint candidate2) varConstraints
-                   satisfies1 = all (constraintSatisfiable classEnv) constraint1
-                   satisfies2 = all (constraintSatisfiable classEnv) constraint2
-               in if satisfies2
-                    then Right candidate2  -- Prefer unwrapped type if it satisfies constraints
-                    else if satisfies1
-                           then Right candidate1
-                           else Right candidate2  -- Default to unwrapped if neither works (error will be caught later)
+      TTensor _elemType ->
+        -- IMPORTANT:
+        -- Keep the *term* type as Tensor when it unifies that way.
+        -- Constraint simplification (e.g. Num (Tensor a) -> Num a) is handled later.
+        Right $ singletonSubst v t
       _ -> Right $ singletonSubst v t
 
 -- | Unify Tensor elemType with a non-Tensor type, considering constraints
@@ -501,27 +488,6 @@ unifyTensorWithConstraints classEnv constraints elemType otherType =
     _ ->
       -- Normal unification: Tensor elemType with otherType means elemType = otherType
       unifyWithConstraints classEnv constraints elemType otherType
-
--- | Check if a constraint can be satisfied
-constraintSatisfiable :: ClassEnv -> Constraint -> Bool
-constraintSatisfiable classEnv (Constraint className ty) =
-  let instances = lookupInstances className classEnv
-  in case ty of
-       TVar _ -> True  -- Type variables are assumed satisfiable (will be checked later)
-       _ ->
-         -- Check if type has matching instance using unifyStrict
-         -- This ensures Tensor a and a are treated as different types
-         case findMatchingInstance ty instances of
-           Just _ -> True
-           Nothing -> False
-  where
-    -- Find matching instance using unifyStrict to avoid Tensor <-> scalar confusion
-    findMatchingInstance :: Type -> [InstanceInfo] -> Maybe InstanceInfo
-    findMatchingInstance _ [] = Nothing
-    findMatchingInstance targetType (inst:rest) =
-      case unifyStrict (instType inst) targetType of
-        Right _ -> Just inst
-        Left _  -> findMatchingInstance targetType rest
 
 -- | Unify multiple type pairs with constraints
 unifyManyWithConstraints :: ClassEnv -> [Constraint] -> [Type] -> [Type] -> Either UnifyError Subst
