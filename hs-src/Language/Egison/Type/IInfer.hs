@@ -2198,14 +2198,17 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       let updatedConstraints = map (applySubstConstraint finalS) allConstraints
           -- Create result with updated constraints
           resultScheme = Forall [] updatedConstraints finalType
-          -- IMPORTANT: Keep the original function's type from funcTIExpr, but update constraints
-          -- Do NOT apply substitutions that would add Tensor wrappers to the function type
-          -- The function type should remain as the original type class method type (e.g., t0 -> t0 -> t0)
-          -- tensorMap insertion will handle Tensor conversion later
-          -- We apply substitutions only to the TIExpr node, preserving the original type (not the unified one)
+          -- Apply substitution to function type to replace type variables with concrete types
+          -- For example, if t0 = Integer, then t0 -> t0 -> t0 becomes Integer -> Integer -> Integer
           (Forall tvs _ originalFuncType) = funcScheme
-          -- Keep original function type, but update constraints
-          originalFuncScheme = Forall tvs updatedConstraints originalFuncType
+          -- Apply substitution to function type to get concrete type
+          updatedFuncType = applySubst finalS originalFuncType
+          -- Extract remaining free type variables from updated type and constraints
+          -- These are type variables that were not unified with concrete types
+          remainingTvs = Set.toList $ freeTyVars updatedFuncType `Set.union` 
+                        Set.unions (map (freeTyVars . constraintType) updatedConstraints)
+          -- Update function scheme with concrete type and updated constraints
+          originalFuncScheme = Forall remainingTvs updatedConstraints updatedFuncType
           updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
           updatedFuncTI = TIExpr originalFuncScheme updatedFuncNode
           -- Apply substitution to all subexpressions to keep type information accurate
