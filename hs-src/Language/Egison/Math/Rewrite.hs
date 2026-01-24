@@ -122,7 +122,7 @@ rewritePower = mapTerms f
       ]
 
 rewriteSinCos :: ScalarData -> ScalarData
-rewriteSinCos = mapPolys h . mapTerms (g . f)
+rewriteSinCos = h . mapTerms (g . f)
  where
   f term@(Term a xs) =
     match dfs xs (Multiset (SymbolM, Eql))
@@ -142,11 +142,13 @@ rewriteSinCos = mapPolys h . mapTerms (g . f)
                Term (a * (-1) ^ (abs n * m)) xss |]
       , [mc| _ -> term |]
       ]
-  h poly@(Plus ts) =
-    match dfs ts (Multiset TermM)
-      [ [mc| (term $a ((apply1 #"cos" $cosWhnf $x, #2) : $mr)) : (term $b ((apply1 #"sin" $sinWhnf #x, #2) : #mr)) : $pr ->
-              h (Plus (Term a mr : Term (b - a) ((makeApply sinWhnf [x], 2) : mr) : pr)) |]
-      , [mc| _ -> poly |]
+  h (Div poly1@(Plus ts1) poly2@(Plus ts2)) =
+    match dfs (ts1, ts2) (Multiset TermM, Multiset TermM)
+      [ [mc| ((term $a ((apply1 #"cos" $cosWhnf $x, #2) : $mr)) : (term $b ((apply1 #"sin" $sinWhnf #x, #2) : #mr)) : $pr, _) ->
+              h (Div (Plus (Term a mr : Term (b - a) ((makeApply sinWhnf [x], 2) : mr) : pr)) poly2) |]
+      , [mc| ((term $a ((apply1 #"cos" $cosWhnf $x, #2) : $mr)) : $pr1, (term _ ((apply1 #"sin" $sinWhnf #x, #2) : #mr)) : _) ->
+              h (Div (Plus (Term a mr : Term (- a) ((makeApply sinWhnf [x], 2) : mr) : pr1)) poly2) |]
+      , [mc| _ -> Div poly1 poly2 |]
       ]
 
 rewriteSqrt :: ScalarData -> ScalarData
