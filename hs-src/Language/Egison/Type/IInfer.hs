@@ -425,12 +425,12 @@ simplifyTensorConstraints classEnv = map simplifyConstraint
           _ -> ty0
 
 -- | Simplify Tensor constraints in a type scheme
+-- During type inference, keep type variables unquantified (Forall [])
+-- Quantification only happens at let/def boundaries
 simplifyTensorConstraintsInScheme :: ClassEnv -> TypeScheme -> TypeScheme
-simplifyTensorConstraintsInScheme classEnv (Forall _ cs ty) =
+simplifyTensorConstraintsInScheme classEnv (Forall tvs cs ty) =
   let cs' = simplifyTensorConstraints classEnv cs
-      tvs' = Set.toList $ freeTyVars ty `Set.union` 
-             Set.unions (map (freeTyVars . constraintType) cs')
-  in Forall tvs' cs' ty
+  in Forall tvs cs' ty
 
 -- | Simplify Tensor constraints in a TIExpr
 simplifyTensorConstraintsInTIExpr :: ClassEnv -> TIExpr -> TIExpr
@@ -1687,11 +1687,20 @@ inferIExprWithContext expr ctx = case expr of
   -- Tensor contract expression
   ITensorContractExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
+    (tensorTI, s1) <- inferIExprWithContext tensorExpr exprCtx
     let tensorType = tiExprType tensorTI
+    
     -- contract : Tensor a -> [Tensor a]
-    -- Wraps tensor type in a collection
-    return (mkTIExpr (TCollection tensorType) (TITensorContractExpr tensorTI), s)
+    -- Ensure the argument is a Tensor type by unifying with TTensor elemType
+    elemType <- freshVar "contractElem"
+    s2 <- unifyTypesWithContext (applySubst s1 tensorType) (TTensor elemType) exprCtx
+    
+    let finalS = composeSubst s2 s1
+        finalElemType = applySubst finalS elemType
+        resultType = TCollection (TTensor finalElemType)
+        updatedTensorTI = applySubstToTIExpr finalS tensorTI
+    
+    return (mkTIExpr resultType (TITensorContractExpr updatedTensorTI), finalS)
   
   -- Tensor map expression
   ITensorMapExpr func tensorExpr -> do
@@ -1708,8 +1717,13 @@ inferIExprWithContext expr ctx = case expr of
         s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
         let finalS = composeSubst s3 s12
             resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
-        return (mkTIExpr resultType (TITensorMapExpr funcTI tensorTI), finalS)
-      _ -> return (mkTIExpr tensorType (TITensorMapExpr funcTI tensorTI), s12)
+            updatedFuncTI = applySubstToTIExpr finalS funcTI
+            updatedTensorTI = applySubstToTIExpr finalS tensorTI
+        return (mkTIExpr resultType (TITensorMapExpr updatedFuncTI updatedTensorTI), finalS)
+      _ -> 
+        let updatedFuncTI = applySubstToTIExpr s12 funcTI
+            updatedTensorTI = applySubstToTIExpr s12 tensorTI
+        in return (mkTIExpr tensorType (TITensorMapExpr updatedFuncTI updatedTensorTI), s12)
   
   -- Tensor map2 expression (binary map)
   ITensorMap2Expr func tensor1 tensor2 -> do
@@ -1729,8 +1743,15 @@ inferIExprWithContext expr ctx = case expr of
                 (TFun elem1 (TFun elem2 resultElemType)) exprCtx
         let finalS = composeSubst s4 s123
             resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
-        return (mkTIExpr resultType (TITensorMap2Expr funcTI tensor1TI tensor2TI), finalS)
-      _ -> return (mkTIExpr t1Type (TITensorMap2Expr funcTI tensor1TI tensor2TI), s123)
+            updatedFuncTI = applySubstToTIExpr finalS funcTI
+            updatedTensor1TI = applySubstToTIExpr finalS tensor1TI
+            updatedTensor2TI = applySubstToTIExpr finalS tensor2TI
+        return (mkTIExpr resultType (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), finalS)
+      _ -> 
+        let updatedFuncTI = applySubstToTIExpr s123 funcTI
+            updatedTensor1TI = applySubstToTIExpr s123 tensor1TI
+            updatedTensor2TI = applySubstToTIExpr s123 tensor2TI
+        in return (mkTIExpr t1Type (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), s123)
   
   -- Transpose expression
   -- ITransposeExpr takes (permutation, tensor) to match tTranspose signature
@@ -1741,18 +1762,21 @@ inferIExprWithContext expr ctx = case expr of
     -- Unify permutation type with [MathExpr]
     s2 <- unifyTypesWithContext (applySubst s permType) (TCollection TMathExpr) exprCtx
     (tensorTI, s3) <- inferIExprWithContext tensorExpr exprCtx
-    let tensorType = tiExprType tensorTI
-        finalS = composeSubst s3 (composeSubst s2 s)
+    let finalS = composeSubst s3 (composeSubst s2 s)
+        updatedPermTI = applySubstToTIExpr finalS permTI
+        updatedTensorTI = applySubstToTIExpr finalS tensorTI
+        tensorType = tiExprType updatedTensorTI
     -- Transpose preserves tensor type
-    return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr permTI tensorTI), finalS)
+    return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr updatedPermTI updatedTensorTI), finalS)
   
   -- Flip indices expression
   IFlipIndicesExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
-    let tensorType = tiExprType tensorTI
+    let updatedTensorTI = applySubstToTIExpr s tensorTI
+        tensorType = tiExprType updatedTensorTI
     -- Flipping indices preserves tensor type
-    return (mkTIExpr (normalizeTensorType tensorType) (TIFlipIndicesExpr tensorTI), s)
+    return (mkTIExpr (normalizeTensorType tensorType) (TIFlipIndicesExpr updatedTensorTI), s)
   
   -- Function expression (built-in function reference)
   IFunctionExpr names -> do
@@ -2227,11 +2251,11 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
           resultScheme = Forall [] simplifiedConstraints finalType
           
           -- Update function type and scheme
-          (Forall _tvs _ originalFuncType) = funcScheme
+          -- During type inference, keep type variables unquantified (Forall [])
+          -- Quantification only happens at let/def boundaries
+          (Forall _ _ originalFuncType) = funcScheme
           updatedFuncType = applySubst finalS originalFuncType
-          remainingTvs = Set.toList $ freeTyVars updatedFuncType `Set.union` 
-                        Set.unions (map (freeTyVars . constraintType) simplifiedConstraints)
-          updatedFuncScheme = Forall remainingTvs simplifiedConstraints updatedFuncType
+          updatedFuncScheme = Forall [] simplifiedConstraints updatedFuncType
           
           -- Update function and argument TIExprs
           updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
