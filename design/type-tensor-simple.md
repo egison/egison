@@ -271,7 +271,7 @@ eta展開して `tensorMap` でラップします。
 - `mini-test/91-index-notation-with-declare.egi` - declare symbol のテスト
 
 
-## 高階関数の型推論の流れ
+## 高階関数の型推論の流れ その1
 
 ```
 foldl1 (+) [t1, t2]
@@ -292,3 +292,22 @@ foldl1 : {Num (Tensor Integer)} (Tensor Integer -> Tensor Integer -> Tensor Inte
 ただし、ここでTensor IntegerはNumのインスタンではないが、IntegerはNumのインスタンスであるので、クラス制限だけテンソルの要素を取り出し、
 foldl1 : {Num Integer} (Tensor Integer -> Tensor Integer -> Tensor Integer) -> [Tensor Integer] -> Tensor Integer
 と型推論するようにしたい。
+
+## 高階関数の型推論の流れ その2
+
+```
+def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
+  foldl1 (+) (contract (t1 * t2))
+```
+
+t1, t2: Tensor b
+とするとt1 * t2の型はTensor b
+またcontract後の型は[Tensor b]となるはずである。
+（現在contract後の型が[result7]でないといけないのに[result8]となっている。）
+
+## 高階関数の型推論の流れ その3
+
+def Ric__ : MathExpr := (withSymbols [i, j] (transpose ([(i : MathExpr), (j : MathExpr)] : [MathExpr])
+ (withSymbols [m] ((sum : [MathExpr] -> MathExpr) 
+ (contract ((R : Tensor MathExpr)~(m : MathExpr)_(i : MathExpr)_(m : MathExpr)_(j : MathExpr) : Tensor MathExpr) : [Tensor MathExpr])
+  : MathExpr) : MathExpr) : MathExpr) : MathExpr)

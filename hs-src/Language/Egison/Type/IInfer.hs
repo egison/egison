@@ -370,7 +370,7 @@ unifyTypesWithContext t1 t2 ctx = case unify t1 t2 of
 
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
--- According to type-tensor-simple.md: "トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。"
+-- According to type-tensor-simple.md: "Only for top-level tensor definitions, if Tensor a is unified with a, it becomes a."
 unifyTypesWithTopLevel :: Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
   Right s  -> return s
@@ -2566,7 +2566,10 @@ inferITopExpr topExpr = case topExpr of
         
         -- Reconstruct type scheme from exprTI'' to match actual type variables
         -- Use instantiated constraints and apply final substitution
-        let finalType = tiExprType exprTI''
+        -- When there's an explicit type annotation, use the expected type
+        -- (with substitutions applied) as the final type, not the inferred type.
+        -- This ensures that Tensor types are preserved when explicitly annotated.
+        let finalType = applySubst finalSubst expectedType
             constraints' = map (applySubstConstraint finalSubst) instConstraints
             envFreeVars = freeVarsInEnv env
             typeFreeVars = freeTyVars finalType
