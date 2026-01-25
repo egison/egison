@@ -98,8 +98,18 @@ unify' TPort TPort = Right emptySubst
 -- Tensor types
 -- Tensor a and Tensor b unify if a and b unify
 unify' (TTensor t1) (TTensor t2) = unify t1 t2
-unify' (TTensor t1) t2 = unify t1 t2
-unify' t1 (TTensor t2) = unify t1 t2
+-- When unifying Tensor t with a type variable v, preserve the Tensor wrapper
+-- by setting v = Tensor t (the type variable case is handled by lines 61-62 above)
+-- For concrete types, Tensor a unifies with a by unifying the inner types
+-- (a scalar is treated as a 0-rank tensor)
+unify' (TTensor t1) t2 = do
+  s <- unify t1 t2
+  -- Return substitution, result type is Tensor (not scalar)
+  Right s
+unify' t1 (TTensor t2) = do
+  s <- unify t1 t2
+  -- Return substitution, result type is Tensor (not scalar)
+  Right s
 
 -- TAny unifies with anything
 unify' TAny _ = Right emptySubst
