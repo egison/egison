@@ -49,26 +49,51 @@ Phase 8: TypedDesugar
 
 ### is_tensor_typename が必要な場合
 
-`is_tensor_typename` フラグが必要なのは、**仮引数の型が型コンストラクタの内側に型変数を持つ場合のみ**である。
+`is_tensor_typename` フラグが必要なのは、**仮引数の型が型コンストラクタの内側に型を持つ場合**である。
+内側の型が型変数でも具体的なスカラー型でも、`is_tensor_typename`情報が必要。
 
-**不要な場合**: 仮引数の型が型変数そのもの（`t0`）
+**不要な場合**: 仮引数の型が型変数そのもの（`t0`）または具体的なスカラー型（`Integer`）
 ```egison
 def inc {Num a} (x: a) : a := x + 1
 -- 仮引数 x の型は a（型変数そのもの）
 -- 呼び出し inc t1 で、呼び出し側が tensorMap inc t1 に変換
 -- → is_tensor_a は不要
+
+def incInt (x: Integer) : Integer := x + 1
+-- 仮引数 x の型は Integer（具体的なスカラー型）
+-- 呼び出し incInt t1 で、呼び出し側が tensorMap incInt t1 に変換
+-- → is_tensor_Integer は不要
 ```
 
-**必要な場合**: 仮引数の型が型コンストラクタの内側に型変数を持つ（`[t0]`）
+**必要な場合**: 仮引数の型が型コンストラクタの内側に型を持つ（`[t0]` や `[Integer]`）
 ```egison
 def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
 -- 仮引数 xs の型は [a]（[] の内側に型変数 a）
 -- 呼び出し sum [t1, t2] で、[Tensor Integer] はTensorではないのでtensorMapは挿入されない
 -- しかし、内部で (+) が適用される引数は a = Tensor Integer 型
 -- → is_tensor_a が必要
+
+def sumInteger (xs: [Integer]) : Integer := foldl1 i.+ xs
+-- 仮引数 xs の型は [Integer]（[] の内側に具体的な型 Integer）
+-- 呼び出し sumInteger [t1, t2] で、[Tensor Integer] はTensorではないのでtensorMapは挿入されない
+-- しかし、内部で i.+ が適用される引数は Tensor Integer 型
+-- → is_tensor_Integer が必要
 ```
 
-これは型クラス展開時に、`a`の型情報を受け取り、それをもとに`(+)`について辞書展開することに似ている。
+**複数の型コンストラクタがある場合**: それぞれに対して別々のフラグが必要
+```egison
+def fn (xs: [Integer]) (ys: [Integer]) : [Integer] := ...
+-- xs の中身がTensorか → is_tensor_integer0
+-- ys の中身がTensorか → is_tensor_integer1
+-- それぞれ独立して管理する必要がある
+
+-- 例:
+fn [1, 2, 3] [t1, t2]      -- is_tensor_integer0 = False, is_tensor_integer1 = True
+fn [t1, t2] [1, 2, 3]      -- is_tensor_integer0 = True, is_tensor_integer1 = False
+fn [t1, t2] [t3, t4]       -- is_tensor_integer0 = True, is_tensor_integer1 = True
+```
+
+これは型クラス展開時に、型の情報を受け取り、それをもとに演算について辞書展開することに似ている。
 
 ## 詳細設計
 
@@ -175,17 +200,17 @@ inc (t1 : Tensor Integer)
 -- 結果: [| 2, 3 |]
 ```
 
-### 高階関数の場合（is_tensor必要）
+### 具体型での高階関数の場合（is_tensor必要）
 
 ```egison
-def sumInteger (xs: [Integer]) : Integer := foldl1 (+) xs
+def sumInteger (xs: [Integer]) : Integer := foldl1 i.+ xs
 
 def t1 : Tensor Integer := [| 1, 2 |]
 def t2 : Tensor Integer := [| 3, 4 |]
 sumInteger [t1, t2]
 ```
 
-仮引数 `xs` の型が `[a]`（型コンストラクタの内側に型変数）なので、`is_tensor_a` が必要。
+仮引数 `xs` の型が `[Integer]`（型コンストラクタの内側に具体型）なので、`is_tensor_Integer` が必要。
 
 #### Phase 5-6: 型推論後
 
@@ -218,7 +243,7 @@ def sumInteger : Bool -> [Integer] -> Integer :=
 - `insertTensorMapIfNecessary is_tensor_t0 (+)` は `is_tensor_t0` がTrueなら `tensorMap2 (+)`、Falseなら `(+)` に展開される
 
 
-### 高階関数の場合（is_tensor必要）
+### 多相関数での高階関数の場合（is_tensor必要）
 
 ```egison
 def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
