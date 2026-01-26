@@ -21,7 +21,7 @@ import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
                                               Constraint(..))
-import           Language.Egison.Type.Env    (ClassEnv)
+import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, InstanceInfo(..))
 
 -- | Unification errors
 data UnifyError
@@ -476,17 +476,40 @@ unifyWithConstraints' _ _ t1 t2 = Left $ TypeMismatch t1 t2
 
 -- | Unify type variable with another type, considering constraints
 unifyVarWithConstraints :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError Subst
-unifyVarWithConstraints _classEnv _constraints v t
+unifyVarWithConstraints classEnv constraints v t
   | TVar v == t = Right emptySubst
   | v `Set.member` freeTyVars t = Left $ OccursCheck v t
   | otherwise = case t of
-      -- Special handling for Tensor types
-      TTensor _elemType ->
-        -- IMPORTANT:
-        -- Keep the *term* type as Tensor when it unifies that way.
-        -- Constraint simplification (e.g. Num (Tensor a) -> Num a) is handled later.
-        Right $ singletonSubst v t
+      -- Special handling for Tensor types with constraints
+      TTensor elemType ->
+        -- Check if the type variable has constraints
+        let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
+        in if null varConstraints
+           then
+             -- No constraints on this variable, bind to Tensor
+             Right $ singletonSubst v t
+           else
+             -- Has constraints: check if Tensor has instances for all of them
+             if all (hasInstanceForTensorType classEnv elemType) varConstraints
+             then
+               -- All constraints have Tensor instances, bind to Tensor
+               Right $ singletonSubst v t
+             else
+               -- Some constraint lacks Tensor instance, bind to element type instead
+               -- This allows tensorMap to handle the Tensor -> scalar conversion
+               Right $ singletonSubst v elemType
       _ -> Right $ singletonSubst v t
+
+-- | Check if there's an instance for Constraint (Tensor elemType)
+-- e.g., check if Num (Tensor Integer) exists given elemType = Integer and constraint = Num
+hasInstanceForTensorType :: ClassEnv -> Type -> Constraint -> Bool
+hasInstanceForTensorType classEnv elemType (Constraint className _) =
+  let tensorType = TTensor elemType
+      instances = lookupInstances className classEnv
+  in any (\inst -> case unifyStrict (instType inst) tensorType of
+                     Right _ -> True
+                     Left _  -> False
+         ) instances
 
 -- | Unify Tensor elemType with a non-Tensor type, considering constraints
 unifyTensorWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError Subst

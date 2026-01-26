@@ -76,6 +76,7 @@ import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstr
                                               applySubstScheme, composeSubst, emptySubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
+import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
 import qualified Language.Egison.Type.Unify as Unify
 import           Language.Egison.Type.Instance (findMatchingInstanceForType)
@@ -2221,6 +2222,7 @@ inferIApplication funcName funcType args initSubst = do
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
 -- TensorMap insertion has been moved to Phase 8 (TensorMapInsertion module)
 -- This function now only performs type inference and unification
+-- When a Tensor argument is passed to a scalar parameter, the result type is wrapped in Tensor
 inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   -- Infer argument types
@@ -2228,12 +2230,12 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   let argTIExprs = map fst argResults
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
-  
+
   -- Normal function application (no tensorMap insertion)
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType argTypes
       appliedFuncType = applySubst argSubst funcType
-  
+
   -- Unify function type with expected type using constraint-aware unification
   let funcScheme = tiScheme funcTIExpr
       (Forall _tvs constraints _) = funcScheme
@@ -2242,31 +2244,51 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
     Right s -> do
       -- Unification succeeded
       let finalS = composeSubst s argSubst
-          finalType = applySubst finalS resultType
-      
+          baseResultType = applySubst finalS resultType
+
+      -- Check if tensorMap will be inserted (Tensor arg to scalar param)
+      -- If so, wrap the result type in Tensor
+      let finalArgTypes = map (applySubst finalS) argTypes
+          paramTypes = extractParamTypes (applySubst finalS appliedFuncType)
+          needsTensorWrap = any (uncurry tensorToScalarApplication) (zip finalArgTypes paramTypes)
+          finalType = if needsTensorWrap && not (Types.isTensorType baseResultType)
+                      then TTensor baseResultType
+                      else baseResultType
+
       -- Apply substitution to constraints and simplify Tensor constraints
       -- This rewrites C (Tensor a) to C a when appropriate, while keeping types as Tensor a
       let updatedConstraints = map (applySubstConstraint finalS) constraints
           simplifiedConstraints = simplifyTensorConstraints classEnv updatedConstraints
           resultScheme = Forall [] simplifiedConstraints finalType
-          
+
           -- Update function type and scheme
           -- During type inference, keep type variables unquantified (Forall [])
           -- Quantification only happens at let/def boundaries
           (Forall _ _ originalFuncType) = funcScheme
           updatedFuncType = applySubst finalS originalFuncType
           updatedFuncScheme = Forall [] simplifiedConstraints updatedFuncType
-          
+
           -- Update function and argument TIExprs
           updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
           updatedFuncTI = TIExpr updatedFuncScheme updatedFuncNode
           updatedArgTIs = map (simplifyTensorConstraintsInTIExpr classEnv . applySubstToTIExpr finalS) argTIExprs
-      
+
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
-    
+
     Left _ -> do
       -- Unification failed
       throwError $ UnificationError appliedFuncType expectedFuncType ctx
+
+-- | Extract parameter types from a function type
+extractParamTypes :: Type -> [Type]
+extractParamTypes (TFun param rest) = param : extractParamTypes rest
+extractParamTypes _ = []
+
+-- | Check if this is a Tensor argument applied to a scalar parameter
+-- This indicates tensorMap will be inserted
+tensorToScalarApplication :: Type -> Type -> Bool
+tensorToScalarApplication (TTensor _) paramType = not (Types.isTensorType paramType)
+tensorToScalarApplication _ _ = False
 
 -- | Infer let bindings (non-recursive)
 
