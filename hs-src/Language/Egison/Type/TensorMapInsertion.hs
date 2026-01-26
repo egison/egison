@@ -34,6 +34,7 @@ module Language.Egison.Type.TensorMapInsertion
   , insertTensorMapsInTopExpr
   ) where
 
+import           Data.List                  (nub)
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..),
@@ -338,9 +339,15 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
 
         -- Apply simplified approach: wrap binary function arguments with tensorMap2
         -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped
+        -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
         let (Forall _ funcConstraints _) = tiScheme func'
-            allConstraints = cs ++ funcConstraints
-            args'' = map (wrapBinaryFunctionIfNeeded allConstraints) args'
+            baseConstraints = cs ++ funcConstraints
+            -- For each argument, merge base constraints with the argument's own constraints
+            wrapArg arg =
+              let (Forall _ argConstraints _) = tiScheme arg
+                  argAllConstraints = nub (baseConstraints ++ argConstraints)
+              in wrapBinaryFunctionIfNeeded argAllConstraints arg
+            args'' = map wrapArg args'
 
         -- Get the ORIGINAL function type from TypeEnv if available
         -- This is important because type inference may have substituted type variables
@@ -356,7 +363,7 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
             argTypes = map tiExprType args''
 
         -- Normal processing: check if tensorMap is needed based on parameter types
-        result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args'' argTypes
+        result <- wrapWithTensorMapIfNeeded env baseConstraints func' funcType args'' argTypes
         case result of
           Just wrappedNode -> return wrappedNode
           Nothing -> return $ TIApplyExpr func' args''
@@ -535,9 +542,16 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       TIFunctionExpr names -> return $ TIFunctionExpr names
 
 -- | Helper to insert tensorMaps in a TIExpr with constraints
+-- IMPORTANT: Merges context constraints with expression's own constraints
+-- This is critical for polymorphic functions where the constraint (e.g., {Num t0})
+-- comes from the enclosing scope, not the expression itself.
 insertTensorMapsWithConstraints :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
-insertTensorMapsWithConstraints env _cs expr = do
-  insertTensorMapsInExpr env (tiScheme expr) expr
+insertTensorMapsWithConstraints env contextConstraints expr = do
+  let (Forall tvs exprConstraints ty) = tiScheme expr
+      -- Merge context constraints with expression's own constraints, deduplicating
+      mergedConstraints = nub (contextConstraints ++ exprConstraints)
+      mergedScheme = Forall tvs mergedConstraints ty
+  insertTensorMapsInExpr env mergedScheme expr
 
 -- | Wrap function application with tensorMap if needed
 -- Returns Just wrappedNode if tensorMap was inserted, Nothing otherwise
