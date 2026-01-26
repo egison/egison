@@ -36,9 +36,9 @@ module Language.Egison.Type.TensorMapInsertion
 
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..), 
-                                             Var(..), tiExprType, tiScheme, tiExprNode)
-import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..))
+import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..),
+                                             Var(..), tiExprType, tiScheme, tiExprNode, stringToVar)
+import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..), lookupEnv)
 import           Language.Egison.Type.Tensor ()
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
 import           Language.Egison.Type.Unify as Unify (unifyStrict)
@@ -68,13 +68,22 @@ shouldInsertTensorMap classEnv constraints argType paramType = case argType of
     -- Tensor matched with type variable → check type class instances
     TVar tyVar ->
       -- Find constraints on this type variable
+      -- NOTE: The type variable in constraints may differ from tyVar due to instantiation
+      -- (e.g., TypeEnv has {Num a} a -> a -> a, but context has {Num t0})
+      -- So we look for constraints on EITHER the exact tyVar OR any numeric constraint
       let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar) constraints
+          -- Also check for any numeric constraints that might apply
+          isNumericConstraint (Constraint className _) =
+            className `elem` ["Num", "Fractional", "Floating", "Real", "Integral"]
+          numericConstraints = filter isNumericConstraint constraints
       in case relevantConstraints of
-           -- No constraints → 0-rank tensor interpretation, no insertion needed
-           [] -> False
-           -- Has constraints → check if Tensor instance exists for ALL constraints
-           cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
-                 -- If any constraint lacks a Tensor instance, we need tensorMap
+           -- Found constraints for this exact type variable
+           cs@(_:_) -> not (all (hasInstanceForTensor classEnv elemType) cs)
+           -- No exact match, but if there are numeric constraints in scope,
+           -- and Tensor doesn't have instances for them, insert tensorMap
+           [] -> case numericConstraints of
+                   [] -> False  -- No constraints → 0-rank tensor interpretation
+                   cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
 
     -- Tensor matched with concrete non-tensor type → insertion needed
     _ -> True
@@ -333,8 +342,17 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
             allConstraints = cs ++ funcConstraints
             args'' = map (wrapBinaryFunctionIfNeeded allConstraints) args'
 
-        -- Check if tensorMap insertion is needed for direct application
-        let funcType = tiExprType func'
+        -- Get the ORIGINAL function type from TypeEnv if available
+        -- This is important because type inference may have substituted type variables
+        -- with Tensor types, but we need the original type to decide tensorMap insertion
+        -- e.g., (*) has type {Num a} a -> a -> a, not Tensor t0 -> Tensor t0 -> Tensor t0
+        typeEnv <- getTypeEnv
+        let funcType = case tiExprNode func' of
+              TIVarExpr varName ->
+                case lookupEnv (stringToVar varName) typeEnv of
+                  Just (Forall _ _ originalType) -> originalType
+                  Nothing -> tiExprType func'  -- Fallback to inferred type
+              _ -> tiExprType func'  -- Non-variable: use inferred type
             argTypes = map tiExprType args''
 
         -- Normal processing: check if tensorMap is needed based on parameter types
