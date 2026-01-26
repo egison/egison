@@ -7,20 +7,36 @@
 def mathNormalize (x: MathExpr) : MathExpr :=
   if isInteger x
     then x
-    else if containFunction1 rtu x
-          then rewriteRuleForRtu (symbolNormalize x)
-          else symbolNormalize x
+    else match (containFunction1 rtu x, containFunction1 sin x || containFunction1 cos x) as (bool, bool) with
+           | (#False, #False) -> symbolNormalize x
+           | (#True, #False)  -> rewriteRuleForRtu (symbolNormalize x)
+           | (#False, #True)  -> rewriteRuleForSinAndCos (symbolNormalize x)
+           | (#True, #True)  -> rewriteRuleForSinAndCos (rewriteRuleForRtu (symbolNormalize x))
 
 --
--- rtu (include i and w)
+-- rtu
 --
 def rewriteRuleForRtu : MathExpr -> MathExpr := mapPolys rewriteRuleForRtuPoly
   where
-    rewriteRuleForRtuPoly : MathExpr -> MathExpr := mapPolys rewriteRuleForRtuPoly'
-    rewriteRuleForRtuPoly' (x: MathExpr) : MathExpr :=
+    rewriteRuleForRtuPoly (x: MathExpr) : MathExpr :=
       match x as mathExpr with
         | $a * (apply1 #rtu $n) ^ #1 * $mr + (loop $i (2, (n - 1))
                                        (#a * (apply1 #rtu #n) ^ #i * #mr + ...)
                                        $pr) ->
-          rewriteRuleForRtuPoly' (pr +' (-1) *' a *' mr)
+          rewriteRuleForRtuPoly (pr +' (-1) *' a *' mr)
+        | _ -> x
+
+--
+-- sin and cos
+--
+def rewriteRuleForSinAndCos : MathExpr -> MathExpr := mapPolys rewriteRuleForSinAndCosPoly
+  where
+    rewriteRuleForSinAndCosPoly (x: MathExpr) : MathExpr :=
+      match x as mathExpr with
+        | $a * $mr + #(- a) * (apply1 #cos $x) ^ #2 * #mr + $pr ->
+          rewriteRuleForSinAndCosPoly (a *' (sin x)^2 *' mr +' pr)
+--        | $a * $mr + #(- a) * (apply1 #sin $x) ^ #2 * #mr + $pr ->
+--          rewriteRuleForSinAndCosPoly (a *' (cos x)^2 *' mr +' pr)
+        | $a * (apply1 #cos $x) ^ #2 * $mr + $b * (apply1 #sin #x) ^ #2 * #mr + $pr ->
+          rewriteRuleForSinAndCosPoly (a *' mr +' (b -' a) *' (sin x)^2 *' mr +' pr)
         | _ -> x
