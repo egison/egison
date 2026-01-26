@@ -234,7 +234,7 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
 def scanAllTerms (mexpr: MathExpr) (f: MathExpr -> Bool) : Bool :=
   match mexpr as mathExpr with
     | poly $ts1 / poly $ts2 -> any f (ts1 ++ ts2)
-    | _ -> not ((debug2 "scanAllTerms" mexpr) = mexpr)
+    | _ -> not ((debug2 "scanAllTerms" mexpr) = mexpr) -- TODO: if tensorMap is inserted correctly, we canremove this
 
 def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
   scanAllTerms mexpr
