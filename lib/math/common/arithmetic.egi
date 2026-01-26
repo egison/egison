@@ -24,7 +24,7 @@ def multForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
 def divForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
   x /' y
 
-def sum {Num a} (xs: [Tensor a]) : Tensor a := foldl (+) 0 xs
+def sum {Num a} (xs: a) : a := foldl (+) 0 xs
 def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
 
 def product {Num a} (xs: [a]) : a := foldl (*) 1 xs
