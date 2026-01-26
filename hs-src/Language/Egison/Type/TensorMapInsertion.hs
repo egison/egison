@@ -3,19 +3,30 @@ Module      : Language.Egison.Type.TensorMapInsertion
 Licence     : MIT
 
 This module implements automatic tensorMap insertion for Phase 8 of the Egison compiler.
-This is the second step of TypedDesugar, after type class expansion.
+This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.
 
-According to type-tensor-simple.md:
-- If a parameter type cannot unify with Tensor a, and the argument is Tensor a,
-  then tensorMap is automatically inserted.
-- Type class instances are checked: if Tensor has an instance, no tensorMap is needed.
+Two insertion modes:
+1. Direct application: When argument is Tensor and parameter expects scalar,
+   wrap the application with tensorMap.
+2. Higher-order functions (simplified approach): When a binary function with
+   constrained/scalar parameter types is passed as an argument, always wrap
+   it with tensorMap2. This handles cases like `foldl1 (+) xs` where elements
+   of xs might be Tensors at runtime.
+
+According to tensor-map-insertion-simple.md:
+- For type constructors containing scalar types, always insert tensorMap/tensorMap2
+- tensorMap/tensorMap2 act as identity for scalar values
+- This simplifies implementation by avoiding is_tensor flag tracking
 
 Example:
   def f (x : Integer) : Integer := x
   def t1 := [| 1, 2 |]
   f t1  --=>  tensorMap (\t1e -> f t1e) t1
+
+  def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
+  --=>  def sum {Num a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
 -}
 
 module Language.Egison.Type.TensorMapInsertion
@@ -29,7 +40,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopEx
                                              Var(..), tiExprType, tiScheme, tiExprNode)
 import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..))
 import           Language.Egison.Type.Tensor ()
-import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..))
+import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
 import           Language.Egison.Type.Unify as Unify (unifyStrict)
 
 --------------------------------------------------------------------------------
@@ -106,6 +117,99 @@ applyOneArgType (TFun _ rest) = rest
 applyOneArgType t = t  -- No more arguments
 
 --------------------------------------------------------------------------------
+-- * Simplified Approach: Always wrap binary functions with tensorMap2
+--------------------------------------------------------------------------------
+
+-- | Check if a type is a binary function (a -> b -> c where c is not a function)
+isBinaryFunctionType :: Type -> Bool
+isBinaryFunctionType (TFun _ (TFun _ result)) = not (isFunctionType result)
+  where
+    isFunctionType (TFun _ _) = True
+    isFunctionType _ = False
+isBinaryFunctionType _ = False
+
+-- | Check if a type is "potentially tensor" - i.e., might be a Tensor at runtime
+-- This includes:
+-- - Constrained type variables (like {Num a} a)
+-- - Scalar types (Integer, Float, MathExpr)
+isPotentiallyTensorType :: [Constraint] -> Type -> Bool
+isPotentiallyTensorType constraints ty = case ty of
+  TVar tyVar -> hasNumericConstraint tyVar constraints
+  TInt -> True
+  TFloat -> True
+  TMathExpr -> True
+  _ -> False
+  where
+    -- Check if a type variable has a numeric type class constraint
+    hasNumericConstraint :: TyVar -> [Constraint] -> Bool
+    hasNumericConstraint tv cs = any (isNumericConstraintOn tv) cs
+
+    isNumericConstraintOn :: TyVar -> Constraint -> Bool
+    isNumericConstraintOn tv (Constraint className t) = case t of
+      TVar tv' -> tv == tv' && className `elem` numericClasses
+      _ -> False
+
+    numericClasses :: [String]
+    numericClasses = ["Num", "Fractional", "Floating", "Real", "Integral"]
+
+-- | Check if a binary function should be wrapped with tensorMap2
+-- A function should be wrapped if:
+-- 1. It's a binary function (a -> b -> c where c is not a function)
+-- 2. Both parameter types are "potentially tensor"
+shouldWrapWithTensorMap2 :: [Constraint] -> Type -> Bool
+shouldWrapWithTensorMap2 constraints ty = case ty of
+  TFun param1 (TFun param2 result)
+    | not (isFunctionType result) ->
+        isPotentiallyTensorType constraints param1 &&
+        isPotentiallyTensorType constraints param2
+    where
+      isFunctionType (TFun _ _) = True
+      isFunctionType _ = False
+  _ -> False
+
+-- | Wrap a binary function expression with tensorMap2
+-- f : a -> b -> c  becomes  \x y -> tensorMap2 f x y
+wrapWithTensorMap2 :: [Constraint] -> TIExpr -> TIExpr
+wrapWithTensorMap2 constraints funcExpr =
+  let funcType = tiExprType funcExpr
+  in case funcType of
+    TFun param1 (TFun param2 result) ->
+      let -- Create fresh variable names
+          var1Name = "tmap2_arg1"
+          var2Name = "tmap2_arg2"
+          var1 = Var var1Name []
+          var2 = Var var2Name []
+
+          var1Scheme = Forall [] [] param1
+          var2Scheme = Forall [] [] param2
+          var1TI = TIExpr var1Scheme (TIVarExpr var1Name)
+          var2TI = TIExpr var2Scheme (TIVarExpr var2Name)
+
+          -- Result type scheme
+          resultScheme = Forall [] [] result
+
+          -- Build: tensorMap2 funcExpr var1 var2
+          innerNode = TITensorMap2Expr funcExpr var1TI var2TI
+          innerExpr = TIExpr resultScheme innerNode
+
+          -- Build lambda: \var1 var2 -> tensorMap2 funcExpr var1 var2
+          lambdaType = TFun param1 (TFun param2 result)
+          (Forall tvs funcConstraints _) = tiScheme funcExpr
+          lambdaScheme = Forall tvs (constraints ++ funcConstraints) lambdaType
+          lambdaNode = TILambdaExpr Nothing [var1, var2] innerExpr
+
+      in TIExpr lambdaScheme lambdaNode
+    _ -> funcExpr  -- Not a binary function, return unchanged
+
+-- | Check if an expression is already wrapped with tensorMap2
+isAlreadyWrappedWithTensorMap2 :: TIExprNode -> Bool
+isAlreadyWrappedWithTensorMap2 (TILambdaExpr _ [_, _] body) =
+  case tiExprNode body of
+    TITensorMap2Expr _ _ _ -> True
+    _ -> False
+isAlreadyWrappedWithTensorMap2 _ = False
+
+--------------------------------------------------------------------------------
 -- * TensorMap Insertion Implementation
 --------------------------------------------------------------------------------
 
@@ -144,11 +248,60 @@ insertTensorMapsInTopExpr topExpr = case topExpr of
       return (var, tiexpr')) bindings
     return $ TIDefineMany bindings'
 
+-- | Wrap a binary function with tensorMap2 if it should be wrapped
+-- This implements the simplified approach from tensor-map-insertion-simple.md
+wrapBinaryFunctionIfNeeded :: [Constraint] -> TIExpr -> TIExpr
+wrapBinaryFunctionIfNeeded constraints tiExpr =
+  let exprType = tiExprType tiExpr
+      node = tiExprNode tiExpr
+  in -- Don't wrap if already wrapped with tensorMap2
+     if isAlreadyWrappedWithTensorMap2 node
+       then tiExpr
+       else case node of
+         -- For binary lambda expressions like \x y -> f x y, wrap the body with tensorMap2
+         -- This handles eta-expanded type class methods like \etaVar1 etaVar2 -> dict_("plus") etaVar1 etaVar2
+         TILambdaExpr mVar [var1, var2] body
+           | shouldWrapWithTensorMap2 constraints exprType ->
+               wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body tiExpr
+         -- Don't wrap other lambda expressions
+         TILambdaExpr {} -> tiExpr
+         -- Don't wrap function applications (they're already being applied)
+         TIApplyExpr {} -> tiExpr
+         -- Wrap variable references and other expressions that represent functions
+         _ | shouldWrapWithTensorMap2 constraints exprType ->
+               wrapWithTensorMap2 constraints tiExpr
+           | otherwise -> tiExpr
+
+-- | Wrap the body of a binary lambda with tensorMap2
+-- Transform: \x y -> f x y  to  \x y -> tensorMap2 f x y
+wrapLambdaBodyWithTensorMap2 :: [Constraint] -> Maybe Var -> Var -> Var -> TIExpr -> TIExpr -> TIExpr
+wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body originalExpr =
+  case tiExprNode body of
+    -- Body is a function application: \x y -> f x y
+    TIApplyExpr func args
+      | length args == 2 ->
+          let arg1 = args !! 0
+              arg2 = args !! 1
+              -- Create tensorMap2 f arg1 arg2
+              resultType = tiExprType body
+              resultScheme = Forall [] [] resultType
+              newBody = TIExpr resultScheme (TITensorMap2Expr func arg1 arg2)
+              -- Rebuild the lambda with the new body
+              (Forall tvs cs lambdaType) = tiScheme originalExpr
+              newLambdaScheme = Forall tvs (constraints ++ cs) lambdaType
+          in TIExpr newLambdaScheme (TILambdaExpr mVar [var1, var2] newBody)
+    -- Body is already tensorMap2
+    TITensorMap2Expr {} -> originalExpr
+    -- Other cases: just wrap the whole thing
+    _ -> wrapWithTensorMap2 constraints originalExpr
+
 -- | Insert tensorMap in a TIExpr with type scheme information
 insertTensorMapsInExpr :: ClassEnv -> TypeScheme -> TIExpr -> EvalM TIExpr
 insertTensorMapsInExpr classEnv scheme tiExpr = do
   let (Forall _vars constraints _ty) = scheme
   expandedNode <- insertInNode classEnv constraints (tiExprNode tiExpr)
+  -- Note: We don't wrap at this level. Wrapping only happens for function arguments
+  -- in TIApplyExpr to avoid wrapping definitions like `def (*') := i.*`
   return $ TIExpr scheme expandedNode
   where
     -- Process a TIExprNode
@@ -170,18 +323,22 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         -- First, recursively process function and arguments
         func' <- insertTensorMapsWithConstraints env cs func
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
-        
-        -- Check if tensorMap insertion is needed
-        let funcType = tiExprType func'
-            argTypes = map tiExprType args'
-            (Forall _ funcConstraints _) = tiScheme func'
+
+        -- Apply simplified approach: wrap binary function arguments with tensorMap2
+        -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped
+        let (Forall _ funcConstraints _) = tiScheme func'
             allConstraints = cs ++ funcConstraints
-        
+            args'' = map (wrapBinaryFunctionIfNeeded allConstraints) args'
+
+        -- Check if tensorMap insertion is needed for direct application
+        let funcType = tiExprType func'
+            argTypes = map tiExprType args''
+
         -- Normal processing: check if tensorMap is needed based on parameter types
-        result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args' argTypes
+        result <- wrapWithTensorMapIfNeeded env allConstraints func' funcType args'' argTypes
         case result of
           Just wrappedNode -> return wrappedNode
-          Nothing -> return $ TIApplyExpr func' args'
+          Nothing -> return $ TIApplyExpr func' args''
       
       -- Collections
       TITupleExpr exprs -> do

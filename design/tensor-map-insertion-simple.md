@@ -191,19 +191,146 @@ def fn (xs: [Integer]) (ys: [Integer]) : Integer :=
    - ただし、tensorMapがスカラーを即座に返すなら影響は軽微
 2. **tensorMapの実装に依存** - スカラーに対するtensorMapの正しい動作が必須
 
+## 実装詳細
+
+### 実装完了日: 2026-01-26
+
+### 主要な実装ポイント
+
+#### 1. 二項関数の検出
+
+二項関数（`a -> b -> c`、ただし`c`は関数型でない）を検出し、両パラメータが「潜在的にテンソル」の場合にtensorMap2でラップする。
+
+```haskell
+-- Check if a type is "potentially tensor"
+isPotentiallyTensorType :: [Constraint] -> Type -> Bool
+isPotentiallyTensorType constraints ty = case ty of
+  TVar tyVar -> hasNumericConstraint tyVar constraints
+  TInt -> True
+  TFloat -> True
+  TMathExpr -> True
+  _ -> False
+
+-- Check if a binary function should be wrapped with tensorMap2
+shouldWrapWithTensorMap2 :: [Constraint] -> Type -> Bool
+shouldWrapWithTensorMap2 constraints ty = case ty of
+  TFun param1 (TFun param2 result)
+    | not (isFunctionType result) ->
+        isPotentiallyTensorType constraints param1 &&
+        isPotentiallyTensorType constraints param2
+  _ -> False
+```
+
+#### 2. ラッピングの適用箇所
+
+**重要**: ラッピングは**関数引数として渡される時のみ**行う。定義の右辺全体をラップしてはならない。
+
+```haskell
+TIApplyExpr func args -> do
+  func' <- insertTensorMapsWithConstraints env cs func
+  args' <- mapM (insertTensorMapsWithConstraints env cs) args
+  let (Forall _ funcConstraints _) = tiScheme func'
+      allConstraints = cs ++ funcConstraints
+      -- ここで引数をラップ
+      args'' = map (wrapBinaryFunctionIfNeeded allConstraints) args'
+```
+
+#### 3. イータ展開されたラムダの処理
+
+TypeClassExpandの前に処理されるため、型クラスメソッドはイータ展開された形式で現れる：
+
+```egison
+-- TypeClassExpand前の (+) の形式
+\etaVar1 etaVar2 -> numMathExpr_("plus") etaVar1 etaVar2
+```
+
+この形式に対応するため、2引数ラムダの本体を直接TensorMap2Exprでラップする：
+
+```haskell
+wrapLambdaBodyWithTensorMap2 :: [Constraint] -> Maybe Var -> Var -> Var -> TIExpr -> TIExpr -> TIExpr
+wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body originalExpr =
+  case tiExprNode body of
+    TIApplyExpr func args
+      | length args == 2 ->
+          -- ラムダ本体が2引数適用の場合、tensorMap2でラップ
+          let arg1 = args !! 0
+              arg2 = args !! 1
+              resultType = tiExprType body
+              resultScheme = Forall [] [] resultType
+              newBody = TIExpr resultScheme (TITensorMap2Expr func arg1 arg2)
+          in TIExpr ... (TILambdaExpr mVar [var1, var2] newBody)
+    TITensorMap2Expr {} -> originalExpr  -- 既にラップ済み
+    _ -> wrapWithTensorMap2 constraints originalExpr
+```
+
+### 修正中に発見した問題と解決策
+
+#### 問題1: 定義の右辺全体をラップしてしまう
+
+**症状**: `def (*') := i.*` のような定義が壊れ、`mini-test/159-riemann.egi` が失敗
+
+```
+Expected number, but found: #<lambda ...>
+```
+
+**原因**: `insertTensorMapsInExpr` 内で式全体に対して `wrapBinaryFunctionIfNeeded` を呼んでいた
+
+**解決策**: ラッピングを `TIApplyExpr` の引数処理時のみに限定
+
+#### 問題2: イータ展開されたラムダがラップされない
+
+**症状**: `def sum {Num a} (xs: [a]) : a := foldl (+) 0 xs` で tensorMap2 が挿入されない
+
+TypedAST出力：
+```
+[237] def sum : {Num Integer} [Integer] -> Integer :=
+  \dict_Num_26612 xs ->
+    foldl1 ((\etaVar1 etaVar2 -> numMathExpr_("plus") etaVar1 etaVar2) ...)
+```
+
+**原因**: `wrapWithTensorMap2` がラムダ式を外側からラップしようとしていたが、本体の `TIApplyExpr` を `TITensorMap2Expr` に変換する必要があった
+
+**解決策**: `wrapLambdaBodyWithTensorMap2` を追加し、2引数ラムダの本体を直接変換
+
+### テスト結果
+
+以下のテストが全て成功：
+
+- `mini-test/159-riemann.egi` - リーマン曲率テンソルの計算
+- `mini-test/162-sum-tensor.egi` - テンソルに対するsum
+- `mini-test/163-sum-scalar.egi` - スカラーとテンソル両方に対するsum
+- `mini-test/04-arithmetic.egi` - 基本的な算術演算
+
 ## 実装チェックリスト
 
-- [ ] tensorMap/tensorMap2のスカラー対応を確認
-  - [ ] `tensorMap f scalar` が `f scalar` を返すことを確認
-  - [ ] `tensorMap2 f s1 s2` が `f s1 s2` を返すことを確認
-  - [ ] 混合ケース（Tensor + スカラー）の動作確認
-- [ ] TensorMapInsertion.hsをTypeClassExpand.hsの前に実行するように変更
-- [ ] 型コンストラクタ内のスカラー型/制約付き型変数を検出するロジック
-- [ ] 該当する演算にtensorMap/tensorMap2を挿入するロジック
+- [x] tensorMap/tensorMap2のスカラー対応を確認
+  - [x] `tensorMap f scalar` が `f scalar` を返すことを確認
+  - [x] `tensorMap2 f s1 s2` が `f s1 s2` を返すことを確認
+  - [x] 混合ケース（Tensor + スカラー）の動作確認
+- [x] TensorMapInsertion.hsをTypeClassExpand.hsの前に実行するように変更
+- [x] 型コンストラクタ内のスカラー型/制約付き型変数を検出するロジック
+- [x] 該当する演算にtensorMap/tensorMap2を挿入するロジック
+- [x] イータ展開されたラムダ式への対応
+- [x] 定義の右辺が誤ってラップされないよう保護
 
 ## 関連ファイル
 
-- `hs-src/Language/Egison/Type/TensorMapInsertion.hs` - TensorMap挿入
+### ソースコード
+
+- `hs-src/Language/Egison/Type/TensorMapInsertion.hs` - TensorMap挿入の実装
 - `hs-src/Language/Egison/Type/TypeClassExpand.hs` - 型クラス展開
 - `hs-src/Language/Egison/Type/TypedDesugar.hs` - 処理順序の制御
+
+### テストファイル
+
+- `mini-test/162-sum-tensor.egi` - テンソルに対するsum関数のテスト
+- `mini-test/163-sum-scalar.egi` - スカラーとテンソル両方に対するsum関数のテスト
+- `mini-test/159-riemann.egi` - リーマン曲率テンソル（回帰テスト）
+
+### ライブラリ
+
+- `lib/math/common/arithmetic.egi` - sum関数の定義
+
+### 設計ドキュメント
+
 - `design/tensor-map-insertion.md` - 複雑なアプローチの設計（参考）
