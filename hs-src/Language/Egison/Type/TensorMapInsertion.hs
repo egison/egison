@@ -49,7 +49,7 @@ import           Language.Egison.Type.Unify as Unify (unifyStrict)
 
 -- | Check if tensorMap should be inserted for an argument
 -- This implements the type-tensor-simple.md specification
--- 
+--
 -- Arguments:
 --   ClassEnv     : The current type class environment (holds available type class instances).
 --   [Constraint] : The set of type class constraints in scope (e.g., Num a, Eq a).
@@ -58,12 +58,15 @@ import           Language.Egison.Type.Unify as Unify (unifyStrict)
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 shouldInsertTensorMap classEnv constraints argType paramType = case argType of
   TTensor elemType -> case paramType of
-    -- Tensor matched with Tensor → both are Tensor types, so types match perfectly
-    -- No tensorMap insertion needed (functions like tensorShape : Tensor a -> b, or . : Tensor a -> Tensor a -> Tensor a)
+    -- Tensor matched with Tensor → no tensorMap insertion needed
+    -- Functions like dotProduct : Tensor a -> Tensor a -> Tensor a are designed for Tensor
+    -- NOTE: This means (+) applied to Tensor won't get tensorMap at this point.
+    -- For (+), the paramType should be the element type (Integer) after type class expansion,
+    -- which will be handled by the concrete type case below.
     TTensor _ -> False
-    
+
     -- Tensor matched with type variable → check type class instances
-    TVar tyVar -> 
+    TVar tyVar ->
       -- Find constraints on this type variable
       let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar) constraints
       in case relevantConstraints of
@@ -72,10 +75,10 @@ shouldInsertTensorMap classEnv constraints argType paramType = case argType of
            -- Has constraints → check if Tensor instance exists for ALL constraints
            cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
                  -- If any constraint lacks a Tensor instance, we need tensorMap
-    
+
     -- Tensor matched with concrete non-tensor type → insertion needed
     _ -> True
-    
+
   -- Non-tensor argument → no insertion needed
   _ -> False
 
