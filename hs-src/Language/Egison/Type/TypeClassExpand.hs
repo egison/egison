@@ -389,33 +389,40 @@ expandTypeClassMethodsT tiExpr = do
             Nothing -> checkConstrainedVariable
           where
             -- Check if this is a constrained variable (not a method)
+            -- IMPORTANT: Only apply dictionaries if the variable was DEFINED with constraints,
+            -- not just if the expression has propagated constraints from usage context.
             checkConstrainedVariable = do
-              if not (null exprConstraints)
-                then do
-                  -- Check if all constraints are on concrete types
-                  let hasOnlyConcreteConstraints = all isConcreteConstraint exprConstraints
-                  if hasOnlyConcreteConstraints
-                    then do
-                      -- This is a constrained variable with concrete types - apply dictionaries
-                      dictArgs <- mapM (resolveDictionaryArg classEnv') exprConstraints
-                      -- Create application: varName dict1 dict2 ...
-                      let varExpr = TIExpr scheme (TIVarExpr varName)
-                      return $ TIApplyExpr varExpr dictArgs
-                    else do
-                      -- Has type variable constraints - pass dictionary parameters
-                      -- This handles recursive calls in polymorphic functions
-                      -- Generate dictionary argument expressions for each constraint
-                      let makeDict c =
-                            let dictName = constraintToDictParam c
-                                dictType = TVar (TyVar "dict")
-                            in TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
-                          dictArgs = map makeDict exprConstraints
-                          varExpr = TIExpr scheme (TIVarExpr varName)
-                      return $ TIApplyExpr varExpr dictArgs
-                else
-                  -- Regular variable, no constraints
+              typeEnv <- getTypeEnv
+              -- Look up the variable's original type scheme from TypeEnv
+              case lookupEnv (stringToVar varName) typeEnv of
+                Just (Forall _ originalConstraints _)
+                  | not (null originalConstraints) -> do
+                      -- Variable was defined with constraints - apply dictionaries
+                      -- Check if all constraints are on concrete types
+                      let hasOnlyConcreteConstraints = all isConcreteConstraint exprConstraints
+                      if hasOnlyConcreteConstraints
+                        then do
+                          -- This is a constrained variable with concrete types - apply dictionaries
+                          dictArgs <- mapM (resolveDictionaryArg classEnv') exprConstraints
+                          -- Create application: varName dict1 dict2 ...
+                          let varExpr = TIExpr scheme (TIVarExpr varName)
+                          return $ TIApplyExpr varExpr dictArgs
+                        else do
+                          -- Has type variable constraints - pass dictionary parameters
+                          -- This handles recursive calls in polymorphic functions
+                          -- Generate dictionary argument expressions for each constraint
+                          let makeDict c =
+                                let dictName = constraintToDictParam c
+                                    dictType = TVar (TyVar "dict")
+                                in TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                              dictArgs = map makeDict exprConstraints
+                              varExpr = TIExpr scheme (TIVarExpr varName)
+                          return $ TIApplyExpr varExpr dictArgs
+                _ ->
+                  -- Variable was defined without constraints, or not found in TypeEnv
+                  -- Don't apply dictionaries - just process normally
                   expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
-            
+
             isConcreteConstraint (Constraint _ (TVar _)) = False
             isConcreteConstraint _ = True
         _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)

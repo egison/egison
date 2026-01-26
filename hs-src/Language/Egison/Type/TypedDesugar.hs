@@ -34,20 +34,19 @@ import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, 
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
---   1. Expand type class methods (dictionary passing)
---   2. Insert tensorMap where needed (TensorMapInsertion)
+--   1. Insert tensorMap where needed (TensorMapInsertion)
+--   2. Expand type class methods (dictionary passing)
 --
--- The order matters: type class expansion should happen before tensorMap insertion
--- because after expansion, method parameter types become concrete (e.g., Integer),
--- which allows tensorMap insertion to detect when Tensor arguments are passed
--- to scalar parameters.
+-- The order matters: tensorMap insertion should happen before type class expansion
+-- because after tensorMap insertion, argument types (scalar vs tensor) are determined,
+-- which allows type class expansion to use unifyStrict for instance selection.
 desugarTypedExprT :: TIExpr -> EvalM TIExpr
 desugarTypedExprT tiexpr = do
-  -- Step 1: Expand type class methods (dictionary passing)
-  tiexpr' <- expandTypeClassMethodsT tiexpr
+  -- Step 1: Insert tensorMap where needed
+  tiexpr' <- insertTensorMaps tiexpr
 
-  -- Step 2: Insert tensorMap where needed
-  tiexpr'' <- insertTensorMaps tiexpr'
+  -- Step 2: Expand type class methods (dictionary passing)
+  tiexpr'' <- expandTypeClassMethodsT tiexpr'
 
   return tiexpr''
 

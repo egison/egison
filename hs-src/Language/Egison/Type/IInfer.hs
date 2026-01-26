@@ -53,7 +53,7 @@ module Language.Egison.Type.IInfer
 import           Control.Monad              (foldM, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, modify, put)
-import           Data.List                  (isPrefixOf)
+import           Data.List                  (isPrefixOf, nub, partition)
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -161,9 +161,13 @@ addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
 clearWarnings :: Infer ()
 clearWarnings = modify $ \st -> st { inferWarnings = [] }
 
--- | Add type class constraints
+-- | Add type class constraints (with deduplication)
 addConstraints :: [Constraint] -> Infer ()
-addConstraints cs = modify $ \st -> st { inferConstraints = inferConstraints st ++ cs }
+addConstraints cs = modify $ \st ->
+  let existing = inferConstraints st
+      -- Only add constraints that are not already present
+      newConstraints = filter (`notElem` existing) cs
+  in st { inferConstraints = existing ++ newConstraints }
 
 -- | Get accumulated constraints
 getConstraints :: Infer [Constraint]
@@ -378,6 +382,18 @@ unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
   Left err -> case err of
     TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
     TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+
+-- | Unify two types with constraint-aware handling
+-- This is crucial for unifying types when type variables have constraints
+-- (e.g., {Num t0}) - the constraint affects how Tensor types are unified
+unifyTypesWithConstraints :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
+unifyTypesWithConstraints constraints t1 t2 ctx = do
+  classEnv <- getClassEnv
+  case TU.unifyWithConstraints classEnv constraints t1 t2 of
+    Right s  -> return s
+    Left err -> case err of
+      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
+      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
 
 -- | Infer type for constants
 inferConstant :: ConstantExpr -> Infer Type
@@ -2223,6 +2239,11 @@ inferIApplication funcName funcType args initSubst = do
 -- TensorMap insertion has been moved to Phase 8 (TensorMapInsertion module)
 -- This function now only performs type inference and unification
 -- When a Tensor argument is passed to a scalar parameter, the result type is wrapped in Tensor
+--
+-- IMPORTANT: Non-function arguments are unified first to let data types (like lists)
+-- constrain type variables before callback function types are unified.
+-- This ensures that foldl (+) 0 [t1, t2] properly infers a = Tensor Integer from the list
+-- before trying to match the callback type.
 inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   -- Infer argument types
@@ -2231,19 +2252,62 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
 
-  -- Normal function application (no tensorMap insertion)
+  -- Create fresh type variables for parameters and result
+  paramVars <- mapM (\i -> freshVar ("param" ++ show i)) [1..length args]
   resultType <- freshVar "result"
-  let expectedFuncType = foldr TFun resultType argTypes
+  let expectedFuncType = foldr TFun resultType paramVars
       appliedFuncType = applySubst argSubst funcType
 
-  -- Unify function type with expected type using constraint-aware unification
+  -- First unify function type structure to get parameter bindings
   let funcScheme = tiScheme funcTIExpr
-      (Forall _tvs constraints _) = funcScheme
+      (Forall _tvs funcConstraints _) = funcScheme
   classEnv <- getClassEnv
+  -- Include constraints from both the function being applied AND the inference context
+  -- The context constraints include constraints from outer scopes (e.g., {Num a} from (.) definition)
+  contextConstraints <- getConstraints
+  let constraints = funcConstraints ++ contextConstraints
   case Unify.unifyWithConstraints classEnv constraints appliedFuncType expectedFuncType of
-    Right s -> do
-      -- Unification succeeded
-      let finalS = composeSubst s argSubst
+    Right s1 -> do
+      -- Now unify argument types with parameter types
+      -- Key: Unify non-function arguments FIRST to let data types constrain type variables
+      let paramTypesRaw = map (applySubst s1) paramVars
+          indexedArgs = zip3 [0..] argTypes paramTypesRaw
+
+      -- Classify arguments: non-functions first, then functions
+      -- A type is considered a function if it's TFun
+      let isArgFunction (TFun _ _) = True
+          isArgFunction _ = False
+          (funcArgsList, nonFuncArgsList) = partition (\(_, at, _) -> isArgFunction at) indexedArgs
+
+      -- Unify non-function arguments first (data types like lists)
+      -- IMPORTANT: Apply substitution to constraints so that constraint checking works correctly
+      s2 <- foldM (\s (_, at, pt) -> do
+                     let at' = applySubst s at
+                         pt' = applySubst s pt
+                         cs' = map (applySubstConstraint s) constraints
+                     case Unify.unifyWithConstraints classEnv cs' at' pt' of
+                       Right s' -> return (composeSubst s' s)
+                       Left _ -> throwError $ UnificationError at' pt' ctx
+                  ) s1 nonFuncArgsList
+
+      -- Then unify function arguments (callbacks)
+      -- IMPORTANT: Include constraints from the argument's type scheme (e.g., {Num t} from (+))
+      -- so that constraint checking works correctly for the argument's type variables
+      s3 <- foldM (\s (idx, at, pt) -> do
+                     let at' = applySubst s at
+                         pt' = applySubst s pt
+                         -- Get constraints from both the outer function and the argument itself
+                         outerCs = map (applySubstConstraint s) constraints
+                         argScheme = tiScheme (argTIExprs !! idx)
+                         (Forall _ argConstraints _) = argScheme
+                         argCs = map (applySubstConstraint s) argConstraints
+                         allCs = outerCs ++ argCs
+                     case Unify.unifyWithConstraints classEnv allCs at' pt' of
+                       Right s' -> return (composeSubst s' s)
+                       Left _ -> throwError $ UnificationError at' pt' ctx
+                  ) s2 funcArgsList
+
+      let finalS = composeSubst s3 argSubst
           baseResultType = applySubst finalS resultType
 
       -- Check if tensorMap will be inserted (Tensor arg to scalar param)
@@ -2257,16 +2321,20 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 
       -- Apply substitution to constraints and simplify Tensor constraints
       -- This rewrites C (Tensor a) to C a when appropriate, while keeping types as Tensor a
-      let updatedConstraints = map (applySubstConstraint finalS) constraints
-          simplifiedConstraints = simplifyTensorConstraints classEnv updatedConstraints
-          resultScheme = Forall [] simplifiedConstraints finalType
+      -- IMPORTANT: Only use funcConstraints for the result scheme, not contextConstraints
+      -- contextConstraints are from outer scopes and should not be propagated to sub-expressions
+      let updatedFuncConstraints = map (applySubstConstraint finalS) funcConstraints
+          simplifiedFuncConstraints = simplifyTensorConstraints classEnv updatedFuncConstraints
+          -- Deduplicate constraints
+          deduplicatedConstraints = nub simplifiedFuncConstraints
+          resultScheme = Forall [] deduplicatedConstraints finalType
 
           -- Update function type and scheme
           -- During type inference, keep type variables unquantified (Forall [])
           -- Quantification only happens at let/def boundaries
           (Forall _ _ originalFuncType) = funcScheme
           updatedFuncType = applySubst finalS originalFuncType
-          updatedFuncScheme = Forall [] simplifiedConstraints updatedFuncType
+          updatedFuncScheme = Forall [] deduplicatedConstraints updatedFuncType
 
           -- Update function and argument TIExprs
           updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
@@ -2568,15 +2636,23 @@ inferITopExpr topExpr = case topExpr of
         st <- get
         let (instConstraints, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
         modify $ \s -> s { inferCounter = newCounter }
-        
+        -- Add instantiated constraints to the inference context
+        -- This is crucial for constraint-aware unification inside the definition body
+        -- e.g., when (.) has {Num a}, this constraint must be visible when type-checking t1 * t2
+        clearConstraints  -- Start fresh
+        addConstraints instConstraints
+
         -- Infer the expression type
         (exprTI, subst1) <- inferIExpr expr
         let exprType = tiExprType exprTI
-        
-        -- Unify inferred type with expected type
-        -- At top-level definitions, Tensor a can unify with a
+
+        -- Unify inferred type with expected type using constraint-aware unification
+        -- This is crucial for cases like (.) where type variables have constraints
+        -- The constraints from the type signature affect how Tensor types are unified
         let exprCtx = withExpr (prettyStr expr) emptyContext
-        subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
+            -- Apply substitution to constraints to get current state
+            currentConstraints = map (applySubstConstraint subst1) instConstraints
+        subst2 <- unifyTypesWithConstraints currentConstraints (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
         let finalSubst = composeSubst subst2 subst1
         
         -- Apply final substitution to exprTI to resolve all type variables

@@ -475,10 +475,12 @@ unifyWithConstraints' _ _ _ TAny = Right emptySubst
 unifyWithConstraints' _ _ t1 t2 = Left $ TypeMismatch t1 t2
 
 -- | Unify type variable with another type, considering constraints
+-- Note: occurs check is deferred to handle cases like unifying t0 with Tensor t0
+-- when t0 has constraints (e.g., {Num t0}) and there's no Num (Tensor t0) instance.
+-- In such cases, we bind t0 to the element type (t0 itself), which is identity.
 unifyVarWithConstraints :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError Subst
 unifyVarWithConstraints classEnv constraints v t
   | TVar v == t = Right emptySubst
-  | v `Set.member` freeTyVars t = Left $ OccursCheck v t
   | otherwise = case t of
       -- Special handling for Tensor types with constraints
       TTensor elemType ->
@@ -486,19 +488,32 @@ unifyVarWithConstraints classEnv constraints v t
         let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
         in if null varConstraints
            then
-             -- No constraints on this variable, bind to Tensor
-             Right $ singletonSubst v t
+             -- No constraints on this variable, bind to Tensor (need occurs check)
+             if v `Set.member` freeTyVars t
+             then Left $ OccursCheck v t
+             else Right $ singletonSubst v t
            else
              -- Has constraints: check if Tensor has instances for all of them
              if all (hasInstanceForTensorType classEnv elemType) varConstraints
              then
-               -- All constraints have Tensor instances, bind to Tensor
-               Right $ singletonSubst v t
+               -- All constraints have Tensor instances, bind to Tensor (need occurs check)
+               if v `Set.member` freeTyVars t
+               then Left $ OccursCheck v t
+               else Right $ singletonSubst v t
              else
                -- Some constraint lacks Tensor instance, bind to element type instead
                -- This allows tensorMap to handle the Tensor -> scalar conversion
-               Right $ singletonSubst v elemType
-      _ -> Right $ singletonSubst v t
+               -- Special case: if v == elemType (e.g., t0 with Tensor t0), return identity
+               if TVar v == elemType
+               then Right emptySubst
+               else if v `Set.member` freeTyVars elemType
+                    then Left $ OccursCheck v elemType
+                    else Right $ singletonSubst v elemType
+      _ ->
+        -- Non-Tensor type, regular occurs check
+        if v `Set.member` freeTyVars t
+        then Left $ OccursCheck v t
+        else Right $ singletonSubst v t
 
 -- | Check if there's an instance for Constraint (Tensor elemType)
 -- e.g., check if Num (Tensor Integer) exists given elemType = Integer and constraint = Num
