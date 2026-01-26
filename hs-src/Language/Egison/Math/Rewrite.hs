@@ -25,7 +25,7 @@ rewriteSymbol =
     [ rewriteI
     , rewriteW
     , rewriteLog
-    , rewriteSinCos
+--    , rewriteSinCos
     , rewriteExp
     , rewritePower
     , rewriteSqrt
