@@ -148,6 +148,130 @@ isTensorType _ = False
 insertTensorMapForHigherOrder :: TIExpr -> TIExpr
 ```
 
+### ステップ4: is_tensorフラグの追跡機構
+
+#### 問題: 複数ソースからの値の追跡
+
+型クラス辞書は**型に対して**1つだが、`is_tensor`は**値の出所**を追跡する必要がある。
+
+```egison
+def fn (xs: [Integer]) (ys: [Integer]) : Integer :=
+  let x = head xs   -- xはxsから来た
+      y = head ys   -- yはysから来た
+  in x + y          -- どのis_tensorフラグを使うか？
+```
+
+#### 解決策: パラメータごとのフラグとソース追跡
+
+**1. パラメータごとのフラグ生成**
+
+各コンテナ型パラメータに一意のフラグを割り当てる：
+
+```egison
+def fn (xs: [Integer]) (ys: [Integer]) : Integer := ...
+-- is_tensor_xs: xsの要素がTensorか
+-- is_tensor_ys: ysの要素がTensorか
+```
+
+**2. ソースマッピングの維持**
+
+変換中、各変数がどのis_tensorフラグに依存するかを追跡：
+
+```haskell
+data TensorSource
+  = NotTensor                    -- 確実にTensorではない（リテラル等）
+  | FromParam String             -- パラメータからの依存（フラグ名）
+  | Combined [TensorSource]      -- 複数ソースの組み合わせ
+
+type SourceEnv = Map VarName TensorSource
+```
+
+**3. 抽出時のソース継承**
+
+パターンマッチや関数適用で値を抽出する際、ソースを継承：
+
+```egison
+let x = head xs   -- x のソース: FromParam "is_tensor_xs"
+let y = head ys   -- y のソース: FromParam "is_tensor_ys"
+```
+
+**4. 二項演算での複数ソース処理**
+
+```egison
+x + y  -- x: is_tensor_xs, y: is_tensor_ys
+```
+
+変換後：
+```egison
+insertTensorMap2 is_tensor_xs is_tensor_ys (+) x y
+```
+
+`insertTensorMap2`は4パターンに展開される：
+```haskell
+-- insertTensorMap2 の展開ルール
+-- (False, False) → f x y                      -- 両方スカラー
+-- (True,  False) → tensorMap (\xi -> f xi y) x -- xのみTensor
+-- (False, True)  → tensorMap (\yi -> f x yi) y -- yのみTensor
+-- (True,  True)  → tensorMap2 f x y            -- 両方Tensor
+```
+
+#### ネストした型構造への対応
+
+一つのパラメータ内に複数のスカラー型がある場合、パス付きフラグを使用：
+
+```egison
+def fn (xs: [(Integer, Float)]) : Float :=
+  let (a, b) = head xs
+  in a + b
+```
+
+フラグ生成：
+- `is_tensor_xs_0`: タプルの第1要素(Integer)がTensorか
+- `is_tensor_xs_1`: タプルの第2要素(Float)がTensorか
+
+パターンマッチ時のソース継承：
+```egison
+let (a, b) = head xs
+-- a のソース: FromParam "is_tensor_xs_0"
+-- b のソース: FromParam "is_tensor_xs_1"
+```
+
+変換後：
+```egison
+def fn : Bool -> Bool -> [(Integer, Float)] -> Float :=
+  \is_tensor_xs_0 is_tensor_xs_1 xs ->
+    let (a, b) = head xs
+    in insertTensorMap2 is_tensor_xs_0 is_tensor_xs_1 (+) a b
+```
+
+#### さらにネストした構造
+
+```egison
+def fn (xs: [([Integer], Float)]) : Float := ...
+-- is_tensor_xs_0_0: 内側リストの要素(Integer)がTensorか
+-- is_tensor_xs_1: タプルの第2要素(Float)がTensorか
+```
+
+#### フラグ生成アルゴリズム
+
+```haskell
+-- 型からフラグ位置を抽出
+collectTensorFlags :: String -> Type -> [(String, Type)]
+collectTensorFlags prefix ty = case ty of
+  -- 型コンストラクタの場合、中身を再帰的に探索
+  TList elemTy ->
+    collectTensorFlags (prefix ++ "_0") elemTy
+  TTuple tys ->
+    concat [collectTensorFlags (prefix ++ "_" ++ show i) t
+           | (i, t) <- zip [0..] tys]
+  -- スカラー型または制約付き型変数の場合、フラグを生成
+  TInt -> [(prefix, ty)]
+  TFloat -> [(prefix, ty)]
+  TVar v | hasNumConstraint v -> [(prefix, ty)]
+  -- Tensor型や制約なし型変数はスキップ（呼び出し側でtensorMap挿入）
+  _ -> []
+```
+
 ## 例のウォークスルー
 
 ### 単純な関数適用の場合（is_tensor不要）
@@ -319,7 +443,15 @@ sum [t1, t2]
 - [ ] TensorMapInsertion.hsをTypeClassExpand.hsの前に実行するように変更
 - [ ] Tensor型とのunify可能性判定ロジックを実装
 - [ ] `is_tensor_typename` 引数の追加ロジックを実装
+  - [ ] パラメータごとのフラグ生成（`is_tensor_xs`, `is_tensor_ys`）
+  - [ ] ネストした型構造へのパス付きフラグ生成（`is_tensor_xs_0`, `is_tensor_xs_1`）
+  - [ ] `collectTensorFlags` アルゴリズムの実装
+- [ ] ソース追跡機構の実装
+  - [ ] `TensorSource` データ型の定義
+  - [ ] `SourceEnv` (Map VarName TensorSource) の維持
+  - [ ] パターンマッチ時のソース継承
 - [ ] `insertTensorMapIfNecessary` の挿入ロジックを実装
+- [ ] `insertTensorMap2` の挿入ロジックを実装（複数ソースの場合）
 - [ ] 呼び出し時の展開（True → tensorMap2、False → そのまま）を実装
 
 ## implementation.mdへの変更
