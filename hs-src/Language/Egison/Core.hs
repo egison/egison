@@ -243,7 +243,9 @@ evalExprShallow env@(Env _fs _) (IIndexedExpr override expr indices) = do
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
     Value (Func v@(Just (Var _fnName is)) env args body) -> do
       js <- mapM evalIndex indices
+      liftIO $ putStrLn $ "[DEBUG pmIndices] is: " ++ show is ++ ", js: " ++ show js
       frame <- pmIndices is js
+      liftIO $ putStrLn $ "can reach here"
       let env' = extendEnv env frame
       return $ Value (Func v env' args body)
     Value (TensorData t@Tensor{}) -> do
@@ -368,11 +370,9 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
   syms <- mapM (newEvaluatedObjectRef . Value . symbolScalarData symId) vars
   whnf <- evalExprShallow (extendEnv env (makeBindings' vars syms)) expr
   case whnf of
-    Value (TensorData t@Tensor{}) ->
-      Value . TensorData <$> removeTmpScripts symId t
-    ITensor t@Tensor{} ->
-      ITensor <$> removeTmpScripts symId t
-    _ -> return whnf
+    Value (TensorData t@Tensor{}) -> Value . TensorData <$> removeTmpScripts symId t
+    ITensor t@Tensor{}            -> ITensor <$> removeTmpScripts symId t
+    _                             -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
   isTmpSymbol symId index = symId == getSymId (extractIndex index)
@@ -382,6 +382,7 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
     let (ds, js) = partition (isTmpSymbol symId) is
     Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
     return (Tensor s ys js)
+  removeTmpScripts _ t@Scalar{} = return t
 
 
 evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
@@ -454,14 +455,14 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor >>= removeDF
+      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor
     ITensor t@Tensor{} ->
       tMap (\f -> do
         f <- evalRef f
-        newApplyObjThunkRef env f args') t >>= fromTensor >>= removeDF
+        newApplyObjThunkRef env f args') t >>= fromTensor
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
-      evalMemoizedFunc hashRef env names body args >>= removeDF
+      evalMemoizedFunc hashRef env names body args
     _ -> applyObj env func args' >>= removeDF
 
 evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
