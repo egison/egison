@@ -552,7 +552,7 @@ data EgisonError
   | ArgumentsNumPrimitive String Int Int CallStack
   | TupleLength Int Int CallStack
   | InconsistentTensorShape CallStack
-  | InconsistentTensorIndex CallStack
+  | InconsistentTensorIndex [String] [String] CallStack
   | TensorIndexOutOfBounds Integer Integer CallStack
   | NotImplemented String CallStack
   | Assertion String CallStack
@@ -572,7 +572,11 @@ instance Show EgisonError where
   show (TupleLength expected got stack) =
     "Inconsistent tuple lengths: expected " ++ show expected ++ ", but got " ++  show got ++ showTrace stack
   show (InconsistentTensorShape stack) = "Inconsistent tensor shape" ++ showTrace stack
-  show (InconsistentTensorIndex stack) = "Inconsistent tensor index" ++ showTrace stack
+  show (InconsistentTensorIndex expected actual stack) =
+    "Inconsistent tensor index:\n" ++
+    "  Expected pattern: [" ++ intercalate ", " expected ++ "]\n" ++
+    "  Actual indices:   [" ++ intercalate ", " actual ++ "]" ++
+    showTrace stack
   show (TensorIndexOutOfBounds m n stack) = "Tensor index out of bounds: " ++ show m ++ ", " ++ show n ++ showTrace stack
   show (NotImplemented message stack) = "Not implemented: " ++ message ++ showTrace stack
   show (Assertion message stack) = "Assertion failed: " ++ message ++ showTrace stack

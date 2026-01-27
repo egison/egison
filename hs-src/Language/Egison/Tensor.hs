@@ -237,7 +237,7 @@ tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
-  removeDFFromTensor $ Tensor ns xs' js
+  return $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
 tMap2 :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
@@ -252,7 +252,7 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
   let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
-  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret >>= removeDFFromTensor
+  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
  where
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
@@ -303,7 +303,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                              x2 <- tIntRef1 is2 t2
                              f x1 x2)
                   (enumTensorIndices (ns1 ++ ns2))
-      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2)) >>= removeDFFromTensor
+      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
@@ -313,7 +313,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                               tProduct f rt1 rt2)
                    (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex (head rts'))
-      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret >>= removeDFFromTensor
+      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in

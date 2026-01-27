@@ -74,6 +74,35 @@ makeITuple []  = return (ITuple [])
 makeITuple [x] = return x
 makeITuple xs  = ITuple <$> mapM newEvaluatedObjectRef xs
 
+-- | Convert Index patterns to human-readable strings for error messages
+showIndexPattern :: [Index (Maybe Var)] -> [String]
+showIndexPattern = map showIndex
+  where
+    showIndex (Sub (Just (Var name []))) = "_" ++ name
+    showIndex (Sub Nothing) = "_?"
+    showIndex (Sup (Just (Var name []))) = "~" ++ name
+    showIndex (Sup Nothing) = "~?"
+    showIndex (MultiSub (Just (Var a [])) s (Just (Var e []))) = "_(" ++ a ++ "_" ++ show s ++ ")..._(" ++ a ++ "_" ++ e ++ ")"
+    showIndex (MultiSup (Just (Var a [])) s (Just (Var e []))) = "~(" ++ a ++ "~" ++ show s ++ ")...~(" ++ a ++ "~" ++ e ++ ")"
+    showIndex (SupSub (Just (Var name []))) = "~_" ++ name
+    showIndex (SupSub Nothing) = "~_?"
+    showIndex (User (Just (Var name []))) = "@" ++ name
+    showIndex (User Nothing) = "@?"
+    showIndex (DF id n) = "_d" ++ show id ++ show n
+    showIndex _ = "?"
+
+-- | Convert actual Index values to human-readable strings for error messages
+showIndexValues :: [Index EgisonValue] -> [String]
+showIndexValues = map showIndexValue
+  where
+    showIndexValue (Sub val) = "_<val>"
+    showIndexValue (Sup val) = "~<val>"
+    showIndexValue (SupSub val) = "~_<val>"
+    showIndexValue (User val) = "@<val>"
+    showIndexValue (DF id n) = "_d" ++ show id ++ show n
+    showIndexValue (MultiSub val s _) = "_(..." ++ show s ++ "...)"
+    showIndexValue (MultiSup val s _) = "~(..." ++ show s ++ "...)"
+
 pmIndices :: [Index (Maybe Var)] -> [Index EgisonValue] -> EvalM [Binding]
 pmIndices [] [] = return []
 pmIndices (MultiSub (Just a) s (Just e):xs) vs = do
@@ -105,7 +134,7 @@ pmIndices (x:xs) (v:vs) = do
   bs <- pmIndex x v
   bs' <- pmIndices xs vs
   return (bs ++ bs')
-pmIndices _ _ = throwErrorWithTrace InconsistentTensorIndex
+pmIndices expected actual = throwErrorWithTrace $ InconsistentTensorIndex (showIndexPattern expected) (showIndexValues actual)
 
 pmIndex :: Index (Maybe Var) -> Index EgisonValue -> EvalM [Binding]
 pmIndex (Sub (Just var)) (Sub val) = do
@@ -114,7 +143,7 @@ pmIndex (Sub (Just var)) (Sub val) = do
 pmIndex (Sup (Just var)) (Sup val) = do
   ref <- newEvaluatedObjectRef (Value val)
   return [(var, ref)]
-pmIndex _ _ = throwErrorWithTrace InconsistentTensorIndex
+pmIndex expected actual = throwErrorWithTrace $ InconsistentTensorIndex (showIndexPattern [expected]) (showIndexValues [actual])
 
 updateHash :: [Integer] -> WHNFData -> WHNFData -> EvalM WHNFData
 updateHash [index] tgt (IIntHash hash) = do
