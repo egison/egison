@@ -1,3 +1,5 @@
+declare symbol r, θ, φ: MathExpr
+
 -- Euler form of S2
 
 def x : Vector MathExpr := [| θ, φ |]
@@ -5,12 +7,13 @@ def x : Vector MathExpr := [| θ, φ |]
 def X : Vector MathExpr := [| r * sin θ * cos φ, r * sin θ * sin φ, r * cos θ |]
 
 -- Local basis
-def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensor
-def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [2, 2]
+def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
 def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
+g_#_#
 assertEqual "Metric tensor"
   g_#_#
   [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
@@ -28,19 +31,23 @@ def ω0 : Tensor MathExpr := Γ~#_#_#
 def A : Matrix MathExpr := [| [| 1 / r, 0 |], [| 0, 1 / (r * sin θ) |] |]
 
 -- Transformed connection
-def d A := (flip ∂/∂) x~# A_#_#
+def d (A : Tensor MathExpr) : Tensor MathExpr := (flip ∂/∂) x~# A_#_#
 
 def ω := withSymbols [i, j, k, l]
   (M.inverse A)~i_j . ω0~j_k . A~k_l + (M.inverse A)~i_j . d A~j_l
 
 -- Curvature form
-def wedge X Y := X !. Y
+def wedge {Num a} (X : Tensor a) (Y : Tensor a) : Tensor a := X !. Y
 
-def Ω := withSymbols [i, j, k]
-  dfNormalize (d ω~i_j + wedge ω~i_k ω~k_j)
+"here"
+wedge ω~i_k ω~k_j
+
+def Ω : Tensor MathExpr := withSymbols [i, j, k]
+--  dfNormalize (d ω~i_j + wedge ω~i_k ω~k_j)
+  (d ω~i_j + wedge ω~i_k ω~k_j)
 
 -- Euler form
-def eulerForm := (1 / (2 * π)) * (Ω~1_2 - Ω~2_1)
+def eulerForm : MathExpr := (1 / (2 * π)) * (Ω~1_2 - Ω~2_1)
 
 -- The Euler form integrates to the Euler characteristic χ = 2 for S²
 assertEqual "Euler form of S2"
