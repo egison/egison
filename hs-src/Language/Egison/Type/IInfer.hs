@@ -1671,7 +1671,13 @@ inferIExprWithContext expr ctx = case expr of
     (funcTI, s1) <- inferIExprWithContext func exprCtx
     let funcType = tiExprType funcTI
     -- Wedge application is similar to normal application
-    inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    (resultTI, finalS) <- inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    -- Convert TIApplyExpr to TIWedgeApplyExpr to preserve wedge semantics
+    let resultScheme = tiScheme resultTI
+    case tiExprNode resultTI of
+      TIApplyExpr funcTI' argTIs' ->
+        return (TIExpr resultScheme (TIWedgeApplyExpr funcTI' argTIs'), finalS)
+      _ -> return (resultTI, finalS)
   
   -- Generate tensor expression
   IGenerateTensorExpr funcExpr shapeExpr -> do
