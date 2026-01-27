@@ -206,28 +206,38 @@ appendDF id (Value (TensorData (Tensor s xs is))) =
    in Value (TensorData (Tensor s xs (is ++ map (DF id) [1..k])))
 appendDF _ whnf = whnf
 
+-- | Check if an index is a dummy free index
+isDF :: Index a -> Bool
+isDF (DF _ _) = True
+isDF _        = False
+
+-- | Remove dummy free indices from a Tensor
+removeDFFromTensor :: Tensor a -> EvalM (Tensor a)
+removeDFFromTensor (Tensor s xs is) = do
+  let (ds, js) = partition isDF is
+  if null ds
+    then return (Tensor s xs is)
+    else do
+      Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
+      return (Tensor s ys js)
+removeDFFromTensor t = return t  -- Scalar case
+
 removeDF :: WHNFData -> EvalM WHNFData
 removeDF (ITensor (Tensor s xs is)) = do
   let (ds, js) = partition isDF is
   Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (ITensor (Tensor s ys js))
- where
-  isDF (DF _ _) = True
-  isDF _        = False
 removeDF (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
   Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
   return (Value (TensorData (Tensor s ys js)))
- where
-  isDF (DF _ _) = True
-  isDF _        = False
 removeDF whnf = return whnf
 
 tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
-  return $ Tensor ns xs' js
+  removeDFFromTensor $ Tensor ns xs' js
 tMap f (Scalar x) = Scalar <$> f x
 
 tMap2 :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
@@ -242,7 +252,7 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
   let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
-  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
+  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret >>= removeDFFromTensor
  where
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
@@ -293,7 +303,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                              x2 <- tIntRef1 is2 t2
                              f x1 x2)
                   (enumTensorIndices (ns1 ++ ns2))
-      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2))
+      tContract' (Tensor (ns1 ++ ns2) (V.fromList xs') (js1 ++ js2)) >>= removeDFFromTensor
     _ -> do
       t1' <- tTranspose (cjs1 ++ tjs1) t1
       t2' <- tTranspose (cjs2 ++ tjs2) t2
@@ -303,7 +313,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                               tProduct f rt1 rt2)
                    (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex (head rts'))
-      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret
+      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret >>= removeDFFromTensor
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
