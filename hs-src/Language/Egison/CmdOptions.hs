@@ -41,17 +41,19 @@ data EgisonOpts = EgisonOpts {
     optDumpEnv          :: Bool,       -- ^ Dump environment after Phase 2
     optDumpDesugared    :: Bool,       -- ^ Dump desugared AST after Phase 3
     optDumpTyped        :: Bool,       -- ^ Dump typed AST after Phase 6 (type inference & check)
-    optDumpTi           :: Bool        -- ^ Dump typed AST after Phase 8 (TypedDesugar: type class expansion & tensorMap insertion)
+    optDumpTi           :: Bool,       -- ^ Dump typed AST after TensorMap insertion (before type class expansion)
+    optDumpTc           :: Bool        -- ^ Dump typed AST after type class expansion (Phase 8 complete)
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False False False
+defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False False False False
 --                                                                                                     ^^^^^ optNoPrelude
 --                                                                                                                                      ^^^^ optTypeCheck is now True by default
 --                                                                                                                                              ^^^^^ optDumpEnv
 --                                                                                                                                                      ^^^^^ optDumpDesugared
 --                                                                                                                                                              ^^^^^ optDumpTyped
 --                                                                                                                                                                      ^^^^^ optDumpTi
+--                                                                                                                                                                              ^^^^^ optDumpTc
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -151,7 +153,10 @@ cmdArgParser = EgisonOpts
                   <> help "Dump typed AST after Phase 6 (type inference & check)")
             <*> switch
                   (long "dump-ti"
-                  <> help "Dump typed AST after Phase 8 (TypedDesugar: type class expansion & tensorMap insertion)")
+                  <> help "Dump typed AST after TensorMap insertion (before type class expansion)")
+            <*> switch
+                  (long "dump-tc"
+                  <> help "Dump typed AST after type class expansion (Phase 8 complete)")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

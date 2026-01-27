@@ -23,6 +23,8 @@ Type information is preserved throughout desugaring, enabling:
 module Language.Egison.Type.TypedDesugar
   ( desugarTypedExprT
   , desugarTypedTopExprT
+  , desugarTypedTopExprT_TensorMapOnly
+  , desugarTypedTopExprT_TypeClassOnly
   ) where
 
 import           Language.Egison.Data       (EvalM)
@@ -93,5 +95,80 @@ desugarTypedTopExprT topExpr = case topExpr of
   
   TIDeclareSymbol names ty ->
     -- Symbol declarations don't need type-driven transformations
+    return $ Just (TIDeclareSymbol names ty)
+
+-- | Desugar a top-level typed expression with TensorMap insertion only
+-- This is used for --dump-ti (intermediate dump after TensorMap insertion)
+desugarTypedTopExprT_TensorMapOnly :: TITopExpr -> EvalM (Maybe TITopExpr)
+desugarTypedTopExprT_TensorMapOnly topExpr = case topExpr of
+  TIDefine scheme var tiexpr -> do
+    -- Only insert tensorMap (no type class expansion)
+    tiexpr' <- insertTensorMaps tiexpr
+    return $ Just (TIDefine scheme var tiexpr')
+
+  TITest tiexpr -> do
+    tiexpr' <- insertTensorMaps tiexpr
+    return $ Just (TITest tiexpr')
+
+  TIExecute tiexpr -> do
+    tiexpr' <- insertTensorMaps tiexpr
+    return $ Just (TIExecute tiexpr')
+
+  TILoadFile path ->
+    return $ Just (TILoadFile path)
+
+  TILoad lib ->
+    return $ Just (TILoad lib)
+
+  TIDefineMany bindings -> do
+    bindings' <- mapM (\(var, tiexpr) -> do
+      tiexpr' <- insertTensorMaps tiexpr
+      return (var, tiexpr')) bindings
+    return $ Just (TIDefineMany bindings')
+
+  TIDeclareSymbol names ty ->
+    return $ Just (TIDeclareSymbol names ty)
+
+-- | Expand type class methods only (assumes TensorMap insertion is already done)
+-- This is used internally to perform type class expansion after TensorMap insertion
+desugarTypedTopExprT_TypeClassOnly :: TITopExpr -> EvalM (Maybe TITopExpr)
+desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
+  TIDefine scheme var tiexpr -> do
+    -- Only expand type class methods (assumes tensorMap is already inserted)
+    tiexpr' <- expandTypeClassMethodsT tiexpr
+    -- Apply dictionaries to right-hand side if it has concrete type constraints
+    tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
+    -- Add dictionary parameters for constrained functions
+    tiexpr''' <- addDictionaryParametersT scheme tiexpr''
+    return $ Just (TIDefine scheme var tiexpr''')
+
+  TITest tiexpr -> do
+    tiexpr' <- expandTypeClassMethodsT tiexpr
+    return $ Just (TITest tiexpr')
+
+  TIExecute tiexpr -> do
+    tiexpr' <- expandTypeClassMethodsT tiexpr
+    return $ Just (TIExecute tiexpr')
+
+  TILoadFile path ->
+    return $ Just (TILoadFile path)
+
+  TILoad lib ->
+    return $ Just (TILoad lib)
+
+  TIDefineMany bindings -> do
+    bindings' <- mapM (\(var, tiexpr) -> do
+      tiexpr' <- expandTypeClassMethodsT tiexpr
+      -- Add dictionary parameters using the variable's type scheme from TypeEnv
+      typeEnv <- getTypeEnv
+      let varName = extractNameFromVar var
+          scheme = case lookupEnv (stringToVar varName) typeEnv of
+                     Just ts -> ts
+                     Nothing -> tiScheme tiexpr'
+      tiexpr'' <- addDictionaryParametersT scheme tiexpr'
+      return (var, tiexpr'')) bindings
+    return $ Just (TIDefineMany bindings')
+
+  TIDeclareSymbol names ty ->
     return $ Just (TIDeclareSymbol names ty)
 

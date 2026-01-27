@@ -58,7 +58,7 @@ import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
-import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT)
+import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT, desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -185,8 +185,8 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Process each expression sequentially through phases 3-8 (type inference and desugaring)
   -- Collect all definitions to bind them together later (Phase 9)
   -- Non-definition expressions (ITest, IExecute) will be evaluated in Phase 10
-  -- Also collect typed ASTs if dump-typed or dump-ti is enabled
-  ((allBindings, nonDefExprs), typedExprs, tiExprs) <- foldM (\((bindings, nonDefs), typedExprs, tiExprs) expr -> do
+  -- Also collect typed ASTs if dump-typed, dump-ti, or dump-tc is enabled
+  ((allBindings, nonDefExprs), typedExprs, tiExprs, tcExprs) <- foldM (\((bindings, nonDefs), typedExprs, tiExprs, tcExprs) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
@@ -195,7 +195,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     mITopExpr <- desugarTopExpr expr
     
     case mITopExpr of
-      Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs)  -- No desugared output
+      Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)  -- No desugared output
       Just iTopExpr -> do
         -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
@@ -227,67 +227,76 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- Type errors are handled immediately, not collected
             topExpr' <- desugarTopExpr expr
             case topExpr' of
-              Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs)
+              Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)
               Just topExpr'' -> do
                 -- Evaluate type-error expressions immediately (not collected)
                 -- This is a fallback for permissive mode
                 case topExpr'' of
-                  IDefine name expr -> 
-                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs, tiExprs)
-                  IDefineMany defs -> 
-                    return ((bindings ++ defs, nonDefs), typedExprs, tiExprs)
-                  _ -> 
+                  IDefine name expr ->
+                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs, tiExprs, tcExprs)
+                  IDefineMany defs ->
+                    return ((bindings ++ defs, nonDefs), typedExprs, tiExprs, tcExprs)
+                  _ ->
                     -- Non-definition: collect for later evaluation
-                    return ((bindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs)
-          
-          Right (Nothing, _subst) -> 
+                    return ((bindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs, tcExprs)
+
+          Right (Nothing, _subst) ->
             -- No code generated (e.g., load statements that are already processed)
-            return ((bindings, nonDefs), typedExprs, tiExprs)
+            return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)
           
           Right (Just tiTopExpr, _subst) -> do
             -- Phase 7: inferITopExpr now returns TITopExpr directly
             -- No need for separate conversion
-            
+
             -- Collect typed AST for --dump-typed (Phase 6: after type inference, before TypedDesugar)
             let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
-            
-            -- Phase 8: TypedDesugar (Type Class Expansion + TensorMap insertion)
-            -- This phase includes (in this order):
-            --   1. expandTypeClassMethods: Expand type class method calls to dictionary-based dispatch
-            --   2. insertTensorMaps: Insert tensorMap where needed
-            -- Processing order matters: type class methods should be resolved first,
-            -- then tensorMap is inserted for the resolved concrete functions
-            mTiTopExprDesugared <- desugarTypedTopExprT tiTopExpr
-            
-            case mTiTopExprDesugared of
-              Nothing -> 
+
+            -- Phase 8a: TensorMap Insertion
+            -- Insert tensorMap where needed (scalar vs tensor argument type conversion)
+            mTiTopExprAfterTensorMap <- desugarTypedTopExprT_TensorMapOnly tiTopExpr
+
+            case mTiTopExprAfterTensorMap of
+              Nothing ->
                 -- Load/LoadFile statements - no evaluation needed
-                return ((bindings, nonDefs), typedExprs', tiExprs)
-              
-              Just tiTopExprDesugared -> do
-                -- Collect TypedDesugared AST for --dump-ti (Phase 8: after TypedDesugar)
-                let tiExprs' = if optDumpTi opts then tiExprs ++ [Just tiTopExprDesugared] else tiExprs
-                
-                -- Extract ITopExpr for evaluation
-                let iTopExprExpanded = stripTypeTopExpr tiTopExprDesugared
-                
-                -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
-                
-                -- Phase 9-10: Collect definitions and non-definitions
-                -- Definitions will be bound together using recursiveBind to support mutual recursion
-                -- Non-definitions will be evaluated sequentially after all definitions are bound
-                case iTopExprExpanded of
-                  IDefine name expr -> 
-                    -- Collect definition for later binding
-                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs', tiExprs')
-                  IDefineMany defs -> 
-                    -- Collect multiple definitions for later binding
-                    return ((bindings ++ defs, nonDefs), typedExprs', tiExprs')
-                  _ -> 
-                    -- Non-definition expressions (ITest, IExecute)
-                    -- Collect for evaluation after all definitions are bound
-                    return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs')
-    ) (([], []), [], []) exprs
+                return ((bindings, nonDefs), typedExprs', tiExprs, tcExprs)
+
+              Just tiTopExprAfterTensorMap -> do
+                -- Collect TensorMap-inserted AST for --dump-ti (after TensorMap insertion)
+                let tiExprs' = if optDumpTi opts then tiExprs ++ [Just tiTopExprAfterTensorMap] else tiExprs
+
+                -- Phase 8b: Type Class Expansion
+                -- Expand type class method calls to dictionary-based dispatch
+                mTcTopExprAfterTypeClass <- desugarTypedTopExprT_TypeClassOnly tiTopExprAfterTensorMap
+
+                case mTcTopExprAfterTypeClass of
+                  Nothing ->
+                    -- Load/LoadFile statements - no evaluation needed
+                    return ((bindings, nonDefs), typedExprs', tiExprs', tcExprs)
+
+                  Just tcTopExprAfterTypeClass -> do
+                    -- Collect TypeClass-expanded AST for --dump-tc (after TypeClass expansion)
+                    let tcExprs' = if optDumpTc opts then tcExprs ++ [Just tcTopExprAfterTypeClass] else tcExprs
+
+                    -- Extract ITopExpr for evaluation
+                    let iTopExprExpanded = stripTypeTopExpr tcTopExprAfterTypeClass
+
+                    -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
+
+                    -- Phase 9-10: Collect definitions and non-definitions
+                    -- Definitions will be bound together using recursiveBind to support mutual recursion
+                    -- Non-definitions will be evaluated sequentially after all definitions are bound
+                    case iTopExprExpanded of
+                      IDefine name expr ->
+                        -- Collect definition for later binding
+                        return ((bindings ++ [(name, expr)], nonDefs), typedExprs', tiExprs', tcExprs')
+                      IDefineMany defs ->
+                        -- Collect multiple definitions for later binding
+                        return ((bindings ++ defs, nonDefs), typedExprs', tiExprs', tcExprs')
+                      _ ->
+                        -- Non-definition expressions (ITest, IExecute)
+                        -- Collect for evaluation after all definitions are bound
+                        return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
+    ) (([], []), [], [], []) exprs
   
   -- Phase 9: Bind all definitions together using recursiveBind
   -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
@@ -313,11 +322,15 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Dump typed AST if requested and shouldDumpTyped is True
   when (optDumpTyped opts && shouldDumpTyped) $ do
     dumpTyped typedExprs
-  
-  -- Dump TypedDesugared AST if requested
+
+  -- Dump TensorMap-inserted AST if requested
   when (optDumpTi opts && shouldDumpTyped) $ do
     dumpTi tiExprs
-  
+
+  -- Dump TypeClass-expanded AST if requested
+  when (optDumpTc opts && shouldDumpTyped) $ do
+    dumpTc tcExprs
+
   return (lastVal, finalEnv)
 
 --------------------------------------------------------------------------------
@@ -572,7 +585,7 @@ dumpTyped typedExprs = do
 dumpTi :: [Maybe TITopExpr] -> EvalM ()
 dumpTi tiExprs = do
   liftIO $ do
-    putStrLn "=== Typed AST after TypedDesugar (Phase 8: Type Class Expansion & TensorMap Insertion) ==="
+    putStrLn "=== Typed AST after TensorMap Insertion (Phase 8a) ==="
     putStrLn ""
     if null tiExprs
       then putStrLn "  (none)"
@@ -582,5 +595,20 @@ dumpTi tiExprs = do
           Just expr -> do
             putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
     putStrLn ""
-    putStrLn "=== End of TypedDesugar AST ==="
+    putStrLn "=== End of TensorMap Insertion AST ==="
+
+dumpTc :: [Maybe TITopExpr] -> EvalM ()
+dumpTc tcExprs = do
+  liftIO $ do
+    putStrLn "=== Typed AST after Type Class Expansion (Phase 8b) ==="
+    putStrLn ""
+    if null tcExprs
+      then putStrLn "  (none)"
+      else forM_ (zip [1 :: Int ..] tcExprs) $ \(i :: Int, mExpr) ->
+        case mExpr of
+          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
+          Just expr -> do
+            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
+    putStrLn ""
+    putStrLn "=== End of Type Class Expansion AST ==="
 
