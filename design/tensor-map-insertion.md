@@ -440,7 +440,7 @@ sum [t1, t2]
 
 ## 実装チェックリスト
 
-- [ ] TensorMapInsertion.hsをTypeClassExpand.hsの前に実行するように変更
+- [x] TensorMapInsertion.hsをTypeClassExpand.hsの前に実行するように変更 ✅
 - [ ] Tensor型とのunify可能性判定ロジックを実装
 - [ ] `is_tensor_typename` 引数の追加ロジックを実装
   - [ ] パラメータごとのフラグ生成（`is_tensor_xs`, `is_tensor_ys`）
