@@ -76,21 +76,22 @@ Phase 8: TypedDesugar (型駆動の変換) 【実装完了】
   
   処理内容:
   ├─ TypedDesugar.hs (オーケストレーション)
-  │   └─ ✅ 型クラス展開 → tensorMap挿入の順で変換を実行
-  ├─ 1. TypeClassExpand.hs (型クラスメソッド展開) ✅
-  │   └─ expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr
-  │       - 型クラスメソッド（+, *, 等）→ 具体的な関数に展開
-  │       - 制約を含む式の適切な処理
-  │       - 例: (+) → numIntegerPlus, numTensorIntegerPlus, 等
-  └─ 2. TensorMapInsertion.hs (tensorMap自動挿入) ✅
-      └─ insertTensorMaps :: TIExpr -> EvalM TIExpr
-          - 必要に応じてtensorMap/tensorMap2を自動挿入
-          - 複数テンソル引数の最適化（tensorMap2生成）
-          - 型情報を元にテンソル/スカラーの判定
-  
+  │   └─ ✅ tensorMap挿入 → 型クラス展開の順で変換を実行
+  ├─ 1. TensorMapInsertion.hs (tensorMap自動挿入) ✅
+  │   └─ insertTensorMaps :: TIExpr -> EvalM TIExpr
+  │       - 必要に応じてtensorMap/tensorMap2を自動挿入
+  │       - 複数テンソル引数の最適化（tensorMap2生成）
+  │       - 型情報を元にテンソル/スカラーの判定
+  └─ 2. TypeClassExpand.hs (型クラスメソッド展開) ✅
+      └─ expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr
+          - 型クラスメソッド（+, *, 等）→ 具体的な関数に展開
+          - 制約を含む式の適切な処理
+          - 例: (+) → numIntegerPlus, numTensorIntegerPlus, 等
+
   処理順序の理由:
-  - 型クラス展開 → tensorMap挿入の順により、型クラスメソッドが
-    関数の引数として渡される場合など、より複雑なケースに対応可能
+  - tensorMap挿入 → 型クラス展開の順により、tensorMap挿入後に引数の型
+    （スカラー vs テンソル）が確定し、型クラス展開でunifyStrictを使った
+    インスタンス選択が正しく動作する
   
   実装: Language.Egison.Type.TypedDesugar (desugarTypedExprT :: TIExpr -> EvalM TIExpr)
         Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr)
@@ -270,10 +271,10 @@ data TIExpr = TIExpr
 -- 型推論で得られた型スキームをIExprに付与
 
 -- Phase 8: TypedDesugar後 (実行可能形式) ✅ 実装済み
--- 型クラスメソッドが具体的な関数に展開され、tensorMapが挿入される
--- TIExpr → TIExpr (1. 型クラス展開、2. tensorMap挿入の順で処理)
--- 例: (+) → numIntegerPlus, tensorMap2生成など
--- 
+-- tensorMapが挿入され、型クラスメソッドが具体的な関数に展開される
+-- TIExpr → TIExpr (1. tensorMap挿入、2. 型クラス展開の順で処理)
+-- 例: tensorMap2生成、(+) → numIntegerPlus, など
+--
 -- 実装済みの機能:
 -- ✅ tensorMap自動挿入: 関数適用時にTensor型とScalar型の不一致を検出してtensorMapを挿入
 -- ✅ tensorMap2生成: 複数テンソル引数の最適化

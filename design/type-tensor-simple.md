@@ -127,12 +127,12 @@ double t1  -- テンソル t1 に対して double を適用
    double t1  -- double : {Num a} a -> a, t1 : Tensor Integer
    ```
 
-2. **型クラス展開（TypeClassExpand.hs）**: 型情報に基づいて型クラスを処理
+2. **tensorMap 挿入（TensorMapInsertion.hs）**: 型情報を使って必要な箇所に tensorMap を挿入
 
-3. **tensorMap 挿入（TensorMapInsertion.hs）**: 型情報を使って必要な箇所に tensorMap を挿入
+3. **型クラス展開（TypeClassExpand.hs）**: 型情報に基づいて型クラスを処理
 
-この順序が重要です。型クラスメソッドを先に解決することで、
-その関数の引数型に基づいて tensorMap を挿入するかどうかを正確に判断できます。
+この順序が重要です。tensorMap挿入後に引数の型（スカラー vs テンソル）が確定するため、
+型クラス展開でunifyStrictを使ったインスタンス選択が正しく動作します。
 
 ### 型クラス展開の詳細
 
@@ -174,12 +174,12 @@ double numInteger 1
 
 #### tensorMap 挿入との組み合わせ
 
-辞書渡し形式に変換された後、TensorMapInsertion.hs で tensorMap が挿入されます：
+tensorMap挿入の後、TypeClassExpand.hs で型クラス展開が行われます：
 
 ```egison
 double t1  -- t1 : Tensor Integer
--- 1. (+) が (numInteger_"plus") に展開される
--- 2. tensorMap が挿入される
+-- 1. tensorMap が挿入される
+-- 2. (+) が (numInteger_"plus") に展開される
 -- 結果: tensorMap (\te1 -> (numInteger_"plus") te1 te1) t1
 ```
 
@@ -187,8 +187,8 @@ double t1  -- t1 : Tensor Integer
 
 ```egison
 double numInteger t1
--- 1. 辞書パラメータ付きの形に変換
--- 2. tensorMap が挿入される
+-- 1. tensorMap が挿入される
+-- 2. 辞書パラメータ付きの形に変換
 -- 結果: tensorMap (\te1 -> (numInteger_"plus") te1 te1) t1
 ```
 

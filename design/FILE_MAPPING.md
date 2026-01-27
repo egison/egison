@@ -48,8 +48,8 @@
 | ファイル | 役割 | 主要な型・関数 | 状態 |
 |---------|------|---------------|------|
 | `hs-src/Language/Egison/Type/TypedDesugar.hs` | 型駆動変換のオーケストレーション | `desugarTypedExprT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
-| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラスメソッド展開（第1ステップ） | `expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
-| `hs-src/Language/Egison/Type/TensorMapInsertion.hs` | tensorMap自動挿入（第2ステップ） | `insertTensorMaps :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
+| `hs-src/Language/Egison/Type/TensorMapInsertion.hs` | tensorMap自動挿入（第1ステップ） | `insertTensorMaps :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
+| `hs-src/Language/Egison/Type/TypeClassExpand.hs` | 型クラスメソッド展開（第2ステップ） | `expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr` | ✅ 実装済み |
 
 ### Phase 9-10: 評価
 | ファイル | 役割 | 主要な型・関数 |
@@ -141,10 +141,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ Phase 8: TypedDesugar (TypedDesugar.hs)                    │
 │   TIExpr → TIExpr                                          │
-│   1. expandTypeClassMethods (TypeClassExpand.hs) ✅        │
-│      - 型クラスメソッド → 具体的な関数に展開                 │
-│   2. insertTensorMaps (TensorMapInsertion.hs) ✅           │
+│   1. insertTensorMaps (TensorMapInsertion.hs) ✅           │
 │      - 必要に応じてtensorMap/tensorMap2を挿入               │
+│   2. expandTypeClassMethods (TypeClassExpand.hs) ✅        │
+│      - 型クラスメソッド → 具体的な関数に展開                 │
 └────────────┬────────────────────────────────────────────────┘
              │
              ↓【型情報を抜く】
@@ -173,13 +173,14 @@
 **TensorMapInsertion (TensorMapInsertion.hs)**: ✅ 完了
 - tensorMap/tensorMap2の自動挿入
 - 複数テンソル引数の検出とtensorMap2への最適化
-- 型クラス展開後の具体的な関数への適用
+- 型クラス展開前に実行され、引数の型を確定
 
 ### 処理順序
-1. 型クラスメソッド展開（型クラスメソッド → 具体的な関数）
-2. tensorMap挿入（具体的な関数にtensorMapを適用）
+1. tensorMap挿入（必要に応じてtensorMap/tensorMap2を挿入）
+2. 型クラスメソッド展開（型クラスメソッド → 具体的な関数）
 
-この順序により、高階関数への型クラスメソッド渡しなど、より複雑なケースに対応可能。
+この順序により、tensorMap挿入後に引数の型（スカラー vs テンソル）が確定し、
+型クラス展開でunifyStrictを使ったインスタンス選択が正しく動作する。
 
 
    
