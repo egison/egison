@@ -2333,11 +2333,22 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
           simplifiedFuncConstraints = simplifyTensorConstraints classEnv updatedFuncConstraints
           -- Deduplicate constraints
           deduplicatedConstraints = nub simplifiedFuncConstraints
-          resultScheme = Forall [] deduplicatedConstraints finalType
+          -- Filter out constraints on concrete types (only keep constraints on type variables)
+          -- This prevents constraints like {Num (Tensor t0)} from appearing in result types
+          isTypeVarConstraint (Constraint _ (TVar _)) = True
+          isTypeVarConstraint _ = False
+          typeVarConstraints = filter isTypeVarConstraint deduplicatedConstraints
+          -- Result constraints: functions (partial applications) keep constraints,
+          -- but values (fully applied) don't need them
+          resultConstraints = case finalType of
+                                TFun _ _ -> typeVarConstraints  -- Partial application
+                                _ -> []  -- Fully applied: no constraints needed
+          resultScheme = Forall [] resultConstraints finalType
 
           -- Update function type and scheme
           -- During type inference, keep type variables unquantified (Forall [])
           -- Quantification only happens at let/def boundaries
+          -- IMPORTANT: Keep original constraints for function scheme (don't filter)
           (Forall _ _ originalFuncType) = funcScheme
           updatedFuncType = applySubst finalS originalFuncType
           updatedFuncScheme = Forall [] deduplicatedConstraints updatedFuncType

@@ -15,7 +15,7 @@ def scalarToTensor {Num a} (x: a) (ns: [Integer]) : Tensor a := x * unitTensor n
 
 def zeroTensor (ns: [Integer]) : Tensor Integer := generateTensor (\_ -> 0) ns
 
-def (.') {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
+def (.') (t1: Tensor MathExpr) (t2: Tensor MathExpr) : Tensor MathExpr := 
   foldl1 (+') (contract (t1 *' t2))
 
 def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
