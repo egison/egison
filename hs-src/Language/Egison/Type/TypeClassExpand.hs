@@ -1179,13 +1179,13 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
 applyConcreteConstraintDictionaries :: TIExpr -> EvalM TIExpr
 applyConcreteConstraintDictionaries expr = do
   classEnv <- getClassEnv
-  let scheme@(Forall _ constraints _) = tiScheme expr
-  
+  let scheme@(Forall vars constraints _) = tiScheme expr
+
   -- Check if all constraints are on concrete types
   let isConcreteConstraint (Constraint _ (TVar _)) = False
       isConcreteConstraint _ = True
       hasOnlyConcreteConstraints = not (null constraints) && all isConcreteConstraint constraints
-  
+
   if hasOnlyConcreteConstraints
     then do
       -- Apply dictionaries for concrete constraints
@@ -1193,7 +1193,8 @@ applyConcreteConstraintDictionaries expr = do
       -- Create application: expr dict1 dict2 ...
       let resultType = tiExprType expr
           -- Update scheme to remove constraints since they are now applied
-          newScheme = Forall [] [] resultType
+          -- Keep type variables (vars) as they may be needed for polymorphism
+          newScheme = Forall vars [] resultType
       return $ TIExpr newScheme (TIApplyExpr expr dictArgs)
     else
       -- No concrete constraints, return as-is
