@@ -60,249 +60,249 @@ expandTypeClassMethodsT tiExpr = do
   return $ TIExpr scheme expandedNode
   where
     -- Expand TIExprNode with constraint information from TypeScheme
+    -- Note: Constraints from parent are not propagated - each node uses its own constraints
     expandTIExprNodeWithConstraints :: ClassEnv -> TypeScheme -> TIExprNode -> EvalM TIExprNode
-    expandTIExprNodeWithConstraints classEnv' (Forall _vars constraints _ty) node =
-      expandTIExprNodeWithConstraintList classEnv' constraints node
-    
-    -- Expand TIExprNode with a list of constraints
-    expandTIExprNodeWithConstraintList :: ClassEnv -> [Constraint] -> TIExprNode -> EvalM TIExprNode
-    expandTIExprNodeWithConstraintList classEnv' cs node = case node of
+    expandTIExprNodeWithConstraints classEnv' (Forall _vars _constraints _ty) node =
+      expandTIExprNode classEnv' node
+
+    -- Expand TIExprNode without parent constraints
+    -- Each child expression uses only its own constraints from type inference
+    expandTIExprNode :: ClassEnv -> TIExprNode -> EvalM TIExprNode
+    expandTIExprNode classEnv' node = case node of
       -- Constants and variables: no expansion needed at node level
       -- (TIVarExpr expansion is handled at TIExpr level in expandTIExprWithConstraints)
       TIConstantExpr c -> return $ TIConstantExpr c
       TIVarExpr name -> return $ TIVarExpr name
       
-      -- Lambda expressions: process body with constraints
+      -- Lambda expressions: process body with its own constraints only
       TILambdaExpr mVar params body -> do
-        -- Merge constraints from body's scheme with parent constraints
-        let (Forall _ bodyConstraints _) = tiScheme body
-            allConstraints = cs ++ bodyConstraints
-        body' <- expandTIExprWithConstraints classEnv' allConstraints body
+        -- Use only the body's own constraints (no parent constraints)
+        -- Type inference has already assigned correct constraints to each expression
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TILambdaExpr mVar params body'
       
       -- Application: check if it's a method call or constrained function call
       TIApplyExpr func args -> do
-        -- First, expand the arguments
-        args' <- mapM (expandTIExprWithConstraints classEnv' cs) args
-        
+        -- First, expand the arguments (each uses its own constraints)
+        args' <- mapM (expandTIExprWithConstraints classEnv') args
+
         case tiExprNode func of
           TIVarExpr methodName -> do
-            -- Try to resolve if func is a method call
-            resolved <- tryResolveMethodCall classEnv' cs methodName args'
+            -- Try to resolve if func is a method call using func's own constraints
+            let (Forall _ funcConstraints _) = tiScheme func
+            resolved <- tryResolveMethodCall classEnv' funcConstraints methodName args'
             case resolved of
               Just result -> return result
               Nothing -> do
                 -- Not a method call - process recursively
                 -- Note: Dictionary application for constrained functions
                 -- is handled in TIVarExpr case of expandTIExprWithConstraints
-                func' <- expandTIExprWithConstraints classEnv' cs func
+                func' <- expandTIExprWithConstraints classEnv' func
                 return $ TIApplyExpr func' args'
           _ -> do
             -- Not a simple variable: process recursively
-            func' <- expandTIExprWithConstraints classEnv' cs func
+            func' <- expandTIExprWithConstraints classEnv' func
             return $ TIApplyExpr func' args'
       
       -- Collections
       TITupleExpr exprs -> do
-        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        exprs' <- mapM (expandTIExprWithConstraints classEnv') exprs
         return $ TITupleExpr exprs'
-      
+
       TICollectionExpr exprs -> do
-        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        exprs' <- mapM (expandTIExprWithConstraints classEnv') exprs
         return $ TICollectionExpr exprs'
-      
+
       -- Control flow
       TIIfExpr cond thenExpr elseExpr -> do
-        cond' <- expandTIExprWithConstraints classEnv' cs cond
-        thenExpr' <- expandTIExprWithConstraints classEnv' cs thenExpr
-        elseExpr' <- expandTIExprWithConstraints classEnv' cs elseExpr
+        cond' <- expandTIExprWithConstraints classEnv' cond
+        thenExpr' <- expandTIExprWithConstraints classEnv' thenExpr
+        elseExpr' <- expandTIExprWithConstraints classEnv' elseExpr
         return $ TIIfExpr cond' thenExpr' elseExpr'
-      
+
       -- Let bindings
       TILetExpr bindings body -> do
         bindings' <- mapM (\(v, e) -> do
-          e' <- expandTIExprWithConstraints classEnv' cs e
+          e' <- expandTIExprWithConstraints classEnv' e
           return (v, e')) bindings
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TILetExpr bindings' body'
-      
+
       TILetRecExpr bindings body -> do
         bindings' <- mapM (\(v, e) -> do
-          e' <- expandTIExprWithConstraints classEnv' cs e
+          e' <- expandTIExprWithConstraints classEnv' e
           return (v, e')) bindings
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TILetRecExpr bindings' body'
-      
+
       TISeqExpr e1 e2 -> do
-        e1' <- expandTIExprWithConstraints classEnv' cs e1
-        e2' <- expandTIExprWithConstraints classEnv' cs e2
+        e1' <- expandTIExprWithConstraints classEnv' e1
+        e2' <- expandTIExprWithConstraints classEnv' e2
         return $ TISeqExpr e1' e2'
-      
+
       -- Collections
       TIConsExpr h t -> do
-        h' <- expandTIExprWithConstraints classEnv' cs h
-        t' <- expandTIExprWithConstraints classEnv' cs t
+        h' <- expandTIExprWithConstraints classEnv' h
+        t' <- expandTIExprWithConstraints classEnv' t
         return $ TIConsExpr h' t'
-      
+
       TIJoinExpr l r -> do
-        l' <- expandTIExprWithConstraints classEnv' cs l
-        r' <- expandTIExprWithConstraints classEnv' cs r
+        l' <- expandTIExprWithConstraints classEnv' l
+        r' <- expandTIExprWithConstraints classEnv' r
         return $ TIJoinExpr l' r'
       
       TIHashExpr pairs -> do
         -- Dictionary hashes: process keys but NOT values
         -- Values should remain as simple method references
         pairs' <- mapM (\(k, v) -> do
-          k' <- expandTIExprWithConstraints classEnv' cs k
+          k' <- expandTIExprWithConstraints classEnv' k
           -- Do NOT process v - dictionary values should not be expanded
           return (k', v)) pairs
         return $ TIHashExpr pairs'
-      
+
       TIVectorExpr exprs -> do
-        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        exprs' <- mapM (expandTIExprWithConstraints classEnv') exprs
         return $ TIVectorExpr exprs'
-      
+
       -- More lambda-like constructs
       TIMemoizedLambdaExpr vars body -> do
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TIMemoizedLambdaExpr vars body'
-      
+
       TICambdaExpr var body -> do
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TICambdaExpr var body'
-      
+
       TIWithSymbolsExpr syms body -> do
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TIWithSymbolsExpr syms body'
-      
+
       TIDoExpr bindings body -> do
         bindings' <- mapM (\(v, e) -> do
-          e' <- expandTIExprWithConstraints classEnv' cs e
+          e' <- expandTIExprWithConstraints classEnv' e
           return (v, e')) bindings
-        body' <- expandTIExprWithConstraints classEnv' cs body
+        body' <- expandTIExprWithConstraints classEnv' body
         return $ TIDoExpr bindings' body'
-      
+
       -- Pattern matching
       TIMatchExpr mode target matcher clauses -> do
-        target' <- expandTIExprWithConstraints classEnv' cs target
-        matcher' <- expandTIExprWithConstraints classEnv' cs matcher
+        target' <- expandTIExprWithConstraints classEnv' target
+        matcher' <- expandTIExprWithConstraints classEnv' matcher
         clauses' <- mapM (\(pat, body) -> do
-          pat' <- expandTIPattern classEnv' cs pat
-          body' <- expandTIExprWithConstraints classEnv' cs body
+          pat' <- expandTIPattern classEnv' pat
+          body' <- expandTIExprWithConstraints classEnv' body
           return (pat', body')) clauses
         return $ TIMatchExpr mode target' matcher' clauses'
-      
+
       TIMatchAllExpr mode target matcher clauses -> do
-        target' <- expandTIExprWithConstraints classEnv' cs target
-        matcher' <- expandTIExprWithConstraints classEnv' cs matcher
+        target' <- expandTIExprWithConstraints classEnv' target
+        matcher' <- expandTIExprWithConstraints classEnv' matcher
         clauses' <- mapM (\(pat, body) -> do
-          pat' <- expandTIPattern classEnv' cs pat
-          body' <- expandTIExprWithConstraints classEnv' cs body
+          pat' <- expandTIPattern classEnv' pat
+          body' <- expandTIExprWithConstraints classEnv' body
           return (pat', body')) clauses
         return $ TIMatchAllExpr mode target' matcher' clauses'
-      
+
       -- Tensor operations
       TITensorMapExpr func tensor -> do
-        func' <- expandTIExprWithConstraints classEnv' cs func
-        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+        func' <- expandTIExprWithConstraints classEnv' func
+        tensor' <- expandTIExprWithConstraints classEnv' tensor
         return $ TITensorMapExpr func' tensor'
-      
+
       TITensorMap2Expr func t1 t2 -> do
-        func' <- expandTIExprWithConstraints classEnv' cs func
-        t1' <- expandTIExprWithConstraints classEnv' cs t1
-        t2' <- expandTIExprWithConstraints classEnv' cs t2
+        func' <- expandTIExprWithConstraints classEnv' func
+        t1' <- expandTIExprWithConstraints classEnv' t1
+        t2' <- expandTIExprWithConstraints classEnv' t2
         return $ TITensorMap2Expr func' t1' t2'
-      
+
       TIGenerateTensorExpr func shape -> do
-        func' <- expandTIExprWithConstraints classEnv' cs func
-        shape' <- expandTIExprWithConstraints classEnv' cs shape
+        func' <- expandTIExprWithConstraints classEnv' func
+        shape' <- expandTIExprWithConstraints classEnv' shape
         return $ TIGenerateTensorExpr func' shape'
-      
+
       TITensorExpr shape elems -> do
-        shape' <- expandTIExprWithConstraints classEnv' cs shape
-        elems' <- expandTIExprWithConstraints classEnv' cs elems
+        shape' <- expandTIExprWithConstraints classEnv' shape
+        elems' <- expandTIExprWithConstraints classEnv' elems
         return $ TITensorExpr shape' elems'
-      
+
       TITensorContractExpr tensor -> do
-        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+        tensor' <- expandTIExprWithConstraints classEnv' tensor
         return $ TITensorContractExpr tensor'
-      
+
       TITransposeExpr perm tensor -> do
-        perm' <- expandTIExprWithConstraints classEnv' cs perm
-        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+        perm' <- expandTIExprWithConstraints classEnv' perm
+        tensor' <- expandTIExprWithConstraints classEnv' tensor
         return $ TITransposeExpr perm' tensor'
-      
+
       TIFlipIndicesExpr tensor -> do
-        tensor' <- expandTIExprWithConstraints classEnv' cs tensor
+        tensor' <- expandTIExprWithConstraints classEnv' tensor
         return $ TIFlipIndicesExpr tensor'
-      
+
       -- Quote expressions
       TIQuoteExpr e -> do
-        e' <- expandTIExprWithConstraints classEnv' cs e
+        e' <- expandTIExprWithConstraints classEnv' e
         return $ TIQuoteExpr e'
-      
+
       TIQuoteSymbolExpr e -> do
-        e' <- expandTIExprWithConstraints classEnv' cs e
+        e' <- expandTIExprWithConstraints classEnv' e
         return $ TIQuoteSymbolExpr e'
-      
+
       -- Indexed expressions
       TISubrefsExpr b base ref -> do
-        base' <- expandTIExprWithConstraints classEnv' cs base
-        ref' <- expandTIExprWithConstraints classEnv' cs ref
+        base' <- expandTIExprWithConstraints classEnv' base
+        ref' <- expandTIExprWithConstraints classEnv' ref
         return $ TISubrefsExpr b base' ref'
       
       TISuprefsExpr b base ref -> do
-        base' <- expandTIExprWithConstraints classEnv' cs base
-        ref' <- expandTIExprWithConstraints classEnv' cs ref
+        base' <- expandTIExprWithConstraints classEnv' base
+        ref' <- expandTIExprWithConstraints classEnv' ref
         return $ TISuprefsExpr b base' ref'
-      
+
       TIUserrefsExpr b base ref -> do
-        base' <- expandTIExprWithConstraints classEnv' cs base
-        ref' <- expandTIExprWithConstraints classEnv' cs ref
+        base' <- expandTIExprWithConstraints classEnv' base
+        ref' <- expandTIExprWithConstraints classEnv' ref
         return $ TIUserrefsExpr b base' ref'
-      
+
       -- Other cases: return unchanged for now
       TIInductiveDataExpr name exprs -> do
-        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        exprs' <- mapM (expandTIExprWithConstraints classEnv') exprs
         return $ TIInductiveDataExpr name exprs'
-      
+
       TIMatcherExpr patDefs -> do
         -- Expand expressions inside matcher definitions
         -- patDefs is a list of (PrimitivePatPattern, TIExpr, [TIBindingExpr])
         -- where TIBindingExpr is (IPrimitiveDataPattern, TIExpr)
-        -- Note: cs contains the constraints from the matcher definition itself (e.g., {Eq a})
         patDefs' <- mapM (\(pat, matcherExpr, bindings) -> do
-          -- Expand the next-matcher expression with parent constraints
-          matcherExpr' <- expandTIExprWithConstraints classEnv' cs matcherExpr
-          -- Expand expressions in primitive-data-match clauses with parent constraints
-          -- These expressions may use type class methods from the matcher's constraints
+          -- Expand the next-matcher expression
+          matcherExpr' <- expandTIExprWithConstraints classEnv' matcherExpr
+          -- Expand expressions in primitive-data-match clauses
           bindings' <- mapM (\(dp, expr) -> do
-            expr' <- expandTIExprWithConstraints classEnv' cs expr
+            expr' <- expandTIExprWithConstraints classEnv' expr
             return (dp, expr')) bindings
           return (pat, matcherExpr', bindings')) patDefs
         return $ TIMatcherExpr patDefs'
       TIIndexedExpr override base indices -> do
-        base' <- expandTIExprWithConstraints classEnv' cs base
+        base' <- expandTIExprWithConstraints classEnv' base
         -- Expand indices (which are already typed as TIExpr)
-        indices' <- mapM (traverse (\tiexpr -> expandTIExprWithConstraints classEnv' cs tiexpr)) indices
+        indices' <- mapM (traverse (\tiexpr -> expandTIExprWithConstraints classEnv' tiexpr)) indices
         return $ TIIndexedExpr override base' indices'
-      
+
       TIWedgeApplyExpr func args -> do
-        func' <- expandTIExprWithConstraints classEnv' cs func
-        args' <- mapM (expandTIExprWithConstraints classEnv' cs) args
+        func' <- expandTIExprWithConstraints classEnv' func
+        args' <- mapM (expandTIExprWithConstraints classEnv') args
         return $ TIWedgeApplyExpr func' args'
       
       TIFunctionExpr names -> return $ TIFunctionExpr names  -- Built-in function, no expansion needed
     
-    -- Helper: expand a TIExpr with constraints
-    expandTIExprWithConstraints :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
-    expandTIExprWithConstraints classEnv' cs expr = do
+    -- Helper: expand a TIExpr using only its own constraints
+    -- Parent constraints are not passed to avoid constraint accumulation
+    expandTIExprWithConstraints :: ClassEnv -> TIExpr -> EvalM TIExpr
+    expandTIExprWithConstraints classEnv' expr = do
       let scheme@(Forall _ exprConstraints exprType) = tiScheme expr
-          -- Merge parent constraints with expression's own constraints
-          -- This ensures that nested expressions like "contract (* x y)" can resolve
-          -- the method call (*) using the constraints from the inner expression
-          allConstraints = cs ++ exprConstraints
-      
+          -- Use only the expression's own constraints
+          -- Type inference has already assigned correct constraints to each expression
+          allConstraints = exprConstraints
+
       -- Special handling for TIVarExpr: eta-expand methods or apply dictionaries
       expandedNode <- case tiExprNode expr of
         TIVarExpr varName -> do
@@ -421,108 +421,108 @@ expandTypeClassMethodsT tiExpr = do
                 _ ->
                   -- Variable was defined without constraints, or not found in TypeEnv
                   -- Don't apply dictionaries - just process normally
-                  expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
+                  expandTIExprNode classEnv' (tiExprNode expr)
 
             isConcreteConstraint (Constraint _ (TVar _)) = False
             isConcreteConstraint _ = True
-        _ -> expandTIExprNodeWithConstraintList classEnv' allConstraints (tiExprNode expr)
-      
+        _ -> expandTIExprNode classEnv' (tiExprNode expr)
+
       return $ TIExpr scheme expandedNode
-    
-    -- Expand type class methods in patterns (especially loop patterns)
-    expandTIPattern :: ClassEnv -> [Constraint] -> TIPattern -> EvalM TIPattern
-    expandTIPattern classEnv' cs (TIPattern scheme node) = do
-      node' <- expandTIPatternNode classEnv' cs node
+
+    -- Expand type class methods in patterns (no parent constraints)
+    expandTIPattern :: ClassEnv -> TIPattern -> EvalM TIPattern
+    expandTIPattern classEnv' (TIPattern scheme node) = do
+      node' <- expandTIPatternNode classEnv' node
       return $ TIPattern scheme node'
-    
-    -- Expand pattern nodes recursively
-    expandTIPatternNode :: ClassEnv -> [Constraint] -> TIPatternNode -> EvalM TIPatternNode
-    expandTIPatternNode classEnv' cs node = case node of
+
+    -- Expand pattern nodes recursively (no parent constraints)
+    expandTIPatternNode :: ClassEnv -> TIPatternNode -> EvalM TIPatternNode
+    expandTIPatternNode classEnv' node = case node of
       -- Loop pattern: expand the loop range expressions
       TILoopPat var loopRange pat1 pat2 -> do
-        loopRange' <- expandTILoopRange classEnv' cs loopRange
-        pat1' <- expandTIPattern classEnv' cs pat1
-        pat2' <- expandTIPattern classEnv' cs pat2
+        loopRange' <- expandTILoopRange classEnv' loopRange
+        pat1' <- expandTIPattern classEnv' pat1
+        pat2' <- expandTIPattern classEnv' pat2
         return $ TILoopPat var loopRange' pat1' pat2'
-      
+
       -- Recursive pattern constructors
       TIAndPat pat1 pat2 -> do
-        pat1' <- expandTIPattern classEnv' cs pat1
-        pat2' <- expandTIPattern classEnv' cs pat2
+        pat1' <- expandTIPattern classEnv' pat1
+        pat2' <- expandTIPattern classEnv' pat2
         return $ TIAndPat pat1' pat2'
-      
+
       TIOrPat pat1 pat2 -> do
-        pat1' <- expandTIPattern classEnv' cs pat1
-        pat2' <- expandTIPattern classEnv' cs pat2
+        pat1' <- expandTIPattern classEnv' pat1
+        pat2' <- expandTIPattern classEnv' pat2
         return $ TIOrPat pat1' pat2'
-      
+
       TIForallPat pat1 pat2 -> do
-        pat1' <- expandTIPattern classEnv' cs pat1
-        pat2' <- expandTIPattern classEnv' cs pat2
+        pat1' <- expandTIPattern classEnv' pat1
+        pat2' <- expandTIPattern classEnv' pat2
         return $ TIForallPat pat1' pat2'
-      
+
       TINotPat pat -> do
-        pat' <- expandTIPattern classEnv' cs pat
+        pat' <- expandTIPattern classEnv' pat
         return $ TINotPat pat'
-      
+
       TITuplePat pats -> do
-        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        pats' <- mapM (expandTIPattern classEnv') pats
         return $ TITuplePat pats'
-      
+
       TIInductivePat name pats -> do
-        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        pats' <- mapM (expandTIPattern classEnv') pats
         return $ TIInductivePat name pats'
-      
+
       TIIndexedPat pat exprs -> do
-        pat' <- expandTIPattern classEnv' cs pat
-        exprs' <- mapM (expandTIExprWithConstraints classEnv' cs) exprs
+        pat' <- expandTIPattern classEnv' pat
+        exprs' <- mapM (expandTIExprWithConstraints classEnv') exprs
         return $ TIIndexedPat pat' exprs'
-      
+
       TILetPat bindings pat -> do
-        pat' <- expandTIPattern classEnv' cs pat
+        pat' <- expandTIPattern classEnv' pat
         return $ TILetPat bindings pat'  -- TODO: Expand binding expressions
       
       TIPApplyPat funcExpr argPats -> do
-        funcExpr' <- expandTIExprWithConstraints classEnv' cs funcExpr
-        argPats' <- mapM (expandTIPattern classEnv' cs) argPats
+        funcExpr' <- expandTIExprWithConstraints classEnv' funcExpr
+        argPats' <- mapM (expandTIPattern classEnv') argPats
         return $ TIPApplyPat funcExpr' argPats'
-      
+
       TIDApplyPat pat pats -> do
-        pat' <- expandTIPattern classEnv' cs pat
-        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        pat' <- expandTIPattern classEnv' pat
+        pats' <- mapM (expandTIPattern classEnv') pats
         return $ TIDApplyPat pat' pats'
-      
+
       TISeqConsPat pat1 pat2 -> do
-        pat1' <- expandTIPattern classEnv' cs pat1
-        pat2' <- expandTIPattern classEnv' cs pat2
+        pat1' <- expandTIPattern classEnv' pat1
+        pat2' <- expandTIPattern classEnv' pat2
         return $ TISeqConsPat pat1' pat2'
-      
+
       TISeqNilPat -> return TISeqNilPat
-      
+
       TIVarPat name -> return $ TIVarPat name
-      
+
       TIInductiveOrPApplyPat name pats -> do
-        pats' <- mapM (expandTIPattern classEnv' cs) pats
+        pats' <- mapM (expandTIPattern classEnv') pats
         return $ TIInductiveOrPApplyPat name pats'
-      
+
       -- Leaf patterns: no expansion needed
       TIWildCard -> return TIWildCard
       TIPatVar name -> return $ TIPatVar name
       TIValuePat expr -> do
-        expr' <- expandTIExprWithConstraints classEnv' cs expr
+        expr' <- expandTIExprWithConstraints classEnv' expr
         return $ TIValuePat expr'
       TIPredPat pred -> do
-        pred' <- expandTIExprWithConstraints classEnv' cs pred
+        pred' <- expandTIExprWithConstraints classEnv' pred
         return $ TIPredPat pred'
       TIContPat -> return TIContPat
       TILaterPatVar -> return TILaterPatVar
-    
-    -- Expand loop range expressions
-    expandTILoopRange :: ClassEnv -> [Constraint] -> TILoopRange -> EvalM TILoopRange
-    expandTILoopRange classEnv' cs (TILoopRange start end rangePat) = do
-      start' <- expandTIExprWithConstraints classEnv' cs start
-      end' <- expandTIExprWithConstraints classEnv' cs end
-      rangePat' <- expandTIPattern classEnv' cs rangePat
+
+    -- Expand loop range expressions (no parent constraints)
+    expandTILoopRange :: ClassEnv -> TILoopRange -> EvalM TILoopRange
+    expandTILoopRange classEnv' (TILoopRange start end rangePat) = do
+      start' <- expandTIExprWithConstraints classEnv' start
+      end' <- expandTIExprWithConstraints classEnv' end
+      rangePat' <- expandTIPattern classEnv' rangePat
       return $ TILoopRange start' end' rangePat'
     
     -- Helper to get method arity
