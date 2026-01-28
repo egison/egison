@@ -31,13 +31,12 @@ Example:
 
 module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
-  , insertTensorMapsInTopExpr
   ) where
 
 import           Data.List                  (nub)
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..),
+import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
                                              Var(..), tiExprType, tiScheme, tiExprNode, stringToVar)
 import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..), lookupEnv)
 import           Language.Egison.Type.Tensor ()
@@ -133,14 +132,6 @@ applyOneArgType t = t  -- No more arguments
 -- * Simplified Approach: Always wrap binary functions with tensorMap2
 --------------------------------------------------------------------------------
 
--- | Check if a type is a binary function (a -> b -> c where c is not a function)
-isBinaryFunctionType :: Type -> Bool
-isBinaryFunctionType (TFun _ (TFun _ result)) = not (isFunctionType result)
-  where
-    isFunctionType (TFun _ _) = True
-    isFunctionType _ = False
-isBinaryFunctionType _ = False
-
 -- | Check if a type is "potentially tensor" - i.e., might be a Tensor at runtime
 -- This includes:
 -- - Constrained type variables (like {Num a} a)
@@ -184,7 +175,7 @@ shouldWrapWithTensorMap2 constraints ty = case ty of
 -- f : a -> b -> c  becomes  \x y -> tensorMap2 f x y
 -- The lambda receives TENSOR arguments and returns a TENSOR result
 wrapWithTensorMap2 :: [Constraint] -> TIExpr -> TIExpr
-wrapWithTensorMap2 constraints funcExpr =
+wrapWithTensorMap2 _constraints funcExpr =
   let funcType = tiExprType funcExpr
   in case funcType of
     TFun param1 (TFun param2 result) ->
@@ -236,33 +227,6 @@ insertTensorMaps tiExpr = do
   classEnv <- getClassEnv
   let scheme = tiScheme tiExpr
   insertTensorMapsInExpr classEnv scheme tiExpr
-
--- | Insert tensorMap in a top-level expression
-insertTensorMapsInTopExpr :: TITopExpr -> EvalM TITopExpr
-insertTensorMapsInTopExpr topExpr = case topExpr of
-  TIDefine scheme var tiexpr -> do
-    tiexpr' <- insertTensorMaps tiexpr
-    return $ TIDefine scheme var tiexpr'
-  
-  TITest tiexpr -> do
-    tiexpr' <- insertTensorMaps tiexpr
-    return $ TITest tiexpr'
-  
-  TIExecute tiexpr -> do
-    tiexpr' <- insertTensorMaps tiexpr
-    return $ TIExecute tiexpr'
-  
-  TILoadFile path -> 
-    return $ TILoadFile path
-  
-  TILoad lib -> 
-    return $ TILoad lib
-  
-  TIDefineMany bindings -> do
-    bindings' <- mapM (\(var, tiexpr) -> do
-      tiexpr' <- insertTensorMaps tiexpr
-      return (var, tiexpr')) bindings
-    return $ TIDefineMany bindings'
 
 -- | Wrap a binary function with tensorMap2 if it should be wrapped
 -- This implements the simplified approach from tensor-map-insertion-simple.md
@@ -675,7 +639,7 @@ wrapWithTensorMapRecursive _classEnv _constraints currentFunc _currentType _args
   return $ TIApplyExpr currentFunc []
 
 -- | Helper function to insert a single tensorMap (when tensorMap2 is not applicable)
-insertSingleTensorMap :: 
+insertSingleTensorMap ::
     ClassEnv
     -> [Constraint]
     -> TIExpr          -- Current function expression
@@ -685,7 +649,7 @@ insertSingleTensorMap ::
     -> [TIExpr]        -- Remaining arguments
     -> [Type]          -- Remaining argument types
     -> EvalM TIExprNode
-insertSingleTensorMap classEnv constraints currentFunc currentType arg argType restArgs restArgTypes = do
+insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType restArgs restArgTypes = do
   let varName = "tmapVar" ++ show (length restArgs)
       var = Var varName []
 
