@@ -757,7 +757,7 @@ prettyTIExprNode node = case node of
     pretty "userrefs" <+> prettyTIExprWithType base <+> prettyTIExprWithType ref
   
   TIWedgeApplyExpr func args ->
-    prettyTIExprWithType func <+> pretty "^" <+> hsep (map prettyTIExprWithType args)
+    pretty "!" <+> prettyTIExprWithType func <+> hsep (map prettyTIExprWithType args)
   
   TIIndexedExpr _ base indices ->
     prettyTIExprWithType base <> hcat (map prettyIndex indices)
