@@ -444,7 +444,7 @@ evalExprShallow env (IApplyExpr func args) = do
         newApplyObjThunkRef env f args') t >>= fromTensor >>= removeDF
     Value (MemoizedFunc hashRef env' names body) -> do
       args <- mapM (evalExprDeep env) args
-      evalMemoizedFunc hashRef env' names body args
+      evalMemoizedFunc hashRef env' names body args >>= removeDF
     _ -> do
       let args' = map (newThunk env) args
       applyObj env func args' >>= removeDF
@@ -455,14 +455,14 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
   let args' = map WHNF (zipWith appendDF [1..] args)
   case func of
     Value (TensorData t@Tensor{}) ->
-      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor
+      tMap (\f -> newApplyObjThunkRef env (Value f) args') t >>= fromTensor >>= removeDF
     ITensor t@Tensor{} ->
       tMap (\f -> do
         f <- evalRef f
-        newApplyObjThunkRef env f args') t >>= fromTensor
+        newApplyObjThunkRef env f args') t >>= fromTensor >>= removeDF
     Value (MemoizedFunc hashRef env names body) -> do
       args <- mapM evalWHNF args
-      evalMemoizedFunc hashRef env names body args
+      evalMemoizedFunc hashRef env names body args >>= removeDF
     _ -> applyObj env func args' >>= removeDF
 
 evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info

@@ -174,12 +174,16 @@ transIndex is js ns = do
 tTranspose :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose is t@(Tensor _ _ js) | length is > length js =
   return t
+--tTranspose is t@(Tensor ns _ js) | length is == length js = do
+--  ns' <- transIndex js is ns
+--  xs' <- mapM (transIndex is js) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
+--  return (Tensor ns' xs' is)
 tTranspose is t@(Tensor ns _ js) = do
   let js' = take (length is) js
   let ds = complementWithDF ns is
   ns' <- transIndex (js' ++ ds) (is ++ ds) ns
   xs' <- mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
-  return $ Tensor ns' xs' is
+  return (Tensor ns' xs' is)
 
 tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tTranspose' is t@(Tensor _ _ js) =
@@ -237,7 +241,7 @@ tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
 tMap f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
-  return $ Tensor ns xs' js
+  removeDFFromTensor (Tensor ns xs' js)
 tMap f (Scalar x) = Scalar <$> f x
 
 tMap2 :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
@@ -252,7 +256,7 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
   let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
-  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret
+  tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret >>= removeDFFromTensor
  where
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
@@ -313,7 +317,7 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                               tProduct f rt1 rt2)
                    (enumTensorIndices cns1)
       let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex (head rts'))
-      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret
+      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret >>= removeDFFromTensor
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
