@@ -58,7 +58,7 @@ import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.IInfer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
-import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT, desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
+import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
 import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
@@ -297,19 +297,30 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                         -- Collect for evaluation after all definitions are bound
                         return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
     ) (([], []), [], [], []) exprs
-  
+
+  -- Dump typed AST BEFORE evaluation (so dumps are available even if evaluation fails)
+  -- This is important for debugging - we want to see the typed AST even when there are runtime errors
+  when (optDumpTyped opts && shouldDumpTyped) $ do
+    dumpTyped typedExprs
+
+  when (optDumpTi opts && shouldDumpTyped) $ do
+    dumpTi tiExprs
+
+  when (optDumpTc opts && shouldDumpTyped) $ do
+    dumpTc tcExprs
+
   -- Phase 9: Bind all definitions together using recursiveBind
   -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
   env' <- recursiveBind env allBindings
-  
+
   -- Phase 10: Evaluate non-definition expressions in order
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
       evalResult <- catchError
         (Right <$> evalTopExpr' currentEnv iExpr)
         (\err -> do
-          liftIO $ hPutStrLn stderr $ "Evaluation error (continuing to preserve typed AST): " ++ show err
+          liftIO $ hPutStrLn stderr $ "Evaluation error: " ++ show err
           return $ Left err)
-      
+
       case evalResult of
         Left _ -> return (lastVal, currentEnv)
         Right (mVal, env'') -> do
@@ -318,18 +329,6 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             Just val -> valueToStr val >>= liftIO . putStrLn
           return (mVal, env'')
     ) (Nothing, env') nonDefExprs
-  
-  -- Dump typed AST if requested and shouldDumpTyped is True
-  when (optDumpTyped opts && shouldDumpTyped) $ do
-    dumpTyped typedExprs
-
-  -- Dump TensorMap-inserted AST if requested
-  when (optDumpTi opts && shouldDumpTyped) $ do
-    dumpTi tiExprs
-
-  -- Dump TypeClass-expanded AST if requested
-  when (optDumpTc opts && shouldDumpTyped) $ do
-    dumpTc tcExprs
 
   return (lastVal, finalEnv)
 
