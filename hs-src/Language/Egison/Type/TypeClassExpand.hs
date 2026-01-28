@@ -337,11 +337,17 @@ expandTypeClassMethodsT tiExpr = do
                           methodConstraint = Constraint className tyArg
                           methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
                           dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
-                          indexExpr = TIExpr (Forall [] [] TString) 
+                          indexExpr = TIExpr (Forall [] [] TString)
                                             (TIConstantExpr (StringExpr (pack methodKey)))
                           dictAccess = TIExpr methodScheme $
                                        TIIndexedExpr False dictExpr [Sub indexExpr]
-                          body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
+                          -- Calculate result type after applying all parameters
+                          resultType = applyParamsToType methodType (length paramExprs)
+                          -- Fully applied results don't need constraints
+                          bodyScheme = case resultType of
+                                         TFun _ _ -> methodScheme  -- Partial application
+                                         _ -> Forall [] [] resultType  -- Fully applied: no constraints
+                          body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
                       return $ TILambdaExpr Nothing paramVars body
                     _ -> do
                       -- Concrete type: find matching instance
@@ -378,11 +384,17 @@ expandTypeClassMethodsT tiExpr = do
                               dictArgs <- mapM (resolveDictionaryArg classEnv') (instContext inst)
                               return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
 
-                          let indexExpr = TIExpr (Forall [] [] TString) 
+                          let indexExpr = TIExpr (Forall [] [] TString)
                                                (TIConstantExpr (StringExpr (pack methodKey)))
                               dictAccess = TIExpr methodScheme $
                                            TIIndexedExpr False dictExprBase [Sub indexExpr]
-                              body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
+                              -- Calculate result type after applying all parameters
+                              resultType = applyParamsToType methodType (length paramExprs)
+                              -- Fully applied results don't need constraints
+                              bodyScheme = case resultType of
+                                             TFun _ _ -> methodScheme  -- Partial application
+                                             _ -> Forall [] [] resultType  -- Fully applied: no constraints
+                              body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
                           return $ TILambdaExpr Nothing paramVars body
                         Nothing -> checkConstrainedVariable
                 Nothing -> checkConstrainedVariable
@@ -534,7 +546,15 @@ expandTypeClassMethodsT tiExpr = do
     getParamTypes :: Type -> [Type]
     getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
     getParamTypes _ = []
-    
+
+    -- Helper to apply N parameters to a function type and get the result type
+    -- applyParamsToType (a -> b -> c) 2 = c
+    -- applyParamsToType (a -> b -> c) 1 = b -> c
+    applyParamsToType :: Type -> Int -> Type
+    applyParamsToType (TFun _ t2) n
+      | n > 0 = applyParamsToType t2 (n - 1)
+    applyParamsToType t _ = t  -- n == 0 or no more function types
+
     -- Try to resolve a method call using type class constraints
     -- Dictionary passing: convert method calls to dictionary access
     tryResolveMethodCall :: ClassEnv -> [Constraint] -> String -> [TIExpr] -> EvalM (Maybe TIExprNode)
@@ -1172,6 +1192,14 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     getParamTypes :: Type -> [Type]
     getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
     getParamTypes _ = []
+
+    -- Helper to apply N parameters to a function type and get the result type
+    -- applyParamsToType (a -> b -> c) 2 = c
+    -- applyParamsToType (a -> b -> c) 1 = b -> c
+    applyParamsToType :: Type -> Int -> Type
+    applyParamsToType (TFun _ t2) n
+      | n > 0 = applyParamsToType t2 (n - 1)
+    applyParamsToType t _ = t  -- n == 0 or no more function types
 
 -- | Apply dictionaries to expressions with concrete type constraints
 -- This is used for top-level definitions like: def integer : Matcher Integer := eq

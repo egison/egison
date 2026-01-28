@@ -23,10 +23,10 @@ def .' : Tensor MathExpr -> Tensor MathExpr -> Tensor MathExpr :=
       (\tmap2_arg1 tmap2_arg2 -> 
         (tensorMap2 
           (+' : MathExpr -> MathExpr -> MathExpr) 
-          (tmap2_arg1 : MathExpr) 
-          (tmap2_arg2 : MathExpr) 
-        : MathExpr) 
-      : MathExpr -> MathExpr -> MathExpr) 
+          (tmap2_arg1 : Tensor MathExpr) 
+          (tmap2_arg2 : Tensor MathExpr) 
+        : Tensor MathExpr) 
+      : Tensor MathExpr -> Tensor MathExpr -> Tensor MathExpr) 
       (contract 
         ((*' : MathExpr -> MathExpr -> MathExpr) 
           (t1 : MathExpr) 
@@ -67,53 +67,58 @@ def . : {Num t0} Tensor t0 -> Tensor t0 -> Tensor t0 :=
       (\tmap2_arg1 tmap2_arg2 -> 
         (tensorMap2 
           (+ : {Num t0} t0 -> t0 -> t0) 
-          (tmap2_arg1 : t0) 
-          (tmap2_arg2 : t0) 
-        : t0) 
-      : {Num t0, Num t0} t0 -> t0 -> t0)   ← 注：重複した制約
+          (tmap2_arg1 : Tensor t0)
+          (tmap2_arg2 : Tensor t0)
+        : Tensor t0) 
+      : Tensor t0 -> Tensor t0 -> Tensor t0) 
       (contract 
         (tensorMap2 
           (\tmapVar1 tmapVar0 -> 
-            ((* : {Num t0} a -> a -> a)     ← 注：aという型変数
+            ((* : {Num t0} t0 -> t0 -> t0) 
               (tmapVar1 : t0) 
               (tmapVar0 : t0) 
-            : {Num t0} a)                   ← 注：不要な制約
-          : {Num t0} t0 -> t0 -> a)         ← 注：不要な制約
+            : t0) 
+          : t0 -> t0 -> t0) 
           (t1 : Tensor t0) 
           (t2 : Tensor t0) 
-        : Tensor t0)
+        : Tensor t0) 
       : [Tensor t0]) 
     : t0) 
   : Tensor t0 -> Tensor t0 -> t0)
 ```
 
-tensorMap2を挿入するために作られた関数の型がおかしい。
-まずこれらには、クラス制約を付加する必要はない。
-また、tmap2_artNの型はTensor t0とすべきで、t0のままではない。
-正しくは下記のようにあるべき。
+上記の結果も正しい。
 
+--dump-tcの結果
 ```
-def . : {Num t0} Tensor t0 -> Tensor t0 -> Tensor t0 := 
-  (\t1 t2 -> 
+[283] def . : {Num t0} Tensor t0 -> Tensor t0 -> Tensor t0 := 
+  (\dict_Num t1 t2 -> 
     ((foldl1 : (t0 -> Tensor t0 -> t0) -> [Tensor t0] -> t0) 
       (\tmap2_arg1 tmap2_arg2 -> 
         (tensorMap2 
-          (+ : {Num t0} t0 -> t0 -> t0) 
-          (tmap2_arg1 : t0) 
-          (tmap2_arg2 : t0) 
-        : t0) 
-      : Tensor t0 -> Tensor t0 -> Tensor t0)   ← 注：型制約なし、テンソル型
+          (\etaVar1 etaVar2 -> 
+            (((dict_Num : Hash String _)_("plus" : String) 
+              : {Num t0} t0 -> t0 -> t0) 
+              (etaVar1 : t0) 
+              (etaVar2 : t0) 
+            : t0) 
+          : {Num t0} t0 -> t0 -> t0) 
+          (tmap2_arg1 : Tensor t0) 
+          (tmap2_arg2 : Tensor t0) 
+        : Tensor t0) 
+      : Tensor t0 -> Tensor t0 -> Tensor t0) 
       (contract 
         (tensorMap2 
           (\tmapVar1 tmapVar0 -> 
-            ((* : {Num t0} t0 -> t0 -> t0)     ← 注：t0型
+            (((dict_Num : Hash String _)_("times" : String) 
+              : {Num t0} t0 -> t0 -> t0) 
               (tmapVar1 : t0) 
               (tmapVar0 : t0) 
-            : t0)                   ← 注：不要な制約なし、t0型
-          : Tensor t0 -> Tensor t0 -> Tensor t0)         ← 注：不要な制約なし、Tensor t0型
+            : t0) 
+          : t0 -> t0 -> t0) 
           (t1 : Tensor t0) 
           (t2 : Tensor t0) 
-        : Tensor t0)
+        : Tensor t0) 
       : [Tensor t0]) 
     : t0) 
   : Tensor t0 -> Tensor t0 -> t0)
