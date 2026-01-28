@@ -525,7 +525,7 @@ instance {-# OVERLAPPING #-} Show (Index EgisonValue) where
   show (User i) = case i of
     ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
     _                                                 -> "|" ++ show i
-  show (DF i j) = "_d" ++ show i ++ show j
+  show (DF i j) = "_df-" ++ show i ++ "-" ++ show j
 
 nullEnv :: Env
 nullEnv = Env [] Nothing

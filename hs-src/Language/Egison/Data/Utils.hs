@@ -88,7 +88,7 @@ showIndexPattern = map showIndex
     showIndex (SupSub Nothing) = "~_?"
     showIndex (User (Just (Var name []))) = "@" ++ name
     showIndex (User Nothing) = "@?"
-    showIndex (DF id n) = "_d" ++ show id ++ show n
+    showIndex (DF id n) = "_df-" ++ show id ++ "-" ++ show n
     showIndex _ = "?"
 
 -- | Convert actual Index values to human-readable strings for error messages
@@ -99,7 +99,7 @@ showIndexValues = map showIndexValue
     showIndexValue (Sup val) = "~<val>"
     showIndexValue (SupSub val) = "~_<val>"
     showIndexValue (User val) = "@<val>"
-    showIndexValue (DF id n) = "_d" ++ show id ++ show n
+    showIndexValue (DF id n) = "_df-" ++ show id ++ "-" ++ show n
     showIndexValue (MultiSub val s _) = "_(..." ++ show s ++ "...)"
     showIndexValue (MultiSup val s _) = "~(..." ++ show s ++ "...)"
 
