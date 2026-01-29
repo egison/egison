@@ -141,31 +141,17 @@ applyOneArgType t = t  -- No more arguments
 --
 -- Examples:
 -- - {Num t0} t0: Tensor a doesn't have Num instance → cannot unify → scalar type (True)
--- - Tensor t0: Can unify with Tensor a → not a scalar type (False)
--- - Integer: Can unify with Tensor a (unconstrained) → not a scalar type (False)
---   BUT we want Integer to be treated as scalar, so we add a special case
--- - Unconstrained type variable: Can unify with Tensor a → not a scalar type (False)
+-- - Tensor t0: Tensor t0 unifies with Tensor a → not a scalar type (False)
+-- - Integer: Integer doesn't unify with Tensor a (concrete type mismatch) → scalar type (True)
+-- - Unconstrained type variable a: can unify with Tensor b → not a scalar type (False)
 isPotentialScalarType :: ClassEnv -> [Constraint] -> Type -> Bool
-isPotentialScalarType classEnv constraints ty = case ty of
-  -- Concrete scalar types are always scalar (special case)
-  TInt -> True
-  TFloat -> True
-  TMathExpr -> True
-  TChar -> True
-  TString -> True
-  TBool -> True
-
-  -- Tensor types are never scalar
-  TTensor _ -> False
-
-  -- For type variables and other types, check if they can unify with Tensor a
-  _ ->
-    -- Create a fresh type variable 'a' and try to unify ty with Tensor a
-    let freshVar = TyVar "a_scalar_check"
-        tensorType = TTensor (TVar freshVar)
-    in case Unify.unifyStrictWithConstraints classEnv constraints ty tensorType of
-         Right _ -> False  -- Can unify with Tensor a → not scalar
-         Left _  -> True   -- Cannot unify with Tensor a → is scalar
+isPotentialScalarType classEnv constraints ty =
+  -- Create a fresh type variable 'a' and try to unify ty with Tensor a
+  let freshVar = TyVar "a_scalar_check"
+      tensorType = TTensor (TVar freshVar)
+  in case Unify.unifyStrictWithConstraints classEnv constraints ty tensorType of
+       Right _ -> False  -- Can unify with Tensor a → not scalar
+       Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
 -- | Check if a binary function should be wrapped with tensorMap2
 -- A function should be wrapped if:
