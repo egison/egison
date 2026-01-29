@@ -132,12 +132,19 @@ applyOneArgType t = t  -- No more arguments
 -- * Simplified Approach: Always wrap binary functions with tensorMap2
 --------------------------------------------------------------------------------
 
--- | Check if a type is "potentially tensor" - i.e., might be a Tensor at runtime
+-- | Check if a type is a scalar type (not a Tensor type)
+-- A scalar type is one that does NOT unify with Tensor a.
 -- This includes:
--- - Constrained type variables (like {Num a} a)
--- - Scalar types (Integer, Float, MathExpr)
-isPotentiallyTensorType :: [Constraint] -> Type -> Bool
-isPotentiallyTensorType constraints ty = case ty of
+-- - Constrained type variables (like {Num a} a) - these are scalar types
+-- - Concrete scalar types (Integer, Float, MathExpr)
+-- - Function types are excluded by returning False
+--
+-- Returns False for:
+-- - Tensor types (TTensor _)
+-- - Unconstrained type variables (might be anything)
+-- - Other types that don't represent scalars
+isPotentialScalarType :: [Constraint] -> Type -> Bool
+isPotentialScalarType constraints ty = case ty of
   TVar tyVar -> hasNumericConstraint tyVar constraints
   TInt -> True
   TFloat -> True
@@ -158,17 +165,17 @@ isPotentiallyTensorType constraints ty = case ty of
 
 -- | Check if a binary function should be wrapped with tensorMap2
 -- A function should be wrapped if:
--- 1. It's a binary function (a -> b -> c where c is not a function)
--- 2. Both parameter types are "potentially tensor"
+-- 1. It's a binary function (a -> b -> c)
+-- 2. Both parameter types are scalar types (not Tensor types)
+--
+-- For example:
+-- - (+) : {Num a} a -> a -> a  -- Both params are scalar → wrap with tensorMap2
+-- - (.) : {Num a} Tensor a -> Tensor a -> Tensor a  -- Both params are Tensor → do NOT wrap
 shouldWrapWithTensorMap2 :: [Constraint] -> Type -> Bool
 shouldWrapWithTensorMap2 constraints ty = case ty of
-  TFun param1 (TFun param2 result)
-    | not (isFunctionType result) ->
-        isPotentiallyTensorType constraints param1 &&
-        isPotentiallyTensorType constraints param2
-    where
-      isFunctionType (TFun _ _) = True
-      isFunctionType _ = False
+  TFun param1 (TFun param2 _result) ->
+      isPotentialScalarType constraints param1 &&
+      isPotentialScalarType constraints param2
   _ -> False
 
 -- | Wrap a binary function expression with tensorMap2
@@ -305,7 +312,8 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
 
         -- Apply simplified approach: wrap binary function arguments with tensorMap2
-        -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped
+        -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped because (+) is a binary function that takes two scalar arguments
+        -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
         -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
         let (Forall _ funcConstraints _) = tiScheme func'
             baseConstraints = cs ++ funcConstraints
