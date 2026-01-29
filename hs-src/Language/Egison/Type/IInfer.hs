@@ -1097,22 +1097,23 @@ inferIExprWithContext expr ctx = case expr of
         -- nextMatcherType must be a Matcher type
         -- Unify with Matcher a to constrain it and detect errors early
         matcherInnerTy <- freshVar "matcherInner"
-        s1' <- unifyTypesWithContext (applySubst s1 nextMatcherType) (TMatcher matcherInnerTy) ctx
-        let nextMatcherType' = applySubst s1' nextMatcherType
+        nextMatcherType' <- applySubstWithConstraintsM s1 nextMatcherType
+        s1' <- unifyTypesWithContext nextMatcherType' (TMatcher matcherInnerTy) ctx
+        nextMatcherType'' <- applySubstWithConstraintsM s1' nextMatcherType
         
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
         (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
         let s1'' = composeSubst s_pp s1'
-            matchedType' = applySubst s1'' matchedType
-            -- Apply substitution to variable bindings
+        matchedType' <- applySubstWithConstraintsM s1'' matchedType
+        let -- Apply substitution to variable bindings
             ppBindings' = [(var, applySubstScheme s1'' scheme) | (var, scheme) <- ppBindings]
-        
+
         -- Apply substitution to pattern hole types (keep as inner types)
-        let patternHoleTypes' = map (applySubst s1'') patternHoleTypes
-        
+        patternHoleTypes' <- mapM (applySubstWithConstraintsM s1'') patternHoleTypes
+
         -- Extract inner type(s) from next matcher type
         -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
-        nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType' (length patternHoleTypes') ctx
+        nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
         
         -- Unify pattern hole types (inner types) with next matcher inner types
         s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx
@@ -1177,8 +1178,10 @@ inferIExprWithContext expr ctx = case expr of
               finalSubst = foldr composeSubst emptySubst substs
           
           -- Matched type is tuple of matched types
-          let matchedTy = TTuple (map (applySubst finalSubst) matchedTypes)
-          return (matchedTy, map (applySubst finalSubst) allPatternHoles, allBindings, finalSubst)
+          matchedTypes' <- mapM (applySubstWithConstraintsM finalSubst) matchedTypes
+          allPatternHoles' <- mapM (applySubstWithConstraintsM finalSubst) allPatternHoles
+          let matchedTy = TTuple matchedTypes'
+          return (matchedTy, allPatternHoles', allBindings, finalSubst)
         
         PPInductivePat name ppPats -> do
           -- Inductive pattern: look up pattern constructor type from pattern environment
@@ -1220,11 +1223,15 @@ inferIExprWithContext expr ctx = case expr of
                         TMatcher inner -> inner
                         _ -> ty) argTypes
                   s' <- foldM (\accS (inferredTy, expectedTy) -> do
-                      s'' <- unifyTypesWithContext (applySubst accS inferredTy) (applySubst accS expectedTy) ctx
+                      inferredTy' <- applySubstWithConstraintsM accS inferredTy
+                      expectedTy' <- applySubstWithConstraintsM accS expectedTy
+                      s'' <- unifyTypesWithContext inferredTy' expectedTy' ctx
                       return $ composeSubst s'' accS
                     ) s (zip matchedTypes expectedMatchedTypes)
-                  
-                  return (applySubst s' resultType, map (applySubst s') allPatternHoles, allBindings, s')
+
+                  resultType' <- applySubstWithConstraintsM s' resultType
+                  allPatternHoles' <- mapM (applySubstWithConstraintsM s') allPatternHoles
+                  return (resultType', allPatternHoles', allBindings, s')
             
             Nothing -> do
               -- Not found in pattern environment: use generic inference
@@ -1239,8 +1246,10 @@ inferIExprWithContext expr ctx = case expr of
                   s = foldr composeSubst emptySubst substs
               
               -- Result type is inductive type
-              let resultType = TInductive name (map (applySubst s) matchedTypes)
-              return (resultType, map (applySubst s) allPatternHoles, allBindings, s)
+              matchedTypes' <- mapM (applySubstWithConstraintsM s) matchedTypes
+              allPatternHoles' <- mapM (applySubstWithConstraintsM s) allPatternHoles
+              let resultType = TInductive name matchedTypes'
+              return (resultType, allPatternHoles', allBindings, s)
       
       -- Extract function argument types and result type
       -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
@@ -1265,7 +1274,9 @@ inferIExprWithContext expr ctx = case expr of
         | otherwise = do
             -- Unify each pattern hole type with corresponding next matcher type
             foldM (\accS (holeTy, matcherTy) -> do
-                s <- unifyTypesWithContext (applySubst accS holeTy) (applySubst accS matcherTy) ctx
+                holeTy' <- applySubstWithConstraintsM accS holeTy
+                matcherTy' <- applySubstWithConstraintsM accS matcherTy
+                s <- unifyTypesWithContext holeTy' matcherTy' ctx
                 return $ composeSubst s accS
               ) emptySubst (zip patternHoles nextMatchers)
       
@@ -1358,19 +1369,23 @@ inferIExprWithContext expr ctx = case expr of
         -- targetType: type of next targets returned by the target expression
         
         -- Verify that pdTargetType is consistent with matchedType
-        s_match <- unifyTypesWithContext (applySubst s_pd pdTargetType) (applySubst s_pd matchedType) ctx
+        pdTargetType' <- applySubstWithConstraintsM s_pd pdTargetType
+        matchedType' <- applySubstWithConstraintsM s_pd matchedType
+        s_match <- unifyTypesWithContext pdTargetType' matchedType' ctx
         let s_pd' = composeSubst s_match s_pd
-        
+
         -- Infer the target expression with pattern variables in scope
         (targetTI, s1) <- withEnv bindings $ inferIExprWithContext targetExpr ctx
         let exprType = tiExprType targetTI
             s_combined = composeSubst s1 s_pd'
-        
+
         -- Unify with actual expression type
         -- Expected: [targetType]
-        let expectedType = TCollection (applySubst s_combined targetType)
-        
-        s2 <- unifyTypesWithContext (applySubst s_combined exprType) expectedType ctx
+        targetType' <- applySubstWithConstraintsM s_combined targetType
+        let expectedType = TCollection targetType'
+
+        exprType' <- applySubstWithConstraintsM s_combined exprType
+        s2 <- unifyTypesWithContext exprType' expectedType ctx
         return $ composeSubst s2 s_combined
       
       -- Helper to check if a pattern is a pattern variable
@@ -1423,7 +1438,8 @@ inferIExprWithContext expr ctx = case expr of
               let (_, bindingsList, substs) = unzip3 results
                   allBindings = concat bindingsList
                   s' = foldr composeSubst s substs
-              return (applySubst s' tupleTy, allBindings, s')
+              tupleTy' <- applySubstWithConstraintsM s' tupleTy
+              return (tupleTy', allBindings, s')
             
             _ -> do
               -- Type mismatch
@@ -1613,74 +1629,93 @@ inferIExprWithContext expr ctx = case expr of
           let mathExprTy = TMathExpr
               fnTy = TFun mathExprTy mathExprTy
           (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
-          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg (applySubst s1 mathExprTy) ctx
+          mathExprTy' <- applySubstWithConstraintsM s1 mathExprTy
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg mathExprTy' ctx
           let s = composeSubst s2 s1
-          return (applySubst s expectedType, bindings1 ++ bindings2, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings1 ++ bindings2, s)
         
         PDApply2Pat patFn patArg1 patArg2 -> do
           let mathExprTy = TMathExpr
               fnTy = TFun mathExprTy (TFun mathExprTy mathExprTy)
           (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
-          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
-          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
+          mathExprTy1 <- applySubstWithConstraintsM s1 mathExprTy
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 mathExprTy1 ctx
+          mathExprTy2 <- applySubstWithConstraintsM s2 mathExprTy
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 mathExprTy2 ctx
           let s = composeSubst s3 (composeSubst s2 s1)
-          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings1 ++ bindings2 ++ bindings3, s)
         
         PDApply3Pat patFn patArg1 patArg2 patArg3 -> do
           let mathExprTy = TMathExpr
               fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy))
           (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
-          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
-          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
-          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
+          mathExprTy1 <- applySubstWithConstraintsM s1 mathExprTy
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 mathExprTy1 ctx
+          mathExprTy2 <- applySubstWithConstraintsM s2 mathExprTy
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 mathExprTy2 ctx
+          mathExprTy3 <- applySubstWithConstraintsM s3 mathExprTy
+          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 mathExprTy3 ctx
           let s = composeSubst s4 (composeSubst s3 (composeSubst s2 s1))
-          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3 ++ bindings4, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings1 ++ bindings2 ++ bindings3 ++ bindings4, s)
         
         PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4 -> do
           let mathExprTy = TMathExpr
               fnTy = TFun mathExprTy (TFun mathExprTy (TFun mathExprTy (TFun mathExprTy mathExprTy)))
           (_, bindings1, s1) <- inferPrimitiveDataPattern patFn fnTy ctx
-          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 (applySubst s1 mathExprTy) ctx
-          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 (applySubst s2 mathExprTy) ctx
-          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 (applySubst s3 mathExprTy) ctx
-          (_, bindings5, s5) <- inferPrimitiveDataPattern patArg4 (applySubst s4 mathExprTy) ctx
+          mathExprTy1 <- applySubstWithConstraintsM s1 mathExprTy
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArg1 mathExprTy1 ctx
+          mathExprTy2 <- applySubstWithConstraintsM s2 mathExprTy
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patArg2 mathExprTy2 ctx
+          mathExprTy3 <- applySubstWithConstraintsM s3 mathExprTy
+          (_, bindings4, s4) <- inferPrimitiveDataPattern patArg3 mathExprTy3 ctx
+          mathExprTy4 <- applySubstWithConstraintsM s4 mathExprTy
+          (_, bindings5, s5) <- inferPrimitiveDataPattern patArg4 mathExprTy4 ctx
           let s = composeSubst s5 (composeSubst s4 (composeSubst s3 (composeSubst s2 s1)))
-          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3 ++ bindings4 ++ bindings5, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings1 ++ bindings2 ++ bindings3 ++ bindings4 ++ bindings5, s)
         
         PDQuotePat patExpr -> do
           -- Quote: SymbolExpr -> MathExpr
           let mathExprTy = TMathExpr
           (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
-          return (applySubst s expectedType, bindings, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings, s)
         
         PDFunctionPat patName patArgs patKwargs -> do
           -- Function: SymbolExpr -> MathExpr, [MathExpr], [MathExpr]
           let mathExprTy = TMathExpr
           (_, bindings1, s1) <- inferPrimitiveDataPattern patName mathExprTy ctx
-          (_, bindings2, s2) <- inferPrimitiveDataPattern patArgs 
-                                  (applySubst s1 (TCollection mathExprTy)) ctx
-          (_, bindings3, s3) <- inferPrimitiveDataPattern patKwargs 
-                                  (applySubst s2 (TCollection mathExprTy)) ctx
+          argsCollTy <- applySubstWithConstraintsM s1 (TCollection mathExprTy)
+          (_, bindings2, s2) <- inferPrimitiveDataPattern patArgs argsCollTy ctx
+          kwargsCollTy <- applySubstWithConstraintsM s2 (TCollection mathExprTy)
+          (_, bindings3, s3) <- inferPrimitiveDataPattern patKwargs kwargsCollTy ctx
           let s = composeSubst s3 (composeSubst s2 s1)
-          return (applySubst s expectedType, bindings1 ++ bindings2 ++ bindings3, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings1 ++ bindings2 ++ bindings3, s)
         
         PDSubPat patExpr -> do
           -- Sub: IndexExpr -> MathExpr
           let mathExprTy = TMathExpr
           (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
-          return (applySubst s expectedType, bindings, s)
-        
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings, s)
+
         PDSupPat patExpr -> do
           -- Sup: IndexExpr -> MathExpr
           let mathExprTy = TMathExpr
           (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
-          return (applySubst s expectedType, bindings, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings, s)
         
         PDUserPat patExpr -> do
           -- User: IndexExpr -> MathExpr
           let mathExprTy = TMathExpr
           (_, bindings, s) <- inferPrimitiveDataPattern patExpr mathExprTy ctx
-          return (applySubst s expectedType, bindings, s)
+          expectedType' <- applySubstWithConstraintsM s expectedType
+          return (expectedType', bindings, s)
   
   -- Match expressions (pattern matching)
   IMatchExpr mode target matcher clauses -> do
