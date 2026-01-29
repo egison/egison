@@ -119,12 +119,13 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
    t0 ≈ Tensor t1
    ```
 
-   しかし `{Num t0}` という制約があるため:
+   統一の結果、代入 `t0 = Tensor t1` が得られる。
+
+   しかし、この代入を適用する際に `{Num t0}` という制約があるため:
    - `applySubstWithConstraintsM` が呼ばれる (IInfer.hs:527-568)
    - `adjustSubstForConstraints` が制約をチェック
    - `Num` インスタンスが `Tensor t1` に存在しないことを検出
-   - 型を unwrap: `Tensor t1` → `t1`
-   - 最終的な統一: `t0 = t1` (unwrap後)
+   - 代入を調整: `t0 = Tensor t1` → `t0 = t1` (unwrap)
 
 4. 結果型:
    ```
