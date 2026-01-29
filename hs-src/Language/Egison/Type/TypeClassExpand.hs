@@ -875,28 +875,11 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
   | null constraints = return tiExpr  -- No constraints, no change
   | otherwise = do
       classEnv <- getClassEnv
-      -- Resolve constraints using instance information
-      -- This handles the case where Tensor T needs to use T's instance
-      let resolvedConstraints = resolveConstraints classEnv constraints
-      addDictParamsToTIExpr classEnv resolvedConstraints tiExpr
+      -- Note: No need to resolve Tensor constraints here because TensorMapInsertion
+      -- runs before TypeClassExpand, so tensor operations are already handled.
+      -- The execution order is: insertTensorMaps -> expandTypeClassMethodsT
+      addDictParamsToTIExpr classEnv constraints tiExpr
   where
-    -- Resolve constraints based on available instances
-    resolveConstraints :: ClassEnv -> [Constraint] -> [Constraint]
-    resolveConstraints env cs = map (resolveConstraint env) cs
-    
-    resolveConstraint :: ClassEnv -> Constraint -> Constraint
-    resolveConstraint env c@(Constraint className ty) = case ty of
-      TTensor elemType ->
-        let instances = lookupInstances className env
-        in case findMatchingInstanceForType ty instances of
-             Just _ -> c  -- Tensor instance exists, use it
-             Nothing -> 
-               -- No Tensor instance, try element type
-               case findMatchingInstanceForType elemType instances of
-                 Just _ -> Constraint className elemType
-                 Nothing -> c
-      _ -> c
-    
     -- Add dictionary parameters to a TIExpr
     addDictParamsToTIExpr :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     addDictParamsToTIExpr env cs expr = case tiExprNode expr of
