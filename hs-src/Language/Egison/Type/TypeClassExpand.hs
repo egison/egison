@@ -1009,7 +1009,28 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
       _ -> do
         let dictParams = map constraintToDictParam cs
             dictVars = map stringToVar dictParams
-        expr' <- replaceMethodCallsWithDictAccessT env cs expr
+        -- Special handling for TIVarExpr: if it's a constrained variable, apply dictionaries
+        expr' <- case tiExprNode expr of
+          TIVarExpr varName -> do
+            -- Check if this variable has constraints that match our constraints
+            typeEnv <- getTypeEnv
+            case lookupEnv (stringToVar varName) typeEnv of
+              Just (Forall _ varConstraints _) | not (null varConstraints) -> do
+                -- Check which constraints from varConstraints match parent constraints cs
+                let (Forall _ exprConstraints exprType) = tiScheme expr
+                    matchingConstraints = filter (\(Constraint eName eType) ->
+                          any (\(Constraint pName pType) ->
+                            eName == pName && eType == pType) cs) exprConstraints
+                if null matchingConstraints
+                  then replaceMethodCallsWithDictAccessT env cs expr
+                  else do
+                    -- Apply matching dictionary parameters
+                    let dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p))
+                                           (map constraintToDictParam matchingConstraints)
+                        varExpr = TIExpr (tiScheme expr) (TIVarExpr varName)
+                    return $ TIExpr (tiScheme expr) (TIApplyExpr varExpr dictArgExprs)
+              _ -> replaceMethodCallsWithDictAccessT env cs expr
+          _ -> replaceMethodCallsWithDictAccessT env cs expr
         let wrapperType = tiExprType expr
             newNode = TILambdaExpr Nothing dictVars expr'
             newScheme = Forall [] [] wrapperType
@@ -1062,22 +1083,9 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 return $ TILambdaExpr Nothing paramVars body
               Nothing -> return $ TIVarExpr methodName
           Nothing -> do
-            -- Not a method - check if it's a constrained variable (e.g., dotProduct)
-            -- and the expression itself has constraints that match the parent constraints
-            if not (null exprConstraints)
-              then do
-                -- Check which constraints from exprConstraints match parent constraints cs
-                let matchingConstraints = filter (\(Constraint eName _) ->
-                      any (\(Constraint pName _) -> eName == pName) cs) exprConstraints
-                if null matchingConstraints
-                  then return $ TIVarExpr methodName
-                  else do
-                    -- Apply matching dictionary parameters
-                    let dictParams = map constraintToDictParam matchingConstraints
-                        dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p)) dictParams
-                        varExpr = TIExpr (Forall [] exprConstraints (TVar (TyVar "var"))) (TIVarExpr methodName)
-                    return $ TIApplyExpr varExpr dictArgExprs
-              else return $ TIVarExpr methodName
+            -- Not a method - just return the variable as-is
+            -- Dictionary application for constrained variables is handled by expandTypeClassMethodsT
+            return $ TIVarExpr methodName
       
       -- Method call: replace with dictionary access
       TIApplyExpr func args -> do
