@@ -8,7 +8,7 @@ This module provides type substitution operations for the type system.
 {-# LANGUAGE DeriveGeneric #-}
 
 module Language.Egison.Type.Subst
-  ( Subst
+  ( Subst(..)
   , emptySubst
   , singletonSubst
   , composeSubst
