@@ -48,6 +48,99 @@ import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..)
                                             sanitizeMethodName, freeTyVars)
 import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
+-- ============================================================================
+-- Helper Functions (shared across the module)
+-- ============================================================================
+
+-- | Extract type variable substitutions from instance type and actual type
+-- Example: [a] -> [[Integer]] gives [(a, [Integer])]
+extractTypeSubstitutions :: Type -> Type -> [(TyVar, Type)]
+extractTypeSubstitutions instTy actualTy = go instTy actualTy
+  where
+    go (TVar v) actual = [(v, actual)]
+    go (TCollection instElem) (TCollection actualElem) = go instElem actualElem
+    go (TTuple instTypes) (TTuple actualTypes)
+      | length instTypes == length actualTypes =
+          concatMap (\(i, a) -> go i a) (zip instTypes actualTypes)
+    go (TInductive _ instArgs) (TInductive _ actualArgs)
+      | length instArgs == length actualArgs =
+          concatMap (\(i, a) -> go i a) (zip instArgs actualArgs)
+    go (TTensor instElem) (TTensor actualElem) = go instElem actualElem
+    go (TFun instArg instRet) (TFun actualArg actualRet) =
+      go instArg actualArg ++ go instRet actualRet
+    go (THash instK instV) (THash actualK actualV) =
+      go instK actualK ++ go instV actualV
+    go (TMatcher instT) (TMatcher actualT) = go instT actualT
+    go (TIO instT) (TIO actualT) = go instT actualT
+    go (TIORef instT) (TIORef actualT) = go instT actualT
+    go TPort TPort = []
+    go _ _ = []
+
+-- | Apply type substitutions to a constraint
+applySubstsToConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
+applySubstsToConstraint substs (Constraint cName cType) =
+  Constraint cName (applySubstsToType substs cType)
+
+-- | Apply type substitutions to a type
+applySubstsToType :: [(TyVar, Type)] -> Type -> Type
+applySubstsToType substs = go
+  where
+    go t@(TVar v) = case lookup v substs of
+                      Just newType -> newType
+                      Nothing -> t
+    go TInt = TInt
+    go TFloat = TFloat
+    go TBool = TBool
+    go TChar = TChar
+    go TString = TString
+    go (TCollection t) = TCollection (go t)
+    go (TTuple ts) = TTuple (map go ts)
+    go (TInductive name ts) = TInductive name (map go ts)
+    go (TTensor t) = TTensor (go t)
+    go (THash k v) = THash (go k) (go v)
+    go (TMatcher t) = TMatcher (go t)
+    go (TFun t1 t2) = TFun (go t1) (go t2)
+    go (TIO t) = TIO (go t)
+    go (TIORef t) = TIORef (go t)
+    go TPort = TPort
+    go TAny = TAny
+
+-- | Get the arity of a function type (number of parameters)
+getMethodArity :: Type -> Int
+getMethodArity (TFun _ t2) = 1 + getMethodArity t2
+getMethodArity _ = 0
+
+-- | Get parameter types from a function type
+getParamTypes :: Type -> [Type]
+getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
+getParamTypes _ = []
+
+-- | Apply N parameters to a function type and get the result type
+-- applyParamsToType (a -> b -> c) 2 = c
+-- applyParamsToType (a -> b -> c) 1 = b -> c
+applyParamsToType :: Type -> Int -> Type
+applyParamsToType (TFun _ t2) n
+  | n > 0 = applyParamsToType t2 (n - 1)
+applyParamsToType t _ = t  -- n == 0 or no more function types
+
+-- | Lowercase first character of a string
+lowerFirst :: String -> String
+lowerFirst [] = []
+lowerFirst (c:cs) = toLower c : cs
+
+-- | Find a constraint that provides the given method
+findConstraintForMethod :: ClassEnv -> String -> [Constraint] -> Maybe Constraint
+findConstraintForMethod env methodName cs =
+  find (\(Constraint className _) ->
+    case lookupClass className env of
+      Just classInfo -> methodName `elem` map fst (classMethods classInfo)
+      Nothing -> False
+  ) cs
+
+-- ============================================================================
+-- Main Type Class Expansion
+-- ============================================================================
+
 -- | Expand type class method calls in a typed expression (TIExpr)
 -- This function recursively processes TIExpr and replaces type class method calls
 -- with dictionary-based dispatch.
@@ -536,24 +629,6 @@ expandTypeClassMethodsT tiExpr = do
       end' <- expandTIExprWithConstraints classEnv' end
       rangePat' <- expandTIPattern classEnv' rangePat
       return $ TILoopRange start' end' rangePat'
-    
-    -- Helper to get method arity
-    getMethodArity :: Type -> Int
-    getMethodArity (TFun _ t2) = 1 + getMethodArity t2
-    getMethodArity _ = 0
-    
-    -- Helper to get parameter types from function type
-    getParamTypes :: Type -> [Type]
-    getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
-    getParamTypes _ = []
-
-    -- Helper to apply N parameters to a function type and get the result type
-    -- applyParamsToType (a -> b -> c) 2 = c
-    -- applyParamsToType (a -> b -> c) 1 = b -> c
-    applyParamsToType :: Type -> Int -> Type
-    applyParamsToType (TFun _ t2) n
-      | n > 0 = applyParamsToType t2 (n - 1)
-    applyParamsToType t _ = t  -- n == 0 or no more function types
 
     -- Try to resolve a method call using type class constraints
     -- Dictionary passing: convert method calls to dictionary access
@@ -685,65 +760,9 @@ expandTypeClassMethodsT tiExpr = do
     -- Extract: a -> [Integer], then apply to constraints {Eq a} -> {Eq [Integer]}
     substituteInstanceConstraints :: Type -> Type -> [Constraint] -> [Constraint]
     substituteInstanceConstraints instType actualType constraints =
-      let substs = extractAllTypeSubsts instType actualType
+      let substs = extractTypeSubstitutions instType actualType
       in map (applySubstsToConstraint substs) constraints
-      where
-        -- Extract all type variable substitutions
-        extractAllTypeSubsts :: Type -> Type -> [(TyVar, Type)]
-        extractAllTypeSubsts instTy actualTy = go instTy actualTy
-          where
-            go (TVar v) actual = [(v, actual)]
-            go (TCollection instElem) (TCollection actualElem) = go instElem actualElem
-            go (TTuple instTypes) (TTuple actualTypes)
-              | length instTypes == length actualTypes =
-                  concatMap (\(i, a) -> go i a) (zip instTypes actualTypes)
-            go (TInductive _ instArgs) (TInductive _ actualArgs)
-              | length instArgs == length actualArgs =
-                  concatMap (\(i, a) -> go i a) (zip instArgs actualArgs)
-            go (TTensor instElem) (TTensor actualElem) = go instElem actualElem
-            go (TFun instArg instRet) (TFun actualArg actualRet) =
-              go instArg actualArg ++ go instRet actualRet
-            go _ _ = []
-        
-        -- Apply multiple substitutions to a constraint
-        applySubstsToConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
-        applySubstsToConstraint substs (Constraint cName cType) =
-          Constraint cName (applySubstsToType substs cType)
-        
-        -- Apply multiple substitutions to a type
-        applySubstsToType :: [(TyVar, Type)] -> Type -> Type
-        applySubstsToType substs = go
-          where
-            go t@(TVar v) = case lookup v substs of
-                              Just newType -> newType
-                              Nothing -> t
-            go TInt = TInt
-            go TFloat = TFloat
-            go TBool = TBool
-            go TChar = TChar
-            go TString = TString
-            go (TCollection t) = TCollection (go t)
-            go (TTuple ts) = TTuple (map go ts)
-            go (TInductive name ts) = TInductive name (map go ts)
-            go (TTensor t) = TTensor (go t)
-            go (THash k v) = THash (go k) (go v)
-            go (TMatcher t) = TMatcher (go t)
-            go (TFun t1 t2) = TFun (go t1) (go t2)
-            go (TIO t) = TIO (go t)
-            go (TIORef t) = TIORef (go t)
-            go TPort = TPort
-            go TAny = TAny
-    
-    
-    -- Find a constraint that provides the given method
-    findConstraintForMethod :: ClassEnv -> String -> [Constraint] -> Maybe Constraint
-    findConstraintForMethod env methodName cs = 
-      find (\(Constraint className _) ->
-        case lookupClass className env of
-          Just classInfo -> methodName `elem` map fst (classMethods classInfo)
-          Nothing -> False
-      ) cs
-    
+
     -- Resolve a constraint to a dictionary argument (with depth limit to prevent infinite recursion)
     resolveDictionaryArg :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryArg classEnv constraint = resolveDictionaryArgWithDepth classEnv 50 constraint
@@ -782,18 +801,18 @@ expandTypeClassMethodsT tiExpr = do
                   -- Has constraints: need to resolve them and apply to dictionary
                   -- e.g., for Eq [Integer], resolve {Eq Integer} -> eqInteger
                   -- then return: eqCollection eqInteger
-                  
+
                   -- Substitute type variables in constraints with actual types
                   -- e.g., for instance {Eq a} Eq [a] matched with [[Integer]]
                   -- instType inst = [a], tyArg = [[Integer]]
                   -- Extract: a -> [Integer]
                   -- Apply to constraints: {Eq a} -> {Eq [Integer]}
                   let substs = extractTypeSubstitutions (instType inst) tyArg
-                      substitutedConstraints = map (applyTypeSubstsToConstraint substs) (instContext inst)
-                  
+                      substitutedConstraints = map (applySubstsToConstraint substs) (instContext inst)
+
                   -- Recursively resolve each constraint with reduced depth
                   dictArgs <- mapM (resolveDictionaryArgWithDepth classEnv (depth - 1)) substitutedConstraints
-                  
+
                   -- Apply dictionary function to resolved dictionaries
                   -- e.g., eqCollection eqInteger (when resolving Eq [Integer])
                   --       eqCollection (eqCollection eqInteger) (when resolving Eq [[Integer]])
@@ -801,64 +820,6 @@ expandTypeClassMethodsT tiExpr = do
             Nothing -> do
               -- No instance found - this is an error, but return a dummy for now
               return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
-      where
-        -- Extract type variable substitutions
-        -- e.g., [a] -> [[Integer]] gives [(a, [Integer])]
-        extractTypeSubstitutions :: Type -> Type -> [(TyVar, Type)]
-        extractTypeSubstitutions instTy actualTy = go instTy actualTy
-          where
-            go (TVar v) actual = [(v, actual)]
-            go (TCollection instElem) (TCollection actualElem) = go instElem actualElem
-            go (TTuple instTypes) (TTuple actualTypes)
-              | length instTypes == length actualTypes =
-                  concatMap (\(i, a) -> go i a) (zip instTypes actualTypes)
-            go (TInductive _ instArgs) (TInductive _ actualArgs)
-              | length instArgs == length actualArgs =
-                  concatMap (\(i, a) -> go i a) (zip instArgs actualArgs)
-            go (TTensor instElem) (TTensor actualElem) = go instElem actualElem
-            go (TFun instArg instRet) (TFun actualArg actualRet) =
-              go instArg actualArg ++ go instRet actualRet
-            go (THash instK instV) (THash actualK actualV) =
-              go instK actualK ++ go instV actualV
-            go (TMatcher instT) (TMatcher actualT) = go instT actualT
-            go (TIO instT) (TIO actualT) = go instT actualT
-            go (TIORef instT) (TIORef actualT) = go instT actualT
-            go TPort TPort = []
-            go _ _ = []
-        
-        -- Apply type substitutions to a constraint
-        applyTypeSubstsToConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
-        applyTypeSubstsToConstraint substs (Constraint cName cType) =
-          Constraint cName (applyTypeSubstsToType substs cType)
-        
-        -- Apply type substitutions to a type
-        applyTypeSubstsToType :: [(TyVar, Type)] -> Type -> Type
-        applyTypeSubstsToType substs = go
-          where
-            go t@(TVar v) = case lookup v substs of
-                              Just newType -> newType
-                              Nothing -> t
-            go TInt = TInt
-            go TFloat = TFloat
-            go TBool = TBool
-            go TChar = TChar
-            go TString = TString
-            go (TCollection t) = TCollection (go t)
-            go (TTuple ts) = TTuple (map go ts)
-            go (TInductive name ts) = TInductive name (map go ts)
-            go (TTensor t) = TTensor (go t)
-            go (THash k v) = THash (go k) (go v)
-            go (TMatcher t) = TMatcher (go t)
-            go (TFun t1 t2) = TFun (go t1) (go t2)
-            go (TIO t) = TIO (go t)
-            go (TIORef t) = TIORef (go t)
-            go TPort = TPort
-            go TAny = TAny
-    
-    -- Helper: lowercase first character
-    lowerFirst :: String -> String
-    lowerFirst [] = []
-    lowerFirst (c:cs) = toLower c : cs
 
 -- | Generate dictionary parameter name from constraint
 -- Used for both dictionary parameter generation and dictionary argument passing
@@ -881,7 +842,7 @@ getMethodTypeFromClass classEnv className methodKey constraintType =
           -- Substitute class type parameter with actual constraint type
           -- e.g., class Num a has plus : a -> a -> a
           --       constraint Num t0 → plus : t0 -> t0 -> t0
-          applyTypeSubstsToType [(classParam classInfo, constraintType)] classMethodType
+          applySubstsToType [(classParam classInfo, constraintType)] classMethodType
         Nothing -> TAny  -- Method not found in class
     Nothing -> TAny  -- Class not found
   where
@@ -892,7 +853,7 @@ getMethodTypeFromClass classEnv className methodKey constraintType =
       case unsanitizeMethodName key of
         Just originalName -> lookup originalName methods
         Nothing -> Nothing
-    
+
     -- Reverse of sanitizeMethodName
     unsanitizeMethodName :: String -> Maybe String
     unsanitizeMethodName "eq" = Just "=="
@@ -906,30 +867,6 @@ getMethodTypeFromClass classEnv className methodKey constraintType =
     unsanitizeMethodName "times" = Just "*"
     unsanitizeMethodName "div" = Just "/"
     unsanitizeMethodName _ = Nothing
-    
-    -- Apply type substitutions to a type
-    applyTypeSubstsToType :: [(TyVar, Type)] -> Type -> Type
-    applyTypeSubstsToType substs = go
-      where
-        go t@(TVar v) = case lookup v substs of
-                          Just newType -> newType
-                          Nothing -> t
-        go TInt = TInt
-        go TFloat = TFloat
-        go TBool = TBool
-        go TChar = TChar
-        go TString = TString
-        go (TCollection t) = TCollection (go t)
-        go (TTuple ts) = TTuple (map go ts)
-        go (TInductive name ts) = TInductive name (map go ts)
-        go (TTensor t) = TTensor (go t)
-        go (THash k v) = THash (go k) (go v)
-        go (TMatcher t) = TMatcher (go t)
-        go (TFun t1 t2) = TFun (go t1) (go t2)
-        go (TIO t) = TIO (go t)
-        go (TIORef t) = TIORef (go t)
-        go TPort = TPort
-        go TAny = TAny
 
 -- | Add dictionary parameters to a function based on its type scheme constraints
 -- This transforms constrained functions into dictionary-passing style
@@ -1048,7 +985,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     replaceMethodCallsInNode env cs exprConstraints exprType node = case node of
       -- Standalone method reference: eta-expand
       TIVarExpr methodName -> do
-        case findConstraintForMethodInList env methodName cs of
+        case findConstraintForMethod env methodName cs of
           Just constraint -> do
             -- Get method type to determine arity
             typeEnv <- getTypeEnv
@@ -1091,7 +1028,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
       TIApplyExpr func args -> do
         case tiExprNode func of
           TIVarExpr methodName -> do
-            case findConstraintForMethodInList env methodName cs of
+            case findConstraintForMethod env methodName cs of
               Just constraint -> do
                 -- Replace with dictionary access
                 typeEnv <- getTypeEnv
@@ -1179,35 +1116,6 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
       
       -- Other expressions: return as-is for now
       _ -> return node
-    
-    -- Find constraint that provides a method
-    findConstraintForMethodInList :: ClassEnv -> String -> [Constraint] -> Maybe Constraint
-    findConstraintForMethodInList _ _ [] = Nothing
-    findConstraintForMethodInList env methodName (c@(Constraint className _):cs) =
-      case lookupClass className env of
-        Just classInfo ->
-          if methodName `elem` map fst (classMethods classInfo)
-            then Just c
-            else findConstraintForMethodInList env methodName cs
-        Nothing -> findConstraintForMethodInList env methodName cs
-    
-    -- Get method arity from type
-    getMethodArity :: Type -> Int
-    getMethodArity (TFun _ t2) = 1 + getMethodArity t2
-    getMethodArity _ = 0
-    
-    -- Get parameter types from function type
-    getParamTypes :: Type -> [Type]
-    getParamTypes (TFun t1 t2) = t1 : getParamTypes t2
-    getParamTypes _ = []
-
-    -- Helper to apply N parameters to a function type and get the result type
-    -- applyParamsToType (a -> b -> c) 2 = c
-    -- applyParamsToType (a -> b -> c) 1 = b -> c
-    applyParamsToType :: Type -> Int -> Type
-    applyParamsToType (TFun _ t2) n
-      | n > 0 = applyParamsToType t2 (n - 1)
-    applyParamsToType t _ = t  -- n == 0 or no more function types
 
 -- | Apply dictionaries to expressions with concrete type constraints
 -- This is used for top-level definitions like: def integer : Matcher Integer := eq
@@ -1240,13 +1148,11 @@ applyConcreteConstraintDictionaries expr = do
     resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryForConstraint classEnv (Constraint className tyArg) = do
       let instances = lookupInstances className classEnv
-          lowerFirstChar [] = []
-          lowerFirstChar (c:cs) = toLower c : cs
       case findMatchingInstanceForType tyArg instances of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
           let instTypeName = typeConstructorName (instType inst)
-              dictName = lowerFirstChar className ++ instTypeName
+              dictName = lowerFirst className ++ instTypeName
               dictType = TVar (TyVar "dict")
               dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
           
