@@ -3070,7 +3070,8 @@ inferITopExpr topExpr = case topExpr of
             -- Concrete constraints don't need to be generalized since the type is already determined
             isTypeVarConstraint (Constraint _ (TVar _)) = True
             isTypeVarConstraint _ = False
-            generalizedConstraints = filter isTypeVarConstraint updatedConstraints
+            -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
+            generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
 
         -- Generalize with filtered constraints (only type variables)
         let envFreeVars = freeVarsInEnv env
@@ -3137,12 +3138,17 @@ inferITopExpr topExpr = case topExpr of
             -- Resolve constraints based on available instances
             classEnv <- getClassEnv
             let updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
-            
+                -- Filter out constraints on concrete types (non-type-variables)
+                isTypeVarConstraint (Constraint _ (TVar _)) = True
+                isTypeVarConstraint _ = False
+                -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
+                generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
+
             -- Generalize the type
             let envFreeVars = freeVarsInEnv env
                 typeFreeVars = freeTyVars exprType
                 genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-                scheme = Forall genVars updatedConstraints exprType
+                scheme = Forall genVars generalizedConstraints exprType
             
             -- Add to environment for subsequent bindings using Var directly
             modify $ \s -> s { inferEnv = extendEnv var scheme (inferEnv s) }
