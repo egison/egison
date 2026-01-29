@@ -366,12 +366,17 @@ unifyTypes :: Type -> Type -> Infer Subst
 unifyTypes t1 t2 = unifyTypesWithContext t1 t2 emptyContext
 
 -- | Unify two types with context information
+-- This now uses the accumulated constraints from the Infer monad to properly
+-- handle constraint-aware unification (e.g., ensuring {Num a} a doesn't unify with Tensor b)
 unifyTypesWithContext :: Type -> Type -> TypeErrorContext -> Infer Subst
-unifyTypesWithContext t1 t2 ctx = case unify t1 t2 of
-  Right s  -> return s
-  Left err -> case err of
-    TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
-    TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+unifyTypesWithContext t1 t2 ctx = do
+  constraints <- getConstraints
+  classEnv <- getClassEnv
+  case TU.unifyWithConstraints classEnv constraints t1 t2 of
+    Right s  -> return s
+    Left err -> case err of
+      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
+      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
 
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
