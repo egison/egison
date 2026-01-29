@@ -72,7 +72,7 @@ import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
                                               emptyContext, withExpr)
-import           Language.Egison.Type.Subst (Subst, applySubst, applySubstConstraint,
+import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstConstraint,
                                               applySubstScheme, composeSubst, emptySubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
@@ -459,12 +459,73 @@ simplifyTensorConstraintsInTIExpr :: ClassEnv -> TIExpr -> TIExpr
 simplifyTensorConstraintsInTIExpr classEnv (TIExpr scheme node) =
   TIExpr (simplifyTensorConstraintsInScheme classEnv scheme) node
 
+-- | Apply a substitution to a type scheme with class environment awareness
+-- This adjusts the substitution based on type class constraints:
+-- When {Num t0} t0 -> t0 is unified with Tensor t1, if Num (Tensor t1) has no instance,
+-- the substitution is adjusted to t0 -> t1 (unwrapping the Tensor)
+applySubstSchemeWithClassEnv :: ClassEnv -> Subst -> TypeScheme -> TypeScheme
+applySubstSchemeWithClassEnv classEnv (Subst m) (Forall vs cs t) =
+  let m' = foldr Map.delete m vs
+      -- Adjust substitution based on constraints
+      m'' = adjustSubstForConstraints classEnv cs m'
+      s' = Subst m''
+  in Forall vs (map (applySubstConstraint s') cs) (applySubst s' t)
+  where
+    -- Adjust substitution to unwrap Tensor when constraint has no instance
+    adjustSubstForConstraints :: ClassEnv -> [Constraint] -> Map.Map TyVar Type -> Map.Map TyVar Type
+    adjustSubstForConstraints env constraints substMap =
+      -- For each constraint, check if we need to adjust substitutions
+      foldr (adjustForConstraint env substMap) substMap constraints
+
+    adjustForConstraint :: ClassEnv -> Map.Map TyVar Type -> Constraint -> Map.Map TyVar Type -> Map.Map TyVar Type
+    adjustForConstraint env originalSubst (Constraint cls constraintType) currentSubst =
+      -- Get all type variables in the constraint type
+      let constraintVars = Set.toList $ freeTyVars constraintType
+      in foldr (adjustVarForClass env cls originalSubst) currentSubst constraintVars
+
+    adjustVarForClass :: ClassEnv -> String -> Map.Map TyVar Type -> TyVar -> Map.Map TyVar Type -> Map.Map TyVar Type
+    adjustVarForClass env cls originalSubst var currentSubst =
+      case Map.lookup var originalSubst of
+        Just replacementType@(TTensor _) ->
+          -- This variable is being replaced with a Tensor type
+          -- Check if the class has an instance for the Tensor type
+          let instances = lookupInstances cls env
+              hasTensorInstance = case findMatchingInstanceForType replacementType instances of
+                                    Just _  -> True
+                                    Nothing -> False
+          in if hasTensorInstance
+               then currentSubst  -- Keep the Tensor substitution
+               else Map.insert var (unwrapTensorCompletely replacementType) currentSubst  -- Unwrap Tensor
+        _ -> currentSubst  -- Not a Tensor substitution, keep as is
+
+    -- Recursively unwrap Tensor to get the innermost type
+    unwrapTensorCompletely :: Type -> Type
+    unwrapTensorCompletely (TTensor inner) = unwrapTensorCompletely inner
+    unwrapTensorCompletely ty = ty
+
 -- | Apply a substitution to a TIExpr, updating both the type scheme and all subexpressions
 applySubstToTIExpr :: Subst -> TIExpr -> TIExpr
 applySubstToTIExpr s (TIExpr scheme node) =
   let updatedScheme = applySubstScheme s scheme
       updatedNode = applySubstToTIExprNode s node
   in TIExpr updatedScheme updatedNode
+
+-- | Apply a substitution to a TIExpr with ClassEnv awareness
+-- This adjusts the substitution based on type class constraints
+-- Example: {Num t0} t0 -> t0 with substitution t0 -> Tensor t1
+--   If Num (Tensor t1) has no instance, the substitution is adjusted to t0 -> t1
+applySubstToTIExprWithClassEnv :: ClassEnv -> Subst -> TIExpr -> TIExpr
+applySubstToTIExprWithClassEnv classEnv s (TIExpr scheme node) =
+  let updatedScheme = applySubstSchemeWithClassEnv classEnv s scheme
+      updatedNode = applySubstToTIExprNodeWithClassEnv classEnv s node
+  in TIExpr updatedScheme updatedNode
+
+-- | Monadic version that uses ClassEnv to adjust substitutions based on constraints
+-- Use this in type inference when you need to apply substitutions with constraint awareness
+applySubstToTIExprM :: Subst -> TIExpr -> Infer TIExpr
+applySubstToTIExprM s tiExpr = do
+  classEnv <- getClassEnv
+  return $ applySubstToTIExprWithClassEnv classEnv s tiExpr
 
 -- | Apply a substitution to a TIExprNode recursively
 applySubstToTIExprNode :: Subst -> TIExprNode -> TIExprNode
@@ -585,6 +646,126 @@ applySubstToTIExprNode s node = case node of
   
   TITensorContractExpr tensor ->
     TITensorContractExpr (applySubstToTIExpr s tensor)
+
+-- | Apply a substitution to a TIExprNode recursively with ClassEnv awareness
+applySubstToTIExprNodeWithClassEnv :: ClassEnv -> Subst -> TIExprNode -> TIExprNode
+applySubstToTIExprNodeWithClassEnv env s node = case node of
+  TIConstantExpr c -> TIConstantExpr c
+  TIVarExpr name -> TIVarExpr name
+
+  TILambdaExpr mVar params body ->
+    TILambdaExpr mVar params (applySubstToTIExprWithClassEnv env s body)
+
+  TIApplyExpr func args ->
+    TIApplyExpr (applySubstToTIExprWithClassEnv env s func) (map (applySubstToTIExprWithClassEnv env s) args)
+
+  TITupleExpr exprs ->
+    TITupleExpr (map (applySubstToTIExprWithClassEnv env s) exprs)
+
+  TICollectionExpr exprs ->
+    TICollectionExpr (map (applySubstToTIExprWithClassEnv env s) exprs)
+
+  TIConsExpr h t ->
+    TIConsExpr (applySubstToTIExprWithClassEnv env s h) (applySubstToTIExprWithClassEnv env s t)
+
+  TIJoinExpr l r ->
+    TIJoinExpr (applySubstToTIExprWithClassEnv env s l) (applySubstToTIExprWithClassEnv env s r)
+
+  TIIfExpr cond thenE elseE ->
+    TIIfExpr (applySubstToTIExprWithClassEnv env s cond) (applySubstToTIExprWithClassEnv env s thenE) (applySubstToTIExprWithClassEnv env s elseE)
+
+  TILetExpr bindings body ->
+    TILetExpr (map (\(pat, expr) -> (pat, applySubstToTIExprWithClassEnv env s expr)) bindings)
+              (applySubstToTIExprWithClassEnv env s body)
+
+  TILetRecExpr bindings body ->
+    TILetRecExpr (map (\(pat, expr) -> (pat, applySubstToTIExprWithClassEnv env s expr)) bindings)
+                 (applySubstToTIExprWithClassEnv env s body)
+
+  TISeqExpr e1 e2 ->
+    TISeqExpr (applySubstToTIExprWithClassEnv env s e1) (applySubstToTIExprWithClassEnv env s e2)
+
+  TIInductiveDataExpr name exprs ->
+    TIInductiveDataExpr name (map (applySubstToTIExprWithClassEnv env s) exprs)
+
+  TIMatcherExpr patDefs ->
+    TIMatcherExpr (map (\(pat, expr, bindings) -> (pat, applySubstToTIExprWithClassEnv env s expr, bindings)) patDefs)
+
+  TIMatchExpr mode target matcher clauses ->
+    TIMatchExpr mode
+                (applySubstToTIExprWithClassEnv env s target)
+                (applySubstToTIExprWithClassEnv env s matcher)
+                (map (\(pat, body) -> (pat, applySubstToTIExprWithClassEnv env s body)) clauses)
+
+  TIMatchAllExpr mode target matcher clauses ->
+    TIMatchAllExpr mode
+                   (applySubstToTIExprWithClassEnv env s target)
+                   (applySubstToTIExprWithClassEnv env s matcher)
+                   (map (\(pat, body) -> (pat, applySubstToTIExprWithClassEnv env s body)) clauses)
+
+  TIMemoizedLambdaExpr params body ->
+    TIMemoizedLambdaExpr params (applySubstToTIExprWithClassEnv env s body)
+
+  TIDoExpr bindings body ->
+    TIDoExpr (map (\(pat, expr) -> (pat, applySubstToTIExprWithClassEnv env s expr)) bindings)
+             (applySubstToTIExprWithClassEnv env s body)
+
+  TICambdaExpr var body ->
+    TICambdaExpr var (applySubstToTIExprWithClassEnv env s body)
+
+  TIWithSymbolsExpr syms body ->
+    TIWithSymbolsExpr syms (applySubstToTIExprWithClassEnv env s body)
+
+  TIQuoteExpr e ->
+    TIQuoteExpr (applySubstToTIExprWithClassEnv env s e)
+
+  TIQuoteSymbolExpr e ->
+    TIQuoteSymbolExpr (applySubstToTIExprWithClassEnv env s e)
+
+  TIIndexedExpr override base indices ->
+    TIIndexedExpr override (applySubstToTIExprWithClassEnv env s base) (fmap (applySubstToTIExprWithClassEnv env s) <$> indices)
+
+  TISubrefsExpr override base ref ->
+    TISubrefsExpr override (applySubstToTIExprWithClassEnv env s base) (applySubstToTIExprWithClassEnv env s ref)
+
+  TISuprefsExpr override base ref ->
+    TISuprefsExpr override (applySubstToTIExprWithClassEnv env s base) (applySubstToTIExprWithClassEnv env s ref)
+
+  TIUserrefsExpr override base ref ->
+    TIUserrefsExpr override (applySubstToTIExprWithClassEnv env s base) (applySubstToTIExprWithClassEnv env s ref)
+
+  TIWedgeApplyExpr func args ->
+    TIWedgeApplyExpr (applySubstToTIExprWithClassEnv env s func) (map (applySubstToTIExprWithClassEnv env s) args)
+
+  TIFunctionExpr names ->
+    TIFunctionExpr names
+
+  TIVectorExpr exprs ->
+    TIVectorExpr (map (applySubstToTIExprWithClassEnv env s) exprs)
+
+  TIHashExpr pairs ->
+    TIHashExpr (map (\(k, v) -> (applySubstToTIExprWithClassEnv env s k, applySubstToTIExprWithClassEnv env s v)) pairs)
+
+  TIGenerateTensorExpr func shape ->
+    TIGenerateTensorExpr (applySubstToTIExprWithClassEnv env s func) (applySubstToTIExprWithClassEnv env s shape)
+
+  TITensorExpr shape elems ->
+    TITensorExpr (applySubstToTIExprWithClassEnv env s shape) (applySubstToTIExprWithClassEnv env s elems)
+
+  TITransposeExpr perm tensor ->
+    TITransposeExpr (applySubstToTIExprWithClassEnv env s perm) (applySubstToTIExprWithClassEnv env s tensor)
+
+  TIFlipIndicesExpr tensor ->
+    TIFlipIndicesExpr (applySubstToTIExprWithClassEnv env s tensor)
+
+  TITensorMapExpr func tensor ->
+    TITensorMapExpr (applySubstToTIExprWithClassEnv env s func) (applySubstToTIExprWithClassEnv env s tensor)
+
+  TITensorMap2Expr func t1 t2 ->
+    TITensorMap2Expr (applySubstToTIExprWithClassEnv env s func) (applySubstToTIExprWithClassEnv env s t1) (applySubstToTIExprWithClassEnv env s t2)
+
+  TITensorContractExpr tensor ->
+    TITensorContractExpr (applySubstToTIExprWithClassEnv env s tensor)
 
 -- | Infer type for IExpr
 -- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
@@ -1469,15 +1650,15 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: this should not happen, but handle gracefully
         resultTy <- freshVar "matchResult"
-        let targetTI' = applySubstToTIExpr s1234 targetTI
-            matcherTI' = applySubstToTIExpr s1234 matcherTI
+        targetTI' <- applySubstToTIExprM s1234 targetTI
+        matcherTI' <- applySubstToTIExprM s1234 matcherTI
         return (mkTIExpr (applySubst s1234 resultTy) (TIMatchExpr mode targetTI' matcherTI' []), s1234)
       _ -> do
         -- Infer type of each clause and unify them
         (resultTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-            targetTI' = applySubstToTIExpr finalS targetTI
-            matcherTI' = applySubstToTIExpr finalS matcherTI
+        targetTI' <- applySubstToTIExprM finalS targetTI
+        matcherTI' <- applySubstToTIExprM finalS matcherTI
         return (mkTIExpr (applySubst finalS resultTy) (TIMatchExpr mode targetTI' matcherTI' clauseTIs), finalS)
   
   -- MatchAll expressions
@@ -1523,15 +1704,15 @@ inferIExprWithContext expr ctx = case expr of
       [] -> do
         -- No clauses: return empty collection type
         resultElemTy <- freshVar "matchAllElem"
-        let targetTI' = applySubstToTIExpr s1234 targetTI
-            matcherTI' = applySubstToTIExpr s1234 matcherTI
+        targetTI' <- applySubstToTIExprM s1234 targetTI
+        matcherTI' <- applySubstToTIExprM s1234 matcherTI
         return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' []), s1234)
       _ -> do
         -- Infer type of each clause (they should all have the same type)
         (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
         let finalS = composeSubst clauseSubst s1234
-            targetTI' = applySubstToTIExpr finalS targetTI
-            matcherTI' = applySubstToTIExpr finalS matcherTI
+        targetTI' <- applySubstToTIExprM finalS targetTI
+        matcherTI' <- applySubstToTIExprM finalS matcherTI
         return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' clauseTIs), finalS)
   
   -- Memoized Lambda
@@ -1726,8 +1907,8 @@ inferIExprWithContext expr ctx = case expr of
     let finalS = composeSubst s2 s1
         finalElemType = applySubst finalS elemType
         resultType = TCollection (TTensor finalElemType)
-        updatedTensorTI = applySubstToTIExpr finalS tensorTI
-    
+    updatedTensorTI <- applySubstToTIExprM finalS tensorTI
+
     return (mkTIExpr resultType (TITensorContractExpr updatedTensorTI), finalS)
   
   -- Tensor map expression
@@ -1745,13 +1926,13 @@ inferIExprWithContext expr ctx = case expr of
         s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
         let finalS = composeSubst s3 s12
             resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
-            updatedFuncTI = applySubstToTIExpr finalS funcTI
-            updatedTensorTI = applySubstToTIExpr finalS tensorTI
+        updatedFuncTI <- applySubstToTIExprM finalS funcTI
+        updatedTensorTI <- applySubstToTIExprM finalS tensorTI
         return (mkTIExpr resultType (TITensorMapExpr updatedFuncTI updatedTensorTI), finalS)
-      _ -> 
-        let updatedFuncTI = applySubstToTIExpr s12 funcTI
-            updatedTensorTI = applySubstToTIExpr s12 tensorTI
-        in return (mkTIExpr tensorType (TITensorMapExpr updatedFuncTI updatedTensorTI), s12)
+      _ -> do
+        updatedFuncTI <- applySubstToTIExprM s12 funcTI
+        updatedTensorTI <- applySubstToTIExprM s12 tensorTI
+        return (mkTIExpr tensorType (TITensorMapExpr updatedFuncTI updatedTensorTI), s12)
   
   -- Tensor map2 expression (binary map)
   ITensorMap2Expr func tensor1 tensor2 -> do
@@ -1767,19 +1948,19 @@ inferIExprWithContext expr ctx = case expr of
     case (t1Type, t2Type) of
       (TTensor elem1, TTensor elem2) -> do
         resultElemType <- freshVar "tmap2Elem"
-        s4 <- unifyTypesWithContext (applySubst s123 funcType) 
+        s4 <- unifyTypesWithContext (applySubst s123 funcType)
                 (TFun elem1 (TFun elem2 resultElemType)) exprCtx
         let finalS = composeSubst s4 s123
             resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
-            updatedFuncTI = applySubstToTIExpr finalS funcTI
-            updatedTensor1TI = applySubstToTIExpr finalS tensor1TI
-            updatedTensor2TI = applySubstToTIExpr finalS tensor2TI
+        updatedFuncTI <- applySubstToTIExprM finalS funcTI
+        updatedTensor1TI <- applySubstToTIExprM finalS tensor1TI
+        updatedTensor2TI <- applySubstToTIExprM finalS tensor2TI
         return (mkTIExpr resultType (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), finalS)
-      _ -> 
-        let updatedFuncTI = applySubstToTIExpr s123 funcTI
-            updatedTensor1TI = applySubstToTIExpr s123 tensor1TI
-            updatedTensor2TI = applySubstToTIExpr s123 tensor2TI
-        in return (mkTIExpr t1Type (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), s123)
+      _ -> do
+        updatedFuncTI <- applySubstToTIExprM s123 funcTI
+        updatedTensor1TI <- applySubstToTIExprM s123 tensor1TI
+        updatedTensor2TI <- applySubstToTIExprM s123 tensor2TI
+        return (mkTIExpr t1Type (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), s123)
   
   -- Transpose expression
   -- ITransposeExpr takes (permutation, tensor) to match tTranspose signature
@@ -1791,18 +1972,18 @@ inferIExprWithContext expr ctx = case expr of
     s2 <- unifyTypesWithContext (applySubst s permType) (TCollection TMathExpr) exprCtx
     (tensorTI, s3) <- inferIExprWithContext tensorExpr exprCtx
     let finalS = composeSubst s3 (composeSubst s2 s)
-        updatedPermTI = applySubstToTIExpr finalS permTI
-        updatedTensorTI = applySubstToTIExpr finalS tensorTI
-        tensorType = tiExprType updatedTensorTI
+    updatedPermTI <- applySubstToTIExprM finalS permTI
+    updatedTensorTI <- applySubstToTIExprM finalS tensorTI
+    let tensorType = tiExprType updatedTensorTI
     -- Transpose preserves tensor type
     return (mkTIExpr (normalizeTensorType tensorType) (TITransposeExpr updatedPermTI updatedTensorTI), finalS)
-  
+
   -- Flip indices expression
   IFlipIndicesExpr tensorExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (tensorTI, s) <- inferIExprWithContext tensorExpr exprCtx
-    let updatedTensorTI = applySubstToTIExpr s tensorTI
-        tensorType = tiExprType updatedTensorTI
+    updatedTensorTI <- applySubstToTIExprM s tensorTI
+    let tensorType = tiExprType updatedTensorTI
     -- Flipping indices preserves tensor type
     return (mkTIExpr (normalizeTensorType tensorType) (TIFlipIndicesExpr updatedTensorTI), s)
   
@@ -1904,11 +2085,11 @@ inferIPattern pat expectedType ctx = case pat of
     let exprType = tiExprType exprTI
     s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
     let finalS = composeSubst s' s
-        exprTI' = applySubstToTIExpr finalS exprTI
-        finalType = applySubst finalS expectedType
+    exprTI' <- applySubstToTIExprM finalS exprTI
+    let finalType = applySubst finalS expectedType
         tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI')
     return (tipat, [], finalS)
-  
+
   IPredPat expr -> do
     -- Predicate pattern: infer predicate expression
     -- Expected type for predicate is: expectedType -> Bool
@@ -1917,8 +2098,8 @@ inferIPattern pat expectedType ctx = case pat of
     -- Unify with expected predicate type to concretize type variables
     s' <- unifyTypesWithContext (applySubst s (tiExprType exprTI)) (applySubst s predicateType) ctx
     let finalS = composeSubst s' s
-        exprTI' = applySubstToTIExpr finalS exprTI
-        finalType = applySubst finalS expectedType
+    exprTI' <- applySubstToTIExprM finalS exprTI
+    let finalType = applySubst finalS expectedType
         tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI')
     return (tipat, [], finalS)
   
@@ -2350,18 +2531,12 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
                                 _ -> []  -- Fully applied: no constraints needed
           resultScheme = Forall [] resultConstraints finalType
 
-          -- Update function type and scheme
-          -- During type inference, keep type variables unquantified (Forall [])
-          -- Quantification only happens at let/def boundaries
-          -- IMPORTANT: Keep original constraints for function scheme (don't filter)
-          (Forall _ _ originalFuncType) = funcScheme
-          updatedFuncType = applySubst finalS originalFuncType
-          updatedFuncScheme = Forall [] deduplicatedConstraints updatedFuncType
-
           -- Update function and argument TIExprs
-          updatedFuncNode = applySubstToTIExprNode finalS (tiExprNode funcTIExpr)
-          updatedFuncTI = TIExpr updatedFuncScheme updatedFuncNode
-          updatedArgTIs = map (simplifyTensorConstraintsInTIExpr classEnv . applySubstToTIExpr finalS) argTIExprs
+          -- IMPORTANT: Use applySubstToTIExprWithClassEnv to adjust substitution based on constraints
+          -- When {Num t0} t0 -> t0 is unified with Tensor t1, if Num (Tensor t1) has no instance,
+          -- the substitution is adjusted to t0 -> t1 (unwrapping the Tensor)
+          updatedFuncTI = applySubstToTIExprWithClassEnv classEnv finalS funcTIExpr
+          updatedArgTIs = map (applySubstToTIExprWithClassEnv classEnv finalS) argTIExprs
 
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
 
@@ -2676,10 +2851,11 @@ inferITopExpr topExpr = case topExpr of
             currentConstraints = map (applySubstConstraint subst1) instConstraints
         subst2 <- unifyTypesWithConstraints currentConstraints (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
         let finalSubst = composeSubst subst2 subst1
-        
+
         -- Apply final substitution to exprTI to resolve all type variables
-        let exprTI' = applySubstToTIExpr finalSubst exprTI
-        
+        -- IMPORTANT: Use applySubstToTIExprM to adjust substitution based on constraints
+        exprTI' <- applySubstToTIExprM finalSubst exprTI
+
         -- Resolve constraints in exprTI' (Tensor t0 -> t0)
         classEnv <- getClassEnv
         let exprTI'' = resolveConstraintsInTIExpr classEnv finalSubst exprTI'
@@ -2765,7 +2941,7 @@ inferITopExpr topExpr = case topExpr of
             let exprType = tiExprType exprTI
             subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
             let finalSubst = composeSubst subst2 subst1
-                exprTI' = applySubstToTIExpr finalSubst exprTI
+            exprTI' <- applySubstToTIExprM finalSubst exprTI
             return ((var, exprTI'), finalSubst)
           
           Nothing -> do
