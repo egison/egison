@@ -22,7 +22,7 @@ import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
                                               Constraint(..))
-import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, InstanceInfo(..))
+import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, InstanceInfo(..), emptyClassEnv)
 
 -- | Unification errors
 data UnifyError
@@ -31,178 +31,18 @@ data UnifyError
   deriving (Eq, Show)
 
 -- | Unify two types, returning a substitution if successful
+-- This is a wrapper around unifyWithConstraints with empty constraints
 unify :: Type -> Type -> Either UnifyError Subst
--- Normalize tensor types and inductive types first
-unify t1 t2 =
-  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
-      t2' = normalizeInductiveTypes (normalizeTensorType t2)
-  in unify' t1' t2'
+unify = unifyWithConstraints emptyClassEnv []
 
-unify' :: Type -> Type -> Either UnifyError Subst
--- Same types unify trivially
-unify' TInt TInt = Right emptySubst
-unify' TMathExpr TMathExpr = Right emptySubst
-unify' TPolyExpr TPolyExpr = Right emptySubst
-unify' TTermExpr TTermExpr = Right emptySubst
-unify' TSymbolExpr TSymbolExpr = Right emptySubst
-unify' TIndexExpr TIndexExpr = Right emptySubst
-unify' TFloat TFloat = Right emptySubst
-unify' TBool TBool = Right emptySubst
-unify' TChar TChar = Right emptySubst
-unify' TString TString = Right emptySubst
-
--- Special rule: TInt and TMathExpr unify to TMathExpr
--- In Egison, integers are automatically converted to MathExpr
-unify' TInt TMathExpr = Right emptySubst
-unify' TMathExpr TInt = Right emptySubst
-
--- Unit type is represented as empty tuple TTuple []
-
--- Type variables
-unify' (TVar v) t = unifyVar v t
-unify' t (TVar v) = unifyVar v t
-
-unify' (TTuple ts1) (TTuple ts2)
-  | length ts1 == length ts2 = unifyMany ts1 ts2
-  | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
-
-unify' (TCollection t1) (TCollection t2) = unify t1 t2
-
--- Inductive types
-unify' (TInductive n1 ts1) (TInductive n2 ts2)
-  | n1 == n2 && length ts1 == length ts2 = unifyMany ts1 ts2
-  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
-
-unify' (THash k1 v1) (THash k2 v2) = do
-  s1 <- unify k1 k2
-  s2 <- unify (applySubst s1 v1) (applySubst s1 v2)
-  Right $ composeSubst s2 s1
-
--- Special rule: Matcher b unifies with (t1, t2, ...) 
--- by treating each ti as Matcher ci, resulting in b = (c1, c2, ...)
-unify' (TMatcher b) (TTuple ts) = unifyMatcherWithTuple b ts
-unify' (TTuple ts) (TMatcher b) = unifyMatcherWithTuple b ts
-
-unify' (TMatcher t1) (TMatcher t2) = unify t1 t2
-
-unify' (TFun a1 r1) (TFun a2 r2) = do
-  s1 <- unify a1 a2
-  s2 <- unify (applySubst s1 r1) (applySubst s1 r2)
-  Right $ composeSubst s2 s1
-
-unify' (TIO t1) (TIO t2) = unify t1 t2
-
-unify' (TIORef t1) (TIORef t2) = unify t1 t2
-
-unify' TPort TPort = Right emptySubst
-
--- Tensor types
--- Tensor a and Tensor b unify if a and b unify
-unify' (TTensor t1) (TTensor t2) = unify t1 t2
--- When unifying Tensor t with a type variable v, preserve the Tensor wrapper
--- by setting v = Tensor t (the type variable case is handled by lines 61-62 above)
--- For concrete types, Tensor a unifies with a by unifying the inner types
--- (a scalar is treated as a 0-rank tensor)
-unify' (TTensor t1) t2 = do
-  s <- unify t1 t2
-  -- Return substitution, result type is Tensor (not scalar)
-  Right s
-unify' t1 (TTensor t2) = do
-  s <- unify t1 t2
-  -- Return substitution, result type is Tensor (not scalar)
-  Right s
-
--- TAny unifies with anything
-unify' TAny _ = Right emptySubst
-unify' _ TAny = Right emptySubst
-
--- Mismatched types
-unify' t1 t2 = Left $ TypeMismatch t1 t2
 
 -- | Strict unification that does NOT allow Tensor a to unify with a
+-- This is a wrapper around unifyStrictWithConstraints with empty constraints
 -- This is used for checking type class instances in TensorMapInsertion
 -- to ensure that Tensor types are properly distinguished from scalar types
 unifyStrict :: Type -> Type -> Either UnifyError Subst
-unifyStrict t1 t2 =
-  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
-      t2' = normalizeInductiveTypes (normalizeTensorType t2)
-  in unifyStrict' t1' t2'
+unifyStrict = unifyStrictWithConstraints emptyClassEnv []
 
-unifyStrict' :: Type -> Type -> Either UnifyError Subst
--- Same types unify trivially
-unifyStrict' TInt TInt = Right emptySubst
-unifyStrict' TMathExpr TMathExpr = Right emptySubst
-unifyStrict' TPolyExpr TPolyExpr = Right emptySubst
-unifyStrict' TTermExpr TTermExpr = Right emptySubst
-unifyStrict' TSymbolExpr TSymbolExpr = Right emptySubst
-unifyStrict' TIndexExpr TIndexExpr = Right emptySubst
-unifyStrict' TFloat TFloat = Right emptySubst
-unifyStrict' TBool TBool = Right emptySubst
-unifyStrict' TChar TChar = Right emptySubst
-unifyStrict' TString TString = Right emptySubst
-
--- Special rule: TInt and TMathExpr unify to TMathExpr
-unifyStrict' TInt TMathExpr = Right emptySubst
-unifyStrict' TMathExpr TInt = Right emptySubst
-
--- Type variables
-unifyStrict' (TVar v) t = unifyVar v t
-unifyStrict' t (TVar v) = unifyVar v t
-
-unifyStrict' (TTuple ts1) (TTuple ts2)
-  | length ts1 == length ts2 = unifyManyStrict ts1 ts2
-  | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
-
-unifyStrict' (TCollection t1) (TCollection t2) = unifyStrict t1 t2
-
--- Inductive types
-unifyStrict' (TInductive n1 ts1) (TInductive n2 ts2)
-  | n1 == n2 && length ts1 == length ts2 = unifyManyStrict ts1 ts2
-  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
-
-unifyStrict' (THash k1 v1) (THash k2 v2) = do
-  s1 <- unifyStrict k1 k2
-  s2 <- unifyStrict (applySubst s1 v1) (applySubst s1 v2)
-  Right $ composeSubst s2 s1
-
--- Special rule: Matcher b unifies with (t1, t2, ...) 
--- by treating each ti as Matcher ci, resulting in b = (c1, c2, ...)
-unifyStrict' (TMatcher b) (TTuple ts) = unifyMatcherWithTupleStrict b ts
-unifyStrict' (TTuple ts) (TMatcher b) = unifyMatcherWithTupleStrict b ts
-
-unifyStrict' (TMatcher t1) (TMatcher t2) = unifyStrict t1 t2
-
-unifyStrict' (TFun a1 r1) (TFun a2 r2) = do
-  s1 <- unifyStrict a1 a2
-  s2 <- unifyStrict (applySubst s1 r1) (applySubst s1 r2)
-  Right $ composeSubst s2 s1
-
-unifyStrict' (TIO t1) (TIO t2) = unifyStrict t1 t2
-
-unifyStrict' (TIORef t1) (TIORef t2) = unifyStrict t1 t2
-
-unifyStrict' TPort TPort = Right emptySubst
-
--- Tensor types
--- Tensor a and Tensor b unify if a and b unify
--- IMPORTANT: Unlike unify', we do NOT allow Tensor a to unify with a
-unifyStrict' (TTensor t1) (TTensor t2) = unifyStrict t1 t2
-
--- TAny unifies with anything
-unifyStrict' TAny _ = Right emptySubst
-unifyStrict' _ TAny = Right emptySubst
-
--- Mismatched types
-unifyStrict' t1 t2 = Left $ TypeMismatch t1 t2
-
--- | Unify a list of type pairs with strict unification
-unifyManyStrict :: [Type] -> [Type] -> Either UnifyError Subst
-unifyManyStrict [] [] = Right emptySubst
-unifyManyStrict (t1:ts1) (t2:ts2) = do
-  s1 <- unifyStrict t1 t2
-  s2 <- unifyManyStrict (map (applySubst s1) ts1) (map (applySubst s1) ts2)
-  Right $ composeSubst s2 s1
-unifyManyStrict _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
 
 -- | Strict unification with type class constraints
 -- This is like unifyStrict but considers type class constraints when unifying type variables.
@@ -325,34 +165,6 @@ unifyManyStrictWithConstraints classEnv constraints (t1:ts1) (t2:ts2) = do
   s2 <- unifyManyStrictWithConstraints classEnv constraints' (map (applySubst s1) ts1) (map (applySubst s1) ts2)
   Right $ composeSubst s2 s1
 unifyManyStrictWithConstraints _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
-
--- | Unify Matcher b with (t1, t2, ...) using strict unification
-unifyMatcherWithTupleStrict :: Type -> [Type] -> Either UnifyError Subst
-unifyMatcherWithTupleStrict b ts = do
-  (innerTypes, s1) <- unifyEachAsMatcherStrict ts emptySubst
-  let tupleType = TTuple innerTypes
-  s2 <- unifyStrict (applySubst s1 b) tupleType
-  Right $ composeSubst s2 s1
-  where
-    unifyEachAsMatcherStrict :: [Type] -> Subst -> Either UnifyError ([Type], Subst)
-    unifyEachAsMatcherStrict [] s = Right ([], s)
-    unifyEachAsMatcherStrict (t:rest) s = do
-      let t' = applySubst s t
-      (innerType, s1) <- case t' of
-        TMatcher inner -> Right (inner, emptySubst)
-        TVar v -> do
-          let innerVar = TyVar (getTyVarName v ++ "'")
-              innerType = TVar innerVar
-          s' <- unifyStrict t' (TMatcher innerType)
-          Right (applySubst s' innerType, s')
-        _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
-      
-      let s2 = composeSubst s1 s
-      (restInnerTypes, s3) <- unifyEachAsMatcherStrict rest s2
-      Right (applySubst s3 innerType : restInnerTypes, s3)
-    
-    getTyVarName :: TyVar -> String
-    getTyVarName (TyVar name) = name
 
 -- | Unify a type variable with a type
 unifyVar :: TyVar -> Type -> Either UnifyError Subst
