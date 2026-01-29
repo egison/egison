@@ -41,7 +41,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
 import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..), lookupEnv)
 import           Language.Egison.Type.Tensor ()
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
-import           Language.Egison.Type.Unify as Unify (unifyStrict)
+import           Language.Egison.Type.Unify as Unify (unifyStrict, unifyStrictWithConstraints)
 
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Decision Logic
@@ -133,35 +133,39 @@ applyOneArgType t = t  -- No more arguments
 --------------------------------------------------------------------------------
 
 -- | Check if a type is a scalar type (not a Tensor type)
--- A scalar type is one that does NOT unify with Tensor a.
--- This includes:
--- - Constrained type variables (like {Num a} a) - these are scalar types
--- - Concrete scalar types (Integer, Float, MathExpr)
--- - Function types are excluded by returning False
+-- A scalar type is one that does NOT unify with Tensor a (using strict unification with constraints).
 --
--- Returns False for:
--- - Tensor types (TTensor _)
--- - Unconstrained type variables (might be anything)
--- - Other types that don't represent scalars
-isPotentialScalarType :: [Constraint] -> Type -> Bool
-isPotentialScalarType constraints ty = case ty of
-  TVar tyVar -> hasNumericConstraint tyVar constraints
+-- This uses unifyStrictWithConstraints to determine if a type can unify with Tensor a:
+-- - If unification succeeds → the type IS compatible with Tensor → NOT a scalar type (False)
+-- - If unification fails → the type is NOT compatible with Tensor → IS a scalar type (True)
+--
+-- Examples:
+-- - {Num t0} t0: Tensor a doesn't have Num instance → cannot unify → scalar type (True)
+-- - Tensor t0: Can unify with Tensor a → not a scalar type (False)
+-- - Integer: Can unify with Tensor a (unconstrained) → not a scalar type (False)
+--   BUT we want Integer to be treated as scalar, so we add a special case
+-- - Unconstrained type variable: Can unify with Tensor a → not a scalar type (False)
+isPotentialScalarType :: ClassEnv -> [Constraint] -> Type -> Bool
+isPotentialScalarType classEnv constraints ty = case ty of
+  -- Concrete scalar types are always scalar (special case)
   TInt -> True
   TFloat -> True
   TMathExpr -> True
-  _ -> False
-  where
-    -- Check if a type variable has a numeric type class constraint
-    hasNumericConstraint :: TyVar -> [Constraint] -> Bool
-    hasNumericConstraint tv cs = any (isNumericConstraintOn tv) cs
+  TChar -> True
+  TString -> True
+  TBool -> True
 
-    isNumericConstraintOn :: TyVar -> Constraint -> Bool
-    isNumericConstraintOn tv (Constraint className t) = case t of
-      TVar tv' -> tv == tv' && className `elem` numericClasses
-      _ -> False
+  -- Tensor types are never scalar
+  TTensor _ -> False
 
-    numericClasses :: [String]
-    numericClasses = ["Num", "Fractional", "Floating", "Real", "Integral"]
+  -- For type variables and other types, check if they can unify with Tensor a
+  _ ->
+    -- Create a fresh type variable 'a' and try to unify ty with Tensor a
+    let freshVar = TyVar "a_scalar_check"
+        tensorType = TTensor (TVar freshVar)
+    in case Unify.unifyStrictWithConstraints classEnv constraints ty tensorType of
+         Right _ -> False  -- Can unify with Tensor a → not scalar
+         Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
 -- | Check if a binary function should be wrapped with tensorMap2
 -- A function should be wrapped if:
@@ -171,11 +175,11 @@ isPotentialScalarType constraints ty = case ty of
 -- For example:
 -- - (+) : {Num a} a -> a -> a  -- Both params are scalar → wrap with tensorMap2
 -- - (.) : {Num a} Tensor a -> Tensor a -> Tensor a  -- Both params are Tensor → do NOT wrap
-shouldWrapWithTensorMap2 :: [Constraint] -> Type -> Bool
-shouldWrapWithTensorMap2 constraints ty = case ty of
+shouldWrapWithTensorMap2 :: ClassEnv -> [Constraint] -> Type -> Bool
+shouldWrapWithTensorMap2 classEnv constraints ty = case ty of
   TFun param1 (TFun param2 _result) ->
-      isPotentialScalarType constraints param1 &&
-      isPotentialScalarType constraints param2
+      isPotentialScalarType classEnv constraints param1 &&
+      isPotentialScalarType classEnv constraints param2
   _ -> False
 
 -- | Wrap a binary function expression with tensorMap2
@@ -237,8 +241,8 @@ insertTensorMaps tiExpr = do
 
 -- | Wrap a binary function with tensorMap2 if it should be wrapped
 -- This implements the simplified approach from tensor-map-insertion-simple.md
-wrapBinaryFunctionIfNeeded :: [Constraint] -> TIExpr -> TIExpr
-wrapBinaryFunctionIfNeeded constraints tiExpr =
+wrapBinaryFunctionIfNeeded :: ClassEnv -> [Constraint] -> TIExpr -> TIExpr
+wrapBinaryFunctionIfNeeded classEnv constraints tiExpr =
   let exprType = tiExprType tiExpr
       node = tiExprNode tiExpr
   in -- Don't wrap if already wrapped with tensorMap2
@@ -248,14 +252,14 @@ wrapBinaryFunctionIfNeeded constraints tiExpr =
          -- For binary lambda expressions like \x y -> f x y, wrap the body with tensorMap2
          -- This handles eta-expanded type class methods like \etaVar1 etaVar2 -> dict_("plus") etaVar1 etaVar2
          TILambdaExpr mVar [var1, var2] body
-           | shouldWrapWithTensorMap2 constraints exprType ->
+           | shouldWrapWithTensorMap2 classEnv constraints exprType ->
                wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body tiExpr
          -- Don't wrap other lambda expressions
          TILambdaExpr {} -> tiExpr
          -- Don't wrap function applications (they're already being applied)
          TIApplyExpr {} -> tiExpr
          -- Wrap variable references and other expressions that represent functions
-         _ | shouldWrapWithTensorMap2 constraints exprType ->
+         _ | shouldWrapWithTensorMap2 classEnv constraints exprType ->
                wrapWithTensorMap2 constraints tiExpr
            | otherwise -> tiExpr
 
@@ -321,7 +325,7 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
             wrapArg arg =
               let (Forall _ argConstraints _) = tiScheme arg
                   argAllConstraints = nub (baseConstraints ++ argConstraints)
-              in wrapBinaryFunctionIfNeeded argAllConstraints arg
+              in wrapBinaryFunctionIfNeeded env argAllConstraints arg
             args'' = map wrapArg args'
 
         -- Get the ORIGINAL function type from TypeEnv if available
