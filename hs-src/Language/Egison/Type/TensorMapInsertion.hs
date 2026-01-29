@@ -37,11 +37,11 @@ import           Data.List                  (nub)
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
-                                             Var(..), tiExprType, tiScheme, tiExprNode, stringToVar)
-import           Language.Egison.Type.Env   (ClassEnv, lookupInstances, InstanceInfo(..), lookupEnv)
+                                             Var(..), tiExprType, tiScheme, tiExprNode)
+import           Language.Egison.Type.Env   (ClassEnv)
 import           Language.Egison.Type.Tensor ()
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
-import           Language.Egison.Type.Unify as Unify (unifyStrict, unifyStrictWithConstraints)
+import           Language.Egison.Type.Unify as Unify (unifyStrictWithConstraints)
 
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Decision Logic
@@ -50,59 +50,27 @@ import           Language.Egison.Type.Unify as Unify (unifyStrict, unifyStrictWi
 -- | Check if tensorMap should be inserted for an argument
 -- This implements the type-tensor-simple.md specification
 --
+-- TensorMap should be inserted when:
+-- 1. paramType does NOT unify with Tensor a (i.e., paramType is a scalar type)
+-- 2. AND argType does unify with Tensor a (i.e., argType is a tensor type)
+--
 -- Arguments:
 --   ClassEnv     : The current type class environment (holds available type class instances).
 --   [Constraint] : The set of type class constraints in scope (e.g., Num a, Eq a).
 --   Type         : The type of the argument being applied to the function.
 --   Type         : The type of the parameter as expected by the function (i.e., declared type).
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
-shouldInsertTensorMap classEnv constraints argType paramType = case argType of
-  TTensor elemType -> case paramType of
-    -- Tensor matched with Tensor → no tensorMap insertion needed
-    -- Functions like dotProduct : Tensor a -> Tensor a -> Tensor a are designed for Tensor
-    -- NOTE: This means (+) applied to Tensor won't get tensorMap at this point.
-    -- For (+), the paramType should be the element type (Integer) after type class expansion,
-    -- which will be handled by the concrete type case below.
-    TTensor _ -> False
+shouldInsertTensorMap classEnv constraints argType paramType =
+  -- Check if paramType does NOT unify with Tensor a (is scalar)
+  let isParamScalar = isPotentialScalarType classEnv constraints paramType
+      -- Check if argType does unify with Tensor a (is tensor)
+      freshVar = TyVar "a_arg_check"
+      tensorType = TTensor (TVar freshVar)
+      isArgTensor = case Unify.unifyStrictWithConstraints classEnv constraints argType tensorType of
+                      Right _ -> True   -- Can unify with Tensor a → is tensor
+                      Left _  -> False  -- Cannot unify → not tensor
+  in isParamScalar && isArgTensor
 
-    -- Tensor matched with type variable → check type class instances
-    TVar tyVar ->
-      -- Find constraints on this type variable
-      -- NOTE: The type variable in constraints may differ from tyVar due to instantiation
-      -- (e.g., TypeEnv has {Num a} a -> a -> a, but context has {Num t0})
-      -- So we look for constraints on EITHER the exact tyVar OR any numeric constraint
-      let relevantConstraints = filter (\(Constraint _ t) -> t == TVar tyVar) constraints
-          -- Also check for any numeric constraints that might apply
-          isNumericConstraint (Constraint className _) =
-            className `elem` ["Num", "Fractional", "Floating", "Real", "Integral"]
-          numericConstraints = filter isNumericConstraint constraints
-      in case relevantConstraints of
-           -- Found constraints for this exact type variable
-           cs@(_:_) -> not (all (hasInstanceForTensor classEnv elemType) cs)
-           -- No exact match, but if there are numeric constraints in scope,
-           -- and Tensor doesn't have instances for them, insert tensorMap
-           [] -> case numericConstraints of
-                   [] -> False  -- No constraints → 0-rank tensor interpretation
-                   cs -> not (all (hasInstanceForTensor classEnv elemType) cs)
-
-    -- Tensor matched with concrete non-tensor type → insertion needed
-    _ -> True
-
-  -- Non-tensor argument → no insertion needed
-  _ -> False
-
--- | Check if a type class has an instance for Tensor elemType
--- Uses strict unify to check if an instance type matches the query type
--- IMPORTANT: We use unifyStrict here to ensure Tensor a does NOT unify with a
--- This prevents incorrectly detecting scalar instances as tensor instances
-hasInstanceForTensor :: ClassEnv -> Type -> Constraint -> Bool
-hasInstanceForTensor classEnv elemType (Constraint className _tyVar) =
-  let tensorType = TTensor elemType
-      instances = lookupInstances className classEnv
-  in any (\inst -> case Unify.unifyStrict (instType inst) tensorType of
-                     Right _ -> True   -- Instance type unifies with Tensor type
-                     Left _  -> False  -- No match
-         ) instances
 
 -- | Unlift a function type that was lifted for Tensor arguments
 -- Tensor a -> Tensor b -> Tensor c  becomes  a -> b -> c
@@ -314,17 +282,11 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
               in wrapBinaryFunctionIfNeeded env argAllConstraints arg
             args'' = map wrapArg args'
 
-        -- Get the ORIGINAL function type from TypeEnv if available
-        -- This is important because type inference may have substituted type variables
-        -- with Tensor types, but we need the original type to decide tensorMap insertion
-        -- e.g., (*) has type {Num a} a -> a -> a, not Tensor t0 -> Tensor t0 -> Tensor t0
-        typeEnv <- getTypeEnv
-        let funcType = case tiExprNode func' of
-              TIVarExpr varName ->
-                case lookupEnv (stringToVar varName) typeEnv of
-                  Just (Forall _ _ originalType) -> originalType
-                  Nothing -> tiExprType func'  -- Fallback to inferred type
-              _ -> tiExprType func'  -- Non-variable: use inferred type
+        -- Use the INFERRED function type (after type inference)
+        -- This ensures we use concrete types like Integer instead of type variables like a
+        -- For example, (+) has inferred type {Num Integer} Integer -> Integer -> Integer
+        -- instead of the polymorphic type {Num a} a -> a -> a
+        let funcType = tiExprType func'
             argTypes = map tiExprType args''
 
         -- Normal processing: check if tensorMap is needed based on parameter types
