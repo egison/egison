@@ -1786,7 +1786,7 @@ inferIExprWithContext expr ctx = case expr of
     
     -- Matcher should be TMatcher a or (TMatcher a, TMatcher b, ...) which becomes TMatcher (a, b, ...)
     let s12 = composeSubst s2 s1
-        appliedMatcherType = applySubst s12 matcherType
+    appliedMatcherType <- applySubstWithConstraintsM s12 matcherType
     
     -- Normalize matcher type: if it's a tuple, ensure each element is a Matcher
     (_normalizedMatcherType, matchedInnerType, s3) <- case appliedMatcherType of
@@ -1823,14 +1823,17 @@ inferIExprWithContext expr ctx = case expr of
         resultElemTy <- freshVar "matchAllElem"
         targetTI' <- applySubstToTIExprM s1234 targetTI
         matcherTI' <- applySubstToTIExprM s1234 matcherTI
-        return (mkTIExpr (TCollection (applySubst s1234 resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' []), s1234)
+        resultElemTy' <- applySubstWithConstraintsM s1234 resultElemTy
+        return (mkTIExpr (TCollection resultElemTy') (TIMatchAllExpr mode targetTI' matcherTI' []), s1234)
       _ -> do
         -- Infer type of each clause (they should all have the same type)
-        (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx (applySubst s1234 matchedInnerType) clauses s1234
+        matchedInnerType' <- applySubstWithConstraintsM s1234 matchedInnerType
+        (resultElemTy, clauseTIs, clauseSubst) <- inferMatchClauses exprCtx matchedInnerType' clauses s1234
         let finalS = composeSubst clauseSubst s1234
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
-        return (mkTIExpr (TCollection (applySubst finalS resultElemTy)) (TIMatchAllExpr mode targetTI' matcherTI' clauseTIs), finalS)
+        resultElemTy' <- applySubstWithConstraintsM finalS resultElemTy
+        return (mkTIExpr (TCollection resultElemTy') (TIMatchAllExpr mode targetTI' matcherTI' clauseTIs), finalS)
   
   -- Memoized Lambda
   IMemoizedLambdaExpr args body -> do
@@ -1840,8 +1843,8 @@ inferIExprWithContext expr ctx = case expr of
         schemes = map (\(name, t) -> (name, Forall [] [] t)) bindings
     (bodyTI, s) <- withEnv schemes $ inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
-        finalArgTypes = map (applySubst s) argTypes
-        funType = foldr TFun bodyType finalArgTypes
+    finalArgTypes <- mapM (applySubstWithConstraintsM s) argTypes
+    let funType = foldr TFun bodyType finalArgTypes
     return (mkTIExpr funType (TIMemoizedLambdaExpr args bodyTI), s)
   
   -- Do expression
@@ -1856,9 +1859,10 @@ inferIExprWithContext expr ctx = case expr of
         
     -- Verify that body type is IO a
     bodyResultType <- freshVar "ioResult"
-    s3 <- unifyTypesWithContext (applySubst finalS bodyType) (TIO bodyResultType) exprCtx
-    let resultType = applySubst s3 (TIO bodyResultType)
-        finalS' = composeSubst s3 finalS
+    bodyType' <- applySubstWithConstraintsM finalS bodyType
+    s3 <- unifyTypesWithContext bodyType' (TIO bodyResultType) exprCtx
+    resultType <- applySubstWithConstraintsM s3 (TIO bodyResultType)
+    let finalS' = composeSubst s3 finalS
     return (mkTIExpr resultType (TIDoExpr bindingTIs bodyTI), finalS')
   
   -- Cambda (pattern matching lambda)
@@ -1993,7 +1997,8 @@ inferIExprWithContext expr ctx = case expr of
       TFun _ resultType -> return resultType
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-        resultType = normalizeTensorType (TTensor (applySubst finalS elemType))
+    elemType' <- applySubstWithConstraintsM finalS elemType
+    let resultType = normalizeTensorType (TTensor elemType')
     return (mkTIExpr resultType (TIGenerateTensorExpr funcTI shapeTI), finalS)
   
   -- Tensor expression
@@ -2007,7 +2012,8 @@ inferIExprWithContext expr ctx = case expr of
       TCollection t -> return t
       _ -> freshVar "tensorElem"
     let finalS = composeSubst s2 s1
-        resultType = normalizeTensorType (TTensor (applySubst finalS elemType))
+    elemType' <- applySubstWithConstraintsM finalS elemType
+    let resultType = normalizeTensorType (TTensor elemType')
     return (mkTIExpr resultType (TITensorExpr shapeTI elemsTI), finalS)
   
   -- Tensor contract expression
@@ -2019,11 +2025,12 @@ inferIExprWithContext expr ctx = case expr of
     -- contract : Tensor a -> [Tensor a]
     -- Ensure the argument is a Tensor type by unifying with TTensor elemType
     elemType <- freshVar "contractElem"
-    s2 <- unifyTypesWithContext (applySubst s1 tensorType) (TTensor elemType) exprCtx
-    
+    tensorType' <- applySubstWithConstraintsM s1 tensorType
+    s2 <- unifyTypesWithContext tensorType' (TTensor elemType) exprCtx
+
     let finalS = composeSubst s2 s1
-        finalElemType = applySubst finalS elemType
-        resultType = TCollection (TTensor finalElemType)
+    finalElemType <- applySubstWithConstraintsM finalS elemType
+    let resultType = TCollection (TTensor finalElemType)
     updatedTensorTI <- applySubstToTIExprM finalS tensorTI
 
     return (mkTIExpr resultType (TITensorContractExpr updatedTensorTI), finalS)
@@ -2040,9 +2047,11 @@ inferIExprWithContext expr ctx = case expr of
     case tensorType of
       TTensor elemType -> do
         resultElemType <- freshVar "tmapElem"
-        s3 <- unifyTypesWithContext (applySubst s12 funcType) (TFun elemType resultElemType) exprCtx
+        funcType' <- applySubstWithConstraintsM s12 funcType
+        s3 <- unifyTypesWithContext funcType' (TFun elemType resultElemType) exprCtx
         let finalS = composeSubst s3 s12
-            resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
+        resultElemType' <- applySubstWithConstraintsM finalS resultElemType
+        let resultType = normalizeTensorType (TTensor resultElemType')
         updatedFuncTI <- applySubstToTIExprM finalS funcTI
         updatedTensorTI <- applySubstToTIExprM finalS tensorTI
         return (mkTIExpr resultType (TITensorMapExpr updatedFuncTI updatedTensorTI), finalS)
@@ -2065,10 +2074,12 @@ inferIExprWithContext expr ctx = case expr of
     case (t1Type, t2Type) of
       (TTensor elem1, TTensor elem2) -> do
         resultElemType <- freshVar "tmap2Elem"
-        s4 <- unifyTypesWithContext (applySubst s123 funcType)
+        funcType' <- applySubstWithConstraintsM s123 funcType
+        s4 <- unifyTypesWithContext funcType'
                 (TFun elem1 (TFun elem2 resultElemType)) exprCtx
         let finalS = composeSubst s4 s123
-            resultType = normalizeTensorType (TTensor (applySubst finalS resultElemType))
+        resultElemType' <- applySubstWithConstraintsM finalS resultElemType
+        let resultType = normalizeTensorType (TTensor resultElemType')
         updatedFuncTI <- applySubstToTIExprM finalS funcTI
         updatedTensor1TI <- applySubstToTIExprM finalS tensor1TI
         updatedTensor2TI <- applySubstToTIExprM finalS tensor2TI
@@ -2086,7 +2097,8 @@ inferIExprWithContext expr ctx = case expr of
     (permTI, s) <- inferIExprWithContext permExpr exprCtx
     let permType = tiExprType permTI
     -- Unify permutation type with [MathExpr]
-    s2 <- unifyTypesWithContext (applySubst s permType) (TCollection TMathExpr) exprCtx
+    permType' <- applySubstWithConstraintsM s permType
+    s2 <- unifyTypesWithContext permType' (TCollection TMathExpr) exprCtx
     (tensorTI, s3) <- inferIExprWithContext tensorExpr exprCtx
     let finalS = composeSubst s3 (composeSubst s2 s)
     updatedPermTI <- applySubstToTIExprM finalS permTI
@@ -2132,10 +2144,13 @@ inferMatchClauses ctx matchedType clauses initSubst = do
   where
     inferAndUnifyClause :: TypeErrorContext -> Type -> (Type, [TIMatchClause], Subst) -> IMatchClause -> Infer (Type, [TIMatchClause], Subst)
     inferAndUnifyClause ctx' matchedTy (expectedType, accClauses, accSubst) clause = do
-      (clauseTI, clauseType, s1) <- inferMatchClause ctx' (applySubst accSubst matchedTy) clause accSubst
-      s2 <- unifyTypesWithContext (applySubst s1 expectedType) clauseType ctx'
+      matchedTy' <- applySubstWithConstraintsM accSubst matchedTy
+      (clauseTI, clauseType, s1) <- inferMatchClause ctx' matchedTy' clause accSubst
+      expectedType' <- applySubstWithConstraintsM s1 expectedType
+      s2 <- unifyTypesWithContext expectedType' clauseType ctx'
       let finalS = composeSubst s2 (composeSubst s1 accSubst)
-      return (applySubst finalS expectedType, clauseTI : accClauses, finalS)
+      finalExpectedType <- applySubstWithConstraintsM finalS expectedType
+      return (finalExpectedType, clauseTI : accClauses, finalS)
 
 -- | Infer a single match clause
 -- NEW: Returns TIMatchClause in addition to type and subst
@@ -2153,7 +2168,8 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   (bodyTI, s2) <- withEnv schemes $ inferIExprWithContext bodyExpr ctx
   let bodyType = tiExprType bodyTI
       finalS = composeSubst s2 s1
-  return ((tiPattern, bodyTI), applySubst finalS bodyType, finalS)
+  finalBodyType <- applySubstWithConstraintsM finalS bodyType
+  return ((tiPattern, bodyTI), finalBodyType, finalS)
 
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))
@@ -2165,15 +2181,19 @@ inferPatternsLeftToRight [] [] accBindings accSubst _ctx =
 inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
   -- Add accumulated bindings to environment for this pattern
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- accBindings]
-  
+
   -- Infer this pattern with left bindings in scope
-  (tipat, newBindings, s) <- withEnv schemes $ inferIPattern p (applySubst accSubst t) ctx
-  
+  t' <- applySubstWithConstraintsM accSubst t
+  (tipat, newBindings, s) <- withEnv schemes $ inferIPattern p t' ctx
+
   -- Compose substitutions
   let accSubst' = composeSubst s accSubst
-  
+
   -- Apply substitution to accumulated bindings
-  let accBindings' = [(v, applySubst s ty) | (v, ty) <- accBindings] ++ newBindings
+  accBindings'' <- mapM (\(v, ty) -> do
+      ty' <- applySubstWithConstraintsM s ty
+      return (v, ty')) accBindings
+  let accBindings' = accBindings'' ++ newBindings
   
   -- Continue with remaining patterns
   (restTipats, finalBindings, finalSubst) <- inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
@@ -2200,11 +2220,13 @@ inferIPattern pat expectedType ctx = case pat of
     -- Value pattern: infer expression type and unify with expected type
     (exprTI, s) <- inferIExprWithContext expr ctx
     let exprType = tiExprType exprTI
-    s' <- unifyTypesWithContext (applySubst s exprType) (applySubst s expectedType) ctx
+    exprType' <- applySubstWithConstraintsM s exprType
+    expectedType' <- applySubstWithConstraintsM s expectedType
+    s' <- unifyTypesWithContext exprType' expectedType' ctx
     let finalS = composeSubst s' s
     exprTI' <- applySubstToTIExprM finalS exprTI
-    let finalType = applySubst finalS expectedType
-        tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI')
+    finalType <- applySubstWithConstraintsM finalS expectedType
+    let tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI')
     return (tipat, [], finalS)
 
   IPredPat expr -> do
@@ -2213,11 +2235,13 @@ inferIPattern pat expectedType ctx = case pat of
     let predicateType = TFun expectedType TBool
     (exprTI, s) <- inferIExprWithContext expr ctx
     -- Unify with expected predicate type to concretize type variables
-    s' <- unifyTypesWithContext (applySubst s (tiExprType exprTI)) (applySubst s predicateType) ctx
+    exprType' <- applySubstWithConstraintsM s (tiExprType exprTI)
+    predicateType' <- applySubstWithConstraintsM s predicateType
+    s' <- unifyTypesWithContext exprType' predicateType' ctx
     let finalS = composeSubst s' s
     exprTI' <- applySubstToTIExprM finalS exprTI
-    let finalType = applySubst finalS expectedType
-        tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI')
+    finalType <- applySubstWithConstraintsM finalS expectedType
+    let tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI')
     return (tipat, [], finalS)
   
   ITuplePat pats -> do
@@ -2227,8 +2251,8 @@ inferIPattern pat expectedType ctx = case pat of
         -- Types match: infer each sub-pattern left-to-right
         -- Left patterns' bindings are available for right patterns (for non-linear patterns)
         (tipats, allBindings, s) <- inferPatternsLeftToRight pats types [] emptySubst ctx
-        let finalType = applySubst s expectedType
-            tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
+        finalType <- applySubstWithConstraintsM s expectedType
+        let tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
         return (tipat, allBindings, s)
       
       TVar _ -> do
@@ -2236,12 +2260,12 @@ inferIPattern pat expectedType ctx = case pat of
         elemTypes <- mapM (\_ -> freshVar "elem") pats
         let tupleTy = TTuple elemTypes
         s <- unifyTypesWithContext expectedType tupleTy ctx
-        
+
         -- Recursively infer each sub-pattern left-to-right
-        let elemTypes' = map (applySubst s) elemTypes
+        elemTypes' <- mapM (applySubstWithConstraintsM s) elemTypes
         (tipats, allBindings, s') <- inferPatternsLeftToRight pats elemTypes' [] s ctx
-        let finalType = applySubst s' expectedType
-            tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
+        finalType <- applySubstWithConstraintsM s' expectedType
+        let tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
         return (tipat, allBindings, s')
       
       _ -> do
@@ -2276,13 +2300,13 @@ inferIPattern pat expectedType ctx = case pat of
           else do
             -- Unify result type with expected type
             s0 <- unifyTypesWithContext resultType expectedType ctx
-            let argTypes' = map (applySubst s0) argTypes
-            
+            argTypes' <- mapM (applySubstWithConstraintsM s0) argTypes
+
             -- Recursively infer each sub-pattern left-to-right
             -- Left patterns' bindings are available for right patterns
             (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-            let finalType = applySubst s expectedType
-                tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+            finalType <- applySubstWithConstraintsM s expectedType
+            let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
             return (tipat, allBindings, s)
       
       Nothing -> do
@@ -2306,26 +2330,26 @@ inferIPattern pat expectedType ctx = case pat of
                      ctx
               else do
                 s0 <- unifyTypesWithContext resultType expectedType ctx
-                let argTypes' = map (applySubst s0) argTypes
-                
+                argTypes' <- mapM (applySubstWithConstraintsM s0) argTypes
+
                 -- Recursively infer each sub-pattern left-to-right
                 (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-                let finalType = applySubst s expectedType
-                    tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+                finalType <- applySubstWithConstraintsM s expectedType
+                let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
                 return (tipat, allBindings, s)
           
           Nothing -> do
             -- Not found: generic inference
             argTypes <- mapM (\_ -> freshVar "arg") pats
             let resultType = TInductive name argTypes
-            
+
             s0 <- unifyTypesWithContext resultType expectedType ctx
-            let argTypes' = map (applySubst s0) argTypes
-            
+            argTypes' <- mapM (applySubstWithConstraintsM s0) argTypes
+
             -- Recursively infer each sub-pattern left-to-right
             (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
-            let finalType = applySubst s expectedType
-                tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
+            finalType <- applySubstWithConstraintsM s expectedType
+            let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
             return (tipat, allBindings, s)
   
   IIndexedPat p indices -> do
@@ -2338,23 +2362,26 @@ inferIPattern pat expectedType ctx = case pat of
     (indexTIs, s1) <- foldM (\(accTIs, accS) (idx, idxType) -> do
       (idxTI, idxS) <- inferIExprWithContext idx ctx
       let actualIdxType = tiExprType idxTI
-      s' <- unifyTypesWithContext (applySubst idxS actualIdxType) (applySubst idxS idxType) ctx
+      actualIdxType' <- applySubstWithConstraintsM idxS actualIdxType
+      idxType' <- applySubstWithConstraintsM idxS idxType
+      s' <- unifyTypesWithContext actualIdxType' idxType' ctx
       let finalS = composeSubst s' (composeSubst idxS accS)
       return (accTIs ++ [idxTI], finalS)) ([], emptySubst) (zip indices indexTypes)
-    
+
     -- Construct the base type: Hash indexType expectedType
     -- For simplicity, assume single index access and use THash
-    let indexType = case indexTypes of
-                      [t] -> applySubst s1 t
-                      _ -> TInt  -- Multiple indices: fallback to Int
-        baseType = THash indexType expectedType
-    
+    indexType <- case indexTypes of
+                   [t] -> applySubstWithConstraintsM s1 t
+                   _ -> return TInt  -- Multiple indices: fallback to Int
+    let baseType = THash indexType expectedType
+
     -- Infer base pattern with Hash type
-    (tipat, bindings, s2) <- inferIPattern p (applySubst s1 baseType) ctx
-    
+    baseType' <- applySubstWithConstraintsM s1 baseType
+    (tipat, bindings, s2) <- inferIPattern p baseType' ctx
+
     let finalS = composeSubst s2 s1
-        finalType = applySubst finalS expectedType
-        tiIndexedPat = TIPattern (Forall [] [] finalType) (TIIndexedPat tipat indexTIs)
+    finalType <- applySubstWithConstraintsM finalS expectedType
+    let tiIndexedPat = TIPattern (Forall [] [] finalType) (TIIndexedPat tipat indexTIs)
     return (tiIndexedPat, bindings, finalS)
   
   ILetPat bindings p -> do
@@ -2362,21 +2389,22 @@ inferIPattern pat expectedType ctx = case pat of
     -- Infer bindings first
     env <- getEnv
     (bindingTIs, bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
-    
+
     -- Infer pattern with bindings in scope
-    (tipat, patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p (applySubst s1 expectedType) ctx
-    
+    expectedType' <- applySubstWithConstraintsM s1 expectedType
+    (tipat, patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p expectedType' ctx
+
     let s = composeSubst s2 s1
-        finalType = applySubst s expectedType
-        tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat bindingTIs tipat)
+    finalType <- applySubstWithConstraintsM s expectedType
+    let tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat bindingTIs tipat)
     -- Let bindings are not exported, only pattern bindings
     return (tiLetPat, patBindings, s)
   
   INotPat p -> do
     -- Not pattern: infer the sub-pattern but don't use its bindings
     (tipat, _, s) <- inferIPattern p expectedType ctx
-    let finalType = applySubst s expectedType
-        tiNotPat = TIPattern (Forall [] [] finalType) (TINotPat tipat)
+    finalType <- applySubstWithConstraintsM s expectedType
+    let tiNotPat = TIPattern (Forall [] [] finalType) (TINotPat tipat)
     return (tiNotPat, [], s)
   
   IAndPat p1 p2 -> do
@@ -2384,11 +2412,15 @@ inferIPattern pat expectedType ctx = case pat of
     -- Left bindings should be available to right pattern
     (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    expectedType' <- applySubstWithConstraintsM s1 expectedType
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
-        -- Apply substitution to left bindings
-        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-        finalType = applySubst s expectedType
+    -- Apply substitution to left bindings
+    bindings1'' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s2 ty
+        return (v, ty')) bindings1
+    finalType <- applySubstWithConstraintsM s expectedType
+    let bindings1' = bindings1''
         tiAndPat = TIPattern (Forall [] [] finalType) (TIAndPat tipat1 tipat2)
     return (tiAndPat, bindings1' ++ bindings2, s)
   
@@ -2397,11 +2429,15 @@ inferIPattern pat expectedType ctx = case pat of
     -- Left bindings should be available to right pattern for non-linear patterns
     (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    expectedType' <- applySubstWithConstraintsM s1 expectedType
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
-        -- Apply substitution to left bindings
-        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-        finalType = applySubst s expectedType
+    -- Apply substitution to left bindings
+    bindings1'' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s2 ty
+        return (v, ty')) bindings1
+    finalType <- applySubstWithConstraintsM s expectedType
+    let bindings1' = bindings1''
         tiOrPat = TIPattern (Forall [] [] finalType) (TIOrPat tipat1 tipat2)
     -- For or patterns, ideally both branches should have same variables
     -- For now, we take union of bindings
@@ -2412,11 +2448,15 @@ inferIPattern pat expectedType ctx = case pat of
     -- Left bindings should be available to right pattern
     (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    expectedType' <- applySubstWithConstraintsM s1 expectedType
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
-        -- Apply substitution to left bindings
-        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-        finalType = applySubst s expectedType
+    -- Apply substitution to left bindings
+    bindings1'' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s2 ty
+        return (v, ty')) bindings1
+    finalType <- applySubstWithConstraintsM s expectedType
+    let bindings1' = bindings1''
         tiForallPat = TIPattern (Forall [] [] finalType) (TIForallPat tipat1 tipat2)
     return (tiForallPat, bindings1' ++ bindings2, s)
   
@@ -2436,21 +2476,29 @@ inferIPattern pat expectedType ctx = case pat of
         initialBindings = loopVarBinding : rangeBindings
         schemes0 = [(v, Forall [] [] ty) | (v, ty) <- initialBindings]
         s_combined = foldr composeSubst emptySubst [s_end, s_start, s_range]
-    
+
     -- Infer p1 with loop variable and range bindings in scope
-    (tipat1, bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 (applySubst s_combined expectedType) ctx
-    
+    expectedType1 <- applySubstWithConstraintsM s_combined expectedType
+    (tipat1, bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 expectedType1 ctx
+
     -- Infer p2 with all previous bindings in scope
-    let allPrevBindings = [(v, applySubst s1 ty) | (v, ty) <- initialBindings] ++ bindings1
+    allPrevBindings' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s1 ty
+        return (v, ty')) initialBindings
+    let allPrevBindings = allPrevBindings' ++ bindings1
         schemes1 = [(v, Forall [] [] ty) | (v, ty) <- allPrevBindings]
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    expectedType2 <- applySubstWithConstraintsM s1 expectedType
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType2 ctx
     
     let s = foldr composeSubst emptySubst [s2, s1, s_combined]
-        -- Apply final substitution to all bindings
-        finalBindings = [(v, applySubst s ty) | (v, ty) <- loopVarBinding : rangeBindings ++ bindings1 ++ bindings2]
-        finalType = applySubst s expectedType
+    -- Apply final substitution to all bindings
+    finalBindings' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s ty
+        return (v, ty')) (loopVarBinding : rangeBindings ++ bindings1 ++ bindings2)
+    finalType <- applySubstWithConstraintsM s expectedType
+    let finalBindings = finalBindings'
         tiLoopPat = TIPattern (Forall [] [] finalType) (TILoopPat var tiLoopRange tipat1 tipat2)
-    
+
     return (tiLoopPat, finalBindings, s)
   
   IContPat -> do
@@ -2466,9 +2514,9 @@ inferIPattern pat expectedType ctx = case pat of
     -- Infer argument patterns left-to-right with fresh types
     argTypes <- mapM (\_ -> freshVar "parg") argPats
     (tipats, allBindings, s2) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
-    
-    let finalType = applySubst s2 expectedType
-        tipat = TIPattern (Forall [] [] finalType) (TIPApplyPat funcTI tipats)
+
+    finalType <- applySubstWithConstraintsM s2 expectedType
+    let tipat = TIPattern (Forall [] [] finalType) (TIPApplyPat funcTI tipats)
     return (tipat, allBindings, s2)
   
   IVarPat name -> do
@@ -2495,11 +2543,15 @@ inferIPattern pat expectedType ctx = case pat of
     -- Left bindings should be available to right pattern
     (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 (applySubst s1 expectedType) ctx
+    expectedType' <- applySubstWithConstraintsM s1 expectedType
+    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
-        -- Apply substitution to left bindings
-        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-        finalType = applySubst s expectedType
+    -- Apply substitution to left bindings
+    bindings1'' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s2 ty
+        return (v, ty')) bindings1
+    finalType <- applySubstWithConstraintsM s expectedType
+    let bindings1' = bindings1''
         tipat = TIPattern (Forall [] [] finalType) (TISeqConsPat tipat1 tipat2)
     return (tipat, bindings1' ++ bindings2, s)
   
@@ -2519,9 +2571,12 @@ inferIPattern pat expectedType ctx = case pat of
     (tipats, argBindings, s2) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
     
     let s = composeSubst s2 s1
-        -- Apply substitution to base bindings
-        bindings1' = [(v, applySubst s2 ty) | (v, ty) <- bindings1]
-        finalType = applySubst s expectedType
+    -- Apply substitution to base bindings
+    bindings1'' <- mapM (\(v, ty) -> do
+        ty' <- applySubstWithConstraintsM s2 ty
+        return (v, ty')) bindings1
+    finalType <- applySubstWithConstraintsM s expectedType
+    let bindings1' = bindings1''
         tiDApplyPat = TIPattern (Forall [] [] finalType) (TIDApplyPat tipat tipats)
     return (tiDApplyPat, bindings1' ++ argBindings, s)
   where
@@ -2565,7 +2620,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   paramVars <- mapM (\i -> freshVar ("param" ++ show i)) [1..length args]
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType paramVars
-      appliedFuncType = applySubst argSubst funcType
+  appliedFuncType <- applySubstWithConstraintsM argSubst funcType
 
   -- First unify function type structure to get parameter bindings
   let funcScheme = tiScheme funcTIExpr
@@ -2579,21 +2634,21 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
     Right s1 -> do
       -- Now unify argument types with parameter types
       -- Key: Unify non-function arguments FIRST to let data types constrain type variables
-      let paramTypesRaw = map (applySubst s1) paramVars
-          indexedArgs = zip3 [0..] argTypes paramTypesRaw
+      paramTypesRaw <- mapM (applySubstWithConstraintsM s1) paramVars
+      let indexedArgs = zip3 [0..] argTypes paramTypesRaw
 
       -- Classify arguments: non-functions first, then functions
       -- A type is considered a function if it's TFun
-      let isArgFunction (TFun _ _) = True
+          isArgFunction (TFun _ _) = True
           isArgFunction _ = False
           (funcArgsList, nonFuncArgsList) = partition (\(_, at, _) -> isArgFunction at) indexedArgs
 
       -- Unify non-function arguments first (data types like lists)
       -- IMPORTANT: Apply substitution to constraints so that constraint checking works correctly
       s2 <- foldM (\s (_, at, pt) -> do
-                     let at' = applySubst s at
-                         pt' = applySubst s pt
-                         cs' = map (applySubstConstraint s) constraints
+                     at' <- applySubstWithConstraintsM s at
+                     pt' <- applySubstWithConstraintsM s pt
+                     let cs' = map (applySubstConstraint s) constraints
                      case Unify.unifyWithConstraints classEnv cs' at' pt' of
                        Right s' -> return (composeSubst s' s)
                        Left _ -> throwError $ UnificationError at' pt' ctx
@@ -2603,9 +2658,9 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       -- IMPORTANT: Include constraints from the argument's type scheme (e.g., {Num t} from (+))
       -- so that constraint checking works correctly for the argument's type variables
       s3 <- foldM (\s (idx, at, pt) -> do
-                     let at' = applySubst s at
-                         pt' = applySubst s pt
-                         -- Get constraints from both the outer function and the argument itself
+                     at' <- applySubstWithConstraintsM s at
+                     pt' <- applySubstWithConstraintsM s pt
+                     let -- Get constraints from both the outer function and the argument itself
                          outerCs = map (applySubstConstraint s) constraints
                          argScheme = tiScheme (argTIExprs !! idx)
                          (Forall _ argConstraints _) = argScheme
@@ -2617,12 +2672,13 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
                   ) s2 funcArgsList
 
       let finalS = composeSubst s3 argSubst
-          baseResultType = applySubst finalS resultType
+      baseResultType <- applySubstWithConstraintsM finalS resultType
 
       -- Check if tensorMap will be inserted (Tensor arg to scalar param)
       -- If so, wrap the result type in Tensor
-      let finalArgTypes = map (applySubst finalS) argTypes
-          paramTypes = extractParamTypes (applySubst finalS appliedFuncType)
+      finalArgTypes <- mapM (applySubstWithConstraintsM finalS) argTypes
+      appliedFuncType' <- applySubstWithConstraintsM finalS appliedFuncType
+      let paramTypes = extractParamTypes appliedFuncType'
           needsTensorWrap = any (uncurry tensorToScalarApplication) (zip finalArgTypes paramTypes)
           finalType = if needsTensorWrap && not (Types.isTensorType baseResultType)
                       then TTensor baseResultType
@@ -2686,19 +2742,22 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
 
   -- The expression should be of type IO a
   innerType <- freshVar "ioInner"
-  s2 <- unifyTypesWithContext (applySubst s1 exprType) (TIO innerType) ctx
+  exprType' <- applySubstWithConstraintsM s1 exprType
+  s2 <- unifyTypesWithContext exprType' (TIO innerType) ctx
   let s12 = composeSubst s2 s1
-      actualInnerType = applySubst s12 innerType
+  actualInnerType <- applySubstWithConstraintsM s12 innerType
 
   -- Create expected type from pattern and unify with inner type
   (patternType, s3) <- inferPatternType pat
   let s123 = composeSubst s3 s12
-  s4 <- unifyTypesWithContext (applySubst s123 actualInnerType) (applySubst s123 patternType) ctx
+  actualInnerType' <- applySubstWithConstraintsM s123 actualInnerType
+  patternType' <- applySubstWithConstraintsM s123 patternType
+  s4 <- unifyTypesWithContext actualInnerType' patternType' ctx
 
   -- Apply all substitutions and extract bindings with inner type
   let finalS = composeSubst s4 s123
-      finalInnerType = applySubst finalS actualInnerType
-      bindings = extractIBindingsFromPattern pat finalInnerType
+  finalInnerType <- applySubstWithConstraintsM finalS actualInnerType
+  let bindings = extractIBindingsFromPattern pat finalInnerType
       s' = composeSubst finalS s
 
   _env' <- getEnv
@@ -2762,12 +2821,14 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- This helps resolve type variables in the expression type
   (patternType, s2) <- inferPatternType pat
   let s12 = composeSubst s2 s1
-  s3 <- unifyTypesWithContext (applySubst s12 exprType) (applySubst s12 patternType) ctx
+  exprType' <- applySubstWithConstraintsM s12 exprType
+  patternType' <- applySubstWithConstraintsM s12 patternType
+  s3 <- unifyTypesWithContext exprType' patternType' ctx
 
   -- Apply all substitutions and extract bindings
   let finalS = composeSubst s3 s12
-      finalExprType = applySubst finalS exprType
-      bindings = extractIBindingsFromPattern pat finalExprType
+  finalExprType <- applySubstWithConstraintsM finalS exprType
+  let bindings = extractIBindingsFromPattern pat finalExprType
       s' = composeSubst finalS s
 
   _env' <- getEnv
@@ -2841,11 +2902,12 @@ inferIRecBindingsWithContext bindings _env s ctx = do
       exprTypes = map (tiExprType . fst) results
       substList = map snd results
       finalS = foldr composeSubst s substList
-  
+
   -- Re-extract bindings with inferred types
-  let finalBindings = concat $ zipWith (\(pat, _) ty -> extractIBindingsFromPattern pat (applySubst finalS ty)) bindings exprTypes
+  exprTypes' <- mapM (applySubstWithConstraintsM finalS) exprTypes
+  let finalBindings = concat $ zipWith (\(pat, _) ty -> extractIBindingsFromPattern pat ty) bindings exprTypes'
       transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
-  
+
   return (transformedBindings, finalBindings, finalS)
 
 -- | Extract bindings from pattern
@@ -2966,7 +3028,9 @@ inferITopExpr topExpr = case topExpr of
         let exprCtx = withExpr (prettyStr expr) emptyContext
             -- Apply substitution to constraints to get current state
             currentConstraints = map (applySubstConstraint subst1) instConstraints
-        subst2 <- unifyTypesWithConstraints currentConstraints (applySubst subst1 exprType) (applySubst subst1 expectedType) exprCtx
+        exprType' <- applySubstWithConstraintsM subst1 exprType
+        expectedType' <- applySubstWithConstraintsM subst1 expectedType
+        subst2 <- unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
         let finalSubst = composeSubst subst2 subst1
 
         -- Apply final substitution to exprTI to resolve all type variables
@@ -2982,8 +3046,8 @@ inferITopExpr topExpr = case topExpr of
         -- When there's an explicit type annotation, use the expected type
         -- (with substitutions applied) as the final type, not the inferred type.
         -- This ensures that Tensor types are preserved when explicitly annotated.
-        let finalType = applySubst finalSubst expectedType
-            constraints' = map (applySubstConstraint finalSubst) instConstraints
+        finalType <- applySubstWithConstraintsM finalSubst expectedType
+        let constraints' = map (applySubstConstraint finalSubst) instConstraints
             envFreeVars = freeVarsInEnv env
             typeFreeVars = freeTyVars finalType
             genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
@@ -3056,7 +3120,9 @@ inferITopExpr topExpr = case topExpr of
             clearConstraints
             (exprTI, subst1) <- inferIExpr expr
             let exprType = tiExprType exprTI
-            subst2 <- unifyTypesWithTopLevel (applySubst subst1 exprType) (applySubst subst1 expectedType) emptyContext
+            exprType' <- applySubstWithConstraintsM subst1 exprType
+            expectedType' <- applySubstWithConstraintsM subst1 expectedType
+            subst2 <- unifyTypesWithTopLevel exprType' expectedType' emptyContext
             let finalSubst = composeSubst subst2 subst1
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             return ((var, exprTI'), finalSubst)
