@@ -20,8 +20,8 @@ def Lie.wedge {Num a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a :=
 def ι {Num a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := 
   withSymbols [i] dfOrder Y * (X...~i . dfNormalize Y..._i)
 
-def Lie {Num a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a :=
-  match dfOrder Y as integer with
-    | #0 -> ι X (d Y)
-    | #N -> d (ι X Y)
-    | _ -> ι X (d Y) + d (ι X Y)
+--def Lie {Num a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a :=
+--  match dfOrder Y as integer with
+--    | #0 -> ι X (d Y)
+--    | #N -> d (ι X Y)
+--    | _ -> ι X (d Y) + d (ι X Y)
