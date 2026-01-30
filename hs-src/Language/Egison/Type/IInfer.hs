@@ -979,7 +979,21 @@ inferIExprWithContext expr ctx = case expr of
     (funcTI, s1) <- inferIExprWithContext func exprCtx
     let funcType = tiExprType funcTI
     inferIApplicationWithContext funcTI funcType args s1 exprCtx
-  
+
+  -- Wedge apply expression (exterior product)
+  IWedgeApplyExpr func args -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (funcTI, s1) <- inferIExprWithContext func exprCtx
+    let funcType = tiExprType funcTI
+    -- Wedge application is similar to normal application
+    (resultTI, finalS) <- inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    -- Convert TIApplyExpr to TIWedgeApplyExpr to preserve wedge semantics
+    let resultScheme = tiScheme resultTI
+    case tiExprNode resultTI of
+      TIApplyExpr funcTI' argTIs' ->
+        return (TIExpr resultScheme (TIWedgeApplyExpr funcTI' argTIs'), finalS)
+      _ -> return (resultTI, finalS)
+
   -- If expression
   IIfExpr cond thenExpr elseExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
@@ -1949,8 +1963,14 @@ inferIExprWithContext expr ctx = case expr of
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
     let baseType = tiExprType baseTI
         finalS = composeSubst s2 s1
-    -- TODO: Properly handle subscript semantics
-    return (mkTIExpr baseType (TISubrefsExpr override baseTI refTI), finalS)
+        -- Subrefs requires base to be a Tensor type
+        -- Force base type to be Tensor if not already
+        tensorBaseType = case baseType of
+          TTensor elemType -> TTensor elemType  -- Already Tensor
+          otherType -> TTensor otherType  -- Wrap non-Tensor in Tensor
+        -- Result is also a Tensor type
+        resultType = tensorBaseType
+    return (mkTIExpr resultType (TISubrefsExpr override baseTI refTI), finalS)
   
   -- Suprefs expression (superscript references)
   ISuprefsExpr override baseExpr refExpr -> do
@@ -1959,8 +1979,14 @@ inferIExprWithContext expr ctx = case expr of
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
     let baseType = tiExprType baseTI
         finalS = composeSubst s2 s1
-    -- TODO: Properly handle superscript semantics
-    return (mkTIExpr baseType (TISuprefsExpr override baseTI refTI), finalS)
+        -- Suprefs requires base to be a Tensor type
+        -- Force base type to be Tensor if not already
+        tensorBaseType = case baseType of
+          TTensor elemType -> TTensor elemType  -- Already Tensor
+          otherType -> TTensor otherType  -- Wrap non-Tensor in Tensor
+        -- Result is also a Tensor type
+        resultType = tensorBaseType
+    return (mkTIExpr resultType (TISuprefsExpr override baseTI refTI), finalS)
   
   -- Userrefs expression (user-defined references)
   IUserrefsExpr override baseExpr refExpr -> do
@@ -1971,21 +1997,7 @@ inferIExprWithContext expr ctx = case expr of
         finalS = composeSubst s2 s1
     -- TODO: Properly handle user-defined references
     return (mkTIExpr baseType (TIUserrefsExpr override baseTI refTI), finalS)
-  
-  -- Wedge apply expression (exterior product)
-  IWedgeApplyExpr func args -> do
-    let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    let funcType = tiExprType funcTI
-    -- Wedge application is similar to normal application
-    (resultTI, finalS) <- inferIApplicationWithContext funcTI funcType args s1 exprCtx
-    -- Convert TIApplyExpr to TIWedgeApplyExpr to preserve wedge semantics
-    let resultScheme = tiScheme resultTI
-    case tiExprNode resultTI of
-      TIApplyExpr funcTI' argTIs' ->
-        return (TIExpr resultScheme (TIWedgeApplyExpr funcTI' argTIs'), finalS)
-      _ -> return (resultTI, finalS)
-  
+
   -- Generate tensor expression
   IGenerateTensorExpr funcExpr shapeExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
