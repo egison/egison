@@ -400,7 +400,13 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         t1' <- insertTensorMapsWithConstraints env cs t1
         t2' <- insertTensorMapsWithConstraints env cs t2
         return $ TITensorMap2Expr func' t1' t2'
-      
+
+      TITensorMap2WedgeExpr func t1 t2 -> do
+        func' <- insertTensorMapsWithConstraints env cs func
+        t1' <- insertTensorMapsWithConstraints env cs t1
+        t2' <- insertTensorMapsWithConstraints env cs t2
+        return $ TITensorMap2WedgeExpr func' t1' t2'
+
       TIGenerateTensorExpr func shape -> do
         func' <- insertTensorMapsWithConstraints env cs func
         shape' <- insertTensorMapsWithConstraints env cs shape
@@ -464,7 +470,38 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       TIWedgeApplyExpr func args -> do
         func' <- insertTensorMapsWithConstraints env cs func
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
-        return $ TIWedgeApplyExpr func' args'
+
+        -- Check if the function's parameter types are NOT Tensor types
+        -- If so, insert tensorMap2Wedge; otherwise, keep WedgeApply
+        let funcType = tiExprType func'
+            -- Check if this is a binary function with non-Tensor parameters
+            -- A type is non-Tensor if it's not TTensor _ (could be TVar, TBase, etc.)
+            isNonTensorType ty = case ty of
+              TTensor _ -> False
+              _ -> True
+            isScalarFunction = case funcType of
+              TFun param1 (TFun param2 _result) ->
+                isNonTensorType param1 && isNonTensorType param2
+              _ -> False
+
+        if isScalarFunction && length args' == 2
+          then do
+            -- Insert tensorMap2Wedge for binary scalar functions
+            let [arg1, arg2] = args'
+                -- Preserve the function's original scheme with its constraints
+                (Forall tvs funcConstraints _) = tiScheme func'
+                -- Unlift the function type to get the scalar version
+                unliftedFuncType = unliftFunctionType funcType
+                unliftedFunc = TIExpr (Forall tvs funcConstraints unliftedFuncType) (tiExprNode func')
+                -- Get the result type after applying to tensor arguments
+                resultType = case funcType of
+                  TFun _ (TFun _ res) -> TTensor res  -- Lifting scalar result to Tensor
+                  _ -> funcType  -- Fallback
+                tensorMap2WedgeScheme = Forall [] cs resultType
+            return $ TITensorMap2WedgeExpr unliftedFunc arg1 arg2
+          else
+            -- Keep WedgeApply for tensor functions or non-binary functions
+            return $ TIWedgeApplyExpr func' args'
       
       TIFunctionExpr names -> return $ TIFunctionExpr names
 

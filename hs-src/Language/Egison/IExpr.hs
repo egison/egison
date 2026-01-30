@@ -100,6 +100,7 @@ data IExpr
   | ITensorContractExpr IExpr
   | ITensorMapExpr IExpr IExpr
   | ITensorMap2Expr IExpr IExpr IExpr
+  | ITensorMap2WedgeExpr IExpr IExpr IExpr
   | ITransposeExpr IExpr IExpr
   | IFlipIndicesExpr IExpr
   | IFunctionExpr [String]
@@ -304,6 +305,7 @@ data TIExprNode
   | TITensorContractExpr TIExpr
   | TITensorMapExpr TIExpr TIExpr
   | TITensorMap2Expr TIExpr TIExpr TIExpr
+  | TITensorMap2WedgeExpr TIExpr TIExpr TIExpr  -- Like TensorMap2 but supplements different indices
   | TITransposeExpr TIExpr TIExpr
   | TIFlipIndicesExpr TIExpr
   
@@ -377,6 +379,7 @@ stripType (TIExpr _ node) = case node of
   TITensorContractExpr e -> ITensorContractExpr (stripType e)
   TITensorMapExpr func tensor -> ITensorMapExpr (stripType func) (stripType tensor)
   TITensorMap2Expr func t1 t2 -> ITensorMap2Expr (stripType func) (stripType t1) (stripType t2)
+  TITensorMap2WedgeExpr func t1 t2 -> ITensorMap2WedgeExpr (stripType func) (stripType t1) (stripType t2)
   TITransposeExpr perm tensor -> ITransposeExpr (stripType perm) (stripType tensor)
   TIFlipIndicesExpr tensor -> IFlipIndicesExpr (stripType tensor)
   TIFunctionExpr names -> IFunctionExpr names
