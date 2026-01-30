@@ -237,6 +237,7 @@ typeExprToType (TEApp t1 ts) =
 typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
 typeExprToType (TEVector elemT) = TTensor (typeExprToType elemT)  -- Vector is an alias for Tensor
 typeExprToType (TEMatrix elemT) = TTensor (typeExprToType elemT)  -- Matrix is an alias for Tensor
+typeExprToType (TEDiffForm elemT) = TTensor (typeExprToType elemT)  -- DiffForm is an alias for Tensor
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
@@ -253,9 +254,10 @@ normalizeInductiveTypes (TInductive name []) = case name of
   "SymbolExpr" -> TSymbolExpr
   "IndexExpr"  -> TIndexExpr
   _            -> TInductive name []
--- Convert TInductive "Vector" and "Matrix" to Tensor (they are aliases)
+-- Convert TInductive "Vector", "Matrix", and "DiffForm" to Tensor (they are aliases)
 normalizeInductiveTypes (TInductive "Vector" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive "Matrix" [t]) = TTensor (normalizeInductiveTypes t)
+normalizeInductiveTypes (TInductive "DiffForm" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive name ts) = TInductive name (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TTuple ts) = TTuple (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t)

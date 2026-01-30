@@ -445,6 +445,7 @@ data TypeExpr
   | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a
   | TEVector TypeExpr                  -- ^ Vector type, e.g., Vector a (1D tensor)
   | TEMatrix TypeExpr                  -- ^ Matrix type, e.g., Matrix a (2D tensor)
+  | TEDiffForm TypeExpr                -- ^ DiffForm type, e.g., DiffForm a (differential form, alias for Tensor)
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
   | TEConstrained [ConstraintExpr] TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a

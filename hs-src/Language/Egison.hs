@@ -78,7 +78,7 @@ coreLibraries =
   , "lib/math/algebra/matrix.egi"
   , "lib/math/analysis/derivative.egi"
 
+  , "lib/math/geometry/differential-form.egi"
 --  , "lib/math/algebra/inverse.egi"
 --  , "lib/math/analysis/integral.egi"
---  , "lib/math/geometry/differential-form.egi"
   ]

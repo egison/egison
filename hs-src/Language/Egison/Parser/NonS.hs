@@ -622,6 +622,7 @@ typeAtomSimple =
   <|> try tensorTypeExpr
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
+  <|> try diffFormTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -642,6 +643,7 @@ typeAtom =
   <|> try tensorTypeExpr
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
+  <|> try diffFormTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -680,6 +682,12 @@ matrixTypeExpr = do
   elemType <- typeAtomOrParenType
   return $ TEMatrix elemType
 
+diffFormTypeExpr :: Parser TypeExpr
+diffFormTypeExpr = do
+  _ <- reserved "DiffForm"
+  elemType <- typeAtomOrParenType
+  return $ TEDiffForm elemType
+
 
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do
@@ -690,7 +698,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix"]
+    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm"]
 
 expr :: Parser Expr
 expr = do

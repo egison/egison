@@ -27,7 +27,6 @@ def Γ~i_j_k : Tensor MathExpr := withSymbols [m]
 -- Connection 1-form
 def ω0 : Tensor MathExpr := Γ~#_#_#
 
--- Vielbein
 def A : Matrix MathExpr := [| [| 1 / r, 0 |], [| 0, 1 / (r * sin θ) |] |]
 
 -- Transformed connection
@@ -39,7 +38,6 @@ def ω := withSymbols [i, j, k, l]
 -- Curvature form
 def wedge {Num a} (X : Tensor a) (Y : Tensor a) : Tensor a := X !. Y
 
-"here"
 wedge ω~i_k ω~k_j
 
 def Ω : Tensor MathExpr := withSymbols [i, j, k]
