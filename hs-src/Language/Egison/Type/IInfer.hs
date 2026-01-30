@@ -373,7 +373,7 @@ unifyTypesWithContext t1 t2 ctx = do
   constraints <- getConstraints
   classEnv <- getClassEnv
   case TU.unifyWithConstraints classEnv constraints t1 t2 of
-    Right s  -> return s
+    Right (s, _)  -> return s  -- Discard flag in basic unification
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
@@ -395,7 +395,7 @@ unifyTypesWithConstraints :: [Constraint] -> Type -> Type -> TypeErrorContext ->
 unifyTypesWithConstraints constraints t1 t2 ctx = do
   classEnv <- getClassEnv
   case TU.unifyWithConstraints classEnv constraints t1 t2 of
-    Right s  -> return s
+    Right (s, _)  -> return s  -- Discard flag in basic unification
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
@@ -2643,7 +2643,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   contextConstraints <- getConstraints
   let constraints = funcConstraints ++ contextConstraints
   case Unify.unifyWithConstraints classEnv constraints appliedFuncType expectedFuncType of
-    Right s1 -> do
+    Right (s1, flag1) -> do
       -- Now unify argument types with parameter types
       -- Key: Unify non-function arguments FIRST to let data types constrain type variables
       paramTypesRaw <- mapM (applySubstWithConstraintsM s1) paramVars
@@ -2657,19 +2657,19 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 
       -- Unify non-function arguments first (data types like lists)
       -- IMPORTANT: Apply substitution to constraints so that constraint checking works correctly
-      s2 <- foldM (\s (_, at, pt) -> do
+      (s2, flag2) <- foldM (\(s, flagAcc) (_, at, pt) -> do
                      at' <- applySubstWithConstraintsM s at
                      pt' <- applySubstWithConstraintsM s pt
                      let cs' = map (applySubstConstraint s) constraints
                      case Unify.unifyWithConstraints classEnv cs' at' pt' of
-                       Right s' -> return (composeSubst s' s)
+                       Right (s', flag') -> return (composeSubst s' s, flagAcc || flag')
                        Left _ -> throwError $ UnificationError at' pt' ctx
-                  ) s1 nonFuncArgsList
+                  ) (s1, flag1) nonFuncArgsList
 
       -- Then unify function arguments (callbacks)
       -- IMPORTANT: Include constraints from the argument's type scheme (e.g., {Num t} from (+))
       -- so that constraint checking works correctly for the argument's type variables
-      s3 <- foldM (\s (idx, at, pt) -> do
+      (s3, flag3) <- foldM (\(s, flagAcc) (idx, at, pt) -> do
                      at' <- applySubstWithConstraintsM s at
                      pt' <- applySubstWithConstraintsM s pt
                      let -- Get constraints from both the outer function and the argument itself
@@ -2679,19 +2679,18 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
                          argCs = map (applySubstConstraint s) argConstraints
                          allCs = outerCs ++ argCs
                      case Unify.unifyWithConstraints classEnv allCs at' pt' of
-                       Right s' -> return (composeSubst s' s)
+                       Right (s', flag') -> return (composeSubst s' s, flagAcc || flag')
                        Left _ -> throwError $ UnificationError at' pt' ctx
-                  ) s2 funcArgsList
+                  ) (s2, flag2) funcArgsList
 
       let finalS = composeSubst s3 argSubst
       baseResultType <- applySubstWithConstraintsM finalS resultType
 
-      -- Check if tensorMap will be inserted (Tensor arg to scalar param)
+      -- Check if Tensor was unwrapped during unification (flag3)
       -- If so, wrap the result type in Tensor
-      finalArgTypes <- mapM (applySubstWithConstraintsM finalS) argTypes
-      appliedFuncType' <- applySubstWithConstraintsM finalS appliedFuncType
-      let paramTypes = extractParamTypes appliedFuncType'
-          needsTensorWrap = any (uncurry tensorToScalarApplication) (zip finalArgTypes paramTypes)
+      -- This handles cases like sum : {Num a} [a] -> a with [Tensor Integer]
+      -- where a unifies with Tensor Integer but gets unwrapped to Integer
+      let needsTensorWrap = flag3
           finalType = if needsTensorWrap && not (Types.isTensorType baseResultType)
                       then TTensor baseResultType
                       else baseResultType
@@ -2729,16 +2728,28 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       -- Unification failed
       throwError $ UnificationError appliedFuncType expectedFuncType ctx
 
--- | Extract parameter types from a function type
+-- | DEPRECATED: This function is no longer needed
+-- Previously used with tensorToScalarApplication to check Tensor wrapping
+{-
 extractParamTypes :: Type -> [Type]
 extractParamTypes (TFun param rest) = param : extractParamTypes rest
 extractParamTypes _ = []
+-}
 
--- | Check if this is a Tensor argument applied to a scalar parameter
--- This indicates tensorMap will be inserted
+-- | DEPRECATED: This function is no longer needed
+-- Previously used to check if Tensor argument was applied to scalar parameter
+-- Now replaced by unification flag mechanism that detects when Tensor is unwrapped
+-- The flag-based approach is more fundamental and handles all cases uniformly
+{-
 tensorToScalarApplication :: Type -> Type -> Bool
 tensorToScalarApplication (TTensor _) paramType = not (Types.isTensorType paramType)
+tensorToScalarApplication (TCollection (TTensor _)) (TCollection paramElem) =
+  not (Types.isTensorType paramElem)
+tensorToScalarApplication (TTuple argElems) (TTuple paramElems)
+  | length argElems == length paramElems =
+      any (uncurry tensorToScalarApplication) (zip argElems paramElems)
 tensorToScalarApplication _ _ = False
+-}
 
 -- | Infer let bindings (non-recursive)
 
