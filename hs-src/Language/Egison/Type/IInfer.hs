@@ -2727,30 +2727,6 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
     Left _ -> do
       -- Unification failed
       throwError $ UnificationError appliedFuncType expectedFuncType ctx
-
--- | DEPRECATED: This function is no longer needed
--- Previously used with tensorToScalarApplication to check Tensor wrapping
-{-
-extractParamTypes :: Type -> [Type]
-extractParamTypes (TFun param rest) = param : extractParamTypes rest
-extractParamTypes _ = []
--}
-
--- | DEPRECATED: This function is no longer needed
--- Previously used to check if Tensor argument was applied to scalar parameter
--- Now replaced by unification flag mechanism that detects when Tensor is unwrapped
--- The flag-based approach is more fundamental and handles all cases uniformly
-{-
-tensorToScalarApplication :: Type -> Type -> Bool
-tensorToScalarApplication (TTensor _) paramType = not (Types.isTensorType paramType)
-tensorToScalarApplication (TCollection (TTensor _)) (TCollection paramElem) =
-  not (Types.isTensorType paramElem)
-tensorToScalarApplication (TTuple argElems) (TTuple paramElems)
-  | length argElems == length paramElems =
-      any (uncurry tensorToScalarApplication) (zip argElems paramElems)
-tensorToScalarApplication _ _ = False
--}
-
 -- | Infer let bindings (non-recursive)
 
 -- | Infer let bindings (non-recursive) with context
