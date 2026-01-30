@@ -308,6 +308,12 @@ expandTypeClassMethodsT tiExpr = do
         t2' <- expandTIExprWithConstraints classEnv' t2
         return $ TITensorMap2Expr func' t1' t2'
 
+      TITensorMap2WedgeExpr func t1 t2 -> do
+        func' <- expandTIExprWithConstraints classEnv' func
+        t1' <- expandTIExprWithConstraints classEnv' t1
+        t2' <- expandTIExprWithConstraints classEnv' t2
+        return $ TITensorMap2WedgeExpr func' t1' t2'
+
       TIGenerateTensorExpr func shape -> do
         func' <- expandTIExprWithConstraints classEnv' func
         shape' <- expandTIExprWithConstraints classEnv' shape

@@ -462,7 +462,10 @@ instance Pretty IExpr where
   
   pretty (ITensorMap2Expr e1 e2 e3) =
     applyLike [pretty "tensorMap2", pretty' e1, pretty' e2, pretty' e3]
-  
+
+  pretty (ITensorMap2WedgeExpr e1 e2 e3) =
+    applyLike [pretty "tensorMap2Wedge", pretty' e1, pretty' e2, pretty' e3]
+
   pretty (ITransposeExpr e1 e2) =
     applyLike [pretty "transpose", pretty' e1, pretty' e2]
   
@@ -687,7 +690,10 @@ prettyTIExprNode node = case node of
   
   TITensorMap2Expr func t1 t2 ->
     pretty "tensorMap2" <+> prettyTIExprWithType func <+> prettyTIExprWithType t1 <+> prettyTIExprWithType t2
-  
+
+  TITensorMap2WedgeExpr func t1 t2 ->
+    pretty "tensorMap2Wedge" <+> prettyTIExprWithType func <+> prettyTIExprWithType t1 <+> prettyTIExprWithType t2
+
   TITensorContractExpr tensor ->
     pretty "contract" <+> prettyTIExprWithType tensor
   

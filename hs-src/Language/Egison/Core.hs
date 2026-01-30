@@ -540,6 +540,30 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
         newApplyThunkRef env fn [x, y]) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
 
+evalExprShallow env (ITensorMap2WedgeExpr fnExpr t1Expr t2Expr) = do
+  fn <- evalExprShallow env fnExpr
+  whnf1 <- evalExprShallow env t1Expr
+  whnf2 <- evalExprShallow env t2Expr
+  -- Apply different indices to the whole tensors (like WedgeApply)
+  let whnf1' = appendDF 1 whnf1
+      whnf2' = appendDF 2 whnf2
+  case (whnf1', whnf2') of
+    -- both of arguments are tensors
+    (ITensor t1, ITensor t2) ->
+      tMap2 (\x y -> newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor >>= removeDF
+    (ITensor t1, Value (TensorData t2)) -> do
+      tMap2 (\x y -> do
+        y <- newEvaluatedObjectRef (Value y)
+        newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor >>= removeDF
+    (Value (TensorData t1), ITensor t2) -> do
+      tMap2 (\x y -> do
+        x <- newEvaluatedObjectRef (Value x)
+        newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor >>= removeDF
+    (Value (TensorData t1), Value (TensorData t2)) ->
+      tMap2 (\x y -> newApplyObjThunkRef env fn [WHNF (Value x), WHNF (Value y)]) t1 t2 >>= fromTensor >>= removeDF
+    -- an argument is scalar - this shouldn't happen for tensorMap2Wedge
+    _ -> throwErrorWithTrace (TypeMismatch "tensor" whnf1)
+
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 
 evalExprDeep :: Env -> IExpr -> EvalM EgisonValue
