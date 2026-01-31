@@ -2128,13 +2128,11 @@ inferIExprWithContext expr ctx = case expr of
     -- Flipping indices preserves tensor type
     return (mkTIExpr (normalizeTensorType tensorType) (TIFlipIndicesExpr updatedTensorTI), s)
   
-  -- Function expression (built-in function reference)
+  -- Function symbol expression
   IFunctionExpr names -> do
-    -- Built-in function: return a generic function type
-    -- TODO: Look up actual function signature
-    argType <- freshVar "funcArg"
-    resultType <- freshVar "funcResult"
-    return (mkTIExpr (TFun argType resultType) (TIFunctionExpr names), emptySubst)
+    -- Function symbols are mathematical function symbols (e.g., f(x,y))
+    -- They are represented as MathExpr type
+    return (mkTIExpr TMathExpr (TIFunctionExpr names), emptySubst)
 
 -- | Infer match clauses type
 -- All clauses should return the same type

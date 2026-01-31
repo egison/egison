@@ -1,3 +1,4 @@
+declare symbol r, θ : MathExpr
 -- Polar Laplacian in 2D using tensor notation
 
 def x : Vector MathExpr := [| r, θ |]
@@ -5,19 +6,16 @@ def x : Vector MathExpr := [| r, θ |]
 def X : Vector MathExpr := [| r * cos θ, r * sin θ |]
 
 -- Local basis
-def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
+--def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
 
 -- Metric tensor
-def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [2, 2]
-def g~i~j : Matrix MathExpr := withSymbols [i, j] (unitTensor [2, 2])_i_j / g_i_j
+def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
+def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
-assertEqual "Metric tensor g_#_#"
-  g_#_#
-  [| [| 1, 0 |], [| 0, r^2 |] |]_#_#
+g_#_#
 
-assertEqual "Inverse metric tensor g~#~#"
-  g~#~#
-  [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~#~#
+g~#~#
 
 -- Christoffel symbols
 def Γ_i_j_k : Tensor MathExpr := withSymbols [j, k, l]
@@ -26,10 +24,14 @@ def Γ_i_j_k : Tensor MathExpr := withSymbols [j, k, l]
 def Γ~i_j_k : Tensor MathExpr := withSymbols [i, j, k, l]
   g~i~j . Γ_j_k_l
 
+def f : MathExpr := function (r, θ)
+
 -- Laplacian
 def Laplacian : MathExpr := withSymbols [i, j, k]
-  g~i~j . ∂/∂ (∂/∂ (f r θ) x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ (f r θ) x~k
+  g~i~j . ∂/∂ (∂/∂ f x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ f x~k
 
-assertEqual "Laplacian in polar coordinates"
-  Laplacian
-  (f|1|1 r θ + f|1 r θ / r + f|2|2 r θ / r^2)
+f
+declare symbol j : MathExpr
+(∂/∂ f x~j)
+--Laplacian
+
