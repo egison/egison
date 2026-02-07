@@ -90,7 +90,7 @@ data SymbolExpr
   | Apply4 ScalarData ScalarData ScalarData ScalarData ScalarData
   | Quote ScalarData                     -- For backtick quote: `expr
   | QuoteFunction WHNFData              -- For single quote on functions: 'func
-  | FunctionData ScalarData [ScalarData] [ScalarData] -- fnname argnames args
+  | FunctionData ScalarData [String] [ScalarData] -- fnname argnames args
 
 -- Manual Eq instance (QuoteFunction comparison always returns False)
 instance Eq SymbolExpr where
@@ -139,12 +139,12 @@ symbol _ _ _                  = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
 
-func :: Pattern (PP ScalarData, PP [ScalarData])
-                SymbolM SymbolExpr (ScalarData, [ScalarData])
-func _ _ (FunctionData name _ args) = pure (name, args)
-func _ _ _                             = mzero
-funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM)
-funcM SymbolM _ = (ScalarM, List ScalarM)
+func :: Pattern (PP ScalarData, PP [String], PP [ScalarData])
+                SymbolM SymbolExpr (ScalarData, [String], [ScalarData])
+func _ _ (FunctionData name argnames args) = pure (name, argnames, args)
+func _ _ _                              = mzero
+funcM :: SymbolM -> SymbolExpr -> (ScalarM, List Eql, List ScalarM)
+funcM SymbolM _ = (ScalarM, List Eql, List ScalarM)
 
 apply1 :: Pattern (PP String, PP WHNFData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData)
 apply1 _ _ (Apply1 (SingleSymbol (QuoteFunction fnWhnf)) a1) =

@@ -30,8 +30,5 @@ def f : MathExpr := function (r, θ)
 def Laplacian : MathExpr := withSymbols [i, j, k]
   g~i~j . ∂/∂ (∂/∂ f x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ f x~k
 
-f
-declare symbol j : MathExpr
-(∂/∂ f x~j)
---Laplacian
+Laplacian
 
