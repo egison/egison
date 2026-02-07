@@ -66,7 +66,7 @@ import qualified Data.Sequence                    as Sq
 import qualified Data.Vector                      as V
 
 import           Data.List                        (intercalate)
-import           Data.Text                        (Text)
+import           Data.Text                        (Text, pack, unpack)
 import           Text.Show.Unicode                (ushow)
 
 import           Data.Ratio
@@ -176,7 +176,7 @@ symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEg
 symbolExprToEgison (QuoteFunction (Value funcVal), n) = Tuple [InductiveData "QuoteFunction" [funcVal], toEgison n]
 symbolExprToEgison (QuoteFunction whnf, n) = error $ "symbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
 symbolExprToEgison (FunctionData name argnames args, n) =
-  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
+  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map (String . pack) argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
 
 scalarIndexToEgison :: Index ScalarData -> EgisonValue
 scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [ScalarData k]
@@ -272,7 +272,7 @@ egisonToSymbolExpr (Tuple [InductiveData "QuoteFunction" [funcVal], n]) = do
   return (QuoteFunction (Value funcVal), n')
 egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args], n]) = do
   name' <- extractScalar name
-  argnames' <- mapM extractScalar (toList argnames)
+  argnames' <- mapM extractString (toList argnames)
   args' <- mapM extractScalar (toList args)
   n' <- fromEgison n
   return (FunctionData name' argnames' args', n')
@@ -292,6 +292,10 @@ egisonToScalarIndex j = case j of
 extractScalar :: EgisonValue -> EvalM ScalarData
 extractScalar (ScalarData mExpr) = return mExpr
 extractScalar val                = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+
+extractString :: EgisonValue -> EvalM String
+extractString (String t) = return (unpack t)
+extractString val        = throwErrorWithTrace (TypeMismatch "string" (Value val))
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.

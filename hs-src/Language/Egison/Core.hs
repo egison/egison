@@ -322,7 +322,7 @@ evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "functi
 evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
   is' <- mapM unwrapMaybeFromIndex is
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) (map symbolScalarData' args) args', 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args args', 1)])
  where
   unwrapMaybeFromIndex :: Index (Maybe ScalarData) -> EvalM (Index ScalarData) -- Maybe we can refactor this function
 --  unwrapMaybeFromIndex = return . (fmap fromJust)
@@ -1311,7 +1311,7 @@ primitiveDataPatternMatch (PDFunctionPat patName patArgs patKwargs) ref = do
   case whnf of
     Value (SymbolExprData (FunctionData name args kwargs)) -> do
       nameRef <- lift $ newEvaluatedObjectRef (Value (ScalarData name))
-      let argsCol = Value $ Collection $ Sq.fromList $ map ScalarData args
+      let argsCol = Value $ Collection $ Sq.fromList $ map (String . T.pack) args
       argsRef <- lift $ newEvaluatedObjectRef argsCol
       let kwargsCol = Value $ Collection $ Sq.fromList $ map ScalarData kwargs
       kwargsRef <- lift $ newEvaluatedObjectRef kwargsCol

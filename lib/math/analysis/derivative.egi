@@ -13,8 +13,8 @@ def ∂/∂' (f : MathExpr) (!x : MathExpr) : MathExpr :=
     | #x -> 1
     | ?isSymbol -> 0
     -- function expression
-    -- | func _ $argnames $args ->
-    --   sum (map2 (\s r -> (userRefs f [s]) * ∂/∂' r x) argnames args)
+    | func _ $argnames $args ->
+       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂' r x) (between 1 (length argnames)) args)
     -- function application
     | (apply1 #exp $g) -> exp g * ∂/∂' g x
     | (apply1 #log $g) -> 1 / g * ∂/∂' g x
