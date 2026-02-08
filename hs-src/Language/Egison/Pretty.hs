@@ -538,7 +538,7 @@ instance Pretty IPrimitiveDataPattern where
 
 instance Pretty IPattern where
   pretty IWildCard = pretty "_"
-  pretty (IPatVar name) = pretty name
+  pretty (IPatVar name) = pretty "~" <> pretty name  -- IPatVar is VarPat (~x, pattern variable reference)
   pretty (IValuePat expr) = pretty "#" <> pretty' expr
   pretty (IPredPat expr) = pretty "?" <> pretty' expr
   pretty (IIndexedPat pat indices) =
@@ -560,7 +560,7 @@ instance Pretty IPattern where
     pretty' bodyPat <+> pretty' restPat
   pretty IContPat = pretty "..."
   pretty (IPApplyPat expr pats) = applyLike (pretty' expr : map pretty' pats)
-  pretty (IVarPat name) = pretty "$" <> pretty name
+  pretty (IVarPat name) = pretty "$" <> pretty name  -- IVarPat is PatVar ($x, new binding)
   pretty (IInductiveOrPApplyPat name pats)
     | null pats = pretty name
     | otherwise = applyLike (pretty name : map pretty' pats)
@@ -659,7 +659,7 @@ prettyPatternWithType (TIPattern (Types.Forall _ constraints ty) node) =
 prettyTIPatternNode :: TIPatternNode -> Doc ann
 prettyTIPatternNode node = case node of
   TIWildCard -> pretty "_"
-  TIPatVar name -> pretty "$" <> pretty name
+  TIPatVar name -> pretty "~" <> pretty name  -- TIPatVar is VarPat (~x, pattern variable reference)
   TIValuePat expr -> pretty "#" <> prettyTIExprWithType expr
   TIPredPat expr -> pretty "?" <> prettyTIExprWithType expr
   TIIndexedPat pat exprs -> prettyPatternWithType pat <> hcat (map prettyIndexExpr exprs)
@@ -675,7 +675,7 @@ prettyTIPatternNode node = case node of
   TILoopPat var _range p1 p2 -> pretty "loop" <+> pretty "$" <> pretty var <+> pretty "..." <+> prettyPatternWithType p1 <+> prettyPatternWithType p2
   TIContPat -> pretty "..."
   TIPApplyPat func pats -> prettyTIExprWithType func <+> hsep (map prettyPatternWithType pats)
-  TIVarPat name -> pretty name
+  TIVarPat name -> pretty "$" <> pretty name  -- TIVarPat is PatVar ($x, new binding)
   TIInductiveOrPApplyPat name pats -> pretty name <+> hsep (map prettyPatternWithType pats)
   TISeqNilPat -> pretty "[]"
   TISeqConsPat p1 p2 -> prettyPatternWithType p1 <+> pretty "::" <+> prettyPatternWithType p2
