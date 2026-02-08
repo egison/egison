@@ -564,6 +564,10 @@ evalExprShallow env (ITensorMap2WedgeExpr fnExpr t1Expr t2Expr) = do
     -- an argument is scalar - this shouldn't happen for tensorMap2Wedge
     _ -> throwErrorWithTrace (TypeMismatch "tensor" whnf1)
 
+evalExprShallow env (IPatternFuncExpr paramNames body) =
+  -- Create a PatternFunc value, capturing the current environment
+  return $ Value (PatternFunc env paramNames body)
+
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 
 evalExprDeep :: Env -> IExpr -> EvalM EgisonValue

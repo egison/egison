@@ -316,10 +316,13 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                       IDefineMany defs ->
                         -- Collect multiple definitions for later binding
                         return ((bindings ++ defs, nonDefs), typedExprs', tiExprs', tcExprs')
-                      IPatternFunctionDecl _ _ _ _ _ ->
-                        -- Pattern functions are handled specially: they need to be evaluated immediately
-                        -- so they are available in the environment when subsequent definitions reference them
-                        return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
+                      IPatternFunctionDecl name _tyVars params _retType body ->
+                        -- Pattern functions are now collected as regular definitions
+                        -- They will be bound together with all other definitions via recursiveBind
+                        let paramNames = map fst params
+                            patternFuncExpr = IPatternFuncExpr paramNames body
+                            var = stringToVar name
+                        in return ((bindings ++ [(var, patternFuncExpr)], nonDefs), typedExprs', tiExprs', tcExprs')
                       _ ->
                         -- Non-definition expressions (ITest, IExecute)
                         -- Collect for evaluation after all definitions are bound
@@ -337,23 +340,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   when (optDumpTc opts && shouldDumpTyped) $ do
     dumpTc tcExprs
 
-  -- Phase 9a: Evaluate pattern function declarations first
-  -- Pattern functions need to be in the environment before other definitions are bound
-  -- so that definitions can reference them in pattern matching
-  let isPatternFuncDecl (IPatternFunctionDecl{}, _) = True
-      isPatternFuncDecl _ = False
-      (patternFuncs, otherNonDefs) = partition isPatternFuncDecl nonDefExprs
-  
-  envWithPatternFuncs <- foldM (\currentEnv (iExpr, _) -> do
-      (_, env'') <- evalTopExpr' currentEnv iExpr
-      return env''
-    ) env patternFuncs
-
-  -- Phase 9b: Bind all definitions together using recursiveBind
+  -- Phase 9: Bind all definitions together using recursiveBind
   -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
-  env' <- recursiveBind envWithPatternFuncs allBindings
+  -- Pattern functions are now included in allBindings and will be bound together with other definitions
+  env' <- recursiveBind env allBindings
 
-  -- Phase 10: Evaluate non-definition expressions in order (excluding pattern functions, already evaluated)
+  -- Phase 10: Evaluate non-definition expressions in order
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
       evalResult <- catchError
         (Right <$> evalTopExpr' currentEnv iExpr)
@@ -368,7 +360,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             Nothing -> return ()
             Just val -> valueToStr val >>= liftIO . putStrLn
           return (mVal, env'')
-    ) (Nothing, env') otherNonDefs
+    ) (Nothing, env') nonDefExprs
 
   return (lastVal, finalEnv)
 
@@ -503,15 +495,10 @@ evalTopExpr' env (IDeclareSymbol _names _mType) = do
   -- Symbol declarations are only used during type inference
   -- At runtime, they don't produce any value or modify the environment
   return (Nothing, env)
-evalTopExpr' env (IPatternFunctionDecl name _tyVars params _retType body) = do
-  -- Pattern function declarations create a PatternFunc value and bind it to the function name
-  -- This allows the pattern function to be used in pattern matching
-  let paramNames = map fst params
-      patternFunc = PatternFunc env paramNames body
-      var = stringToVar name
-  ref <- newEvaluatedObjectRef (Value patternFunc)
-  let env' = extendEnv env [(var, ref)]
-  return (Nothing, env')
+evalTopExpr' _env (IPatternFunctionDecl name _ _ _ _) = do
+  -- Pattern function declarations are now handled via recursiveBind
+  -- They should not reach here; this is a fallback
+  throwError $ Default $ "Pattern function " ++ name ++ " should have been converted to IPatternFuncExpr"
 
 --------------------------------------------------------------------------------
 -- Environment Dumping
