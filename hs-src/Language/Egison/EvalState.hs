@@ -56,6 +56,7 @@ data EvalState = EvalState
   , typeEnv        :: TypeEnv        -- ^ Type environment (for type inference)
   , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
   , patternEnv     :: PatternTypeEnv -- ^ Pattern constructor environment (for type inference)
+  , patternFuncEnv :: PatternTypeEnv -- ^ Pattern function environment (for disambiguation)
   }
 
 initialEvalState :: EvalState
@@ -66,6 +67,7 @@ initialEvalState = EvalState
   , typeEnv = emptyEnv
   , classEnv = emptyClassEnv
   , patternEnv = emptyPatternEnv
+  , patternFuncEnv = emptyPatternEnv
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -91,6 +93,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Pattern environment operations
   getPatternEnv :: m PatternTypeEnv
   setPatternEnv :: PatternTypeEnv -> m ()
+  -- Pattern function environment operations
+  getPatternFuncEnv :: m PatternTypeEnv
+  setPatternFuncEnv :: PatternTypeEnv -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -153,6 +158,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
   setPatternEnv env = do
     st <- get
     put $ st { patternEnv = env }
+  
+  getPatternFuncEnv = patternFuncEnv <$> get
+  setPatternFuncEnv env = do
+    st <- get
+    put $ st { patternFuncEnv = env }
 
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
@@ -172,6 +182,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setClassEnv = lift . setClassEnv
   getPatternEnv = lift getPatternEnv
   setPatternEnv = lift . setPatternEnv
+  getPatternFuncEnv = lift getPatternFuncEnv
+  setPatternFuncEnv = lift . setPatternFuncEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

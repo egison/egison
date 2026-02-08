@@ -117,18 +117,19 @@ data InferState = InferState
   , inferWarnings    :: [TypeWarning]    -- ^ Collected warnings
   , inferConfig      :: InferConfig      -- ^ Configuration
   , inferClassEnv    :: ClassEnv         -- ^ Type class environment
-  , inferPatternEnv  :: PatternTypeEnv   -- ^ Pattern constructor environment
+  , inferPatternEnv  :: PatternTypeEnv   -- ^ Pattern constructor environment (merged)
+  , inferPatternFuncEnv :: PatternTypeEnv  -- ^ Pattern function environment (for disambiguation)
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv [] Map.empty
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv [] Map.empty
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -214,6 +215,14 @@ getPatternEnv = inferPatternEnv <$> get
 -- | Set the pattern type environment
 setPatternEnv :: PatternTypeEnv -> Infer ()
 setPatternEnv penv = modify $ \st -> st { inferPatternEnv = penv }
+
+-- | Get the current pattern function environment (for disambiguation)
+getPatternFuncEnv :: Infer PatternTypeEnv
+getPatternFuncEnv = inferPatternFuncEnv <$> get
+
+-- | Set the pattern function environment
+setPatternFuncEnv :: PatternTypeEnv -> Infer ()
+setPatternFuncEnv penv = modify $ \st -> st { inferPatternFuncEnv = penv }
 
 -- | Get the current class environment
 getClassEnv :: Infer ClassEnv
@@ -2536,12 +2545,26 @@ inferIPattern pat expectedType ctx = case pat of
   
   IInductiveOrPApplyPat name pats -> do
     -- Could be either inductive pattern or pattern application
-    -- Try inductive pattern first
-    (tipat, bindings, s) <- inferIPattern (IInductivePat name pats) expectedType ctx
-    -- Wrap it as InductiveOrPApplyPat
-    let TIPattern scheme (TIInductivePat _ tipats) = tipat
-        tiInductiveOrPApplyPat = TIPattern scheme (TIInductiveOrPApplyPat name tipats)
-    return (tiInductiveOrPApplyPat, bindings, s)
+    -- Check pattern function environment to distinguish
+    -- Pattern functions are ONLY in patternFuncEnv, pattern constructors are NOT
+    patternFuncEnv <- getPatternFuncEnv
+    case lookupPatternEnv name patternFuncEnv of
+      Just _ -> do
+        -- It's a pattern function: treat as pattern application
+        (tipat, bindings, s) <- inferIPattern (IPApplyPat (IVarExpr name) pats) expectedType ctx
+        return (tipat, bindings, s)
+      Nothing -> do
+        -- It's an inductive pattern constructor (or not found, will be handled later)
+        (tipat, bindings, s) <- inferIPattern (IInductivePat name pats) expectedType ctx
+        -- Wrap it as InductiveOrPApplyPat (if it's actually an inductive pattern)
+        case tipPatternNode tipat of
+          TIInductivePat _ tipats -> do
+            let scheme = tipScheme tipat
+                tiInductiveOrPApplyPat = TIPattern scheme (TIInductiveOrPApplyPat name tipats)
+            return (tiInductiveOrPApplyPat, bindings, s)
+          _ -> 
+            -- Not an inductive pattern (e.g., already processed as pattern application)
+            return (tipat, bindings, s)
   
   ISeqNilPat -> do
     -- Sequence nil: no bindings
@@ -3151,6 +3174,48 @@ inferITopExpr topExpr = case topExpr of
             modify $ \s -> s { inferEnv = extendEnv var scheme (inferEnv s) }
             
             return ((var, exprTI), subst)
+  
+  IPatternFunctionDecl name tyVars params retType body -> do
+    -- Pattern function type checking:
+    -- 1. Add parameters to environment for type checking
+    -- 2. Infer body pattern with expected return type
+    -- 3. Create type scheme with type parameters
+    
+    clearConstraints  -- Start fresh
+    
+    -- Add parameters to environment for type checking the body
+    -- Note: Parameter types don't need Pattern wrapper (design/pattern.md)
+    let paramBindings = map (\(pname, pty) -> (pname, Forall [] [] pty)) params
+    withEnv paramBindings $ do
+      -- Infer body pattern with expected return type
+      let ctx = TypeErrorContext 
+                  { errorLocation = Nothing
+                  , errorExpr = Just ("Pattern function: " ++ name)
+                  , errorContext = Just ("Expected type: " ++ show retType)
+                  }
+      (tiBody, _bodyBindings, subst) <- inferIPattern body retType ctx
+      
+      -- Note: Pattern variables that reference parameters (using ~param) will appear in bodyBindings
+      -- but they are NOT conflicts - they are references to the parameters themselves.
+      -- Only NEW variable bindings (using $var) would be actual conflicts.
+      -- Since the pattern body uses ~p1 and ~p2 (pattern variable references), 
+      -- not $p1 and $p2 (new bindings), we don't need to check for conflicts here.
+      -- The existing semantics already handle this correctly during pattern matching.
+      
+      -- Create type scheme with type parameters
+      -- Pattern function type: param1 -> param2 -> ... -> retType
+      let paramTypes = map snd params
+          funcType = foldr TFun retType paramTypes
+          typeScheme = Forall tyVars [] funcType
+      
+      -- Add pattern function to both inferPatternFuncEnv and inferEnv
+      -- This allows the type checker to recognize it in subsequent declarations
+      modify $ \s -> s { 
+        inferPatternFuncEnv = extendPatternEnv name typeScheme (inferPatternFuncEnv s),
+        inferEnv = extendEnv (stringToVar name) typeScheme (inferEnv s)
+      }
+      
+      return (Just (TIPatternFunctionDecl name typeScheme params retType tiBody), subst)
   
   IDeclareSymbol names mType -> do
     -- Register declared symbols with their types

@@ -7,6 +7,10 @@
 --
 -- Matcher definitions
 --
+inductive Suit := Wan | Pin | Sou
+inductive Honor := Ton | Nan | Sha | Pe | Haku | Hatsu | Chun
+inductive Tile := Num Suit Integer | Hnr Honor
+
 inductive pattern Suit :=
   | wan
   | pin

@@ -96,6 +96,11 @@ desugarTypedTopExprT topExpr = case topExpr of
   TIDeclareSymbol names ty ->
     -- Symbol declarations don't need type-driven transformations
     return $ Just (TIDeclareSymbol names ty)
+  
+  TIPatternFunctionDecl name typeScheme params retType body ->
+    -- Pattern function declarations need to be executed to create PatternFunc runtime value
+    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
+    in return $ Just tiExpr
 
 -- | Desugar a top-level typed expression with TensorMap insertion only
 -- This is used for --dump-ti (intermediate dump after TensorMap insertion)
@@ -128,6 +133,11 @@ desugarTypedTopExprT_TensorMapOnly topExpr = case topExpr of
 
   TIDeclareSymbol names ty ->
     return $ Just (TIDeclareSymbol names ty)
+  
+  TIPatternFunctionDecl name typeScheme params retType body ->
+    -- Pattern function declarations need to be executed to create PatternFunc runtime value
+    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
+    in return $ Just tiExpr
 
 -- | Expand type class methods only (assumes TensorMap insertion is already done)
 -- This is used internally to perform type class expansion after TensorMap insertion
@@ -171,4 +181,9 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
 
   TIDeclareSymbol names ty ->
     return $ Just (TIDeclareSymbol names ty)
+  
+  TIPatternFunctionDecl name typeScheme params retType body ->
+    -- Pattern function declarations need to be executed to create PatternFunc runtime value
+    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
+    in return $ Just tiExpr
 

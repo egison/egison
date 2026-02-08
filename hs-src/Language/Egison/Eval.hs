@@ -48,6 +48,7 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
+import           Language.Egison.Data.Utils     (newEvaluatedObjectRef)
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)
@@ -154,15 +155,29 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
       mergedTypeEnv = extendEnvMany (envToList newTypeEnv) baseTypeEnv
       mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
       -- Merge pattern environments (new definitions can override)
-      newPatternEnv = ebrPatternConstructorEnv envResult
+      -- Pattern constructors from ebrPatternConstructorEnv and pattern functions from ebrPatternTypeEnv
+      patternConstructorEnv = ebrPatternConstructorEnv envResult
+      newPatternFuncEnv = ebrPatternTypeEnv envResult
+  
+  -- Get current pattern function environment
+  currentPatternFuncEnv <- getPatternFuncEnv
+  
+  let -- Merge both into a single pattern environment
       mergedPatternEnv = foldr (\(name, scheme) env -> extendPatternEnv name scheme env) 
-                               currentPatternEnv 
-                               (patternEnvToList newPatternEnv)
+                               (foldr (\(name, scheme) env -> extendPatternEnv name scheme env)
+                                      currentPatternEnv
+                                      (patternEnvToList patternConstructorEnv))
+                               (patternEnvToList newPatternFuncEnv)
+      -- Also update pattern function environment separately
+      mergedPatternFuncEnv = foldr (\(name, scheme) env -> extendPatternEnv name scheme env)
+                                   currentPatternFuncEnv
+                                   (patternEnvToList newPatternFuncEnv)
 
   -- Update EvalState with merged environments
   setTypeEnv mergedTypeEnv
   setClassEnv mergedClassEnv
   setPatternEnv mergedPatternEnv
+  setPatternFuncEnv mergedPatternFuncEnv
   
   -- Register constructors to EvalState
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
@@ -201,24 +216,33 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
         -- Get the current pattern environment from EvalState
         currentPatternEnv' <- getPatternEnv
-        let initState = (initialInferStateWithConfig inferConfig) {
-              inferEnv = currentTypeEnv,
+        currentPatternFuncEnv' <- getPatternFuncEnv
+        -- Add pattern function types to inferEnv so they can be referenced as variables
+        let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
+            enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
+            initState = (initialInferStateWithConfig inferConfig) {
+              inferEnv = enrichedTypeEnv,
               inferClassEnv = currentClassEnv,
-              inferPatternEnv = currentPatternEnv'
+              inferPatternEnv = currentPatternEnv',
+              inferPatternFuncEnv = currentPatternFuncEnv'
             }
         (result, warnings, finalState) <- liftIO $ 
           runInferWithWarningsAndState (inferITopExpr iTopExpr) initState
         
         let updatedTypeEnv = inferEnv finalState
         let updatedClassEnv = inferClassEnv finalState
+        let updatedPatternEnv = inferPatternEnv finalState
+        let updatedPatternFuncEnv = inferPatternFuncEnv finalState
     
         -- Print type warnings if any
         when (not (null warnings)) $ do
           liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
         
-        -- Update type and class environments in EvalState
+        -- Update type, class, and pattern environments in EvalState
         setTypeEnv updatedTypeEnv
         setClassEnv updatedClassEnv
+        setPatternEnv updatedPatternEnv
+        setPatternFuncEnv updatedPatternFuncEnv
         
         case result of
           Left err -> do
@@ -293,7 +317,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                         -- Collect multiple definitions for later binding
                         return ((bindings ++ defs, nonDefs), typedExprs', tiExprs', tcExprs')
                       _ ->
-                        -- Non-definition expressions (ITest, IExecute)
+                        -- Non-definition expressions (ITest, IExecute, IPatternFunctionDecl)
                         -- Collect for evaluation after all definitions are bound
                         return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
     ) (([], []), [], [], []) exprs
@@ -463,6 +487,15 @@ evalTopExpr' env (IDeclareSymbol _names _mType) = do
   -- Symbol declarations are only used during type inference
   -- At runtime, they don't produce any value or modify the environment
   return (Nothing, env)
+evalTopExpr' env (IPatternFunctionDecl name _tyVars params _retType body) = do
+  -- Pattern function declarations create a PatternFunc value and bind it to the function name
+  -- This allows the pattern function to be used in pattern matching
+  let paramNames = map fst params
+      patternFunc = PatternFunc env paramNames body
+      var = stringToVar name
+  ref <- newEvaluatedObjectRef (Value patternFunc)
+  let env' = extendEnv env [(var, ref)]
+  return (Nothing, env')
 
 --------------------------------------------------------------------------------
 -- Environment Dumping
