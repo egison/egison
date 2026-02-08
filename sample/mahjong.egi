@@ -7,6 +7,24 @@
 --
 -- Matcher definitions
 --
+inductive pattern Suit :=
+  | wan
+  | pin
+  | sou
+
+inductive pattern Honor :=
+  | ton
+  | nan
+  | sha
+  | pe
+  | haku
+  | hatsu
+  | chun
+
+inductive pattern Tile :=
+  | num Suit Integer
+  | hnr Honor
+
 def suit :=
   algebraicDataMatcher
     | wan
@@ -48,10 +66,10 @@ def complete? : [Tile] -> Bool :=
         (shuntsu $sh_1
            (shuntsu $sh_2
               (shuntsu $sh_3 (shuntsu $sh_4 [] | kohtsu $kh_1 [])
-              | kohtsu $kh_1 (kohtsu $kh_2 []))
-           | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 [])))
-        | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 []))))
-        (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 []))))))
+                | kohtsu $kh_1 (kohtsu $kh_2 []))
+             | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 [])))
+          | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 []))))
+        | (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 []))))))
     -> True
     | _ -> False
 
