@@ -24,8 +24,10 @@ This eliminates the need for runtime dispatch functions like resolveEq.
 
 module Language.Egison.Type.TypeClassExpand
   ( expandTypeClassMethodsT
+  , expandTypeClassMethodsInPattern
   , addDictionaryParametersT
   , applyConcreteConstraintDictionaries
+  , applyConcreteConstraintDictionariesInPattern
   ) where
 
 import           Data.Char                  (toLower)
@@ -663,8 +665,8 @@ expandTypeClassMethodsT tiExpr = do
                         Nothing -> return $ THash TString TAny  -- Fallback
                       -- Get method type from ClassEnv instead of dictHashType
                       let methodType = getMethodTypeFromClass classEnv' className methodKey tyArg
-                          methodConstraint = Constraint className tyArg
-                          methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
+                          -- No constraints: dictionary access resolves the constraint
+                          methodScheme = Forall [] [] methodType
                           dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
                           indexExpr = TIExpr (Forall [] [] TString) 
                                             (TIConstantExpr (StringExpr (pack methodKey)))
@@ -692,8 +694,8 @@ expandTypeClassMethodsT tiExpr = do
                             Nothing -> return $ THash TString TAny  -- Fallback
                           -- Get method type from ClassEnv instead of dictHashType
                           let methodType = getMethodTypeFromClass classEnv' className methodKey actualType
-                              methodConstraint = Constraint className actualType
-                              methodScheme = Forall (Set.toList $ freeTyVars actualType) [methodConstraint] methodType
+                              -- No constraints: dictionary access resolves the constraint
+                              methodScheme = Forall [] [] methodType
                               dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
                               indexExpr = TIExpr (Forall [] [] TString) 
                                                 (TIConstantExpr (StringExpr (pack methodKey)))
@@ -716,8 +718,8 @@ expandTypeClassMethodsT tiExpr = do
 
                             -- Get method type from ClassEnv instead of dictHashType
                             let methodType = getMethodTypeFromClass classEnv' className methodKey actualType
-                                methodConstraint = Constraint className actualType
-                                methodScheme = Forall (Set.toList $ freeTyVars actualType) [methodConstraint] methodType
+                                -- No constraints: dictionary access resolves the constraint
+                                methodScheme = Forall [] [] methodType
                             
                             -- Check if instance has nested constraints
                             -- If so, dictionary is a function that takes dict parameters
@@ -1114,7 +1116,15 @@ applyConcreteConstraintDictionaries expr = do
   classEnv <- getClassEnv
   let scheme@(Forall vars constraints _) = tiScheme expr
 
-  -- Check if all constraints are on concrete types
+  -- First, recursively process sub-expressions
+  expr' <- case tiExprNode expr of
+    TIApplyExpr func args -> do
+      func' <- applyConcreteConstraintDictionaries func
+      args' <- mapM applyConcreteConstraintDictionaries args
+      return $ TIExpr scheme (TIApplyExpr func' args')
+    _ -> return expr
+
+  -- Then check if this expression has concrete constraints
   let isConcreteConstraint (Constraint _ (TVar _)) = False
       isConcreteConstraint _ = True
       hasOnlyConcreteConstraints = not (null constraints) && all isConcreteConstraint constraints
@@ -1124,20 +1134,25 @@ applyConcreteConstraintDictionaries expr = do
       -- Apply dictionaries for concrete constraints
       dictArgs <- mapM (resolveDictionaryForConstraint classEnv) constraints
       -- Create application: expr dict1 dict2 ...
-      let resultType = tiExprType expr
+      let resultType = tiExprType expr'
           -- Update scheme to remove constraints since they are now applied
           -- Keep type variables (vars) as they may be needed for polymorphism
           newScheme = Forall vars [] resultType
-      return $ TIExpr newScheme (TIApplyExpr expr dictArgs)
+      return $ TIExpr newScheme (TIApplyExpr expr' dictArgs)
     else
       -- No concrete constraints, return as-is
-      return expr
+      return expr'
   where
     -- Resolve dictionary for a concrete constraint
     resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryForConstraint classEnv (Constraint className tyArg) = do
+      -- Normalize TInt to TMathExpr for instance matching
+      -- Integer and MathExpr are the same type in Egison
+      let normalizedType = case tyArg of
+                             TInt -> TMathExpr
+                             _ -> tyArg
       let instances = lookupInstances className classEnv
-      case findMatchingInstanceForType tyArg instances of
+      case findMatchingInstanceForType normalizedType instances of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
           let instTypeName = typeConstructorName (instType inst)
@@ -1159,3 +1174,202 @@ applyConcreteConstraintDictionaries expr = do
           let dictName = "dict_" ++ className ++ "_NOT_FOUND"
               dictType = TVar (TyVar "dict")
           return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+
+-- | Expand type class method calls in patterns
+-- This is a public wrapper for expandTIPattern used by TypedDesugar
+expandTypeClassMethodsInPattern :: TIPattern -> EvalM TIPattern
+expandTypeClassMethodsInPattern tipat = do
+  classEnv <- getClassEnv
+  expandPatternWithClassEnv classEnv tipat
+  where
+    expandPatternWithClassEnv :: ClassEnv -> TIPattern -> EvalM TIPattern
+    expandPatternWithClassEnv classEnv' (TIPattern scheme node) = do
+      node' <- expandPatternNode classEnv' node
+      return $ TIPattern scheme node'
+    
+    expandPatternNode :: ClassEnv -> TIPatternNode -> EvalM TIPatternNode
+    expandPatternNode classEnv' node = case node of
+      TILoopPat var loopRange pat1 pat2 -> do
+        loopRange' <- expandLoopRange classEnv' loopRange
+        pat1' <- expandPatternWithClassEnv classEnv' pat1
+        pat2' <- expandPatternWithClassEnv classEnv' pat2
+        return $ TILoopPat var loopRange' pat1' pat2'
+      
+      TIAndPat pat1 pat2 -> do
+        pat1' <- expandPatternWithClassEnv classEnv' pat1
+        pat2' <- expandPatternWithClassEnv classEnv' pat2
+        return $ TIAndPat pat1' pat2'
+      
+      TIOrPat pat1 pat2 -> do
+        pat1' <- expandPatternWithClassEnv classEnv' pat1
+        pat2' <- expandPatternWithClassEnv classEnv' pat2
+        return $ TIOrPat pat1' pat2'
+      
+      TIForallPat pat1 pat2 -> do
+        pat1' <- expandPatternWithClassEnv classEnv' pat1
+        pat2' <- expandPatternWithClassEnv classEnv' pat2
+        return $ TIForallPat pat1' pat2'
+      
+      TINotPat pat -> do
+        pat' <- expandPatternWithClassEnv classEnv' pat
+        return $ TINotPat pat'
+      
+      TITuplePat pats -> do
+        pats' <- mapM (expandPatternWithClassEnv classEnv') pats
+        return $ TITuplePat pats'
+      
+      TIInductivePat name pats -> do
+        pats' <- mapM (expandPatternWithClassEnv classEnv') pats
+        return $ TIInductivePat name pats'
+      
+      TIIndexedPat pat exprs -> do
+        pat' <- expandPatternWithClassEnv classEnv' pat
+        exprs' <- mapM expandTypeClassMethodsT exprs
+        return $ TIIndexedPat pat' exprs'
+      
+      TILetPat bindings pat -> do
+        pat' <- expandPatternWithClassEnv classEnv' pat
+        bindings' <- mapM (\(pd, e) -> do
+          e' <- expandTypeClassMethodsT e
+          return (pd, e')) bindings
+        return $ TILetPat bindings' pat'
+      
+      TIPApplyPat funcExpr argPats -> do
+        funcExpr' <- expandTypeClassMethodsT funcExpr
+        argPats' <- mapM (expandPatternWithClassEnv classEnv') argPats
+        return $ TIPApplyPat funcExpr' argPats'
+      
+      TIDApplyPat pat pats -> do
+        pat' <- expandPatternWithClassEnv classEnv' pat
+        pats' <- mapM (expandPatternWithClassEnv classEnv') pats
+        return $ TIDApplyPat pat' pats'
+      
+      TISeqConsPat pat1 pat2 -> do
+        pat1' <- expandPatternWithClassEnv classEnv' pat1
+        pat2' <- expandPatternWithClassEnv classEnv' pat2
+        return $ TISeqConsPat pat1' pat2'
+      
+      TIInductiveOrPApplyPat name pats -> do
+        pats' <- mapM (expandPatternWithClassEnv classEnv') pats
+        return $ TIInductiveOrPApplyPat name pats'
+      
+      TIValuePat expr -> do
+        expr' <- expandTypeClassMethodsT expr
+        expr'' <- applyConcreteConstraintDictionaries expr'
+        return $ TIValuePat expr''
+      
+      TIPredPat pred -> do
+        pred' <- expandTypeClassMethodsT pred
+        pred'' <- applyConcreteConstraintDictionaries pred'
+        return $ TIPredPat pred''
+      
+      -- Leaf patterns
+      TISeqNilPat -> return TISeqNilPat
+      TIVarPat name -> return $ TIVarPat name
+      TIWildCard -> return TIWildCard
+      TIPatVar name -> return $ TIPatVar name
+      TIContPat -> return TIContPat
+      TILaterPatVar -> return TILaterPatVar
+    
+    expandLoopRange :: ClassEnv -> TILoopRange -> EvalM TILoopRange
+    expandLoopRange classEnv' (TILoopRange start end rangePat) = do
+      start' <- expandTypeClassMethodsT start
+      end' <- expandTypeClassMethodsT end
+      rangePat' <- expandPatternWithClassEnv classEnv' rangePat
+      return $ TILoopRange start' end' rangePat'
+
+-- | Apply dictionaries to expressions with concrete constraints in patterns
+-- This is used to apply dictionaries to value patterns like #(n + 1)
+applyConcreteConstraintDictionariesInPattern :: TIPattern -> EvalM TIPattern
+applyConcreteConstraintDictionariesInPattern (TIPattern scheme node) = do
+  node' <- applyDictInPatternNode node
+  return $ TIPattern scheme node'
+  where
+    applyDictInPatternNode :: TIPatternNode -> EvalM TIPatternNode
+    applyDictInPatternNode pnode = case pnode of
+      TIValuePat expr -> do
+        expr' <- applyConcreteConstraintDictionaries expr
+        return $ TIValuePat expr'
+      
+      TIPredPat expr -> do
+        expr' <- applyConcreteConstraintDictionaries expr
+        return $ TIPredPat expr'
+      
+      TIIndexedPat pat exprs -> do
+        pat' <- applyConcreteConstraintDictionariesInPattern pat
+        exprs' <- mapM applyConcreteConstraintDictionaries exprs
+        return $ TIIndexedPat pat' exprs'
+      
+      TILetPat bindings pat -> do
+        pat' <- applyConcreteConstraintDictionariesInPattern pat
+        bindings' <- mapM (\(pd, e) -> do
+          e' <- applyConcreteConstraintDictionaries e
+          return (pd, e')) bindings
+        return $ TILetPat bindings' pat'
+      
+      TILoopPat var loopRange pat1 pat2 -> do
+        loopRange' <- applyDictInLoopRange loopRange
+        pat1' <- applyConcreteConstraintDictionariesInPattern pat1
+        pat2' <- applyConcreteConstraintDictionariesInPattern pat2
+        return $ TILoopPat var loopRange' pat1' pat2'
+      
+      TIAndPat pat1 pat2 -> do
+        pat1' <- applyConcreteConstraintDictionariesInPattern pat1
+        pat2' <- applyConcreteConstraintDictionariesInPattern pat2
+        return $ TIAndPat pat1' pat2'
+      
+      TIOrPat pat1 pat2 -> do
+        pat1' <- applyConcreteConstraintDictionariesInPattern pat1
+        pat2' <- applyConcreteConstraintDictionariesInPattern pat2
+        return $ TIOrPat pat1' pat2'
+      
+      TIForallPat pat1 pat2 -> do
+        pat1' <- applyConcreteConstraintDictionariesInPattern pat1
+        pat2' <- applyConcreteConstraintDictionariesInPattern pat2
+        return $ TIForallPat pat1' pat2'
+      
+      TINotPat pat -> do
+        pat' <- applyConcreteConstraintDictionariesInPattern pat
+        return $ TINotPat pat'
+      
+      TITuplePat pats -> do
+        pats' <- mapM applyConcreteConstraintDictionariesInPattern pats
+        return $ TITuplePat pats'
+      
+      TIInductivePat name pats -> do
+        pats' <- mapM applyConcreteConstraintDictionariesInPattern pats
+        return $ TIInductivePat name pats'
+      
+      TIPApplyPat funcExpr argPats -> do
+        funcExpr' <- applyConcreteConstraintDictionaries funcExpr
+        argPats' <- mapM applyConcreteConstraintDictionariesInPattern argPats
+        return $ TIPApplyPat funcExpr' argPats'
+      
+      TIDApplyPat pat pats -> do
+        pat' <- applyConcreteConstraintDictionariesInPattern pat
+        pats' <- mapM applyConcreteConstraintDictionariesInPattern pats
+        return $ TIDApplyPat pat' pats'
+      
+      TISeqConsPat pat1 pat2 -> do
+        pat1' <- applyConcreteConstraintDictionariesInPattern pat1
+        pat2' <- applyConcreteConstraintDictionariesInPattern pat2
+        return $ TISeqConsPat pat1' pat2'
+      
+      TIInductiveOrPApplyPat name pats -> do
+        pats' <- mapM applyConcreteConstraintDictionariesInPattern pats
+        return $ TIInductiveOrPApplyPat name pats'
+      
+      -- Leaf patterns
+      TISeqNilPat -> return TISeqNilPat
+      TIVarPat name -> return $ TIVarPat name
+      TIWildCard -> return TIWildCard
+      TIPatVar name -> return $ TIPatVar name
+      TIContPat -> return TIContPat
+      TILaterPatVar -> return TILaterPatVar
+    
+    applyDictInLoopRange :: TILoopRange -> EvalM TILoopRange
+    applyDictInLoopRange (TILoopRange start end rangePat) = do
+      start' <- applyConcreteConstraintDictionaries start
+      end' <- applyConcreteConstraintDictionaries end
+      rangePat' <- applyConcreteConstraintDictionariesInPattern rangePat
+      return $ TILoopRange start' end' rangePat'

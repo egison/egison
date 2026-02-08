@@ -156,7 +156,9 @@ isScalarType = not . isTensorType
 -- This is used for generating instance dictionary names and method names
 -- E.g., TInt -> "Integer", TTensor TInt -> "TensorInteger"
 typeToName :: Type -> String
-typeToName TInt = "Integer"
+-- Note: TInt is normalized to "MathExpr" because Integer = MathExpr in Egison
+typeToName TInt = "MathExpr"  -- Integer = MathExpr, use MathExpr for dictionary names
+typeToName TMathExpr = "MathExpr"
 typeToName TFloat = "Float"
 typeToName TBool = "Bool"
 typeToName TChar = "Char"
@@ -171,7 +173,9 @@ typeToName _ = "Unknown"
 -- | Get the type constructor name only, without type parameters
 -- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
 typeConstructorName :: Type -> String
-typeConstructorName TInt = "Integer"
+-- Note: TInt is normalized to "MathExpr" because Integer = MathExpr in Egison
+-- and all type class instances are defined for MathExpr, not Integer
+typeConstructorName TInt = "MathExpr"  -- Integer = MathExpr, use MathExpr for dictionary names
 typeConstructorName TMathExpr = "MathExpr"
 typeConstructorName TPolyExpr = "PolyExpr"
 typeConstructorName TTermExpr = "TermExpr"
