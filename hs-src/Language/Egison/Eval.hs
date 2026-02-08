@@ -38,7 +38,7 @@ module Language.Egison.Eval
   ) where
 
 import           Control.Monad              (foldM, forM_, when)
-import           Data.List                  (intercalate)
+import           Data.List                  (intercalate, partition)
 import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
@@ -316,8 +316,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                       IDefineMany defs ->
                         -- Collect multiple definitions for later binding
                         return ((bindings ++ defs, nonDefs), typedExprs', tiExprs', tcExprs')
+                      IPatternFunctionDecl _ _ _ _ _ ->
+                        -- Pattern functions are handled specially: they need to be evaluated immediately
+                        -- so they are available in the environment when subsequent definitions reference them
+                        return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
                       _ ->
-                        -- Non-definition expressions (ITest, IExecute, IPatternFunctionDecl)
+                        -- Non-definition expressions (ITest, IExecute)
                         -- Collect for evaluation after all definitions are bound
                         return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
     ) (([], []), [], [], []) exprs
@@ -333,11 +337,23 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   when (optDumpTc opts && shouldDumpTyped) $ do
     dumpTc tcExprs
 
-  -- Phase 9: Bind all definitions together using recursiveBind
-  -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
-  env' <- recursiveBind env allBindings
+  -- Phase 9a: Evaluate pattern function declarations first
+  -- Pattern functions need to be in the environment before other definitions are bound
+  -- so that definitions can reference them in pattern matching
+  let isPatternFuncDecl (IPatternFunctionDecl{}, _) = True
+      isPatternFuncDecl _ = False
+      (patternFuncs, otherNonDefs) = partition isPatternFuncDecl nonDefExprs
+  
+  envWithPatternFuncs <- foldM (\currentEnv (iExpr, _) -> do
+      (_, env'') <- evalTopExpr' currentEnv iExpr
+      return env''
+    ) env patternFuncs
 
-  -- Phase 10: Evaluate non-definition expressions in order
+  -- Phase 9b: Bind all definitions together using recursiveBind
+  -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
+  env' <- recursiveBind envWithPatternFuncs allBindings
+
+  -- Phase 10: Evaluate non-definition expressions in order (excluding pattern functions, already evaluated)
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
       evalResult <- catchError
         (Right <$> evalTopExpr' currentEnv iExpr)
@@ -352,7 +368,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             Nothing -> return ()
             Just val -> valueToStr val >>= liftIO . putStrLn
           return (mVal, env'')
-    ) (Nothing, env') nonDefExprs
+    ) (Nothing, env') otherNonDefs
 
   return (lastVal, finalEnv)
 
