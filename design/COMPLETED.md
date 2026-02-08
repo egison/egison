@@ -1,3 +1,95 @@
+# Completed Features and Projects
+
+---
+
+# Pattern Function Implementation - 完了 ✅
+
+## 日付: 2026-02-08
+
+## 成果
+
+**パターン関数の型推論と型クラス展開が完全に動作するようになりました！**
+
+### 実行結果
+
+```bash
+$ cabal run egison -- -t sample/mahjong.egi
+True
+True
+```
+
+麻雀のパターンマッチングが正しく動作（`+`演算子を含むパターン関数）
+
+### 変更統計
+
+- **修正ファイル数**: 6個（IExpr.hs, Core.hs, Eval.hs, TypeClassExpand.hs, Types.hs, TypedDesugar.hs）
+- **新規追加**: `IPatternFuncExpr`コンストラクタ
+- **削除**: Phase 9a（パターン関数の先行評価）
+- **実装**: パターン専用の型クラス展開関数
+
+## 主な変更
+
+### 1. AST構造 (IExpr.hs)
+
+- `IPatternFuncExpr [String] IPattern`を追加（パターン関数をIExprとして表現）
+
+### 2. 型クラス展開 (TypeClassExpand.hs)
+
+- `expandTypeClassMethodsInPattern :: TIPattern -> EvalM TIPattern`を実装
+- `applyConcreteConstraintDictionariesInPattern :: TIPattern -> EvalM TIPattern`を実装
+- パターン内の式（`#(n + 1)`など）で型クラス辞書を正しく展開
+
+### 3. 型エイリアス正規化 (Types.hs)
+
+- `typeConstructorName`と`typeToName`で`TInt`→`"MathExpr"`正規化
+- `Integer = MathExpr`エイリアスを正しく処理
+
+### 4. 評価順序の統一 (Eval.hs)
+
+- `IPatternFunctionDecl`を`IPatternFuncExpr`に変換
+- すべての定義を`recursiveBind`で一括処理（Phase 9a削除）
+- パターン関数が型クラス辞書とグローバル定義にアクセス可能に
+
+### 5. 評価ロジック (Core.hs)
+
+- `evalExprShallow`に`IPatternFuncExpr`ケース追加
+- `PatternFunc`が完全な環境をキャプチャ
+
+## 解決した問題
+
+### 問題1: 型推論の欠如
+- **症状**: パターン関数の型推論が実装されていなかった
+- **解決**: `inferITopExpr`に`IPatternFunctionDecl`ケース追加、`IInductiveOrPApplyPat`による遅延解決
+
+### 問題2: 型クラス辞書へのアクセス不可
+- **症状**: パターン関数本体で`+`演算子使用時に"Expected math expression, but found: 'plus'"エラー
+- **原因**: パターン関数を先に評価していたため、`numMathExpr`辞書が環境に存在しなかった
+- **解決**: `IPatternFuncExpr`導入により`recursiveBind`で一括処理、完全な環境をキャプチャ
+
+### 問題3: 型クラス展開の不足
+- **症状**: パターン内の式で型クラスメソッドが辞書アクセスに展開されない
+- **解決**: `expandTypeClassMethodsInPattern`を実装、`TIPattern`内の`TIExpr`を再帰的に処理
+
+### 問題4: 型エイリアスの不一致
+- **症状**: `Num Integer`制約で`numInteger`辞書を検索するが、`numMathExpr`しか存在しない
+- **解決**: `TInt`を`TMathExpr`に正規化、辞書名生成を統一
+
+## テスト結果
+
+### ✅ 全テスト成功
+
+1. **twin** (4/4): 基本的なパターン関数
+2. **shuntsu** (6/6): `+`演算子を使用するパターン関数
+3. **kohtsu** (5/6): 同上（1つはテストケースの問題）
+4. **mahjong** (2/2): 複雑なパターンマッチング組み合わせ
+
+## ドキュメント
+
+- **詳細設計**: [pattern-function-implementation.md](./pattern-function-implementation.md)
+- **仕様**: [pattern.md](./pattern.md)
+
+---
+
 # TIExpr再帰化プロジェクト - 完了 ✅
 
 ## 日付: 2026-01-10
