@@ -57,6 +57,7 @@ def pattern twin (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pa
 
 def pattern shuntsu (pat1 : Tile) (pat2 : [Tile]) : [Tile] :=
   (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
+--  (num $s $n & ~pat1) :: num #s #(i.+ n 1) :: num #s #(i.+ n 2) :: ~pat2
 
 def pattern kohtsu (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pat :: #pat :: ~pat2
 

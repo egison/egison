@@ -32,7 +32,7 @@ import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar, stringToVar)
 import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, addDictionaryParametersT, applyConcreteConstraintDictionaries)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, expandTypeClassMethodsInPattern, addDictionaryParametersT, applyConcreteConstraintDictionaries, applyConcreteConstraintDictionariesInPattern)
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
@@ -97,10 +97,11 @@ desugarTypedTopExprT topExpr = case topExpr of
     -- Symbol declarations don't need type-driven transformations
     return $ Just (TIDeclareSymbol names ty)
   
-  TIPatternFunctionDecl name typeScheme params retType body ->
-    -- Pattern function declarations need to be executed to create PatternFunc runtime value
-    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
-    in return $ Just tiExpr
+  TIPatternFunctionDecl name typeScheme params retType body -> do
+    -- Pattern function declarations: apply type class expansion and dictionary application to body
+    body' <- expandTypeClassMethodsInPattern body
+    body'' <- applyConcreteConstraintDictionariesInPattern body'
+    return $ Just (TIPatternFunctionDecl name typeScheme params retType body'')
 
 -- | Desugar a top-level typed expression with TensorMap insertion only
 -- This is used for --dump-ti (intermediate dump after TensorMap insertion)
@@ -135,9 +136,8 @@ desugarTypedTopExprT_TensorMapOnly topExpr = case topExpr of
     return $ Just (TIDeclareSymbol names ty)
   
   TIPatternFunctionDecl name typeScheme params retType body ->
-    -- Pattern function declarations need to be executed to create PatternFunc runtime value
-    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
-    in return $ Just tiExpr
+    -- Pattern function declarations: TensorMap insertion only
+    return $ Just (TIPatternFunctionDecl name typeScheme params retType body)
 
 -- | Expand type class methods only (assumes TensorMap insertion is already done)
 -- This is used internally to perform type class expansion after TensorMap insertion
@@ -178,12 +178,13 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'
       return (var, tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
-
+  
   TIDeclareSymbol names ty ->
     return $ Just (TIDeclareSymbol names ty)
   
-  TIPatternFunctionDecl name typeScheme params retType body ->
-    -- Pattern function declarations need to be executed to create PatternFunc runtime value
-    let tiExpr = TIPatternFunctionDecl name typeScheme params retType body
-    in return $ Just tiExpr
+  TIPatternFunctionDecl name typeScheme params retType body -> do
+    -- Pattern function declarations: expand type class methods and apply dictionaries in body
+    body' <- expandTypeClassMethodsInPattern body
+    body'' <- applyConcreteConstraintDictionariesInPattern body'
+    return $ Just (TIPatternFunctionDecl name typeScheme params retType body'')
 
