@@ -110,6 +110,7 @@ data IExpr
   | ITransposeExpr IExpr IExpr
   | IFlipIndicesExpr IExpr
   | IFunctionExpr [String]
+  | IPatternFuncExpr [String] IPattern  -- Pattern function: parameter names and pattern body
   deriving Show
 
 type IBindingExpr = (IPrimitiveDataPattern, IExpr)
