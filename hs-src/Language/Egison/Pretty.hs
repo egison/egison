@@ -584,6 +584,25 @@ instance Complex IPattern where
   
   isInfix _ = False
 
+-- Pretty print for TIPattern (use existing prettyPatternWithType)
+instance Pretty TIPattern where
+  pretty = prettyPatternWithType
+
+instance Complex TIPattern where
+  isAtom (TIPattern _ TIWildCard) = True
+  isAtom (TIPattern _ (TIVarPat _)) = True
+  isAtom (TIPattern _ (TITuplePat _)) = True
+  isAtom (TIPattern _ (TIInductivePat _ [])) = True
+  isAtom (TIPattern _ TISeqNilPat) = True
+  isAtom _ = False
+  
+  isAtomOrApp (TIPattern _ (TIPApplyPat _ _)) = True
+  isAtomOrApp (TIPattern _ (TIInductiveOrPApplyPat _ (_:_))) = True
+  isAtomOrApp (TIPattern _ (TIInductivePat _ (_:_))) = True
+  isAtomOrApp pat = isAtom pat
+  
+  isInfix _ = False
+
 -- Pretty print for ITopExpr
 instance Pretty ITopExpr where
   pretty (IDefine var iexpr) =
@@ -607,6 +626,17 @@ instance Pretty ITopExpr where
                     Just ty -> pretty ":" <+> prettyTypeDoc ty
                     Nothing -> emptyDoc
     in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> typeDoc
+  pretty (IPatternFunctionDecl name tyVars params retType body) =
+    let tyVarsDoc = if null tyVars
+                      then emptyDoc
+                      else pretty "{" <> hsep (punctuate (pretty ",") (map prettyTyVar tyVars)) <> pretty "}"
+        paramsDoc = hsep (map prettyParam params)
+        retTypeDoc = prettyTypeDoc retType
+    in pretty "def" <+> pretty "pattern" <+> pretty name <+> tyVarsDoc <+> paramsDoc <+> 
+       pretty ":" <+> retTypeDoc <+> indentBlock (pretty ":=") [pretty body]
+    where
+      prettyTyVar (Types.TyVar v) = pretty v
+      prettyParam (pname, pty) = pretty "(" <> pretty pname <+> pretty ":" <+> prettyTypeDoc pty <> pretty ")"
 
 -- Pretty print for TIExpr and TITopExpr
 instance Pretty TIExpr where
@@ -808,6 +838,14 @@ instance Pretty TITopExpr where
   pretty (TIDeclareSymbol names ty) =
     let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
     in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> pretty ":" <+> prettyTypeDoc ty
+  pretty (TIPatternFunctionDecl name typeScheme params retType body) =
+    let typeStr = prettyTypeScheme typeScheme
+        paramsDoc = hsep (map prettyParam params)
+        retTypeDoc = prettyTypeDoc retType
+    in pretty "def" <+> pretty "pattern" <+> pretty name <+> pretty ":" <+> pretty typeStr <+>
+       paramsDoc <+> pretty ":" <+> retTypeDoc <+> indentBlock (pretty ":=") [pretty body]
+    where
+      prettyParam (pname, pty) = pretty "(" <> pretty pname <+> pretty ":" <+> prettyTypeDoc pty <> pretty ")"
 
 -- Helper function to pretty print Var
 prettyVar :: Var -> Doc ann
