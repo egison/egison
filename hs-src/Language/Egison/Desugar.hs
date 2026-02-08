@@ -37,7 +37,7 @@ import           Language.Egison.Data
 import           Language.Egison.IExpr
 import           Language.Egison.RState
 import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeConstructorName, 
-                                             typeExprToType, capitalizeFirst, lowerFirst)
+                                             typeExprToType, capitalizeFirst, lowerFirst, TyVar(..))
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
@@ -199,7 +199,14 @@ desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
 desugarTopExpr (PatternInductiveDecl _ _ _) = return Nothing  -- Handled in environment building phase
-desugarTopExpr (PatternFunctionDecl _ _ _ _ _) = return Nothing  -- Handled in environment building phase
+
+-- Pattern function declarations need type checking, so convert to IPatternFunctionDecl
+desugarTopExpr (PatternFunctionDecl name typeParams params retType body) = do
+  let paramTypes = map (\(pname, pty) -> (pname, typeExprToType pty)) params
+      retType' = typeExprToType retType
+      tyVars = map TyVar typeParams
+  body' <- desugarPattern body
+  return . Just $ IPatternFunctionDecl name tyVars paramTypes retType' body'
 
 -- Symbol declarations
 desugarTopExpr (DeclareSymbol names mTypeExpr) = do

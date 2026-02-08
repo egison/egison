@@ -63,6 +63,12 @@ data ITopExpr
   | ILoadFile String
   | ILoad String
   | IDeclareSymbol [String] (Maybe Type)  -- Symbol declaration
+  | IPatternFunctionDecl String [TyVar] [(String, Type)] Type IPattern  -- Pattern function declaration
+    -- String: function name
+    -- [TyVar]: type parameters
+    -- [(String, Type)]: parameters (name and type)
+    -- Type: return type
+    -- IPattern: body
   deriving Show
 
 data IExpr
@@ -226,6 +232,12 @@ data TITopExpr
   | TILoadFile String                  -- ^ Load file (should not appear after expandLoads)
   | TILoad String                      -- ^ Load library (should not appear after expandLoads)
   | TIDeclareSymbol [String] Type      -- ^ Typed symbol declaration
+  | TIPatternFunctionDecl String TypeScheme [(String, Type)] Type TIPattern  -- ^ Typed pattern function declaration
+    -- String: function name
+    -- TypeScheme: type scheme with type parameters and constraints
+    -- [(String, Type)]: parameters (name and type with type params substituted)
+    -- Type: return type (with type params substituted)
+    -- TIPattern: typed body
   deriving Show
 
 -- | Typed internal expression (Phase 9: TIExpr)
@@ -436,6 +448,39 @@ stripTypeTopExpr (TIExecute expr) = IExecute (stripType expr)
 stripTypeTopExpr (TILoadFile file) = ILoadFile file
 stripTypeTopExpr (TILoad file) = ILoad file
 stripTypeTopExpr (TIDeclareSymbol names ty) = IDeclareSymbol names (Just ty)
+stripTypeTopExpr (TIPatternFunctionDecl name _scheme params retType body) = 
+  IPatternFunctionDecl name tyVars params retType (stripTypePat body)
+  where
+    -- Extract type variables from the type scheme
+    Forall tyVars _ _ = _scheme
+    
+    -- Helper function to strip type from pattern
+    stripTypePat :: TIPattern -> IPattern
+    stripTypePat (TIPattern _ node) = case node of
+      TIWildCard -> IWildCard
+      TIPatVar v -> IPatVar v
+      TIValuePat e -> IValuePat (stripType e)
+      TIPredPat e -> IPredPat (stripType e)
+      TIIndexedPat p es -> IIndexedPat (stripTypePat p) (map stripType es)
+      TILetPat binds p -> ILetPat [(pd, stripType e) | (pd, e) <- binds] (stripTypePat p)
+      TIAndPat p1 p2 -> IAndPat (stripTypePat p1) (stripTypePat p2)
+      TIOrPat p1 p2 -> IOrPat (stripTypePat p1) (stripTypePat p2)
+      TINotPat p -> INotPat (stripTypePat p)
+      TITuplePat ps -> ITuplePat (map stripTypePat ps)
+      TIInductivePat name ps -> IInductivePat name (map stripTypePat ps)
+      TIPApplyPat e ps -> IPApplyPat (stripType e) (map stripTypePat ps)
+      TIDApplyPat p ps -> IDApplyPat (stripTypePat p) (map stripTypePat ps)
+      TILoopPat v r p1 p2 -> ILoopPat v (stripTypeLoopRange r) (stripTypePat p1) (stripTypePat p2)
+      TIVarPat v -> IVarPat v
+      TIForallPat p1 p2 -> IForallPat (stripTypePat p1) (stripTypePat p2)
+      TIContPat -> IContPat
+      TISeqNilPat -> ISeqNilPat
+      TISeqConsPat p1 p2 -> ISeqConsPat (stripTypePat p1) (stripTypePat p2)
+      TILaterPatVar -> ILaterPatVar
+      TIInductiveOrPApplyPat name ps -> IInductiveOrPApplyPat name (map stripTypePat ps)
+    
+    stripTypeLoopRange :: TILoopRange -> ILoopRange
+    stripTypeLoopRange (TILoopRange e1 e2 pat) = ILoopRange (stripType e1) (stripType e2) (stripTypePat pat)
 
 -- | Typed pattern with recursive structure (like TIExpr)
 data TIPattern = TIPattern
