@@ -676,7 +676,9 @@ desugarPattern' (InfixPat Op{ repr = f } pat1 pat2) =
   (\x y -> IInductivePat f [x, y]) <$> desugarPattern' pat1 <*> desugarPattern' pat2
 desugarPattern' (TuplePat pats) = ITuplePat <$> mapM desugarPattern' pats
 desugarPattern' (InductiveOrPApplyPat name pats) = IInductiveOrPApplyPat name <$> mapM desugarPattern' pats
-desugarPattern' (InductivePat name pats) = IInductivePat name <$> mapM desugarPattern' pats
+-- Convert all InductivePat to IInductiveOrPApplyPat since we cannot distinguish between
+-- pattern constructors and pattern functions at parse time
+desugarPattern' (InductivePat name pats) = IInductiveOrPApplyPat name <$> mapM desugarPattern' pats
 desugarPattern' (IndexedPat pat exprs) = IIndexedPat <$> desugarPattern' pat <*> mapM desugar exprs
 desugarPattern' (PApplyPat expr pats) = IPApplyPat <$> desugar expr <*> mapM desugarPattern' pats
 desugarPattern' (DApplyPat pat pats) = IDApplyPat <$> desugarPattern' pat <*> mapM desugarPattern' pats
