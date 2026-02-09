@@ -7,7 +7,6 @@ def X : Vector MathExpr := [| r * cos θ, r * sin θ |]
 
 -- Local basis
 def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
---def e : Matrix MathExpr := (flip ∂/∂) x~# X_#
 
 -- Metric tensor
 def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]

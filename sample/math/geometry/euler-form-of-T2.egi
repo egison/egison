@@ -5,7 +5,7 @@ def x := [| θ, φ |]
 def X := [| '(a * cos θ + b) * cos φ, '(a * cos θ + b) * sin φ, a * sin θ |]
 
 -- Local basis
-def e := (flip ∂/∂) x~# X_#
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensor
 def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [2, 2]

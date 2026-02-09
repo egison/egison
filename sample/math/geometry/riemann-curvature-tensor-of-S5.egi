@@ -10,7 +10,7 @@ def X := [| r * cos θ
           |]
 
 -- Local basis
-def e := (flip ∂/∂) x~# X_#
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensors
 def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [5, 5]
