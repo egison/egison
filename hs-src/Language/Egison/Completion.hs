@@ -9,11 +9,10 @@ module Language.Egison.Completion
   ( completeEgison
   ) where
 
-import           Data.HashMap.Strict         (keys)
 import           Data.List
 import           System.Console.Haskeline    (Completion (..), CompletionFunc, completeWord)
 
-import           Language.Egison.Data        (Env (..))
+import           Language.Egison.Data        (Env (..), envToBindingList)
 import           Language.Egison.IExpr       (Var (..))
 import           Language.Egison.Parser.NonS (lowerReservedWords, upperReservedWords)
 
@@ -31,8 +30,8 @@ completeNothing :: Monad m => String -> m [Completion]
 completeNothing _ = return []
 
 completeEgisonKeyword :: Monad m => Env -> String -> m [Completion]
-completeEgisonKeyword (Env env _) str = do
-  let definedWords = filter f $ map (\(Var name _) -> name) $ concatMap keys env
+completeEgisonKeyword env str = do
+  let definedWords = filter f $ map (\(Var name _, _) -> name) $ envToBindingList env
   return $ map (\kwd -> Completion kwd kwd False) $ filter (isPrefixOf str) (egisonKeywords ++ definedWords)
  where
    f [_]         = False

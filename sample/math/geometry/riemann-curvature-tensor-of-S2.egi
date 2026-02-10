@@ -11,7 +11,7 @@ def X : Vector MathExpr := [| r * sin θ * cos φ -- x
 def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
+def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x e_y) [2, 2]
 def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
 assertEqual "Metric tensor"
