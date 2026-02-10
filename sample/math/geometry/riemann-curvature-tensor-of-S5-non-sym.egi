@@ -12,7 +12,7 @@ def X := [| r * (cos θ),
 def e_i_j := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [5, 5]
+def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [5, 5]
 def g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor g_1_#"
