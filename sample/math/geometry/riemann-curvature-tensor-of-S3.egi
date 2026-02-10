@@ -13,8 +13,8 @@ def X : Vector MathExpr := [| r * cos θ
 def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [3, 3]
---def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
+--def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [3, 3]
+def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
 def g~i~j : Matrix MathExpr := M.inverse g_#_#
 
 assertEqual "Metric tensor g_#_#"
