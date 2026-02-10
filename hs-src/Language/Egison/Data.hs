@@ -36,10 +36,12 @@ module Language.Egison.Data
     , prettyFunctionName
     -- * Environment
     , Env (..)
+    , EnvLayer
     , Binding
     , nullEnv
     , extendEnv
     , refVar
+    , envToBindingList
     -- * Errors
     , EgisonError (..)
     , throwErrorWithTrace
@@ -60,12 +62,16 @@ import           Control.Monad.Trans.State.Strict
 import           Data.Foldable                    (msum, toList)
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.HashMap.Strict              as HashMap
+import           Data.Map.Strict                  (Map)
+import qualified Data.Map.Strict                  as Map
 import           Data.IORef
+
+import           Language.Egison.VarEntry         (VarEntry(..))
 import           Data.Sequence                    (Seq)
 import qualified Data.Sequence                    as Sq
 import qualified Data.Vector                      as V
 
-import           Data.List                        (intercalate)
+import           Data.List                        (intercalate, sortOn)
 import           Data.Text                        (Text, pack, unpack)
 import           Text.Show.Unicode                (ushow)
 
@@ -514,7 +520,12 @@ instance Show ObjectRef where
 -- Environment
 --
 
-data Env = Env [HashMap Var ObjectRef] (Maybe (String, [Index (Maybe ScalarData)]))
+-- | Environment layer: maps base variable names to all bindings with that name
+-- VarEntry list is sorted by index length (shortest first) for efficient prefix matching
+type EnvLayer = Map String [VarEntry ObjectRef]
+
+-- | Environment: list of layers (for scoping) plus optional index context
+data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe ScalarData)]))
 
 type Binding = (Var, ObjectRef)
 
@@ -534,15 +545,88 @@ instance {-# OVERLAPPING #-} Show (Index EgisonValue) where
 nullEnv :: Env
 nullEnv = Env [] Nothing
 
+-- | Extend environment with new bindings
+-- Groups bindings by base name and sorts by index length (shortest first)
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env env idx) bdg = Env (HashMap.fromList bdg : env) idx
+extendEnv (Env layers idx) bindings = Env (newLayer : layers) idx
+  where
+    -- Group bindings by base variable name
+    grouped :: Map String [VarEntry ObjectRef]
+    grouped = foldr insertBinding Map.empty bindings
+    
+    insertBinding :: Binding -> Map String [VarEntry ObjectRef] -> Map String [VarEntry ObjectRef]
+    insertBinding (Var name indices, ref) acc =
+      let entry = VarEntry indices ref
+      in Map.insertWith combineEntries name [entry] acc
+    
+    -- Combine and sort entries by index length (shortest first)
+    combineEntries :: [VarEntry ObjectRef] -> [VarEntry ObjectRef] -> [VarEntry ObjectRef]
+    combineEntries new old = 
+      sortByIndexLength (new ++ old)
+    
+    -- Sort VarEntry list by index length (ascending)
+    sortByIndexLength :: [VarEntry ObjectRef] -> [VarEntry ObjectRef]
+    sortByIndexLength = Data.List.sortOn (length . veIndices)
+    
+    newLayer = grouped
 
+-- | Look up a variable in the environment
+-- Search algorithm:
+--   1. Try exact match
+--   2. Try prefix match (find longer indices and auto-complete with #)
+--   3. Try suffix removal (find shorter indices, current behavior) - DISABLED to avoid infinite loops
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env env _) var@(Var _ []) = msum $ map (HashMap.lookup var) env
-refVar e@(Env env _) var@(Var name is) =
-  case msum $ map (HashMap.lookup var) env of
-    Nothing -> refVar e (Var name (init is))
-    Just x  -> Just x
+refVar (Env layers _) (Var name targetIndices) =
+  -- Search through all layers
+  msum $ map searchInLayer layers
+  where
+    searchInLayer :: EnvLayer -> Maybe ObjectRef
+    searchInLayer layer =
+      case Map.lookup name layer of
+        Nothing -> Nothing
+        Just entries ->
+          -- 1. Try exact match first
+          case findExactMatch targetIndices entries of
+            Just ref -> Just ref
+            Nothing ->
+              -- 2. Try prefix matching (e_a matches e_i_j with wildcards)
+              findPrefixMatch targetIndices entries
+              -- NOTE: Suffix removal is disabled to avoid infinite recursion
+    
+    -- Exact match: same length and same indices
+    findExactMatch :: [Index (Maybe Var)] -> [VarEntry ObjectRef] -> Maybe ObjectRef
+    findExactMatch indices entries =
+      case [veValue e | e <- entries, veIndices e == indices] of
+        (ref:_) -> Just ref
+        [] -> Nothing
+    
+    -- Prefix matching: find shortest entry where target indices are a prefix
+    -- Example: target [a] matches [i, j] in e_i_j (shortest match)
+    findPrefixMatch :: [Index (Maybe Var)] -> [VarEntry ObjectRef] -> Maybe ObjectRef
+    findPrefixMatch indices entries =
+      -- entries are sorted by index length (ascending), so first match is shortest
+      case [veValue e | e <- entries, isPrefixOfIndices indices (veIndices e)] of
+        (ref:_) -> Just ref
+        [] -> Nothing
+    
+    -- Check if target is a prefix of candidate (for prefix matching)
+    -- Example: [a] is prefix of [i, j]
+    -- IMPORTANT: target must be non-empty to avoid matching everything
+    isPrefixOfIndices :: [Index (Maybe Var)] -> [Index (Maybe Var)] -> Bool
+    isPrefixOfIndices target candidate =
+      not (null target) &&
+      length target < length candidate &&
+      target == take (length target) candidate
+
+-- | Convert environment to list of bindings
+-- Used for completion and debugging
+envToBindingList :: Env -> [Binding]
+envToBindingList (Env layers _) =
+  [ (Var name (veIndices entry), veValue entry)
+  | layer <- layers
+  , (name, entries) <- Map.toList layer
+  , entry <- entries
+  ]
 
 --
 -- Errors

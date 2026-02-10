@@ -84,6 +84,7 @@ Library
                   Language.Egison.Data.Collection
                   Language.Egison.Data.Utils
                   Language.Egison.EnvBuilder
+                  Language.Egison.VarEntry
                   Language.Egison.EvalState
                   Language.Egison.Eval
                    Language.Egison.IExpr
@@ -128,7 +129,7 @@ Library
                    Language.Egison.Type.Pretty
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
-  ghc-options:  -O3 -Wall -Wno-name-shadowing -Wno-incomplete-patterns
+  ghc-options:  -Wall -Wno-name-shadowing -Wno-incomplete-patterns
 
 Test-Suite test
   default-language:    GHC2021
@@ -198,4 +199,4 @@ Executable egison
   Hs-Source-Dirs:      hs-src/Interpreter
   Other-modules:       Paths_egison
   autogen-modules: Paths_egison
-  ghc-options:  -O3 -threaded -rtsopts -Wall -Wno-name-shadowing
+  ghc-options:  -threaded -rtsopts -Wall -Wno-name-shadowing

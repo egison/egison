@@ -35,18 +35,22 @@ module Language.Egison.Type.Env
   , patternEnvToList
   ) where
 
+import           Data.List                  (sortOn)
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 
 import           Language.Egison.IExpr      (Var(..), Index(..))
+import           Language.Egison.VarEntry   (VarEntry(..))
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
                                              Constraint(..), ClassInfo(..), InstanceInfo(..),
                                              freeTyVars, freshTyVar)
 
--- | Type environment: maps variables (with indices) to type schemes
-newtype TypeEnv = TypeEnv { unTypeEnv :: Map Var TypeScheme }
+-- | Type environment: uses same data structure as evaluation environment
+-- Maps base variable names to all bindings with that name
+-- VarEntry list is sorted by index length (shortest first) for efficient prefix matching
+newtype TypeEnv = TypeEnv { unTypeEnv :: Map String [VarEntry TypeScheme] }
   deriving (Eq, Show)
 
 -- | Pattern type environment: maps pattern function names to type schemes
@@ -60,35 +64,87 @@ emptyEnv = TypeEnv Map.empty
 
 -- | Extend the environment with a new binding
 extendEnv :: Var -> TypeScheme -> TypeEnv -> TypeEnv
-extendEnv var scheme (TypeEnv env) = TypeEnv $ Map.insert var scheme env
+extendEnv (Var name indices) scheme (TypeEnv env) =
+  let entry = VarEntry indices scheme
+      newEntries = case Map.lookup name env of
+        Nothing -> [entry]
+        Just existingEntries -> sortOn (length . veIndices) (entry : existingEntries)
+  in TypeEnv $ Map.insert name newEntries env
 
 -- | Extend the environment with multiple bindings
 extendEnvMany :: [(Var, TypeScheme)] -> TypeEnv -> TypeEnv
 extendEnvMany bindings env = foldr (uncurry extendEnv) env bindings
 
 -- | Look up a variable in the environment
--- Follows the same strategy as refVar in Data.hs:
--- Try exact match first, then progressively reduce indices
+-- Search algorithm (same as refVar in Data.hs):
+--   1. Try exact match
+--   2. Try prefix match (find longer indices and auto-complete with #)
+--   3. Try suffix removal (find shorter indices, current behavior) - DISABLED to avoid infinite loops
 lookupEnv :: Var -> TypeEnv -> Maybe TypeScheme
-lookupEnv var@(Var _ []) (TypeEnv env) = Map.lookup var env
-lookupEnv var@(Var name is) env@(TypeEnv envMap) =
-  case Map.lookup var envMap of
-    Just scheme -> Just scheme
-    Nothing -> lookupEnv (Var name (init is)) env
+lookupEnv (Var name targetIndices) (TypeEnv env) =
+  case Map.lookup name env of
+    Nothing -> Nothing
+    Just entries ->
+      -- 1. Try exact match first
+      case findExactMatch targetIndices entries of
+        Just scheme -> Just scheme
+        Nothing ->
+          -- 2. Try prefix matching (e_a matches e_i_j)
+          findPrefixMatch targetIndices entries
+          -- NOTE: Suffix removal is disabled to avoid infinite recursion
+  where
+    -- Exact match: same length and same indices
+    findExactMatch :: [Index (Maybe Var)] -> [VarEntry TypeScheme] -> Maybe TypeScheme
+    findExactMatch indices entries =
+      case [veValue e | e <- entries, veIndices e == indices] of
+        (scheme:_) -> Just scheme
+        [] -> Nothing
+    
+    -- Prefix matching: find shortest entry where target indices are a prefix
+    -- Example: target [a] matches [i, j] in e_i_j (shortest match)
+    findPrefixMatch :: [Index (Maybe Var)] -> [VarEntry TypeScheme] -> Maybe TypeScheme
+    findPrefixMatch indices entries =
+      -- entries are sorted by index length (ascending), so first match is shortest
+      case [veValue e | e <- entries, isPrefixOfIndices indices (veIndices e)] of
+        (scheme:_) -> Just scheme
+        [] -> Nothing
+    
+    -- Check if target is a prefix of candidate (for prefix matching)
+    -- Example: [a] is prefix of [i, j]
+    -- IMPORTANT: target must be non-empty to avoid matching everything
+    isPrefixOfIndices :: [Index (Maybe Var)] -> [Index (Maybe Var)] -> Bool
+    isPrefixOfIndices target candidate =
+      not (null target) &&
+      length target < length candidate &&
+      target == take (length target) candidate
 
 -- | Remove a variable from the environment
 removeFromEnv :: Var -> TypeEnv -> TypeEnv
-removeFromEnv var (TypeEnv env) = TypeEnv $ Map.delete var env
+removeFromEnv (Var name indices) (TypeEnv env) =
+  case Map.lookup name env of
+    Nothing -> TypeEnv env
+    Just entries ->
+      let newEntries = [e | e <- entries, veIndices e /= indices]
+      in if null newEntries
+         then TypeEnv $ Map.delete name env
+         else TypeEnv $ Map.insert name newEntries env
 
 -- | Convert environment to list
 envToList :: TypeEnv -> [(Var, TypeScheme)]
-envToList (TypeEnv env) = Map.toList env
+envToList (TypeEnv env) =
+  [ (Var name (veIndices entry), veValue entry)
+  | (name, entries) <- Map.toList env
+  , entry <- entries
+  ]
 
 -- | Get free type variables in the environment
 freeVarsInEnv :: TypeEnv -> Set TyVar
-freeVarsInEnv (TypeEnv env) = Set.unions $ map freeVarsInScheme $ Map.elems env
+freeVarsInEnv (TypeEnv env) = 
+  Set.unions $ map freeVarsInScheme $ concat $ Map.elems env
   where
-    freeVarsInScheme (Forall vs _ t) = freeTyVars t `Set.difference` Set.fromList vs
+    freeVarsInScheme entry = 
+      let Forall vs _ t = veValue entry
+      in freeTyVars t `Set.difference` Set.fromList vs
 
 -- | Generalize a type to a type scheme (without constraints)
 -- Generalize all free type variables that are not in the environment
