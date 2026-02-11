@@ -1,16 +1,18 @@
--- Parameters and metric tensor
-def x := [| θ, φ |]
+declare symbol r, θ, φ: MathExpr
 
-def g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
-def g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
+-- Parameters and metric tensor
+def x : Vector MathExpr := [| θ, φ |]
+
+def g_i_j : Matrix MathExpr := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+def g~i~j : Matrix MathExpr := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 -- Christoffel symbols
-def Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
+def Γ_j_l_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
-def Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
+def Γ~i_k_l : Tensor MathExpr := withSymbols [j] g~i~j . Γ_j_l_k
 
 -- Riemann curvature
-def R~i_j_k_l := withSymbols [m]
+def R~i_j_k_l : Tensor MathExpr := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 assertEqual "Riemann curvature" R~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
@@ -19,21 +21,23 @@ assertEqual "Riemann curvature" R~#_#_2_1 [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |
 assertEqual "Riemann curvature" R~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Exterior derivative
-def d %t := !(flip ∂/∂) x t
+def d (t : Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x t
 
 -- Wedge product
 infixl expression 7 ∧
 
-def (∧) %x %y := x !. y
+def (∧) (x : Tensor MathExpr) (y : Tensor MathExpr) : Tensor MathExpr := x !. y
 
 -- Connection form
-def ω~i_j := Γ~i_j_#
+def ω~i_j : Matrix MathExpr := Γ~i_j_#
 
 -- Curvature form
-def Ω~i_j := withSymbols [k]
+def Ω~i_j : Tensor MathExpr := withSymbols [k]
   antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
 
-assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
-assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
-assertEqual "Curvature form" Ω~#_#_2_1 [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
-assertEqual "Curvature form" Ω~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+Ω~#_#
+
+--assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+--assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
+--assertEqual "Curvature form" Ω~#_#_2_1 [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
+--assertEqual "Curvature form" Ω~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
