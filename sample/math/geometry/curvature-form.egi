@@ -37,7 +37,7 @@ def Ω~i_j : Tensor MathExpr := withSymbols [k]
 
 Ω~#_#
 
---assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
---assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
---assertEqual "Curvature form" Ω~#_#_2_1 [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
---assertEqual "Curvature form" Ω~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_1_1 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_1_2 [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_2_1 [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
+assertEqual "Curvature form" Ω~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#

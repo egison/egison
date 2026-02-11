@@ -79,7 +79,8 @@ extendEnvMany bindings env = foldr (uncurry extendEnv) env bindings
 -- Search algorithm (same as refVar in Data.hs):
 --   1. Try exact match
 --   2. Try prefix match (find longer indices and auto-complete with #)
---   3. Try suffix removal (find shorter indices, current behavior) - DISABLED to avoid infinite loops
+--   3. Try suffix removal (find shorter indices, pick longest match)
+-- No recursion is used; all matching is done in a single pass to avoid infinite loops.
 lookupEnv :: Var -> TypeEnv -> Maybe TypeScheme
 lookupEnv (Var name targetIndices) (TypeEnv env) =
   case Map.lookup name env of
@@ -90,8 +91,11 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
         Just scheme -> Just scheme
         Nothing ->
           -- 2. Try prefix matching (e_a matches e_i_j)
-          findPrefixMatch targetIndices entries
-          -- NOTE: Suffix removal is disabled to avoid infinite recursion
+          case findPrefixMatch targetIndices entries of
+            Just scheme -> Just scheme
+            Nothing ->
+              -- 3. Try suffix removal (e_i_j_k matches e_i_j, pick longest)
+              findSuffixMatch targetIndices entries
   where
     -- Exact match: same length and same indices
     findExactMatch :: [Index (Maybe Var)] -> [VarEntry TypeScheme] -> Maybe TypeScheme
@@ -108,6 +112,26 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
       case [veValue e | e <- entries, isPrefixOfIndices indices (veIndices e)] of
         (scheme:_) -> Just scheme
         [] -> Nothing
+    
+    -- Suffix removal: find longest entry where stored indices are a prefix of target
+    -- Example: target [i,j,k] matches e_i_j (stored [i,j]); prefer e_i_j over e_i
+    -- Single pass, no recursion - safe from infinite loops
+    findSuffixMatch :: [Index (Maybe Var)] -> [VarEntry TypeScheme] -> Maybe TypeScheme
+    findSuffixMatch targetIndices entries =
+      let suffixMatches = [e | e <- entries, storedIsPrefixOfTarget (veIndices e) targetIndices]
+      in case sortByIndexLengthDesc suffixMatches of
+        (e:_) -> Just (veValue e)
+        [] -> Nothing
+    
+    -- stored is prefix of target: stored has fewer indices, first part of target matches
+    storedIsPrefixOfTarget :: [Index (Maybe Var)] -> [Index (Maybe Var)] -> Bool
+    storedIsPrefixOfTarget stored target =
+      not (null target) &&
+      length stored < length target &&
+      stored == take (length stored) target
+    
+    sortByIndexLengthDesc :: [VarEntry TypeScheme] -> [VarEntry TypeScheme]
+    sortByIndexLengthDesc = reverse . sortOn (length . veIndices)
     
     -- Check if target is a prefix of candidate (for prefix matching)
     -- Example: [a] is prefix of [i, j]
