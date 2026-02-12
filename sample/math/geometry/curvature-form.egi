@@ -23,11 +23,6 @@ assertEqual "Riemann curvature" R~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 -- Exterior derivative
 def d (t : Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x t
 
--- Wedge product
-infixl expression 7 ∧
-
-def (∧) (x : Tensor MathExpr) (y : Tensor MathExpr) : Tensor MathExpr := x !. y
-
 -- Connection form
 def ω~i_j : Matrix MathExpr := Γ~i_j_#
 
