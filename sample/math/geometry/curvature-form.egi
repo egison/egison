@@ -31,6 +31,24 @@ def (∧) (x : Tensor MathExpr) (y : Tensor MathExpr) : Tensor MathExpr := x !. 
 -- Connection form
 def ω~i_j : Matrix MathExpr := Γ~i_j_#
 
+
+∂/∂ (- sin θ * cos θ) θ
+
+"ω~i_j"
+ω~i_j
+
+"d ω~i_j"
+d ω~i_j
+
+"ω~i_k ∧ ω~k_j"
+ω~i_k ∧ ω~k_j
+
+"plus"
+(tensor [2, 2, 2, 2] [0, 0, 0, 0, 0, 0, -1 + 2 * ('sin θ)^2, 0, 0, 0, -1 / ('sin θ)^2, 0, -1 / ('sin θ)^2, 0, 0, 0] )~i_j + (tensor [2, 2, 2, 2] [0, 0, 0, - ('cos θ)^2, 0, 0, - ('cos θ)^2, 0, 0, ('cos θ)^2 / ('sin θ)^2, 0, 0, ('cos θ)^2 / ('sin θ)^2, 0, 0, - ('cos θ)^2] )~i_j
+
+"antisymmetrize"
+antisymmetrize (tensor [2, 2, 2, 2] [0, 0, 0, 0, 0, 0, -1 + 2 * ('sin θ)^2, 0, 0, 0, -1 / ('sin θ)^2, 0, -1 / ('sin θ)^2, 0, 0, 0] )~i_j + (tensor [2, 2, 2, 2] [0, 0, 0, - ('cos θ)^2, 0, 0, - ('cos θ)^2, 0, 0, ('cos θ)^2 / ('sin θ)^2, 0, 0, ('cos θ)^2 / ('sin θ)^2, 0, 0, - ('cos θ)^2] )~i_j
+
 -- Curvature form
 def Ω~i_j : Tensor MathExpr := withSymbols [k]
   antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)

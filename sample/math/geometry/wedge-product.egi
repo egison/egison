@@ -2,30 +2,30 @@
 -- Wedge Product
 --
 
+declare symbol x, y, z: MathExpr
+
 def N : Integer := 3
 
 def params : Vector MathExpr := [|x, y, z|]
 
 def g : Matrix Integer := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
 
-def wedge {a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := X !. Y
-
 def dx : DiffForm Integer := [|1, 0, 0|]
 def dy : DiffForm Integer := [|0, 1, 0|]
 def dz : DiffForm Integer := [|0, 0, 1|]
 
 assertEqual "dx ∧ dy"
-  (wedge dx dy)
-  [| [| 0, 1, 0 |], [| -1, 0, 0 |], [| 0, 0, 0 |] |]
-
-assertEqual "dx ∧ dy (normalized)"
-  (dfNormalize (wedge dx dy))
+  (dx ∧ dy)
   [| [| 0, 1, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]
 
+assertEqual "dx ∧ dy (normalized)"
+  (dfNormalize (dx ∧ dy))
+  [| [| 0, 1 / 2, 0 |], [| -1 / 2, 0, 0 |], [| 0, 0, 0 |] |]
+
 assertEqual "dz ∧ dz"
-  (wedge dz dz)
-  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]
+  (dz ∧ dz)
+  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 1 |] |]
 
 assertEqual "dz ∧ dz (normalized) = 0"
-  (dfNormalize (wedge dz dz))
+  (dfNormalize (dz ∧ dz))
   [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]
