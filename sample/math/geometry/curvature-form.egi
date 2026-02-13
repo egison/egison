@@ -21,10 +21,7 @@ assertEqual "Riemann curvature" R~#_#_2_1 [| [| 0, -1 * (sin θ)^2 |], [| 1, 0 |
 assertEqual "Riemann curvature" R~#_#_2_2 [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Exterior derivative
-def d (t : Tensor MathExpr) : Tensor MathExpr := !∂/∂ t x
-
-d [| θ^2 + φ^2, θ + φ |]
-antisymmetrize (d [| θ^2 + φ^2, θ + φ |])
+def d (t : Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x t
 
 -- Connection form
 def ω~i_j : Matrix MathExpr := Γ~i_j_#

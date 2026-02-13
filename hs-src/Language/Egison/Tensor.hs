@@ -33,7 +33,7 @@ import           Prelude                    hiding (foldr, mappend, mconcat)
 
 import           Control.Monad              (mzero, zipWithM)
 import           Control.Monad.Except       (throwError)
-import           Data.List                  (delete, intersect, partition, (\\))
+import           Data.List                  (delete, intersect, partition, sortBy, (\\))
 import qualified Data.Vector                as V
 
 import           Control.Egison
@@ -215,6 +215,12 @@ isDF :: Index a -> Bool
 isDF (DF _ _) = True
 isDF _        = False
 
+-- | Compare DF indices by their ID and sequence numbers
+-- Used for sorting DF indices before removal to ensure correct dimension order
+compareDFNumber :: Index a -> Index a -> Ordering
+compareDFNumber (DF id1 n1) (DF id2 n2) = compare (id1, n1) (id2, n2)
+compareDFNumber _ _ = EQ
+
 -- | Remove dummy free indices from a Tensor
 removeDFFromTensor :: Tensor a -> EvalM (Tensor a)
 removeDFFromTensor (Tensor s xs is) = do
@@ -222,19 +228,31 @@ removeDFFromTensor (Tensor s xs is) = do
   if null ds
     then return (Tensor s xs is)
     else do
-      Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
+      -- Sort DF indices by their ID number and sequence number before removing
+      let sortedDs = sortBy compareDFNumber ds
+      Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
       return (Tensor s ys js)
 removeDFFromTensor t = return t  -- Scalar case
 
 removeDF :: WHNFData -> EvalM WHNFData
 removeDF (ITensor (Tensor s xs is)) = do
   let (ds, js) = partition isDF is
-  Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
-  return (ITensor (Tensor s ys js))
+  if null ds
+    then return (ITensor (Tensor s xs is))
+    else do
+      -- Sort DF indices by their ID number and sequence number before removing
+      let sortedDs = sortBy compareDFNumber ds
+      Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
+      return (ITensor (Tensor s ys js))
 removeDF (Value (TensorData (Tensor s xs is))) = do
   let (ds, js) = partition isDF is
-  Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
-  return (Value (TensorData (Tensor s ys js)))
+  if null ds
+    then return (Value (TensorData (Tensor s xs is)))
+    else do
+      -- Sort DF indices by their ID number and sequence number before removing
+      let sortedDs = sortBy compareDFNumber ds
+      Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
+      return (Value (TensorData (Tensor s ys js)))
 removeDF whnf = return whnf
 
 tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
