@@ -51,5 +51,5 @@ assertEqual
 
 
 assertEqual "z1'^5 = 1"
-  z1'^5
+  (z1'^5)
   1
