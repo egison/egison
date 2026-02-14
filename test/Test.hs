@@ -55,7 +55,7 @@ testCases =
 
 runTestCase :: FilePath -> Test
 runTestCase file = TestLabel file . TestCase . assertEvalM $ do
-  env <- lift $ lift initialEnv
+  env <- initialEnv
   exprs <- loadFile file
   evalTopExprsNoPrint env exprs
   where
@@ -65,7 +65,7 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
 -- Test case for pattern environment dump
 runPatternEnvDumpTest :: Test
 runPatternEnvDumpTest = TestLabel "pattern-env-dump" . TestCase . assertEvalMWithDump $ do
-  env <- lift $ lift initialEnv
+  env <- initialEnv
   exprs <- loadFile "mini-test/pattern-env-dump.egi"
   evalTopExprsNoPrint env exprs
   where
@@ -74,7 +74,10 @@ runPatternEnvDumpTest = TestLabel "pattern-env-dump" . TestCase . assertEvalMWit
 
 mathOutputTest :: RuntimeM Test
 mathOutputTest = do
-  env <- initialEnv
+  envResult <- fromEvalT initialEnv
+  env <- case envResult of
+    Left err -> error $ "Failed to initialize environment: " ++ show err
+    Right e -> return e
   latexTest <- mathOutputTestLatex env
   return $ TestList [latexTest]
 
