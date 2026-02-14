@@ -1,3 +1,5 @@
+declare symbol a, b, θ, φ: MathExpr
+
 -- Parameters
 def x : Vector MathExpr := [| θ, φ |]
 
