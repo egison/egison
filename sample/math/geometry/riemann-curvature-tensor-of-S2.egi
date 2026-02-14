@@ -22,7 +22,7 @@ assertEqual "Metric tensor"
   [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
 -- Christoffel symbols
-def Γ_i_j_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i{_j_k} : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 assertEqual "Christoffel symbols of the first kind"
   Γ_1_#_#
@@ -59,7 +59,7 @@ assertEqual "riemann curvature"
   [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 
 -- Ricci curvature
-def Ric_i_j : Matrix MathExpr := withSymbols [m]
+def Ric[_i_j] : Matrix MathExpr := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 -- Scalar curvature
