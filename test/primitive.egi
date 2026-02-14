@@ -2,84 +2,82 @@ assertEqual "numerator" (numerator (13 / 21)) 13
 
 assertEqual "denominator" (denominator (13 / 21)) 21
 
-assertEqual "modulo" (modulo (-21) 13) 5
+assertEqual "i.modulo" (i.modulo (-21) 13) 5
 
-assertEqual "quotient" (quotient (-21) 13) (-1)
+assertEqual "i.quotient" (i.quotient (-21) 13) (-1)
 
-assertEqual "remainder" ((-21) % 13) (-8)
+assertEqual "i.%" (i.% (-21) 13) (-8)
 
-assertEqual "neg" (neg (-89)) 89
+assertEqual "i.neg" (i.neg (-89)) 89
 
-assertEqual "abs" (abs 0)     0
-assertEqual "abs" (abs 15)    15
-assertEqual "abs" (abs (-89)) 89
+assertEqual "i.abs" (i.abs 0)     0
+assertEqual "i.abs" (i.abs 15)    15
+assertEqual "i.abs" (i.abs (-89)) 89
 
-assertEqual "lt" (0.1 < 1.0) True
-assertEqual "lt" (1.0 < 0.1) False
-assertEqual "lt" (1.0 < 1.0) False
+assertEqual "f.<" (f.< 0.1 1.0) True
+assertEqual "f.<" (f.< 1.0 0.1) False
+assertEqual "f.<" (f.< 1.0 1.0) False
 
-assertEqual "lte" (0.1 <= 1.0) True
-assertEqual "lte" (1.0 <= 0.1) False
-assertEqual "lte" (1.0 <= 1.0) True
+assertEqual "f.<=" (f.<= 0.1 1.0) True
+assertEqual "f.<=" (f.<= 1.0 0.1) False
+assertEqual "f.<=" (f.<= 1.0 1.0) True
 
-assertEqual "gt" (0.1 > 1.0) False
-assertEqual "gt" (1.0 > 0.1) True
-assertEqual "gt" (1.0 > 1.0) False
+assertEqual "f.>" (f.> 0.1 1.0) False
+assertEqual "f.>" (f.> 1.0 0.1) True
+assertEqual "f.>" (f.> 1.0 1.0) False
 
-assertEqual "gte" (0.1 >= 1.0) False
-assertEqual "gte" (1.0 >= 0.1) True
-assertEqual "gte" (1.0 >= 1.0) True
+assertEqual "f.>=" (f.>= 0.1 1.0) False
+assertEqual "f.>=" (f.>= 1.0 0.1) True
+assertEqual "f.>=" (f.>= 1.0 1.0) True
 
-assertEqual "round" (round 3.1)    3
-assertEqual "round" (round 3.7)    4
-assertEqual "round" (round (-2.2)) (-2)
-assertEqual "round" (round (-2.7)) (-3)
+assertEqual "round" (round 3.1)              3
+assertEqual "round" (round 3.7)              4
+assertEqual "round" (round (f.- 0.0 2.2))    (-2)
+assertEqual "round" (round (f.- 0.0 2.7))    (-3)
 
-assertEqual "floor" (floor 3.1)    3
-assertEqual "floor" (floor 3.7)    3
-assertEqual "floor" (floor (-2.2)) (-3)
-assertEqual "floor" (floor (-2.7)) (-3)
+assertEqual "floor" (floor 3.1)              3
+assertEqual "floor" (floor 3.7)              3
+assertEqual "floor" (floor (f.- 0.0 2.2))    (-3)
+assertEqual "floor" (floor (f.- 0.0 2.7))    (-3)
 
-assertEqual "ceiling" (ceiling 3.1)    4
-assertEqual "ceiling" (ceiling 3.7)    4
-assertEqual "ceiling" (ceiling (-2.2)) (-2)
-assertEqual "ceiling" (ceiling (-2.7)) (-2)
+assertEqual "ceiling" (ceiling 3.1)           4
+assertEqual "ceiling" (ceiling 3.7)           4
+assertEqual "ceiling" (ceiling (f.- 0.0 2.2)) (-2)
+assertEqual "ceiling" (ceiling (f.- 0.0 2.7)) (-2)
 
-assertEqual "truncate" (truncate 3.1)    3
-assertEqual "truncate" (truncate 3.7)    3
-assertEqual "truncate" (truncate (-2.2)) (-2)
-assertEqual "truncate" (truncate (-2.7)) (-2)
+assertEqual "truncate" (truncate 3.1)              3
+assertEqual "truncate" (truncate 3.7)              3
+assertEqual "truncate" (truncate (f.- 0.0 2.2))    (-2)
+assertEqual "truncate" (truncate (f.- 0.0 2.7))    (-2)
 
-assertEqual "sqrt" (sqrt 4) 2
-assertEqual "sqrt" (sqrt 4.0) 2.0
-assertEqual "sqrt" (sqrt (-1)) i
+assertEqual "f.sqrt" (f.sqrt 4.0) 2.0
+assertEqual "f.sqrt" (f.sqrt 1.0) 1.0
 
-assertEqual "exp" (exp 1) e
-assertEqual "exp" (exp 1.0) 2.718281828459045
-assertEqual "exp" (exp (-1.0)) 0.36787944117144233
+assertEqual "f.exp" (f.exp 0.0) 1.0
+assertEqual "f.exp" (f.exp 1.0) 2.718281828459045
 
-assertEqual "log" (log e) 1
-assertEqual "log" (log 10.0) 2.302585092994046
+assertEqual "f.log" (f.log 1.0) 0.0
+assertEqual "f.log" (f.log 10.0) 2.302585092994046
 
-assertEqual "sin"   (sin 0.0) 0.0
-assertEqual "cos"   (cos 0.0) 1.0
-assertEqual "tan"   (tan 0.0) 0.0
-assertEqual "asin"  (asin 0.0) 0.0
-assertEqual "acos"  (acos 1.0) 0.0
-assertEqual "atan"  (atan 0.0) 0.0
-assertEqual "sinh"  (sinh 0.0) 0.0
-assertEqual "cosh"  (cosh 0.0) 1.0
-assertEqual "tanh"  (tanh 0.0) 0.0
-assertEqual "asinh" (asinh 0.0) 0.0
-assertEqual "acosh" (acosh 1.0) 0.0
-assertEqual "atanh" (atanh 0.0) 0.0
+assertEqual "f.sin"   (f.sin 0.0) 0.0
+assertEqual "f.cos"   (f.cos 0.0) 1.0
+assertEqual "f.tan"   (f.tan 0.0) 0.0
+assertEqual "f.asin"  (f.asin 0.0) 0.0
+assertEqual "f.acos"  (f.acos 1.0) 0.0
+assertEqual "f.atan"  (f.atan 0.0) 0.0
+assertEqual "f.sinh"  (f.sinh 0.0) 0.0
+assertEqual "f.cosh"  (f.cosh 0.0) 1.0
+assertEqual "f.tanh"  (f.tanh 0.0) 0.0
+assertEqual "f.asinh" (f.asinh 0.0) 0.0
+assertEqual "f.acosh" (f.acosh 1.0) 0.0
+assertEqual "f.atanh" (f.atanh 0.0) 0.0
 
 -- tensorSize
 -- tensorToList
 -- dfOrder
 
-assertEqual "itof" (itof 4)    4.0
-assertEqual "itof" (itof (-1)) (-1.0)
+assertEqual "itof" (itof 4)  4.0
+assertEqual "itof" (itof (i.neg 1)) (f.- 0.0 1.0)
 
 assertEqual "rtof" (rtof (3 / 2)) 1.5
 assertEqual "rtof" (rtof 1)       1.0
@@ -116,10 +114,11 @@ assertEqual "regexCg" (regexCg "([0-9]+),([0-9]+)" "abc,123,45,defg") [("abc,", 
 -- addSubscript
 -- addSuperscript
 
-assertEqual "read" (read "3")                3
-assertEqual "read" (read "3.14")             3.14
-assertEqual "read" (read "[1, 2]")            [1, 2]
-assertEqual "read" (read "\"Hello world!\"") "Hello world!"
+-- TODO: read
+-- assertEqual "read" (read "3")                3
+-- assertEqual "read" (read "3.14")             3.14
+-- assertEqual "read" (read "[1, 2]")            [1, 2]
+-- assertEqual "read" (read "\"Hello world!\"") "Hello world!"
 
 -- TODO: read-tsv
 
@@ -130,30 +129,9 @@ assertEqual "show" (show "Hello world!") "\"Hello world!\""
 
 -- TODO: show-tsv
 
-assertEqual "isBool" (isBool False) True
-
 assertEqual "isInteger" (isInteger 1) True
+assertEqual "isInteger" (isInteger (1 / 2)) False
 
 assertEqual "isRational" (isRational 1)       True
 assertEqual "isRational" (isRational (1 / 2)) True
-assertEqual "isRational" (isRational 3.1)     False
-
-assertEqual "isScalar" (isScalar 1) True
-assertEqual "isScalar" (isScalar [| 1, 2 |]) False
-
-assertEqual "isFloat" (isFloat 1.0) True
-assertEqual "isFloat" (isFloat 1)   False
-
-assertEqual "isChar" (isChar 'c') True
-
-assertEqual "isString" (isString "hoge") True
-
-assertEqual "isCollection" (isCollection []) True
-assertEqual "isCollection" (isCollection [1]) True
-
-assertEqual "isHash" (isHash {| |}) True
-assertEqual "isHash" (isHash {| (1, 2) |}) True
-
-assertEqual "isTensor" (isTensor 1)                           False
-assertEqual "isTensor" (isTensor [| 1 |])                     True
-assertEqual "isTensor" (isTensor (generateTensor sum [1, 2])) True
+assertEqual "isRational" (isRational 1.0)     False

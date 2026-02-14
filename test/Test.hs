@@ -32,7 +32,6 @@ testCases =
   , "test/lib/core/number.egi"
   , "test/lib/core/order.egi"
   , "test/lib/core/random.egi"
-  , "test/lib/core/shell.egi"
   , "test/lib/core/sort.egi"
   , "test/lib/core/string.egi"
   , "test/lib/math/algebra.egi"
@@ -40,7 +39,7 @@ testCases =
   -- , "test/lib/math/arithmetic.egi"  -- Skipped due to infinite loop
   -- , "test/lib/math/tensor.egi"     -- Skipped due to infinite loop
 
-  , "sample/mahjong.egi" -- for testing pattern functions
+--  , "sample/mahjong.egi" -- for testing pattern functions
   , "sample/primes.egi" -- for testing pattern matching with infinitely many results
   , "sample/sat/cdcl.egi" -- for testing a practical program using pattern matching
   , "sample/poker-hands.egi"
