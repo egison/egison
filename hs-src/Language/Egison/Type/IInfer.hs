@@ -2836,7 +2836,7 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
 -- applySubstRecursively s t1 will return (Integer, [Integer])
 -- instead of (Integer, t2)
 applySubstRecursively :: Subst -> Type -> Infer Type
-applySubstRecursively s t = applySubstRecursively' s t 10  -- Max 10 iterations
+applySubstRecursively s t = applySubstRecursively' s t 5  -- Max 5 iterations (reduced from 10)
   where
     applySubstRecursively' :: Subst -> Type -> Int -> Infer Type
     applySubstRecursively' _ t 0 = return t  -- Stop after max iterations
