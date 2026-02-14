@@ -32,12 +32,12 @@ def ∂/∂' (f : MathExpr) (!x : MathExpr) : MathExpr :=
     -- | apply4 $g $a1 $a2 $a3 $a4 ->
     --   `((userRefs g [1]) a1 a2 a3 a4) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2 a3 a4) * ∂/∂' a2 x + `((userRefs g [3]) a1 a2 a3 a4) * ∂/∂' a3 x + `((userRefs g [4]) a1 a2 a3 a4) * ∂/∂' a4 x
     -- quote
-    -- | quote $g ->
-    --   let g' := ∂/∂' g x
-    --    in if isMonomial g'
-    --         then g'
-    --         else let d := foldl1 (\a b -> `(gcd a b)) (fromPoly g')
-    --               in d *' `(mapPoly (/' d) g')
+    | quote $g ->
+      let g' := ∂/∂' g x
+       in if isMonomial g'
+            then g'
+            else let d := foldl1 (\a b -> (gcd a b)) (fromPoly g')
+                  in d *' (mapPoly (/' d) g')
     -- term (constant)
     | #0 -> 0
     | _ * #1 -> 0
