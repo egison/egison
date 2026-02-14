@@ -2830,6 +2830,22 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDSupPat _) = return (TIndexExpr, emptySubst)
     inferPatternType (PDUserPat _) = return (TIndexExpr, emptySubst)
 
+-- | Apply substitution recursively until a fixed point is reached
+-- This ensures that nested type variables are fully resolved
+-- For example, if s = {t1 -> (Integer, t2), t2 -> [Integer]}, then
+-- applySubstRecursively s t1 will return (Integer, [Integer])
+-- instead of (Integer, t2)
+applySubstRecursively :: Subst -> Type -> Infer Type
+applySubstRecursively s t = applySubstRecursively' s t 10  -- Max 10 iterations
+  where
+    applySubstRecursively' :: Subst -> Type -> Int -> Infer Type
+    applySubstRecursively' _ t 0 = return t  -- Stop after max iterations
+    applySubstRecursively' s t n = do
+      t' <- applySubstWithConstraintsM s t
+      if t' == t
+        then return t
+        else applySubstRecursively' s t' (n - 1)
+
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
@@ -2845,9 +2861,10 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   patternType' <- applySubstWithConstraintsM s12 patternType
   s3 <- unifyTypesWithContext exprType' patternType' ctx
 
-  -- Apply all substitutions and extract bindings
+  -- Apply all substitutions recursively until fixed point
+  -- This ensures nested type variables are fully resolved (e.g., for sortWithSign)
   let finalS = composeSubst s3 s12
-  finalExprType <- applySubstWithConstraintsM finalS exprType
+  finalExprType <- applySubstRecursively finalS exprType
   let bindings = extractIBindingsFromPattern pat finalExprType
       s' = composeSubst finalS s
 
@@ -2909,11 +2926,15 @@ inferIRecBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorC
 inferIRecBindingsWithContext bindings _env s ctx = do
   -- Create placeholders with fresh type variables
   placeholders <- mapM (\(pat, _) -> do
-    ty <- freshVar "rec"
-    return (pat, ty)) bindings
+    (patternType, s1) <- inferPatternType pat
+    return (pat, patternType, s1)) bindings
+  
+  let placeholderTypes = map (\(_, ty, _) -> ty) placeholders
+      placeholderSubsts = map (\(_, _, s) -> s) placeholders
+      s0 = foldr composeSubst s placeholderSubsts
   
   -- Extract bindings from placeholders
-  let placeholderBindings = concatMap (\(pat, ty) -> extractIBindingsFromPattern pat ty) placeholders
+  let placeholderBindings = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders placeholderTypes
   
   -- Infer expressions in extended environment
   results <- withEnv placeholderBindings $ mapM (\(_, expr) -> inferIExprWithContext expr ctx) bindings
@@ -2921,14 +2942,57 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   let exprTIs = map fst results
       exprTypes = map (tiExprType . fst) results
       substList = map snd results
-      finalS = foldr composeSubst s substList
+      s1 = foldr composeSubst s0 substList
+  
+  -- Unify placeholder types with inferred expression types
+  unifySubsts <- zipWithM (\placeholderTy exprTy -> do
+    placeholderTy' <- applySubstWithConstraintsM s1 placeholderTy
+    exprTy' <- applySubstWithConstraintsM s1 exprTy
+    unifyTypesWithContext exprTy' placeholderTy' ctx) placeholderTypes exprTypes
+  
+  let finalS = foldr composeSubst s1 unifySubsts
 
-  -- Re-extract bindings with inferred types
-  exprTypes' <- mapM (applySubstWithConstraintsM finalS) exprTypes
-  let finalBindings = concat $ zipWith (\(pat, _) ty -> extractIBindingsFromPattern pat ty) bindings exprTypes'
+  -- Re-extract bindings with fully resolved types
+  exprTypes' <- mapM (applySubstRecursively finalS) exprTypes
+  let finalBindings = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders exprTypes'
       transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
 
   return (transformedBindings, finalBindings, finalS)
+  where
+    -- Infer the type that a pattern expects (same as in inferIBindingsWithContext)
+    inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
+    inferPatternType PDWildCard = do
+      t <- freshVar "wild"
+      return (t, emptySubst)
+    inferPatternType (PDPatVar _) = do
+      t <- freshVar "rec"
+      return (t, emptySubst)
+    inferPatternType (PDTuplePat pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TTuple types, s)
+    inferPatternType PDEmptyPat = return (TCollection (TVar (TyVar "a")), emptySubst)
+    inferPatternType (PDConsPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDSnocPat _ _) = do
+      elemType <- freshVar "elem"
+      return (TCollection elemType, emptySubst)
+    inferPatternType (PDInductivePat name pats) = do
+      results <- mapM inferPatternType pats
+      let types = map fst results
+          substs = map snd results
+          s = foldr composeSubst emptySubst substs
+      return (TInductive name types, s)
+    inferPatternType (PDConstantPat c) = do
+      ty <- inferConstant c
+      return (ty, emptySubst)
+    -- Add other cases as needed
+    inferPatternType _ = do
+      t <- freshVar "rec"
+      return (t, emptySubst)
 
 -- | Extract bindings from pattern
 -- This function extracts variable bindings from a primitive data pattern
