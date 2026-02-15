@@ -3,13 +3,13 @@
 --
 
 assertEqual "maybe"
-  (matchAll Just 1 as maybe integer with
+  (match Just 1 as maybe integer with
     | just $x -> x
-    | nothing -> "error")
-  [1]
+    | nothing -> 0)
+  1
 
 assertEqual "maybe"
-  (matchAll Nothing as maybe integer with
-    | just _ -> "error"
+  (match Nothing as maybe integer with
+    | just _ -> False
     | nothing -> True)
-  [True]
+  True
