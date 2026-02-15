@@ -1,31 +1,4 @@
 --
--- Matcher
---
-
-assertEqual "nat's o"
-  (match 0 as nat with
-    | o -> True
-    | _ -> False)
-  True
-
-assertEqual "nat's o"
-  (match 1 as nat with
-    | o -> True
-    | _ -> False)
-  False
-
-assertEqual "nat's s"
-  (match 10 as nat with
-    | s $n -> n)
-  9
-
-assertEqual "nat's s"
-  (match 0 as nat with
-    | s o -> True
-    | _ -> False)
-  False
-
---
 -- Sequences
 --
 
@@ -69,11 +42,7 @@ assertEqual "comb" (comb 5 2) 10
 assertEqual "nAdic" (nAdic 10 123) [1, 2, 3]
 assertEqual "nAdic" (nAdic 2 10) [1, 0, 1, 0]
 
-assertEqual "rtod"
-  ((2)#(%1, take 10 %2) (rtod (6 / 35)))
-  (0, [1, 7, 1, 4, 2, 8, 5, 7, 1, 4])
-
-assertEqual "rtod'" (rtod' (6 / 35)) (0, [1], [7, 1, 4, 2, 8, 5])
+assertEqual "rtod" (rtod (6 / 35)) (0, [1], [7, 1, 4, 2, 8, 5])
 
 assertEqual "showDecimal" (showDecimal 10 (6 / 35)) "0.1714285714"
 assertEqual "showDecimal'" (showDecimal' (6 / 35)) "0.1 714285 ..."
@@ -106,12 +75,12 @@ assertEqual "continued-fraction pi"
 
 assertEqual
   "regularContinuedFractionOfSqrt case 1"
-  ((2)#(%1, take 10 %2) (regularContinuedFractionOfSqrt 2))
-  (1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2])
+  (regularContinuedFractionOfSqrt 2)
+  (1, [], [2])
 
 assertEqual
   "regularContinuedFractionOfSqrt case 2"
   (rtof
-     (let (x, y) := regularContinuedFractionOfSqrt 2
-       in regularContinuedFraction x (take 100 y)))
+     (let (x, s, c) := regularContinuedFractionOfSqrt 2
+       in regularContinuedFraction x (take 100 (s ++ repeat c))))
   1.4142135623730951

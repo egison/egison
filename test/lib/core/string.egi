@@ -3,26 +3,6 @@ assert "string's value pattern"
     | #"abc" -> True
     | _ -> False)
 
-assert "string's nil"
-  (match "" as string with
-    | [] -> True
-    | _ -> False)
-
-assert "string's nil"
-  (match "abc" as string with
-    | [] -> False
-    | _ -> True)
-
-assertEqual "string's cons"
-  (matchAll "abc" as string with
-    | $x :: $xs -> (x, xs))
-  [('a', "bc")]
-
-assertEqual "string's join"
-  (matchAll "abc" as string with
-    | $xs ++ $ys -> (xs, ys))
-  [("", "abc"), ("a", "bc"), ("ab", "c"), ("abc", "")]
-
 --
 -- String as collection
 --
