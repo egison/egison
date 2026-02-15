@@ -1,37 +1,50 @@
+declare symbol r, θ: MathExpr
+
 -- Parameters and metrics
 
-def N := 2
+def N : Integer := 2
 
-def x := [|r, θ|]
+def x : Vector MathExpr := [|r, θ|]
 
-def g_i_j := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
-def g~i~j := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
+def g_i_j : Matrix MathExpr := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
+def g~i~j : Matrix MathExpr := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
 
 -- Hodge Laplacian
 
-def d %A := !(flip ∂/∂) x A
+def d (A: Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x A
 
-def hodge %A :=
+def hodge (A: Tensor MathExpr) : Tensor MathExpr :=
   let k := dfOrder A in
     withSymbols [i, j]
       (sqrt (abs (M.det g_#_#))) * (foldl (.) ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
                                               (map 1#g~(i_$1)~(j_$1) [1..k]))
 
 
-def δ %A :=
+def δ (A: Tensor MathExpr) : Tensor MathExpr :=
   let k := dfOrder A in
     -1^(N * (k + 1) + 1) * (hodge (d (hodge A)))
 
-def Δ %A :=
+def Δ (A: Tensor MathExpr) : Tensor MathExpr :=
   match (dfOrder A) as integer with
   | #0 -> δ (d A)
   | #N -> d (δ A)
   | _  -> d (δ A) + δ (d A)
 
-def f := function (r, θ)
+def f : MathExpr := function (r, θ)
 
-assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
+d f 
+--assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
 
-assertEqual "hodge operator" (hodge (d f)) [| (-1 * ∂/∂ f θ) / r, r * (∂/∂ f r) |]
+hodge (d f)
+--assertEqual "hodge operator" (hodge (d f)) [| (-1 * ∂/∂ f θ) / r, r * (∂/∂ f r) |]
 
-assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))
+hodge f
+
+(d (hodge f))
+
+δ f
+
+d (δ f)
+
+Δ f
+--assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))

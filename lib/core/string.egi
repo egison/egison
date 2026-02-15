@@ -87,3 +87,21 @@ def isAlphabetString (s: String) : Bool := all isAlphabet (unpack s)
 def upperCase (c: Char) : Char := if C.isBetween 'a' 'z' c then itoc (ctoi c - 32) else c
 
 def lowerCase (c: Char) : Char := if C.isBetween 'A' 'Z' c then itoc (ctoi c + 32) else c
+
+--
+-- Number
+--
+def showDecimal (c: Integer) (x: Integer) : String :=
+  match rtod x as (integer, list integer, list integer) with
+    | ($q, $s, $cycle) ->
+      let allDigits := s ++ (if isEmpty cycle then [] else cycle ++ cycle ++ cycle)
+          sc := take c allDigits
+       in foldl S.append (S.append (show q) ".") (map show sc)
+
+def showDecimal' (x: Integer) : String :=
+  match rtod x as (integer, list integer, list integer) with
+    | ($q, $s, $c) ->
+        foldl
+          S.append
+          ""
+          (S.append (show q) "." :: map show s ++ " " :: map show c ++ [" ..."])

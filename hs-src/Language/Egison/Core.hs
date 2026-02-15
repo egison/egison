@@ -390,8 +390,16 @@ evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
   applyObj env (Value $ Func Nothing env [stringToVar "#1"] body) [WHNF (Value World)]
  where
   genLet (names, expr) expr' =
-    ILetExpr [(PDTuplePat (map PDPatVar [stringToVar "#1", stringToVar "#2"]), IApplyExpr expr [IVarExpr "#1"])] $
-    ILetExpr [(names, IVarExpr "#2")] expr'
+    case names of
+      -- If names is an empty tuple pattern () or wildcard, ignore the result
+      PDTuplePat [] ->
+        ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDWildCard], IApplyExpr expr [IVarExpr "#1"])] expr'
+      PDWildCard ->
+        ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDWildCard], IApplyExpr expr [IVarExpr "#1"])] expr'
+      -- Otherwise, bind the result as before
+      _ ->
+        ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDPatVar (stringToVar "#2")], IApplyExpr expr [IVarExpr "#1"])] $
+        ILetExpr [(names, IVarExpr "#2")] expr'
 
 evalExprShallow env (IMatchAllExpr pmmode target matcher clauses) = do
   target <- evalExprShallow env target
