@@ -16,8 +16,8 @@ def d (A: Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x A
 def hodge (A: Tensor MathExpr) : Tensor MathExpr :=
   let k := dfOrder A in
     withSymbols [i, j]
-      (sqrt (abs (M.det g_#_#))) * (foldl (.) ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
-                                              (map 1#g~(i_$1)~(j_$1) [1..k]))
+      (sqrt (M.det g_#_#)) * (foldl (.) ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
+                                        (map 1#g~(i_$1)~(j_$1) [1..k]))
 
 
 def δ (A: Tensor MathExpr) : Tensor MathExpr :=
@@ -32,19 +32,4 @@ def Δ (A: Tensor MathExpr) : Tensor MathExpr :=
 
 def f : MathExpr := function (r, θ)
 
-d f 
---assertEqual "exterior derivative" (d f) [| ∂/∂ f r, ∂/∂ f θ |]
-
-hodge (d f)
---assertEqual "hodge operator" (hodge (d f)) [| (-1 * ∂/∂ f θ) / r, r * (∂/∂ f r) |]
-
-hodge f
-
-(d (hodge f))
-
-δ f
-
-d (δ f)
-
-Δ f
---assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))
+assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))
