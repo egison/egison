@@ -151,6 +151,57 @@ rewriteSinCos = h . mapTerms (g . f)
       , [mc| _ -> Div poly1 poly2 |]
       ]
 
+-- Determine if a ScalarData is definitely negative
+-- Returns Just True if negative, Just False if non-negative, Nothing if unknown
+isNegativeScalar :: ScalarData -> Maybe Bool
+isNegativeScalar (Div (Plus terms) (Plus [Term d []]))
+  | d > 0 = analyzeTerms terms
+  | d < 0 = fmap not (analyzeTerms terms)
+ where
+  analyzeTerms ts
+    | all (\(Term a _) -> a < 0) ts = Just True
+    | all (\(Term a _) -> a > 0) ts = Just False
+    | otherwise =
+      -- Two-term case: a + b*sqrt(n), compare a^2 with b^2*n
+      match dfs ts (Multiset TermM)
+        [ [mc| term $a [] :
+               term $b ((apply1 #"sqrt" _ (singleTerm $n #1 []), #1) : []) :
+               [] ->
+                 if n > 0
+                 then let lhs = a * a; rhs = b * b * n
+                      in if lhs > rhs then Just (a < 0)
+                         else if lhs < rhs then Just (b < 0)
+                         else Just False
+                 else Nothing |]
+        , [mc| _ -> Nothing |]
+        ]
+isNegativeScalar _ = Nothing
+
+-- Find a pair of sqrts in a monomial whose product simplifies to a single term.
+-- Uses matchAll to enumerate all sqrt pairs, avoiding DFS ordering issues.
+-- We apply rewriteSqrt to the product because mathMult alone does not simplify
+-- sqrt(x)^2 to x, which is needed for products like (-5-2√5)*(-5+2√5).
+findSqrtPairToMerge :: Monomial -> Maybe (WHNFData, ScalarData, Monomial, Integer)
+findSqrtPairToMerge xs =
+  case results of
+    (r:_) -> Just r
+    []    -> Nothing
+ where
+  results =
+    [ (whnf, simplified, xss, sign)
+    | (whnf, x, y, xss) <- matchAll dfs xs (Multiset (SymbolM, Eql))
+        [ [mc| (apply1 #"sqrt" $whnf $x, #1) :
+               (apply1 #"sqrt" _ $y, #1) : $xss ->
+                 (whnf, x, y, xss) |] ]
+    , let simplified = rewriteSqrt (mathMult x y)
+    , isSingleTermScalar simplified
+    , let sign = case (isNegativeScalar x, isNegativeScalar y) of
+                   (Just True, Just True) -> -1
+                   _                      -> 1
+    ]
+  isSingleTermScalar (Div (Plus [_]) (Plus [_])) = True
+  isSingleTermScalar _ = False
+
 rewriteSqrt :: ScalarData -> ScalarData
 rewriteSqrt = mapTerms' f
  where
@@ -168,7 +219,10 @@ rewriteSqrt = mapTerms' f
                  in case (n' * m', Term n' x', Term m' y') of
                       (1, Term _ [], Term _ []) -> mathMult (SingleTerm c z) (SingleTerm a xss)
                       (_, _, _) -> mathMult (SingleTerm c z) (SingleTerm a ((makeApply sqrtWhnf [SingleTerm (n' * m') (x' ++ y')], 1) : xss)) |]
-      , [mc| _ -> SingleTerm a xs |]
+      , [mc| _ -> case findSqrtPairToMerge xs of
+                    Just (whnf, product, remaining, sign) ->
+                      rewriteSqrt (SingleTerm (sign * a) ((makeApply whnf [product], 1) : remaining))
+                    Nothing -> SingleTerm a xs |]
       ]
 
 rewriteRt :: ScalarData -> ScalarData
