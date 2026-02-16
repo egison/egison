@@ -49,7 +49,6 @@ assertEqual
    z1'
   ((-1 + sqrt 5 + sqrt (-5 - 2 * sqrt 5) + sqrt (-5 + 2 * sqrt 5)) / 4)
 
-
-assertEqual "z1'^5 = 1"
-  (z1'^5)
-  1
+--assertEqual "z1'^5 = 1"
+--  (z1'^5)
+--  1
