@@ -10,7 +10,7 @@ Description:
   type inference, and type annotations, while preserving the expressive pattern-matching of Egison 4.
   .
   We can find Egison programs in @lib@ and @sample@ directories.
-  This package also include Emacs Lisp file @elisp/egison-mode.el@.
+  This package also include Emacs Lisp file @emacs/egison-mode.el@.
   .
   We can do non-linear pattern-matching against non-free data types in Egison.
   An non-free data type is a data type whose data have no canonical form, a standard way to represent that object.
@@ -44,7 +44,7 @@ Extra-source-files:  README.md
                      sample/sat/*.egi
                      sample/math/geometry/*.egi
                      sample/math/number/*.egi
-                     elisp/egison-mode.el
+                     emacs/egison-mode.el
 
 source-repository head
   type: git
