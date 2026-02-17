@@ -50,7 +50,7 @@ A major mode for editing [Egison](https://www.egison.org) source code in Emacs.
 If you have the Egison repository cloned, you can load the mode directly:
 
 ```elisp
-(add-to-list 'load-path "/path/to/egison/elisp")
+(add-to-list 'load-path "/path/to/egison/emacs")
 (autoload 'egison-mode "egison-mode" "Major mode for editing Egison code." t)
 (add-to-list 'auto-mode-alist '("\\.egi\\'" . egison-mode))
 ```
@@ -61,7 +61,7 @@ Replace `/path/to/egison` with the actual path to your Egison repository.
 
 ```elisp
 (use-package egison-mode
-  :load-path "/path/to/egison/elisp"
+  :load-path "/path/to/egison/emacs"
   :mode "\\.egi\\'")
 ```
 

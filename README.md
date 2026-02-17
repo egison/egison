@@ -330,12 +330,19 @@ If you are a beginner of Egison, it would be better to install <a target="_blank
 We also have [online interpreter](http://console.egison.org) and [online tutorial](http://try.egison.org/).
 Enjoy!
 
+## Editor Support
+
+Egison provides syntax highlighting plugins for the following editors:
+
+- **Emacs**: [`emacs/egison-mode.el`](emacs/) -- See [`emacs/README.md`](emacs/README.md) for installation instructions.
+- **Vim / Neovim**: [`vim/`](vim/) -- See [`vim/README.md`](vim/README.md) for installation instructions.
+- **VS Code / Cursor**: [`vscode-extension/`](vscode-extension/) -- See [`vscode-extension/INSTALL.md`](vscode-extension/INSTALL.md) for installation instructions.
+
 ## Notes for Developers
 
 You can build Egison as follows:
 ```
-$ stack init
-$ stack build --fast
+$ cabal build
 ```
 
 For testing, see [test/README.md](test/README.md).

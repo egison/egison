@@ -20,7 +20,7 @@
 ;; OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ;;; Author: Satoshi Egi <egisatoshi@gmail.com>
-;;; URL: https://github.com/egisatoshi/egison/blob/master/elisp/egison-mode.el
+;;; URL: https://github.com/egisatoshi/egison/blob/master/emacs/egison-mode.el
 ;;; Version: 0.3.0
 
 ;;; Commentary:
