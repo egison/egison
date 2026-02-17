@@ -1403,8 +1403,8 @@ varIndex :: Parser VarIndex
 varIndex = (char '_' >> subscript)
        <|> (char '~' >> supscript)
        <|> parens (VGroupScripts <$> some varIndex)
-       <|> braces (VSymmScripts <$> some varIndex)
-       <|> brackets (VAntiSymmScripts <$> some varIndex)
+       <|> brackets (VSymmScripts <$> some varIndex)
+       <|> braces (VAntiSymmScripts <$> some varIndex)
   where
     subscript = VSubscript <$> ident'
             <|> (do

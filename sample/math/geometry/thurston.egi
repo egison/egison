@@ -61,7 +61,7 @@ def δ :=
        | [_, _] -> 0)
     [5, 5]
 
-def R'[_i_j]_k~l :=
+def R'{_i_j}_k~l :=
   generateTensor
     (\match as list integer with
        | [#1, #1, _, _] -> 0
