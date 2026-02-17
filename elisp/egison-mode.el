@@ -21,7 +21,7 @@
 
 ;;; Author: Satoshi Egi <egisatoshi@gmail.com>
 ;;; URL: https://github.com/egisatoshi/egison/blob/master/elisp/egison-mode.el
-;;; Version: 0.2.0
+;;; Version: 0.3.0
 
 ;;; Commentary:
 
@@ -35,117 +35,266 @@
 
 ;;; Code:
 
+;; ============================================================
+;; Face definitions
+;; ============================================================
+
+(defface egison-keyword-face
+  '((t :inherit font-lock-keyword-face))
+  "Face for Egison keywords."
+  :group 'egison)
+
+(defface egison-type-keyword-face
+  '((t :inherit font-lock-type-face))
+  "Face for Egison type system keywords (class, instance, inductive, etc.)."
+  :group 'egison)
+
+(defface egison-builtin-type-face
+  '((t :inherit font-lock-type-face))
+  "Face for Egison built-in type names."
+  :group 'egison)
+
+(defface egison-definition-face
+  '((t :inherit font-lock-keyword-face))
+  "Face for Egison definition keywords."
+  :group 'egison)
+
+(defface egison-pattern-variable-face
+  '((t :inherit font-lock-variable-name-face))
+  "Face for Egison pattern variables ($x, etc.)."
+  :group 'egison)
+
+(defface egison-value-pattern-face
+  '((t :inherit font-lock-constant-face))
+  "Face for Egison value patterns (#x, etc.)."
+  :group 'egison)
+
+(defface egison-constructor-face
+  '((t :inherit font-lock-constant-face))
+  "Face for Egison data constructors and boolean values."
+  :group 'egison)
+
+(defface egison-type-constraint-face
+  '((t :inherit font-lock-type-face))
+  "Face for Egison type constraints ({Eq a}, etc.)."
+  :group 'egison)
+
+;; ============================================================
+;; Font-lock keywords level 1 (basic)
+;; ============================================================
+
 (defconst egison-font-lock-keywords-1
   (eval-when-compile
     (list
-     ;; Module and import
-     "\\<load\\>"
-     "\\<loadFile\\>"
+     ;; ----- Type system keywords (highlighted prominently) -----
+     (cons (concat "\\<" (regexp-opt
+       '("class" "instance" "inductive" "extends" "declare") t)
+       "\\>")
+       'font-lock-type-face)
 
-     ;; Definition keywords
-     "\\<def\\>"
-     "\\<let\\>"
-     "\\<where\\>"
+     ;; ----- Definition keywords -----
+     (cons (concat "\\<" (regexp-opt
+       '("def" "let" "in" "where") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Control flow
-     "\\<if\\>"
-     "\\<then\\>"
-     "\\<else\\>"
+     ;; ----- Module and loading -----
+     (cons (concat "\\<" (regexp-opt
+       '("load" "loadFile" "execute") t)
+       "\\>")
+       'font-lock-builtin-face)
 
-     ;; Pattern matching
-     "\\<match\\>"
-     "\\<matchAll\\>"
-     "\\<matchAllDFS\\>"
-     "\\<matchDFS\\>"
-     "\\<as\\>"
-     "\\<with\\>"
-     
-     ;; Matcher definition
-     "\\<matcher\\>"
-     "\\<algebraicDataMatcher\\>"
+     ;; ----- Control flow -----
+     (cons (concat "\\<" (regexp-opt
+       '("if" "then" "else") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Symbols
-     "\\<withSymbols\\>"
-     
-     ;; Tensor operations
-     "\\<tensor\\>"
-     "\\<generateTensor\\>"
-     "\\<contract\\>"
-     "\\<tensorMap\\>"
-     "\\<tensorShape\\>"
-     "\\<generateArray\\>"
-     "\\<arrayBounds\\>"
-     "\\<arrayRef\\>"
+     ;; ----- Pattern matching -----
+     (cons (concat "\\<" (regexp-opt
+       '("match" "matchDFS" "matchAll" "matchAllDFS"
+         "as" "with" "forall" "loop") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; IO operations
-     "\\<do\\>"
-     "\\<io\\>"
-     "\\<seq\\>"
+     ;; ----- Matcher definition -----
+     (cons (concat "\\<" (regexp-opt
+       '("matcher" "algebraicDataMatcher") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Special values
-     "\\<undefined\\>"
-     "\\<something\\>"
+     ;; ----- Lambda and special forms -----
+     (cons (concat "\\<" (regexp-opt
+       '("memoizedLambda" "cambda" "capply"
+         "withSymbols" "function") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Infix operators
-     "\\<infixr\\>"
-     "\\<infixl\\>"
-     "\\<infix\\>"
-     "\\<expression\\>"
+     ;; ----- Tensor operations -----
+     (cons (concat "\\<" (regexp-opt
+       '("tensor" "generateTensor" "contract"
+         "tensorMap" "tensorMap2"
+         "transpose" "flipIndices"
+         "subrefs" "suprefs" "userRefs") t)
+       "\\>")
+       'font-lock-builtin-face)
 
-     ;; Built-in types
-     "\\<Bool\\>"
-     "\\<Integer\\>"
-     "\\<Float\\>"
-     "\\<Char\\>"
-     "\\<String\\>"
-     "\\<List\\>"
-     "\\<Vector\\>"
-     "\\<Matrix\\>"
-     "\\<Tensor\\>"
-     "\\<Matcher\\>"
-     "\\<Pattern\\>"
+     ;; ----- IO and sequencing -----
+     (cons (concat "\\<" (regexp-opt
+       '("do" "seq") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Boolean values
-     "\\<True\\>"
-     "\\<False\\>"
+     ;; ----- Infix declarations -----
+     (cons (concat "\\<" (regexp-opt
+       '("infixr" "infixl" "infix" "expression" "pattern") t)
+       "\\>")
+       'font-lock-keyword-face)
 
-     ;; Testing
-     "\\<assert\\>"
-     "\\<assertEqual\\>"
-     "\\<assertEqualM\\>"
+     ;; ----- Special values -----
+     (cons (concat "\\<" (regexp-opt
+       '("undefined" "something") t)
+       "\\>")
+       'font-lock-constant-face)
 
-     ;; Operators and symbols (as regexps)
-     "::"
-     "++"
-     "=>"
-     "->"
-     "\\.\\.\\."
+     ;; ----- Built-in type names -----
+     (cons (concat "\\<" (regexp-opt
+       '("Integer" "MathExpr" "Float" "Bool" "Char" "String"
+         "IO" "Matcher" "Pattern"
+         "Tensor" "Vector" "Matrix" "DiffForm"
+         "List") t)
+       "\\>")
+       'font-lock-type-face)
+
+     ;; ----- Boolean literals -----
+     (cons (concat "\\<" (regexp-opt '("True" "False") t) "\\>")
+       'font-lock-constant-face)
+
+     ;; ----- Testing primitives -----
+     (cons (concat "\\<" (regexp-opt
+       '("assert" "assertEqual") t)
+       "\\>")
+       'font-lock-warning-face)
+
+     ;; ----- Operators and symbols -----
+     (cons ":=" 'font-lock-keyword-face)
+     (cons "::" 'font-lock-keyword-face)
+     (cons "++" 'font-lock-keyword-face)
+     (cons "=>" 'font-lock-keyword-face)
+     (cons "->" 'font-lock-keyword-face)
+     (cons "\\.\\.\\." 'font-lock-keyword-face)
      ))
   "Subdued expressions to highlight in Egison modes.")
+
+;; ============================================================
+;; Font-lock keywords level 2 (gaudy - includes type annotations)
+;; ============================================================
 
 (defconst egison-font-lock-keywords-2
   (append egison-font-lock-keywords-1
    (eval-when-compile
      (list
       ;; Pattern variables ($x, $pat, etc.)
-      (cons "\\\$[a-zA-Z_][a-zA-Z0-9_']*" font-lock-variable-name-face)
-      ;; Value patterns (#x, #(expr), etc.) 
-      (cons "\\\#[a-zA-Z_][a-zA-Z0-9_']*" font-lock-constant-face)
-      ;; Type variables in definitions {a}, {a : Eq}
-      (cons "{[a-zA-Z_][a-zA-Z0-9_',: ]*}" font-lock-type-face)
-      ;; Type annotations (after :)
-      (cons ":[[:space:]]*\\([A-Z][a-zA-Z0-9_]*\\)" '(1 font-lock-type-face))
+      (cons "\\$[a-zA-Z_][a-zA-Z0-9_']*" 'font-lock-variable-name-face)
+
+      ;; Value patterns (#x, #(expr), etc.)
+      (cons "#[a-zA-Z_][a-zA-Z0-9_']*" 'font-lock-constant-face)
+
+      ;; Type class constraints in braces: {Eq a}, {Eq a, Ord b}
+      (cons "{[A-Z][a-zA-Z0-9_',: ]*}" 'font-lock-type-face)
+
+      ;; Type annotations in parameter list: (x: Integer), (x: a)
+      (list "(\\([a-zA-Z_][a-zA-Z0-9_']*\\)\\s-*:" 1 'font-lock-variable-name-face)
+
+      ;; Type names after colon in type annotations
+      (list ":\\s-*\\([A-Z][a-zA-Z0-9_]*\\)" 1 'font-lock-type-face)
+
+      ;; User-defined type names (uppercase identifiers not already matched)
+      ;; in inductive/class/instance declarations
+      (list "\\<\\(inductive\\|class\\|instance\\)\\s-+\\([A-Z][a-zA-Z0-9_]*\\)"
+            2 'font-lock-type-face)
+
+      ;; Data constructors in inductive definitions (after | at start of line)
+      (list "^\\s-*|\\s-+\\([A-Z][a-zA-Z0-9_]*\\)" 1 'font-lock-constant-face)
+
+      ;; "declare symbol" combination
+      (list "\\<\\(declare\\)\\s-+\\(symbol\\)\\>"
+            (list 1 'font-lock-keyword-face)
+            (list 2 'font-lock-keyword-face))
+
+      ;; "inductive pattern" combination
+      (list "\\<\\(inductive\\)\\s-+\\(pattern\\)\\>"
+            (list 1 'font-lock-type-face)
+            (list 2 'font-lock-type-face))
+
+      ;; "def pattern" combination
+      (list "\\<\\(def\\)\\s-+\\(pattern\\)\\>"
+            (list 1 'font-lock-keyword-face)
+            (list 2 'font-lock-keyword-face))
+
+      ;; Function name after "def" keyword
+      (list "\\<def\\s-+\\([a-zA-Z_][a-zA-Z0-9_']*\\)" 1 'font-lock-function-name-face)
+
+      ;; Index notation: subscripts and superscripts (e.g., v~i, v_j, T~i~j_k)
+      (cons "[a-zA-Z0-9_'][~_][a-zA-Z0-9_']+" 'font-lock-preprocessor-face)
       )))
   "Gaudy expressions to highlight in Egison modes.")
 
 (defvar egison-font-lock-keywords egison-font-lock-keywords-1
   "Default expressions to highlight in Egison modes.")
 
-(defun egison-indent-line ()
-  "indent current line as Egison code."
-  (interactive)
-  )
+;; ============================================================
+;; Indentation
+;; ============================================================
 
+(defun egison-indent-line ()
+  "Indent current line as Egison code."
+  (interactive)
+  (let ((indent (egison-calculate-indent)))
+    (when indent
+      (save-excursion
+        (beginning-of-line)
+        (delete-horizontal-space)
+        (indent-to indent))
+      (when (< (current-column) indent)
+        (move-to-column indent)))))
+
+(defun egison-calculate-indent ()
+  "Calculate the indentation level for the current line."
+  (save-excursion
+    (beginning-of-line)
+    (cond
+     ;; Top-level definitions
+     ((looking-at "^\\(def\\|load\\|class\\|instance\\|inductive\\|declare\\|infixl\\|infixr\\|infix\\)\\>")
+      0)
+     ;; Match clause continuation (lines starting with |)
+     ((looking-at "^\\s-*|")
+      (save-excursion
+        (forward-line -1)
+        (cond
+         ((looking-at "^\\s-*|")
+          (current-indentation))
+         ((looking-at ".*\\<with\\>\\s-*$")
+          (+ (current-indentation) 2))
+         ((looking-at ".*:=\\s-*$")
+          (+ (current-indentation) 2))
+         (t (current-indentation)))))
+     ;; Lines after "where"
+     ((save-excursion
+        (forward-line -1)
+        (looking-at ".*\\<where\\>\\s-*$"))
+      (save-excursion
+        (forward-line -1)
+        (+ (current-indentation) 2)))
+     ;; Default: match previous line
+     (t
+      (save-excursion
+        (forward-line -1)
+        (current-indentation))))))
+
+;; ============================================================
+;; Keymap
+;; ============================================================
 
 (defvar egison-mode-map
   (let ((smap (make-sparse-keymap)))
@@ -153,6 +302,9 @@
     smap)
   "Keymap for Egison mode.")
 
+;; ============================================================
+;; Syntax table
+;; ============================================================
 
 (defvar egison-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -161,15 +313,15 @@
     (modify-syntax-entry ?\}  "){4nb" table)
     (modify-syntax-entry ?-  "_ 123" table)
     (modify-syntax-entry ?\n ">" table)
-    
+
     ;; String literals
     (modify-syntax-entry ?\" "\"" table)
     (modify-syntax-entry ?\' "\"" table)
-    
+
     ;; Operators that are part of words
     (modify-syntax-entry ?_ "w" table)
     (modify-syntax-entry ?~ "w" table)
-    
+
     ;; Special symbols
     (modify-syntax-entry ?$ "'" table)
     (modify-syntax-entry ?# "'" table)
@@ -178,28 +330,32 @@
     (modify-syntax-entry ?! "." table)
     (modify-syntax-entry ?? "." table)
     (modify-syntax-entry ?@ "." table)
-    
+
     table)
   "Syntax table for Egison mode")
+
+;; ============================================================
+;; Mode setup
+;; ============================================================
 
 (defun egison-mode-set-variables ()
   (set-syntax-table egison-mode-syntax-table)
   (set (make-local-variable 'font-lock-defaults)
        '((egison-font-lock-keywords
           egison-font-lock-keywords-1 egison-font-lock-keywords-2)
-         nil t 
+         nil t
          ;; Include special characters and mathematical symbols as word constituents
          (("+*/=!?%:_~.'∂∇αβγδεζηθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ" . "w"))
          ))
   (set (make-local-variable 'indent-line-function) 'egison-indent-line)
-  
+
   ;; Comment settings for -- and {- -}
   (set (make-local-variable 'comment-start) "-- ")
   (set (make-local-variable 'comment-end) "")
   (set (make-local-variable 'comment-start-skip) "{-+ *\\|--+ *")
   (set (make-local-variable 'comment-add) 1)
   (set (make-local-variable 'comment-end-skip) nil)
-  
+
   ;; Block comment delimiters
   (set (make-local-variable 'comment-multi-line) t)
   )
@@ -208,6 +364,16 @@
 ;;;###autoload
 (defun egison-mode ()
   "Major mode for editing Egison code.
+
+Features:
+  - Syntax highlighting for Egison keywords, type annotations,
+    type class definitions, inductive types, and pattern matching.
+  - Support for type system keywords: class, instance, inductive,
+    extends, declare, pattern.
+  - Highlighting for pattern variables ($x), value patterns (#x),
+    type constraints ({Eq a}), and type annotations (x: Integer).
+  - Basic indentation support.
+  - Comment support for line comments (--) and block comments ({- -}).
 
 Commands:
 \\{egison-mode-map}
