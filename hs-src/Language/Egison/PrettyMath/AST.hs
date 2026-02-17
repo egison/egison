@@ -113,6 +113,10 @@ instance ToMathExpr E.SymbolExpr where
   toMathExpr (E.Apply4 fn a1 a2 a3 a4) =
     Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2, toMathExpr a3, toMathExpr a4]
   toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
+  toMathExpr (E.QuoteFunction whnf) =
+    case E.prettyFunctionName whnf of
+      Just name -> Atom name []
+      Nothing   -> Atom "f" []
   toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _ _) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
@@ -123,6 +127,7 @@ instance ToMathExpr E.SymbolExpr where
       toMathExpr' (j:js) (Atom e is) =
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
       toMathExpr' _ _ = undefined -- TODO
+  toMathExpr (E.FunctionData name _ _) = toMathExpr name
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)

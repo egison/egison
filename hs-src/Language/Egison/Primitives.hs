@@ -146,7 +146,7 @@ assert = twoArgs' $ \label test -> do
 assertEqual :: String -> PrimitiveFunc
 assertEqual = threeArgs' $ \label actual expected ->
   if actual == expected
-     then return $ Bool True
+     then return actual
      else throwErrorWithTrace (Assertion
             (show label ++ "\n expected: " ++ show expected ++ "\n but found: " ++ show actual))
 
