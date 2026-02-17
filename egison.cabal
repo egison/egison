@@ -1,9 +1,13 @@
 Name:                egison
-Version:             4.2.1
+Version:             5.0.0
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
-  An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language.
+  An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language
+  with a static type system.
   We can directly represent pattern-matching against lists, multisets, sets, trees, graphs and any kind of data types.
+  .
+  Egison 5 introduces a static type system with type classes, inductive data types,
+  type inference, and type annotations, while preserving the expressive pattern-matching of Egison 4.
   .
   We can find Egison programs in @lib@ and @sample@ directories.
   This package also include Emacs Lisp file @elisp/egison-mode.el@.

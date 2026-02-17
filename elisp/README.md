@@ -146,7 +146,7 @@ v~i
 ## Compatibility
 
 - Emacs 25.1 or later
-- Supports Egison 4.x syntax with the type system extensions
+- Supports Egison 5.x syntax with the static type system
 
 ## License
 

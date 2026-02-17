@@ -1,14 +1,31 @@
 # Changelog
 
-## Latest
+## 5.0.0
 ### New Features
+* **Static Type System**: Introduced a static type system for Egison.
+  - Type annotations for function parameters and return types: `def f (x: Integer) : Integer := x + 1`
+  - Polymorphic type parameters: `def id {a} (x: a) : a := x`
+  - Type inference with unification
+* **Type Classes**: Added Haskell-style type class system.
+  - Type class declarations: `class Eq a where ...`
+  - Instance declarations: `instance Eq Integer where ...`
+  - Superclass constraints with `extends`: `class Ord a extends Eq a where ...`
+  - Type class constraints in function signatures: `def f {Eq a} (x: a) (y: a) : Bool := x == y`
+* **Inductive Data Types**: Added support for user-defined algebraic data types.
+  - Data type declarations: `inductive Maybe a := | Nothing | Just a`
+  - Pattern inductive types: `inductive pattern [a] := | [] | (::) a [a]`
+* **Symbol Declarations**: Added `declare symbol` for declaring symbolic variables used in tensor calculations.
+  - `declare symbol x, y, z : Integer`
+* **Pattern Function Declarations**: Added typed pattern function syntax.
+  - `def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := ...`
+* **New Built-in Types**: `MathExpr`, `IO`, `DiffForm`
+
+### Previous Unreleased Changes
 * Added binary function notation for arbitrary 2-ary functions. ([#260](https://github.com/egison/egison/pull/260))
 ```hs
 > let mod x y := x % y in 103 `mod` 10
 3
 ```
-
-### Backward-incompatible Changes
 * Swapped the notation for `QuoteExpr` and `QuoteSymbolExpr`. ([#262](https://github.com/egison/egison/issues/262))
 ```hs
 > `(a + b) + `(a + b) -- QuoteExpr, which prevents (a + b) from unpacking
