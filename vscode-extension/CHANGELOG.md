@@ -55,7 +55,7 @@ All notable changes to the Egison VS Code extension will be documented in this f
   - Usage instructions
 
 ### Changed
-- Updated from legacy Egison 3.x syntax to current Egison 4.x syntax
+- Updated from legacy Egison 3.x syntax to current Egison 5.x syntax
 - Improved keyword recognition for current language version
 - Enhanced type system support
 
