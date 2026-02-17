@@ -162,10 +162,9 @@ syn match egisonOperator ">="
 syn match egisonOperator "∧"
 
 " ============================================================
-" Mathematical symbols
+" Mathematical symbols (operators only, not variables)
 " ============================================================
 syn match egisonMathSymbol "[∂∇∫∑∏√±×÷≠≤≥∞∈∉∀∃∧∨¬⊕⊗⊥⊤⊆⊇⊂⊃∪∩]"
-syn match egisonGreekLetter "[αβγδεζηθικλμνξοπρςστυφχψωΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩ]"
 
 " ============================================================
 " Highlight groups
@@ -210,6 +209,5 @@ hi def link egisonTensorIndex      Special
 
 hi def link egisonOperator         Operator
 hi def link egisonMathSymbol       Special
-hi def link egisonGreekLetter      Special
 
 let b:current_syntax = "egison"
