@@ -2,7 +2,7 @@
   "name": "egison",
   "displayName": "Egison Language Support",
   "description": "Syntax highlighting and language support for Egison programming language",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "egison",
   "engines": {
     "vscode": "^1.60.0"

@@ -25,6 +25,10 @@
     ["\"", "\""],
     ["{-", "-}"]
   ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(def|class|instance|inductive|matcher|do|let|where|if|match|matchAll|matchDFS|matchAllDFS)\\b.*$",
+    "decreaseIndentPattern": "^\\s*\\|"
+  },
   "folding": {
     "markers": {
       "start": "^\\s*--\\s*#region",

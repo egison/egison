@@ -16,6 +16,12 @@
       "include": "#value-patterns"
     },
     {
+      "include": "#definitions"
+    },
+    {
+      "include": "#type-system"
+    },
+    {
       "include": "#keywords"
     },
     {
@@ -28,7 +34,7 @@
       "include": "#numbers"
     },
     {
-      "include": "#type-variables"
+      "include": "#type-constraints"
     },
     {
       "include": "#tensor-indices"
@@ -79,49 +85,150 @@
               "match": "\\\\."
             }
           ]
+        },
+        {
+          "name": "string.quoted.single.egison",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.egison",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "definitions": {
+      "patterns": [
+        {
+          "comment": "def pattern <name> - pattern function declaration",
+          "match": "\\b(def)\\s+(pattern)\\s+([a-zA-Z_][a-zA-Z0-9_']*|\\([^)]+\\))",
+          "captures": {
+            "1": { "name": "keyword.other.def.egison" },
+            "2": { "name": "keyword.other.pattern.egison" },
+            "3": { "name": "entity.name.function.egison" }
+          }
+        },
+        {
+          "comment": "def <name> - function definition",
+          "match": "\\b(def)\\s+([a-zA-Z_][a-zA-Z0-9_']*|\\([^)]+\\))",
+          "captures": {
+            "1": { "name": "keyword.other.def.egison" },
+            "2": { "name": "entity.name.function.egison" }
+          }
+        },
+        {
+          "comment": "declare symbol",
+          "match": "\\b(declare)\\s+(symbol)\\b",
+          "captures": {
+            "1": { "name": "keyword.other.declare.egison" },
+            "2": { "name": "keyword.other.symbol.egison" }
+          }
+        }
+      ]
+    },
+    "type-system": {
+      "patterns": [
+        {
+          "comment": "inductive pattern <TypeName> - pattern inductive type",
+          "match": "\\b(inductive)\\s+(pattern)\\s+([A-Z][a-zA-Z0-9_]*|\\[[a-z]\\])",
+          "captures": {
+            "1": { "name": "keyword.other.inductive.egison" },
+            "2": { "name": "keyword.other.pattern.egison" },
+            "3": { "name": "entity.name.type.egison" }
+          }
+        },
+        {
+          "comment": "inductive <TypeName> - data type declaration",
+          "match": "\\b(inductive)\\s+([A-Z][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.inductive.egison" },
+            "2": { "name": "entity.name.type.egison" }
+          }
+        },
+        {
+          "comment": "class <ClassName> - type class declaration",
+          "match": "\\b(class)\\s+([A-Z][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.class.egison" },
+            "2": { "name": "entity.name.type.class.egison" }
+          }
+        },
+        {
+          "comment": "instance <ClassName> - type class instance",
+          "match": "\\b(instance)\\s+([A-Z][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.instance.egison" },
+            "2": { "name": "entity.name.type.class.egison" }
+          }
+        },
+        {
+          "comment": "extends keyword for superclass constraints",
+          "name": "keyword.other.extends.egison",
+          "match": "\\b(extends)\\b"
         }
       ]
     },
     "keywords": {
       "patterns": [
         {
+          "comment": "Control flow",
           "name": "keyword.control.egison",
-          "match": "\\b(if|then|else|match|matchAll|matchDFS|matchAllDFS|as|with|do|io|seq)\\b"
+          "match": "\\b(if|then|else|match|matchAll|matchDFS|matchAllDFS|as|with|do|seq|loop|forall)\\b"
         },
         {
+          "comment": "Binding and scope",
           "name": "keyword.other.egison",
-          "match": "\\b(def|let|where|withSymbols|matcher|algebraicDataMatcher|declare|symbol)\\b"
+          "match": "\\b(def|let|in|where|withSymbols|matcher|algebraicDataMatcher)\\b"
         },
         {
+          "comment": "Type system declarations",
           "name": "keyword.other.declaration.egison",
-          "match": "\\b(class|instance|inductive|pattern)\\b"
+          "match": "\\b(class|instance|inductive|pattern|declare|extends)\\b"
         },
         {
-          "name": "keyword.operator.egison",
+          "comment": "Infix operator declarations",
+          "name": "keyword.other.infix.egison",
           "match": "\\b(infixr|infixl|infix|expression)\\b"
         },
         {
+          "comment": "Lambda and special forms",
+          "name": "keyword.other.lambda.egison",
+          "match": "\\b(memoizedLambda|cambda|capply|function)\\b"
+        },
+        {
+          "comment": "Tensor operations",
           "name": "keyword.other.tensor.egison",
-          "match": "\\b(tensor|generateTensor|contract|tensorMap|tensorShape|generateArray|arrayBounds|arrayRef)\\b"
+          "match": "\\b(tensor|generateTensor|contract|tensorMap|tensorMap2|transpose|flipIndices|subrefs|subrefs!|suprefs|suprefs!|userRefs|userRefs!)\\b"
         },
         {
+          "comment": "Module loading and execution",
+          "name": "keyword.other.module.egison",
+          "match": "\\b(load|loadFile|execute)\\b"
+        },
+        {
+          "comment": "Special values",
           "name": "keyword.other.special.egison",
-          "match": "\\b(undefined|something|load|loadFile)\\b"
+          "match": "\\b(undefined|something)\\b"
         },
         {
+          "comment": "Testing primitives",
           "name": "keyword.other.test.egison",
-          "match": "\\b(assert|assertEqual|assertEqualM)\\b"
+          "match": "\\b(assert|assertEqual)\\b"
         }
       ]
     },
     "types": {
       "patterns": [
         {
+          "comment": "Built-in type names from the parser",
           "name": "support.type.builtin.egison",
-          "match": "\\b(Bool|Integer|Float|Char|String|List|Vector|Matrix|Tensor|Matcher|Pattern|MathExpr)\\b"
+          "match": "\\b(Bool|Integer|Float|Char|String|MathExpr|IO|Matcher|Pattern|Tensor|Vector|Matrix|DiffForm|List)\\b"
         },
         {
-          "name": "support.type.egison",
+          "comment": "User-defined type names (uppercase identifiers)",
+          "name": "entity.name.type.egison",
           "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
         }
       ]
@@ -131,10 +238,6 @@
         {
           "name": "constant.language.boolean.egison",
           "match": "\\b(True|False)\\b"
-        },
-        {
-          "name": "constant.other.constructor.egison",
-          "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
         }
       ]
     },
@@ -153,6 +256,10 @@
     "operators": {
       "patterns": [
         {
+          "name": "keyword.operator.assignment.egison",
+          "match": ":="
+        },
+        {
           "name": "keyword.operator.arrow.egison",
           "match": "(->|=>)"
         },
@@ -165,12 +272,16 @@
           "match": "\\+\\+"
         },
         {
-          "name": "keyword.operator.composition.egison",
-          "match": "\\."
+          "name": "keyword.operator.ellipsis.egison",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.wedge.egison",
+          "match": "∧"
         },
         {
           "name": "keyword.operator.logical.egison",
-          "match": "(&&|\\|\\||not\\b)"
+          "match": "(&&|\\|\\|)"
         },
         {
           "name": "keyword.operator.comparison.egison",
@@ -181,16 +292,16 @@
           "match": "(\\+|-|\\*|/|%|\\^)"
         },
         {
+          "name": "keyword.operator.arithmetic-prime.egison",
+          "match": "(\\+'|-'|\\*'|/'|\\^')"
+        },
+        {
           "name": "keyword.operator.pattern.egison",
           "match": "(&|\\||!|\\?|@|~)"
         },
         {
-          "name": "keyword.operator.assignment.egison",
-          "match": ":="
-        },
-        {
           "name": "keyword.operator.type-annotation.egison",
-          "match": ":"
+          "match": "(?<!:)(?<!/)(?<!=):(?!=)(?!:)"
         }
       ]
     },
@@ -218,27 +329,53 @@
         }
       ]
     },
-    "type-variables": {
+    "type-constraints": {
       "patterns": [
         {
-          "name": "entity.name.type.variable.egison",
-          "match": "\\{[a-zA-Z_][a-zA-Z0-9_',: ]*\\}"
+          "comment": "Type class constraints: {Eq a}, {Eq a, Ord b}",
+          "name": "meta.type-constraint.egison",
+          "begin": "\\{(?=[A-Z])",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.type-constraint.begin.egison" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.type-constraint.end.egison" }
+          },
+          "patterns": [
+            {
+              "name": "entity.name.type.class.egison",
+              "match": "\\b[A-Z][a-zA-Z0-9_]*\\b"
+            },
+            {
+              "name": "variable.other.type.egison",
+              "match": "\\b[a-z][a-zA-Z0-9_]*\\b"
+            },
+            {
+              "name": "punctuation.separator.type-constraint.egison",
+              "match": ","
+            }
+          ]
         }
       ]
     },
     "type-annotations": {
       "patterns": [
         {
-          "name": "storage.type.annotation.egison",
-          "match": ":\\s*[A-Z][a-zA-Z0-9_]*"
+          "comment": "Typed parameter: (x: Integer)",
+          "match": "\\(([a-zA-Z_][a-zA-Z0-9_']*)\\s*:",
+          "captures": {
+            "1": { "name": "variable.parameter.egison" }
+          }
         }
       ]
     },
     "tensor-indices": {
       "patterns": [
         {
+          "comment": "Tensor subscript/superscript indices: v~i, T_j, T~i_j",
           "name": "variable.other.tensor-index.egison",
-          "match": "(_|~)[a-zA-Z0-9_#]+"
+          "match": "(?<=[a-zA-Z0-9_'])(_|~)[a-zA-Z0-9_#]+"
         }
       ]
     },
@@ -257,6 +394,7 @@
     "function-calls": {
       "patterns": [
         {
+          "comment": "Function application: func(args) or func [args]",
           "name": "entity.name.function.egison",
           "match": "\\b[a-z_][a-zA-Z0-9_']*(?=\\s*[({\\[])"
         }
@@ -264,4 +402,3 @@
     }
   }
 }
-
