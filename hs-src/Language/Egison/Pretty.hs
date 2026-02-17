@@ -215,8 +215,8 @@ instance Pretty VarWithIndices where
 instance Pretty VarIndex where
   pretty (VSubscript x)        = pretty ('_' : x)
   pretty (VSuperscript x)      = pretty ('~' : x)
-  pretty (VSymmScripts xs)     = pretty '{' <> hcat (map pretty xs) <> pretty '}'
-  pretty (VAntiSymmScripts xs) = pretty '[' <> hcat (map pretty xs) <> pretty ']'
+  pretty (VSymmScripts xs)     = pretty '[' <> hcat (map pretty xs) <> pretty ']'
+  pretty (VAntiSymmScripts xs) = pretty '{' <> hcat (map pretty xs) <> pretty '}'
 
 instance Pretty BindingExpr where
   pretty (Bind (PDPatVar f) (LambdaExpr args body)) =
