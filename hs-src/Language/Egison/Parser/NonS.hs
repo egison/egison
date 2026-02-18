@@ -456,7 +456,7 @@ declareSymbolExpr = try $ do
     then fail "Expected 'symbol' after 'declare'"
     else return ()
   -- Parse comma-separated list of symbol names
-  names <- sepBy1 lowerId (symbol ",")
+  names <- sepBy1 ident (symbol ",")
   -- Parse optional type annotation (must be simple type, not function type)
   mType <- optional $ try $ do
     _ <- symbol ":"

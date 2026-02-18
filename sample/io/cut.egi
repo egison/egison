@@ -10,7 +10,7 @@ def cut (file: String) (nums: [Integer]) : IO () :=
   do let port := openInputFile file
      eachLineFromPort
        port
-       (\$line ->
+       (\line ->
          let fs := S.split "," line
           in print (S.intercalate "," (map 1#(nth $1 fs) nums)))
      closeInputPort port

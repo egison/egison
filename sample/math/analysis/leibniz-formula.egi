@@ -24,7 +24,7 @@ assertEqual "multSd sin x"
 -- Fourier coefficients for f(x) = x
 def coeffAs : [MathExpr] :=
   map
-    (\$n ->
+    (\n ->
       let F := multSd x (cos (n * x)) (f x)
        in (substitute [(x, π)] F - substitute [(x, - π)] F) / π)
     nats
@@ -36,7 +36,7 @@ assertEqual "first 10 Fourier cosine coefficients"
 
 def bs : [MathExpr] :=
   map
-    (\$n ->
+    (\n ->
       let F := multSd x (sin (n * x)) (f x)
        in (substitute [(x, π)] F - substitute [(x, - π)] F) / π)
     (take 10 nats)
@@ -45,7 +45,7 @@ assertEqual "first 10 Fourier sine coefficients"
   (take 10 bs)
   [2, -1, 2/3, -1/2, 2/5, -1/3, 2/7, -1/4, 2/9, -1/5]
 
-def f' : [MathExpr] := map (\$k $b -> b * sin (k * x)) (zip nats bs)
+def f' : [MathExpr] := map (\(k, b) -> b * sin (k * x)) (zip nats bs)
 
 -- Fourier series terms
 assertEqual "first 10 Fourier series terms"

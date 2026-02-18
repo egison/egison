@@ -83,8 +83,8 @@ def R'{_i_j}_k~l :=
 def S :=
   withSymbols [i, j, k]
     let (es, os) := evenAndOddPermutations 5 in
-      sum (map (\$σ -> R'_(σ 1)_j_1~i . R'_(σ 2)_(σ 3)_k~j . R'_(σ 4)_(σ 5)_i~k) es) -
-      sum (map (\$σ -> R'_(σ 1)_j_1~i . R'_(σ 2)_(σ 3)_k~j . R'_(σ 4)_(σ 5)_i~k) os)
+      sum (map (\σ -> R'_(σ 1)_j_1~i . R'_(σ 2)_(σ 3)_k~j . R'_(σ 4)_(σ 5)_i~k) es) -
+      sum (map (\σ -> R'_(σ 1)_j_1~i . R'_(σ 2)_(σ 3)_k~j . R'_(σ 4)_(σ 5)_i~k) os)
 
 S
 -- After 10 seconds calculation, we can get the following result:
