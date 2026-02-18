@@ -14,5 +14,5 @@ def abc (blocks: [[Char]]) (word: [Char]) : Bool :=
     | _ -> False
 
 filter
-  (\$w -> abc (map unpack blocks) (unpack w))
+  (\w -> abc (map unpack blocks) (unpack w))
   ["", "A", "BARK", "BoOK", "TrEAT", "COmMoN", "SQUAD", "conFUsE"]

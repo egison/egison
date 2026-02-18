@@ -6,7 +6,7 @@ def station : Matcher String := string
 
 def price : Matcher Integer := integer
 
-def graph {a, b} : Matcher [(String, [(String, Integer)])] := multiset (station, multiset (station, price))
+def graph : Matcher [(String, [(String, Integer)])] := multiset (station, multiset (station, price))
 
 def graphData : [(String, [(String, Integer)])] :=
   [ ( "Berlin"
@@ -28,10 +28,10 @@ def trips : [(Integer, [String])] :=
                                            (( #s_4
                                            , ( #"Berlin" & $s_5
                                            , $p_5 ) :: _ ) :: _)) ->
-      (sum (map (\$i -> p_i) (between 1 5)), s)
+      (sum (map (\i -> p_i) (between 1 5)), s)
 
 def main (args: [String]) : IO () :=
   do print "Route list:"
      each (compose show print) trips
      write "Lowest price:"
-     print (show (min (map (\$x $y -> x) trips)))
+     print (show (min (map (\(x, y) -> x) trips)))

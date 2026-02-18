@@ -24,8 +24,8 @@ def main (graphData: [((Integer, Maybe Integer), [(Integer, Maybe Integer)])]) :
 
 def assignColor (id: Integer) (c: Integer) (graphData: [((Integer, Maybe Integer), [(Integer, Maybe Integer)])]) : [((Integer, Maybe Integer), [(Integer, Maybe Integer)])] :=
   map
-    (\$n ->
-      (rewriteNode id c (2#$1 n), map (\$n -> rewriteNode id c n) (2#$2 n)))
+    (\(nodeData, neighbors) ->
+      (rewriteNode id c nodeData, map (\n -> rewriteNode id c n) neighbors))
     graphData
 
 def rewriteNode (id: Integer) (c: Integer) (n: (Integer, Maybe Integer)) : (Integer, Maybe Integer) :=

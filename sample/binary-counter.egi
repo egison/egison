@@ -6,6 +6,6 @@ def bc : [[Integer]] :=
   matchAll [0, 1] as set integer with
     | loop $i (1, $n)
         ($x_i :: ...)
-        _ -> map (\$i -> x_i) (between 1 n)
+        _ -> map (\i -> x_i) (between 1 n)
 
 take 30 bc

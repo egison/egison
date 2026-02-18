@@ -54,10 +54,10 @@ def trips :=
                                           (( #s_5
                                           , ( #"Tokyo" & $s_6
                                           , $p_6 ) :: _ ) :: _)) ->
-      (sum (map (\$i -> p_i) (between 1 6)), s)
+      (sum (map (\i -> p_i) (between 1 6)), s)
 
-def main $args :=
+def main (args: [String]) : IO () :=
   do print "Route list:"
      each (compose show print) trips
      write "Lowest price:"
-     print (show (min (map (\$x $y -> x) trips)))
+     print (show (min (map (\(x, y) -> x) trips)))
