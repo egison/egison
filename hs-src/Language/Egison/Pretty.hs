@@ -176,7 +176,7 @@ instance Pretty Expr where
   pretty (SeqExpr e1 e2) = applyLike [pretty "seq", pretty' e1, pretty' e2]
   pretty (ApplyExpr x ys) = applyLike (map pretty' (x : ys))
   pretty (AnonParamFuncExpr n e) = pretty n <> pretty '#' <> pretty' e
-  pretty (AnonParamExpr n) = pretty '%' <> pretty n
+  pretty (AnonParamExpr n) = pretty '$' <> pretty n
 
   pretty (GenerateTensorExpr gen shape) =
     applyLike [pretty "generateTensor", pretty' gen, pretty' shape]
@@ -556,7 +556,7 @@ instance Pretty IPattern where
   pretty (IInductivePat name pats) = applyLike (pretty name : map pretty' pats)
   pretty (ILoopPat var (ILoopRange start end pat) bodyPat restPat) =
     pretty "loop" <+> pretty "$" <> pretty var <+>
-    brackets (pretty start <> comma <+> pretty end <> comma <+> pretty pat) <+>
+    tupled [pretty start, pretty end, pretty pat] <+>
     pretty' bodyPat <+> pretty' restPat
   pretty IContPat = pretty "..."
   pretty (IPApplyPat expr pats) = applyLike (pretty' expr : map pretty' pats)
@@ -564,9 +564,13 @@ instance Pretty IPattern where
   pretty (IInductiveOrPApplyPat name pats)
     | null pats = pretty name
     | otherwise = applyLike (pretty name : map pretty' pats)
-  pretty ISeqNilPat = pretty "[]"
-  pretty (ISeqConsPat pat1 pat2) = pretty' pat1 <+> pretty "::" <+> pretty' pat2
-  pretty ILaterPatVar = pretty "$"
+  pretty ISeqNilPat = pretty "{}"
+  pretty (ISeqConsPat p1 p2) = listoid "{" "}" (f p1 p2)
+    where
+      f p1 ISeqNilPat          = [pretty p1]
+      f p1 (ISeqConsPat p2 p3) = pretty p1 : f p2 p3
+      f p1 p2                  = [pretty p1, pretty p2]
+  pretty ILaterPatVar = pretty "@"
   pretty (IDApplyPat pat pats) = applyLike (pretty' pat : map pretty' pats)
 
 instance Complex IPattern where
@@ -672,14 +676,21 @@ prettyTIPatternNode node = case node of
   TIForallPat p1 p2 -> pretty "forall" <+> prettyPatternWithType p1 <+> prettyPatternWithType p2
   TITuplePat pats -> tupled (map prettyPatternWithType pats)
   TIInductivePat name pats -> pretty name <+> hsep (map prettyPatternWithType pats)
-  TILoopPat var _range p1 p2 -> pretty "loop" <+> pretty "$" <> pretty var <+> pretty "..." <+> prettyPatternWithType p1 <+> prettyPatternWithType p2
+  TILoopPat var (TILoopRange start end pat) p1 p2 ->
+    pretty "loop" <+> pretty "$" <> pretty var <+>
+    tupled [prettyTIExprWithType start, prettyTIExprWithType end, prettyPatternWithType pat] <+>
+    prettyPatternWithType p1 <+> prettyPatternWithType p2
   TIContPat -> pretty "..."
   TIPApplyPat func pats -> prettyTIExprWithType func <+> hsep (map prettyPatternWithType pats)
   TIVarPat name -> pretty "$" <> pretty name  -- TIVarPat is PatVar ($x, new binding)
   TIInductiveOrPApplyPat name pats -> pretty name <+> hsep (map prettyPatternWithType pats)
-  TISeqNilPat -> pretty "[]"
-  TISeqConsPat p1 p2 -> prettyPatternWithType p1 <+> pretty "::" <+> prettyPatternWithType p2
-  TILaterPatVar -> pretty "..."
+  TISeqNilPat -> pretty "{}"
+  TISeqConsPat p1 p2 -> listoid "{" "}" (f p1 p2)
+    where
+      f p1 (TIPattern _ TISeqNilPat)          = [prettyPatternWithType p1]
+      f p1 (TIPattern _ (TISeqConsPat p2 p3)) = prettyPatternWithType p1 : f p2 p3
+      f p1 p2                                  = [prettyPatternWithType p1, prettyPatternWithType p2]
+  TILaterPatVar -> pretty "@"
   TIDApplyPat pat pats -> prettyPatternWithType pat <+> hsep (map prettyPatternWithType pats)
 
 -- Pretty print TIExprNode recursively
@@ -778,10 +789,10 @@ prettyTIExprNode node = case node of
     pretty name <+> hsep (map prettyTIExprWithType exprs)
   
   TIQuoteExpr e ->
-    pretty "quote" <+> prettyTIExprWithType e
+    squote <> prettyTIExprWithType e
   
   TIQuoteSymbolExpr e ->
-    pretty "quoteSymbol" <+> prettyTIExprWithType e
+    pretty '`' <> prettyTIExprWithType e
   
   TISubrefsExpr _ base ref ->
     pretty "subrefs" <+> prettyTIExprWithType base <+> prettyTIExprWithType ref
@@ -810,7 +821,7 @@ prettyTIExprNode node = case node of
     pretty "function" <+> hsep (map pretty names)
   
   TILetRecExpr bindings body ->
-    pretty "letrec" <+> vsep (map prettyBinding bindings) <+> pretty "in" <+> prettyTIExprWithType body
+    pretty "let" <+> vsep (map prettyBinding bindings) <+> pretty "in" <+> prettyTIExprWithType body
     where prettyBinding (pat, expr) = pretty pat <+> pretty ":=" <+> prettyTIExprWithType expr
   
   TIMatcherExpr patDefs ->
