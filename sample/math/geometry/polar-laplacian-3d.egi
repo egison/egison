@@ -2,6 +2,8 @@
 -- 3D Polar (Spherical) Laplacian
 --
 
+declare symbol r, θ, φ, u
+
 def x := r * sin θ * cos φ
 def y := r * sin θ * sin φ
 def z := r * cos θ

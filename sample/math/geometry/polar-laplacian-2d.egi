@@ -2,6 +2,8 @@
 -- 2D Polar Laplacian
 --
 
+declare symbol r, θ, u
+
 def x : MathExpr := r * cos θ
 def y : MathExpr := r * sin θ
 

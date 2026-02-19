@@ -1,5 +1,7 @@
 -- Quartic Formula (Ferrari's method)
 
+declare symbol x, y
+
 def quarticFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr, MathExpr, MathExpr) := qtF
 
 def qtF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr, MathExpr, MathExpr) :=

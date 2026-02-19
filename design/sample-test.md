@@ -54,9 +54,9 @@
 ### sample/math/algebra (3)
 | ファイル | 備考 |
 |---|---|
-| quadratic-equation.egi | Unbound variable警告あり |
-| cubic-equation.egi | Unbound variable警告あり |
-| quartic-equation.egi | Unbound variable警告あり |
+| quadratic-equation.egi | `declare symbol` 追加で警告解消 |
+| cubic-equation.egi | `declare symbol` 追加で警告解消 |
+| quartic-equation.egi | `declare symbol` 追加で警告解消 |
 
 ### sample/math/number (6)
 | ファイル | 備考 |
@@ -155,7 +155,7 @@
 | triangle.egi | `Inconsistent tuple lengths: expected 3, but got 2` |
 | math/number/tribonacci.egi | `Tensor index must be an integer or a single symbol` |
 | sat/dp.egi | `Expected collection, but found: #<lambda ...>` (unique関数) |
-| math/geometry/riemann-curvature-tensor-of-Schwarzschild-metric.egi | `Expected number, but found: G` (declare symbolで大文字不可) |
+| math/geometry/riemann-curvature-tensor-of-Schwarzschild-metric.egi | `Expected number, but found: G` (`M.inverse` がシンボルを含む行列の逆行列計算に未対応) |
 
 ### カテゴリ5: アサーション失敗 (4ファイル)
 
@@ -166,32 +166,39 @@
 | math/geometry/hodge-Minkowski.egi | Hodge star の反対称テンソル要素欠落 |
 | math/geometry/yang-mills-equation-of-U1-gauge-theory.egi | 同上 + タイムアウト |
 
-### カテゴリ6: タイムアウト — 30秒以内に完了しない (12ファイル)
+### カテゴリ6: タイムアウト (12ファイル)
 
-| ファイル | 備考 |
+| ファイル | 5分テスト結果 |
 |---|---|
-| math/geometry/riemann-curvature-tensor-of-S4.egi | |
-| math/geometry/riemann-curvature-tensor-of-S5.egi | |
-| math/geometry/riemann-curvature-tensor-of-S5-non-sym.egi | |
-| math/geometry/riemann-curvature-tensor-of-S2xS3.egi | |
-| math/geometry/euler-form-of-S2.egi | |
-| math/geometry/euler-form-of-T2.egi | |
-| math/geometry/surface.egi | |
-| math/geometry/polar-laplacian-2d.egi | |
-| math/geometry/polar-laplacian-2d-3.egi | |
-| math/geometry/polar-laplacian-3d.egi | |
-| math/geometry/polar-laplacian-3d-2.egi | |
-| math/geometry/polar-laplacian-3d-3.egi | |
+| math/geometry/riemann-curvature-tensor-of-S4.egi | 約51秒で完了 |
+| math/geometry/riemann-curvature-tensor-of-S5.egi | 約2分で完了 |
+| math/geometry/riemann-curvature-tensor-of-S5-non-sym.egi | 約2分で完了 |
+| math/geometry/riemann-curvature-tensor-of-S2xS3.egi | 5分でもタイムアウト |
+| math/geometry/euler-form-of-S2.egi | 5分でもタイムアウト（出力途中まであり） |
+| math/geometry/euler-form-of-T2.egi | 5分でもタイムアウト |
+| math/geometry/surface.egi | 5分でもタイムアウト |
+| math/geometry/polar-laplacian-2d.egi | 5分でもタイムアウト |
+| math/geometry/polar-laplacian-2d-3.egi | 5分でもタイムアウト |
+| math/geometry/polar-laplacian-3d.egi | 5分でもタイムアウト |
+| math/geometry/polar-laplacian-3d-2.egi | 5分でもタイムアウト |
+| math/geometry/polar-laplacian-3d-3.egi | 5分でもタイムアウト |
 
-### カテゴリ7: 未実装機能・欠損ライブラリ (5ファイル)
+### カテゴリ7: 未実装機能・欠損ライブラリ (2ファイル)
 
 | ファイル | エラー内容 |
 |---|---|
 | math/geometry/riemann-curvature-tensor-of-S7.egi | `subrefs` 未実装 |
 | math/geometry/hodge-laplacian-spherical.egi | `Not implemented: subrefs` |
-| physics/tension.egi | `undefined function 'trace'` (部分的に動作) |
-| physics/tension2.egi | `undefined function 'trace'` |
-| physics/tension3.egi | `undefined function 'trace'` |
+
+### カテゴリ7b: trace関数修正済み — タイムアウト (3ファイル)
+
+`trace` 関数をライブラリに追加して動作するようになった。tension.egi は正常動作、tension2/3 はタイムアウト。
+
+| ファイル | 状態 |
+|---|---|
+| physics/tension.egi | 正常動作（`trace` 修正済み、`declare symbol` 追加済み） |
+| physics/tension2.egi | タイムアウト（`trace` 修正済み、`declare symbol` 追加済み） |
+| physics/tension3.egi | タイムアウト（`trace` 修正済み、`declare symbol` 追加済み） |
 
 ### カテゴリ8: 外部依存・その他 (4ファイル)
 
