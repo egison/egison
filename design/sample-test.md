@@ -7,244 +7,204 @@
 - mathファイル: `cabal run egison -- -t -l lib/math/normalize.egi <file>`
 - タイムアウト: 30秒（一部60秒）
 
-全95ファイル中、正常動作 **44ファイル**、エラー **51ファイル**。
+全95ファイル中、正常動作 **50ファイル**、エラー **45ファイル**。
 
-修正作業により **9ファイル** を新たに動作可能にした。
-
----
-
-## 修正して動くようになったファイル (9)
-
-| ファイル | 修正内容 |
-|---|---|
-| binary-counter.egi | `\$i ->` → `\i ->` |
-| mickey.egi | `def mickey' $cs :=` → `def mickey' (cs: [Char]) : [Char] :=` |
-| five-color.egi | `\$n ->` → `\n ->` + `2#$1 n` → タプルデストラクチャリング |
-| rosetta/abc_problem.egi | `\$w ->` → `\w ->` |
-| math/number/euler-totient-function.egi | `\$p ->` → `\p ->` + アサーション期待値修正 |
-| salesman.egi | `\$i ->` → `\i ->` + `def main $args` → `def main (args: [String]) : IO ()` |
-| math/geometry/riemann-curvature-tensor-of-FLRW-metric.egi | `def W $r :=` → 型注釈追加 + `` `a w `` → `` `(a w) `` + `declare symbol` 追加 |
-| math/geometry/thurston-non-sym.egi | `\$σ ->` → `\σ ->` |
-| math/geometry/thurston.egi | `\$σ ->` → `\σ ->` (パースは通るが型エラーあり) |
+修正作業により **15ファイル** を新たに動作可能にした。
 
 ---
 
-## 正常動作するファイル (44)
+## 全ファイル一覧
 
-### sample/ ルート (16)
-| ファイル | 備考 |
-|---|---|
-| bipartite-graph.egi | |
-| **binary-counter.egi** | **修正済** |
-| demo1.egi | |
-| demo1-ja.egi | |
-| **five-color.egi** | **修正済** |
-| ioRef.egi | |
-| mahjong.egi | 実行に約30秒 |
-| **mickey.egi** | **修正済** |
-| n-queens.egi | |
-| nishiwaki.egi | |
-| one-minute-first.egi | |
-| one-minute-second.egi | |
-| poker-hands.egi | |
-| poker-hands-with-joker.egi | |
-| primes.egi | |
-| tak.egi | |
+凡例: ✅ 正常動作 / ❌ エラー / ⏳ タイムアウト / 🔧 修正済み
 
-### sample/math/algebra (3)
-| ファイル | 備考 |
-|---|---|
-| quadratic-equation.egi | `declare symbol` 追加で警告解消 |
-| cubic-equation.egi | `declare symbol` 追加で警告解消 |
-| quartic-equation.egi | `declare symbol` 追加で警告解消 |
+### sample/ ルート
 
-### sample/math/number (6)
-| ファイル | 備考 |
-|---|---|
-| 5th-root-of-unity.egi | |
-| 7th-root-of-unity.egi | |
-| 17th-root-of-unity.egi | |
-| eisenstein-primes.egi | |
-| **euler-totient-function.egi** | **修正済** |
-| gaussian-primes.egi | |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 1 | bellman-ford.egi | ❌ | `Expected math expression, but found: "plus"` |
+| 2 | bipartite-graph.egi | ✅ | |
+| 3 | binary-counter.egi | ✅🔧 | `\$i ->` → `\i ->` |
+| 4 | chopsticks.egi | ❌ | `Expected bool, but found: < + 1 2 + 5 1` |
+| 5 | chopsticks2.egi | ❌ | `listToTree` が lambda を返す |
+| 6 | demo1.egi | ✅ | |
+| 7 | demo1-ja.egi | ✅ | |
+| 8 | efficient-backtracking.egi | ❌ | `Expected rational, but found: n` |
+| 9 | five-color.egi | ✅🔧 | `\$n ->` → `\n ->` 等 |
+| 10 | graph.egi | ❌ | `{|1, 4, 3|}` マルチセットリテラル非互換 |
+| 11 | ioRef.egi | ✅ | |
+| 12 | mahjong.egi | ✅ | 実行に約30秒 |
+| 13 | mickey.egi | ✅🔧 | `def mickey' $cs :=` → 型注釈追加 |
+| 14 | n-queen.egi | ❌ | `Expected integer, but found: - 2 1` |
+| 15 | n-queens.egi | ✅ | |
+| 16 | nishiwaki.egi | ✅ | |
+| 17 | one-minute-first.egi | ✅ | |
+| 18 | one-minute-second.egi | ✅ | |
+| 19 | pi.egi | ⏳ | 60秒以上、`showDecimal` の計算コスト |
+| 20 | poker-hands.egi | ✅ | |
+| 21 | poker-hands-with-joker.egi | ✅ | |
+| 22 | prime-millionaire.egi | ❌ | `map read args` の型推論エラー |
+| 23 | primes.egi | ✅ | |
+| 24 | salesman.egi | ✅🔧 | `\$i ->` → `\i ->` + main関数修正 |
+| 25 | salesman2.egi | ❌ | Hash Integer String vs [String] 型エラー |
+| 26 | tail-recursion.egi | ❌ | `x - 1` が MathExpr として推論される |
+| 27 | tak.egi | ✅ | |
+| 28 | tree.egi | ❌ | `Primitive data pattern match failed` |
+| 29 | triangle.egi | ❌ | `Inconsistent tuple lengths` |
+| 30 | unify.egi | ❌ | 旧構文 `def showΣ $σ :=` |
+| 31 | xml-test.egi | ❌ | `file does not exist: lib/tree/xml.egi` |
 
-### sample/math/geometry (12)
-| ファイル | 備考 |
-|---|---|
-| riemann-curvature-tensor-of-S2.egi | |
-| riemann-curvature-tensor-of-S2-no-type-annotations.egi | |
-| riemann-curvature-tensor-of-T2.egi | |
-| riemann-curvature-tensor-of-S3.egi | |
-| riemann-curvature-tensor-of-T2-non-sym.egi | |
-| **riemann-curvature-tensor-of-FLRW-metric.egi** | **修正済** (テスト式なし、定義のみ) |
-| **thurston-non-sym.egi** | **修正済** (テスト式なし) |
-| exterior-derivative.egi | |
-| curvature-form.egi | |
-| wedge-product.egi | |
-| hodge-laplacian-polar.egi | |
-| polar-laplacian-2d-2.egi | |
+### sample/generalized-sequential-pattern-mining
 
-### sample/sat (1)
-| ファイル | 備考 |
-|---|---|
-| cdcl.egi | |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 32 | generalized-sequential-pattern-mining.egi | ❌ | パターン関数の型推論エラー |
 
-### sample/rosetta (3)
-| ファイル | 備考 |
-|---|---|
-| **abc_problem.egi** | **修正済** |
-| consolidate.egi | |
-| partial.egi | |
+### sample/io
 
-### sample/io (1)
-| ファイル | 備考 |
-|---|---|
-| hello.egi | |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 33 | args.egi | ❌ | 型エラー (部分的に動作) |
+| 34 | cat.egi | ❌ | `[]` と `[String]` の型不一致 |
+| 35 | cut.egi | ❌ | `map read nums` の型不一致 |
+| 36 | hello.egi | ✅ | |
+| 37 | print-primes.egi | ⏳ | 無限出力（正常動作だがタイムアウトに見える） |
 
-### sample/ ルート (その他)
-| ファイル | 備考 |
-|---|---|
-| **salesman.egi** | **修正済** (main関数のみ、テスト式なし) |
+### sample/repl
 
----
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 38 | egison.egi | ❌ | 旧構文 `def main $args :=` 等 |
 
-## 動かないファイル (51)
+### sample/database
 
-### カテゴリ1: パースエラー — 旧構文が残っている (10ファイル)
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 39 | edge-sqlite.egi | ❌ | 旧パターン構文 `cons node #$px` |
+| 40 | simple-sqlite.egi | ❌ | `undefined function 'simpleSelect'` |
 
-修正困難な自動翻訳コード。`cambda`, `\match`, `\matchAll`, `#$t`, `JoinExpr`/`VarExpr` などの内部構文が残っている。
+### sample/rosetta
 
-| ファイル | エラー箇所 | 備考 |
-|---|---|---|
-| unify.egi | `def showΣ $σ :=` | 自動翻訳の不完全変換 |
-| rosetta/lcs.egi | `def doubleList $a :=` | 自動翻訳の不完全変換 |
-| repl/egison.egi | `def main $args :=`, `def repl $env :=` | 自動翻訳の不完全変換 |
-| graph.egi | `{|1, 4, 3|}` マルチセットリテラル | 現在のハッシュ構文と非互換 |
-| database/edge-sqlite.egi | `cons node #$px #$py $` パターン | 旧パターン構文 |
-| math/analysis/vector-analysis.egi | `def trace %t :=` | `%t` テンソルパラメータ構文未対応 |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 41 | abc_problem.egi | ✅🔧 | `\$w ->` → `\w ->` |
+| 42 | consolidate.egi | ✅ | |
+| 43 | lcs.egi | ❌ | 旧構文 `def doubleList $a :=` |
+| 44 | partial.egi | ✅ | |
 
-### カテゴリ2: パースは通るがまだ別のエラーがある修正済みファイル (6ファイル)
+### sample/sat
 
-| ファイル | エラー内容 |
-|---|---|
-| pi.egi | タイムアウト (60秒以上、`showDecimal` の計算コスト) |
-| salesman2.egi | 型エラー: Hash Integer String vs [String] (添字変数の型推論) |
-| io/cut.egi | 型エラー: `map read nums` の型不一致 |
-| math/analysis/leibniz-formula.egi | 評価エラー: `Sd` (積分) 関数の正規化が未対応 |
-| math/geometry/thurston.egi | 型エラー: `R'{_i_j}_k~l` の反対称インデックス命名の不一致 |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 45 | cdcl.egi | ✅ | |
+| 46 | dp.egi | ❌ | `Expected collection, but found: #<lambda ...>` |
 
-### カテゴリ3: 型エラー (4ファイル)
+### sample/math/algebra
 
-| ファイル | エラー内容 |
-|---|---|
-| prime-millionaire.egi | `map read args` — `read` の型が IO String と推論される |
-| tail-recursion.egi | `x - 1` が MathExpr として推論される (Integer 期待) |
-| generalized-sequential-pattern-mining.egi | パターン関数の型推論エラー |
-| io/cat.egi | `[]` と `[String]` の型不一致 (パターンマッチ) |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 47 | quadratic-equation.egi | ✅ | `declare symbol` 追加で警告解消 |
+| 48 | cubic-equation.egi | ✅ | `declare symbol` 追加で警告解消 |
+| 49 | quartic-equation.egi | ✅ | `declare symbol` 追加で警告解消 |
 
-### カテゴリ4: 評価エラー (10ファイル)
+### sample/math/analysis
 
-| ファイル | エラー内容 |
-|---|---|
-| bellman-ford.egi | `Expected math expression, but found: "plus"` (Ord型クラス) |
-| chopsticks.egi | `Expected bool, but found: < + 1 2 + 5 1` (比較演算) |
-| chopsticks2.egi | `listToTree` が lambda を返す (遅延評価/型クラス問題) |
-| efficient-backtracking.egi | `Expected rational, but found: n` |
-| n-queen.egi | `Expected integer, but found: - 2 1` (loop パターン内) |
-| tree.egi | `Primitive data pattern match failed` |
-| triangle.egi | `Inconsistent tuple lengths: expected 3, but got 2` |
-| math/number/tribonacci.egi | `Tensor index must be an integer or a single symbol` |
-| sat/dp.egi | `Expected collection, but found: #<lambda ...>` (unique関数) |
-| math/geometry/riemann-curvature-tensor-of-Schwarzschild-metric.egi | `Expected number, but found: G` (`M.inverse` がシンボルを含む行列の逆行列計算に未対応) |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 50 | eulers-formula.egi | ❌ | `cos(0)`, `sin(0)` が簡約されない |
+| 51 | leibniz-formula.egi | ❌ | `Sd` (積分) 関数の正規化が未対応 |
+| 52 | vector-analysis.egi | ❌ | 旧構文 `def trace %t :=` |
 
-### カテゴリ5: アサーション失敗 (4ファイル)
+### sample/math/number
 
-| ファイル | エラー内容 |
-|---|---|
-| math/analysis/eulers-formula.egi | `cos(0)`, `sin(0)` が簡約されない |
-| math/geometry/hodge-E3.egi | Hodge star の反対称テンソル要素欠落 |
-| math/geometry/hodge-Minkowski.egi | Hodge star の反対称テンソル要素欠落 |
-| math/geometry/yang-mills-equation-of-U1-gauge-theory.egi | 同上 + タイムアウト |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 53 | 5th-root-of-unity.egi | ✅ | |
+| 54 | 7th-root-of-unity.egi | ✅ | |
+| 55 | 17th-root-of-unity.egi | ✅ | |
+| 56 | eisenstein-primes.egi | ✅ | |
+| 57 | euler-totient-function.egi | ✅🔧 | `\$p ->` → `\p ->` + アサーション修正 |
+| 58 | gaussian-primes.egi | ✅ | |
+| 59 | tribonacci.egi | ❌ | `Tensor index must be an integer or a single symbol` |
 
-### カテゴリ6: タイムアウト (12ファイル)
+### sample/math/geometry
 
-| ファイル | 5分テスト結果 |
-|---|---|
-| math/geometry/riemann-curvature-tensor-of-S4.egi | 約51秒で完了 |
-| math/geometry/riemann-curvature-tensor-of-S5.egi | 約2分で完了 |
-| math/geometry/riemann-curvature-tensor-of-S5-non-sym.egi | 約2分で完了 |
-| math/geometry/riemann-curvature-tensor-of-S2xS3.egi | 5分でもタイムアウト |
-| math/geometry/euler-form-of-S2.egi | 5分でもタイムアウト（出力途中まであり） |
-| math/geometry/euler-form-of-T2.egi | 5分でもタイムアウト |
-| math/geometry/surface.egi | 5分でもタイムアウト |
-| math/geometry/polar-laplacian-2d.egi | 5分でもタイムアウト |
-| math/geometry/polar-laplacian-2d-3.egi | 5分でもタイムアウト |
-| math/geometry/polar-laplacian-3d.egi | 5分でもタイムアウト |
-| math/geometry/polar-laplacian-3d-2.egi | 5分でもタイムアウト |
-| math/geometry/polar-laplacian-3d-3.egi | 5分でもタイムアウト |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 60 | riemann-curvature-tensor-of-S2.egi | ✅ | |
+| 61 | riemann-curvature-tensor-of-S2-no-type-annotations.egi | ✅ | |
+| 62 | riemann-curvature-tensor-of-T2.egi | ✅ | |
+| 63 | riemann-curvature-tensor-of-S3.egi | ✅ | |
+| 64 | riemann-curvature-tensor-of-T2-non-sym.egi | ✅ | |
+| 65 | riemann-curvature-tensor-of-S4.egi | ⏳ | 約51秒で完了（5分テスト） |
+| 66 | riemann-curvature-tensor-of-S5.egi | ⏳ | 約2分で完了（5分テスト） |
+| 67 | riemann-curvature-tensor-of-S5-non-sym.egi | ⏳ | 約2分で完了（5分テスト） |
+| 68 | riemann-curvature-tensor-of-S7.egi | ❌ | 型エラー `cos ε` / `sin ε` が衝突 + `declare symbol` 不足 |
+| 69 | riemann-curvature-tensor-of-S2xS3.egi | ⏳ | 5分でもタイムアウト |
+| 70 | riemann-curvature-tensor-of-FLRW-metric.egi | ✅🔧 | 型注釈追加 + `declare symbol` 追加 |
+| 71 | riemann-curvature-tensor-of-Schwarzschild-metric.egi | ❌ | `Expected number, but found: G` (`M.inverse` 未対応) |
+| 72 | euler-form-of-S2.egi | ⏳ | 5分でもタイムアウト |
+| 73 | euler-form-of-T2.egi | ⏳ | 5分でもタイムアウト |
+| 74 | surface.egi | ⏳ | 5分でもタイムアウト |
+| 75 | exterior-derivative.egi | ✅ | |
+| 76 | curvature-form.egi | ✅ | |
+| 77 | wedge-product.egi | ✅ | |
+| 78 | hodge-E3.egi | ✅🔧 | `ε'`+`subrefs` Hodge star、アサーション値修正 |
+| 79 | hodge-Minkowski.egi | ✅🔧 | `ε'`+`subrefs` Hodge star、アサーション値修正 |
+| 80 | hodge-laplacian-polar.egi | ✅ | `ε'`+`subrefs` に変更 |
+| 81 | hodge-laplacian-spherical.egi | ⏳ | `subrefs`修正済みだが3D球面ラプラシアン計算が重い |
+| 82 | polar-laplacian-2d.egi | ⏳ | 5分でもタイムアウト |
+| 83 | polar-laplacian-2d-2.egi | ✅ | |
+| 84 | polar-laplacian-2d-3.egi | ⏳ | 5分でもタイムアウト |
+| 85 | polar-laplacian-3d.egi | ⏳ | 5分でもタイムアウト |
+| 86 | polar-laplacian-3d-2.egi | ⏳ | 5分でもタイムアウト |
+| 87 | polar-laplacian-3d-3.egi | ⏳ | 5分でもタイムアウト |
+| 88 | thurston.egi | ❌ | 型エラー `R'{_i_j}_k~l` の命名不一致 |
+| 89 | thurston-non-sym.egi | ✅🔧 | `\$σ ->` → `\σ ->` |
+| 90 | yang-mills-equation-of-U1-gauge-theory.egi | ✅🔧 | 旧AST変換 + `ε'`+`subrefs` hodge (約65秒) |
+| 91 | chern-form-of-CP1.egi | ✅🔧 | 旧AST変換、`assertEqual`付き |
+| 92 | chern-form-of-CP2.egi | ✅🔧 | 旧AST変換 |
 
-### カテゴリ7: 未実装機能・欠損ライブラリ (2ファイル)
+### sample/physics
 
-| ファイル | エラー内容 |
-|---|---|
-| math/geometry/riemann-curvature-tensor-of-S7.egi | `subrefs` 未実装 |
-| math/geometry/hodge-laplacian-spherical.egi | `Not implemented: subrefs` |
-
-### カテゴリ7b: trace関数修正済み — タイムアウト (3ファイル)
-
-`trace` 関数をライブラリに追加して動作するようになった。tension.egi は正常動作、tension2/3 はタイムアウト。
-
-| ファイル | 状態 |
-|---|---|
-| physics/tension.egi | 正常動作（`trace` 修正済み、`declare symbol` 追加済み） |
-| physics/tension2.egi | タイムアウト（`trace` 修正済み、`declare symbol` 追加済み） |
-| physics/tension3.egi | タイムアウト（`trace` 修正済み、`declare symbol` 追加済み） |
-
-### カテゴリ8: 外部依存・その他 (4ファイル)
-
-| ファイル | エラー内容 |
-|---|---|
-| xml-test.egi | `file does not exist: lib/tree/xml.egi` |
-| database/simple-sqlite.egi | `undefined function 'simpleSelect'` |
-| math/geometry/chern-form-of-CP1.egi | 出力なし、`VarExpr`/`WedgeApplyExpr` がunbound |
-| math/geometry/chern-form-of-CP2.egi | 出力なし、`WedgeApplyExpr` 等がunbound |
-
-### IO系ファイル
-
-| ファイル | 状態 |
-|---|---|
-| io/print-primes.egi | 無限出力（正常動作だがタイムアウトに見える） |
-| io/args.egi | 型エラー (部分的に動作) |
+| # | ファイル | 状態 | 備考 |
+|---|---|---|---|
+| 93 | tension.egi | ✅🔧 | `trace` 修正 + `declare symbol` 追加 |
+| 94 | tension2.egi | ⏳ | `trace` 修正済み、`declare symbol` 追加済み |
+| 95 | tension3.egi | ⏳ | `trace` 修正済み、`declare symbol` 追加済み |
 
 ---
 
-## エラーの傾向分析
+## 集計
 
-### 1. 旧構文の互換性問題 (最多)
-- ラムダ引数の `$` (修正済みファイル多数)
-- `%t` テンソルパラメータ構文
-- `{|...|}`  マルチセットリテラル
-- 自動翻訳コードの不完全変換 (`cambda`, `#$t`, `JoinExpr` 等)
+| 状態 | 件数 |
+|---|---|
+| ✅ 正常動作 | 50 |
+| ❌ エラー | 28 |
+| ⏳ タイムアウト | 17 |
+| **合計** | **95** |
 
-### 2. declare symbol で大文字シンボルが使えない (修正済み)
-- `K`, `G` などの大文字記号が `declare symbol` で宣言できなかった問題は修正済み
+うち 🔧修正済み: 15ファイル
 
-### 3. Integer と MathExpr の型変換問題
-- 算術演算 (`-`, `+`, `<`, `>`) が MathExpr を返すケースが多い
-- `Expected integer/rational/bool, but found: MathExpr` 系エラー
-- `bellman-ford.egi`, `n-queen.egi`, `tail-recursion.egi` 等に影響
+---
 
-### 4. 反対称テンソル（Hodge star）の計算バグ
-- `hodge-E3.egi`, `hodge-Minkowski.egi`, `yang-mills-equation-of-U1-gauge-theory.egi`
-- Hodge star の結果が不正（反対称テンソルの要素欠落）
+## 今回の修正まとめ
 
-### 5. subrefs 未実装
-- テンソルの添字参照機能が未実装
-- `riemann-curvature-tensor-of-S7.egi`, `hodge-laplacian-spherical.egi`
+### subrefs 実装修正
+`hs-src/Language/Egison/Core.hs` の `ISubrefsExpr` / `ISuprefsExpr` 評価に `evalWHNF` フォールバックを追加。テンソルが `TensorData`/`ITensor` 以外に評価される場合も正しく処理。
 
-### 6. trace 関数未定義
-- physics系で使われている `trace` 関数が ScalarData として定義されていない
+### Hodge star 修正 (`ε` → `ε'`+`subrefs`)
+全 hodge 関数で `(ε N)_(i_1)..._(i_N) . A..._(j_1)..._(j_k)` を `(subrefs A (map 1#j_$1 (between 1 k))) . (subrefs (ε' N k) (map 1#i_$1 (between 1 N)))` に変更。
 
-### 7. 高次元テンソルの計算タイムアウト
-- S4以上の球面や laplacian の計算が30秒以内に終わらない
-- 性能最適化が必要
+`ε'` は出力インデックスをソート済みに制約し（上三角形式）、`subrefs` で正しくインデックス名を割り当てる。これにより：
+- Hodge star の出力が元のS式コードと一致
+- Yang-Mills の `δ F` 因子が元のコードと一致（-2因子。`ε` 版では -4 になっていた）
+
+### 変更ファイル一覧
+| ファイル | 変更内容 |
+|---|---|
+| `hs-src/Language/Egison/Core.hs` | `subrefs`/`suprefs` の `evalWHNF` フォールバック追加 |
+| `sample/math/geometry/hodge-E3.egi` | `ε'`+`subrefs` hodge、アサーション値修正 |
+| `sample/math/geometry/hodge-Minkowski.egi` | `ε'`+`subrefs` hodge、アサーション値修正 |
+| `sample/math/geometry/hodge-laplacian-polar.egi` | `ε'`+`subrefs` hodge |
+| `sample/math/geometry/hodge-laplacian-spherical.egi` | `ε'`+`subrefs` hodge、`d`関数修正、`declare symbol`追加、`g`逆行列を明示定義 |
+| `sample/math/geometry/yang-mills-equation-of-U1-gauge-theory.egi` | 旧AST→現代構文変換、`ε'`+`subrefs` hodge、`function`構文 |
