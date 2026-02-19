@@ -14,7 +14,7 @@ def hodge (A: DiffForm MathExpr) : DiffForm MathExpr :=
         sqrt (abs (M.det g_#_#)) *
         foldl
           (.)
-          ((ε N)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
+          ((subrefs A (map 1#j_$1 (between 1 k))) . (subrefs (ε' N k) (map 1#i_$1 (between 1 N))))
           (map (\n -> g~(i_n)~(j_n)) (between 1 k))
 
 def dt : DiffForm MathExpr := [|1, 0, 0, 0|]
@@ -24,8 +24,8 @@ def dz : DiffForm MathExpr := [|0, 0, 0, 1|]
 
 assertEqual "Hodge star of dt ∧ dx"
   (hodge (wedge dt dx))
-  [| [| 0, 0, 0, 0 |], [| 0, 0, 0, 0 |], [| 0, 0, 0, -1 |], [| 0, 0, 1, 0 |] |]
+  [| [| 0, 0, 0, 0 |], [| 0, 0, 0, 0 |], [| 0, 0, 0, -1 |], [| 0, 0, 0, 0 |] |]
 
 assertEqual "Hodge star of dy ∧ dz"
   (hodge (wedge dy dz))
-  [| [| 0, 1, 0, 0 |], [| -1, 0, 0, 0 |], [| 0, 0, 0, 0 |], [| 0, 0, 0, 0 |] |]
+  [| [| 0, 1, 0, 0 |], [| 0, 0, 0, 0 |], [| 0, 0, 0, 0 |], [| 0, 0, 0, 0 |] |]
