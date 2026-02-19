@@ -1,15 +1,16 @@
 -- Hodge Laplacian in spherical coordinates
 
+declare symbol r, θ, φ
+
 def N : Integer := 3
 
 def x : Vector MathExpr := [| r, θ, φ |]
 
-def g_i_j : Matrix MathExpr := [| [| 1, 0, 0 |], [| 0, r^2, 0 |], [| 0, 0, r^2 * (sin θ)^2 |] |]
-
-def g~i~j : Matrix MathExpr := M.inverse g_#_#
+def g_i_j : Matrix MathExpr := [| [| 1, 0, 0 |], [| 0, r^2, 0 |], [| 0, 0, r^2 * (sin θ)^2 |] |]_i_j
+def g~i~j : Matrix MathExpr := [| [| 1, 0, 0 |], [| 0, 1 / r^2, 0 |], [| 0, 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 -- Exterior derivative
-def d (X: DiffForm MathExpr) : DiffForm MathExpr := (flip ∂/∂) x~# !. X
+def d (A: Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x A
 
 -- Hodge star operator
 def hodge (A: DiffForm MathExpr) : DiffForm MathExpr :=
@@ -18,13 +19,13 @@ def hodge (A: DiffForm MathExpr) : DiffForm MathExpr :=
         sqrt (abs (M.det g_#_#)) *
         foldl
           (.)
-          ((ε N)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
+          ((subrefs A (map 1#j_$1 (between 1 k))) . (subrefs (ε' N k) (map 1#i_$1 (between 1 N))))
           (map (\n -> g~(i_n)~(j_n)) (between 1 k))
 
 -- Codifferential
 def δ (A: DiffForm MathExpr) : DiffForm MathExpr :=
-  let r := dfOrder A
-   in ((-1)^(N * r + 1)) * hodge (d (hodge A))
+  let k := dfOrder A
+   in ((-1)^(N * k + 1)) * hodge (d (hodge A))
 
 -- Laplacian
 def Δ (A: DiffForm MathExpr) : DiffForm MathExpr :=
@@ -34,6 +35,8 @@ def Δ (A: DiffForm MathExpr) : DiffForm MathExpr :=
     | _ -> d (δ A) + δ (d A)
 
 -- Apply to scalar function
+def f := function (r, θ, φ)
+
 assertEqual "Laplacian in spherical coordinates"
-  (Δ (f r θ φ))
-  (f|1|1 r θ φ + 2 * f|1 r θ φ / r + f|2|2 r θ φ / r^2 + cos θ * f|2 r θ φ / (r^2 * sin θ) + f|3|3 r θ φ / (r^2 * (sin θ)^2))
+  (Δ f)
+  (∂/∂ (∂/∂ f r) r + 2 * (∂/∂ f r) / r + (∂/∂ (∂/∂ f θ) θ) / r^2 + cos θ * (∂/∂ f θ) / (r^2 * sin θ) + (∂/∂ (∂/∂ f φ) φ) / (r^2 * (sin θ)^2))

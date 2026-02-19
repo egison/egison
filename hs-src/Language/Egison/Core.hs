@@ -277,7 +277,12 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _                             -> throwErrorWithTrace (NotImplemented "subrefs")
+    _ -> do
+      val <- evalWHNF tensor
+      case val of
+        ScalarData _          -> return $ Value val
+        TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
+        _                     -> throwErrorWithTrace (NotImplemented ("subrefs for " ++ show val))
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
@@ -292,7 +297,12 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
     Value (ScalarData _)          -> return tensor
     Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
     ITensor t@Tensor{}            -> refTensorWithOverride override js t
-    _                             -> throwErrorWithTrace (NotImplemented "suprefs")
+    _ -> do
+      val <- evalWHNF tensor
+      case val of
+        ScalarData _          -> return $ Value val
+        TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
+        _                     -> throwErrorWithTrace (NotImplemented ("suprefs for " ++ show val))
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
