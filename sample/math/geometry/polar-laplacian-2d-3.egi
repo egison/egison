@@ -1,5 +1,7 @@
 -- Polar Laplacian in 2D using coordinate-free formula
 
+declare symbol r, θ, f
+
 def x : Vector MathExpr := [| r, θ |]
 
 def X : Vector MathExpr := [| r * cos θ, r * sin θ |]

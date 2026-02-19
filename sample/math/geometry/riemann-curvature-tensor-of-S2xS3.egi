@@ -1,5 +1,7 @@
 -- Riemann curvature tensor of S2 x S3 (product manifold)
 
+declare symbol φ, θ, ψ, y, α, a
+
 def x := [| φ, θ, ψ, y, α |]
 
 def g_i_j :=

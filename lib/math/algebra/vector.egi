@@ -7,17 +7,17 @@ def dotProduct {Num a} (v1: Tensor a) (v2: Tensor a) : Tensor a :=
 
 def V.* {Num a} : Tensor a -> Tensor a -> Tensor a := dotProduct
 
---def crossProduct/fn {Num a} (fn: a -> a -> a) (a: Vector a) (b: Vector a) : Vector a :=
---  [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]
+def crossProductWithFun {Num a} (fn: a -> a -> a) (a: Vector a) (b: Vector a) : Vector a :=
+  [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]
 
---def crossProduct {Num a} (a: Vector a) (b: Vector a) : Vector a := 
---  crossProduct/fn (*) a b
+def crossProduct {Num a} (a: Vector a) (b: Vector a) : Vector a := 
+  crossProductWithFun (*) a b
 
---def div {Num a} (A: Vector a) (xs: Vector a) : a := trace (∇ A xs)
+def div {Num a} (A: Vector a) (xs: Vector a) : a := trace (!∂/∂ A xs)
 
---def rot {Num a} (A: Vector a) (xs: Vector a) : Vector a := 
---  crossProduct/fn ∂/∂ A xs
+def rot {Num a} (A: Vector a) (xs: Vector a) : Vector a := 
+  crossProductWithFun ∂/∂ A xs
 
---def trace {Num a} (t: Matrix a) : a := 
---  withSymbols [i] sum (contract t~i_i)
+def trace {Num a} (t: Matrix a) : a :=
+  withSymbols [i] sum (contract t~i_i)
 

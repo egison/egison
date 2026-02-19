@@ -1,28 +1,31 @@
 --
 -- Chern form of CP2 (Fubini-Study connection)
 --
+-- z1, z2: holomorphic coordinates
+-- z1b, z2b: anti-holomorphic coordinates (z-bar)
+--
 
-def params := [|z1, z2, z1', z2'|]
+declare symbol z1, z2, z1b, z2b
 
-def params' := [|z1, z2, #, #|]
-def params'' := [|#, #, z1', z2'|]
+-- Holomorphic exterior derivative (∂)
+def dh (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) [| z1, z2 |] X
 
-def d X :=
-  WedgeApplyExpr (ApplyExpr (VarExpr "flip") [VarExpr "\8706/\8706"]) [VarExpr "params",VarExpr "X"]
+-- Anti-holomorphic exterior derivative (∂̄)
+def da (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) [| z1b, z2b |] X
 
-def d' X :=
-  WedgeApplyExpr (ApplyExpr (VarExpr "flip") [VarExpr "\8706/\8706"]) [VarExpr "params'",VarExpr "X"]
+def h := 1 + z1 * z1b + z2 * z2b
 
-def d'' X :=
-  WedgeApplyExpr (ApplyExpr (VarExpr "flip") [VarExpr "\8706/\8706"]) [VarExpr "params''",VarExpr "X"]
+-- Connection 1-form: ω = ∂ log(h)
+-- ω = [z1b/h, z2b/h]
+def ω := dh (log h)
 
-def h := 1 + z1 * z1' + z2 * z2'
+assertEqual "ω"
+  ω
+  [| z1b / (1 + z1 * z1b + z2 * z2b)
+   , z2b / (1 + z1 * z1b + z2 * z2b) |]
 
--- Connection 1-form (holomorphic part)
-def ω := d' (log h)
+-- Curvature 2-form: Ω = ∂̄ω = ∂̄∂ log(h)
+-- Ω_ij = ∂ωi/∂z̄j = (h*δij - z̄i*zj) / h²
+def Ω := da ω
 
--- Curvature 2-form
-def Ω := d'' ω
-
--- The connection and curvature forms are complex symbolic expressions
--- representing the differential geometry of the Fubini-Study metric on CP2
+Ω

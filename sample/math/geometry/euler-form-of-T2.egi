@@ -1,5 +1,7 @@
 -- Euler form of T2 (Torus)
 
+declare symbol θ, φ, a, b
+
 def x := [| θ, φ |]
 
 def X := [| '(a * cos θ + b) * cos φ, '(a * cos θ + b) * sin φ, a * sin θ |]

@@ -1,5 +1,7 @@
 -- Spherical Laplacian in 3D using tensor notation
 
+declare symbol r, θ, φ, f
+
 def x := [| r, θ, φ |]
 
 def X := [| r * sin θ * cos φ, r * sin θ * sin φ, r * cos θ |]

@@ -1,5 +1,7 @@
 -- Surface Geometry: First and Second Fundamental Forms
 
+declare symbol x, y, f
+
 def v1 := [|1, 0, ∂/∂ (f x y) x|]
 def v2 := [|0, 1, ∂/∂ (f x y) y|]
 

@@ -56,11 +56,11 @@ def d/d : MathExpr -> MathExpr -> MathExpr := ∂/∂
 
 def pd/pd : MathExpr -> MathExpr -> MathExpr := ∂/∂
 
-def ∇ : MathExpr -> MathExpr -> MathExpr := ∂/∂
+def ∇ : Tensor MathExpr -> Vector MathExpr -> Tensor MathExpr := ∂/∂
 
-def nabla : MathExpr -> MathExpr -> MathExpr := ∇
+def nabla : Tensor MathExpr -> Vector MathExpr -> Tensor MathExpr := ∇
 
-def grad : MathExpr -> MathExpr -> MathExpr := ∇
+def grad : Tensor MathExpr -> Vector MathExpr -> Tensor MathExpr := ∇
 
 def taylorExpansion (f: MathExpr) (x: MathExpr) (a: MathExpr) : [MathExpr] := 
   multivariateTaylorExpansion f [|x|] [|a|]

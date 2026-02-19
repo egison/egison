@@ -1,5 +1,7 @@
 -- Cubic Formula (Cardano's formula)
 
+declare symbol x, a, b, c, d, p, q
+
 def cubicFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr, MathExpr) := cF
 
 def cF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr, MathExpr) :=

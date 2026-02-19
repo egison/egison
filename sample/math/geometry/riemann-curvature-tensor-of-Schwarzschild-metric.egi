@@ -1,5 +1,7 @@
 -- Riemann curvature tensor of Schwarzschild metric
 
+declare symbol G, M, c, t, r, θ, φ
+
 def x := [| t, r, θ, φ |]
 
 -- Schwarzschild metric

@@ -1,5 +1,7 @@
 -- Quadratic Formula
 
+declare symbol x, a, b, c
+
 def quadraticFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr) := qF
 
 def qF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr) :=

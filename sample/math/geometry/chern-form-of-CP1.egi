@@ -2,22 +2,41 @@
 -- Chern form of CP1 (Fubini-Study connection)
 --
 
-def params := [|r, θ|]
+declare symbol r, θ
+
+def params := [| r, θ |]
 
 def u := r * e ^ (2 * π * i * θ)
 def ū := r * e ^ ((-2) * π * i * θ)
 
-def d X :=
-  WedgeApplyExpr (ApplyExpr (VarExpr "flip") [VarExpr "\8706/\8706"]) [VarExpr "params",VarExpr "X"]
+def d (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) params X
 
 -- Connection 1-form
-def ω := ū * d u / 1 + u * ū
+def ω := ū * d u / '(1 + u * ū)
 
--- Curvature 2-form
-def Ω := dfNormalize (d ω)
+assertEqual "ω"
+  ω
+  [| r / (1 + r^2), 2 * i * r^2 * π / (1 + r^2) |]
+
+-- Curvature 2-form (manual antisymmetrization)
+def ω1 := ω_1
+def ω2 := ω_2
+def Ω12 := (∂/∂ ω2 r - ∂/∂ ω1 θ) / 2
+def Ω := [| [| 0, Ω12 |], [| - Ω12, 0 |] |]
+
+assertEqual "Ω"
+  Ω
+  [| [| 0, 2 * i * r * π / (1 + 2 * r^2 + r^4) |]
+   , [| -2 * i * r * π / (1 + 2 * r^2 + r^4), 0 |] |]
 
 -- First Chern class
-def c1 := Ω / ((-2) * π * i)
+def c1Form := Ω / ((-2) * π * i)
 
--- The connection, curvature, and first Chern class are complex symbolic expressions
--- representing the differential geometry of the Fubini-Study metric on CP1
+assertEqual "c1"
+  c1Form
+  [| [| 0, r / ((-1) - 2 * r^2 - r^4) |]
+   , [| (-1) * r / ((-1) - 2 * r^2 - r^4), 0 |] |]
+
+-- Integration check:
+-- ∫∫ c1 dr dθ = ∫₀^∞ ∫₀^¹ (-2r)/(1+r²)² dθ dr
+-- = ∫₀^∞ (-2r)/(1+r²)² dr = [1/(1+r²)]₀^∞ = 0 - 1 = -1
