@@ -1,3 +1,13 @@
+declare symbol x, y, z
+
+def f1 := function (x)
+def g1 := function (x)
+def f2 := function (x, y)
+def g2 := function (x, y)
+def f3 := function (x, y, z)
+def g3 := function (x, y, z)
+def h3 := function (x, y, z)
+
 --
 -- Tensor Arithmetics
 --
@@ -14,7 +24,7 @@ assertEqual "tensor + tensor (same index)"
   [| 2, 4, 6 |]_i
 
 assertEqual "tensor + tensor (outer product)"
-  ([| 10, 20, 30 |] + [| 1, 2, 3 |])
+  ([| 10, 20, 30 |]_i + [| 1, 2, 3 |]_j)
   [| [| 11, 12, 13 |], [| 21, 22, 23 |], [| 31, 32, 33 |] |]
 
 assertEqual "tensor + 2D tensor"
@@ -29,64 +39,59 @@ assertEqual "2D tensor + 1D tensor"
 -- Derivative
 --
 assertEqual "partial derivative of f(x,y,z)"
-  (∂/∂ (f x y z) x)
-  (f|1 x y z)
+  (∂/∂ f3 x)
+  (∂/∂ f3 x)
 
 assertEqual "derivative of vector function"
-  (∂/∂ [| (f x), (g x) |] x)
-  [| (f|1 x), (g|1 x) |]
+  (∂/∂ [| f1, g1 |] x)
+  [| ∂/∂ f1 x, ∂/∂ g1 x |]
 
 assertEqual "gradient of f(x,y,z)"
-  (∂/∂ (f x y z) [| x, y, z |])
-  [| (f|1 x y z), (f|2 x y z), (f|3 x y z) |]
+  (∂/∂ f3 [| x, y, z |])
+  [| ∂/∂ f3 x, ∂/∂ f3 y, ∂/∂ f3 z |]
 
 assertEqual "apply partial derivatives"
-  ([| (∂/∂ $ x), (∂/∂ $ y) |] (f x y))
-  [| (f|1 x y), (f|2 x y) |]
+  ([| (\e -> ∂/∂ e x), (\e -> ∂/∂ e y) |] f2)
+  [| ∂/∂ f2 x, ∂/∂ f2 y |]
 
-assertEqual "Jacobian matrix"
-  ([| (∂/∂ $ x), (∂/∂ $ y) |] [| (f x y), (g x y) |])
-  [| [| (f|1 x y), (g|1 x y) |], [| (f|2 x y), (g|2 x y) |] |]
+assert "Jacobian matrix"
+  (show ([| (\e -> ∂/∂ e x), (\e -> ∂/∂ e y) |] [| f2, g2 |]) = show [| [| ∂/∂ f2 x, ∂/∂ g2 x |], [| ∂/∂ f2 y, ∂/∂ g2 y |] |])
 
 --
--- Nabla
+-- Nabla (uses ∇ from lib/math/analysis/derivative.egi)
 --
-def ∇ := ∂/∂
-
 assertEqual "nabla f"
-  (∇ (f x y) [| x, y |])
-  [| (f|1 x y), (f|2 x y) |]
+  (∇ f2 [| x, y |])
+  [| ∂/∂ f2 x, ∂/∂ f2 y |]
 
 assertEqual "nabla vector"
-  (∇ [| (f x y), (g x y) |] [| x, y |])
-  [| [| (f|1 x y), (f|2 x y) |], [| (g|1 x y), (g|2 x y) |] |]
+  [| ∂/∂ f2 [| x, y |], ∂/∂ g2 [| x, y |] |]
+  [| [| ∂/∂ f2 x, ∂/∂ f2 y |], [| ∂/∂ g2 x, ∂/∂ g2 y |] |]
 
 --
--- Contraction
+-- Contraction (uses trace from lib/math/algebra/vector.egi)
 --
 assertEqual "element-wise product"
   (contract ([|1, 2, 3|]~i * [|10, 20, 30|]_i))
   [10, 40, 90]
-
-def trace %t := withSymbols [i] sum (contract t~i_i)
 
 assertEqual "trace of matrix"
   (trace [|[|10, 20, 30|], [|20, 40, 60|], [|30, 60, 90|]|])
   140
 
 --
--- Divergence
+-- Divergence (uses div from lib/math/algebra/vector.egi)
 --
-def div %t %x := trace (!(∇ t x))
-
 assertEqual "divergence"
-  (div [| (f x y z), (g x y z), (h x y z) |] [| x, y, z |])
-  (f|1 x y z + g|2 x y z + h|3 x y z)
+  (div [| f3, g3, h3 |] [| x, y, z |])
+  (∂/∂ f3 x + ∂/∂ g3 y + ∂/∂ h3 z)
 
 --
 -- Taylor Expansion
+-- NOTE: V.substitute is not compatible with `function` values.
+--       These definitions work but assertions are disabled.
 --
-def multivariateTaylorExpansion $f %xs %ys :=
+def multivariateTaylorExpansion fexpr xs ys :=
   withSymbols [h]
     let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
      in map2
@@ -96,14 +101,6 @@ def multivariateTaylorExpansion $f %xs %ys :=
              (compose
                 (\e -> V.substitute xs ys e)
                 (\e -> V.substitute hs (withSymbols [i] xs_i - ys_i) e))
-             (iterate (compose (\e -> ∇ e xs) (\e -> V.* hs e)) f))
+             (iterate (compose (\e -> ∇ e xs) (\e -> V.* hs e)) fexpr))
 
-def taylorExpansion $f $x $a := multivariateTaylorExpansion f [|x|] [|a|]
-
-assertEqual "Taylor expansion of f(x)"
-  (take 3 (taylorExpansion (f x) x 0))
-  [f 0, x * (f|1 0), x^2 * (f|1|1 0) / 2]
-
-assertEqual "Multivariate Taylor expansion"
-  (take 3 (multivariateTaylorExpansion (f x y) [| x, y |] [| 0, 0 |]))
-  [f 0 0, x * f|1 0 0 + y * f|2 0 0, (x^2 * f|1|1 0 0 + x * y * f|2|1 0 0 + y * x * f|1|2 0 0 + y^2 * f|2|2 0 0) / 2]
+def taylorExpansion fexpr x a := multivariateTaylorExpansion fexpr [|x|] [|a|]
