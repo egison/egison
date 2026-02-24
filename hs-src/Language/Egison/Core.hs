@@ -310,11 +310,11 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   case val of
     ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
       return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
-    ScalarData (SingleTerm 1 [(FunctionData sym argnames args, 1)]) ->
+    ScalarData (SingleTerm 1 [(FunctionData sym args, 1)]) ->
       case sym of
         SingleTerm 1 [(Symbol id name is, 1)] -> do
           let sym' = SingleTerm 1 [(Symbol id name (is ++ js), 1)]
-          return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym' argnames args, 1)]))
+          return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym' args, 1)]))
         _ -> throwErrorWithTrace (NotImplemented "user-refs")
     _ -> throwErrorWithTrace (NotImplemented "user-refs")
 
@@ -332,7 +332,7 @@ evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "functi
 evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
   is' <- mapM unwrapMaybeFromIndex is
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args args', 1)])
+  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args', 1)])
  where
   unwrapMaybeFromIndex :: Index (Maybe ScalarData) -> EvalM (Index ScalarData) -- Maybe we can refactor this function
 --  unwrapMaybeFromIndex = return . (fmap fromJust)
@@ -703,6 +703,15 @@ applyRef _ (Value (IOFunc m)) refs = do
   case args of
     [Value World] -> m
     arg : _       -> throwErrorWithTrace (TypeMismatch "world" arg)
+applyRef _ (Value (ScalarData (SingleTerm 1 [(FunctionData sym args, 1)]))) refs = do
+  newArgs <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
+  newScalars <- mapM (\arg -> case arg of
+    ScalarData s -> return s
+    _ -> throwErrorWithTrace (TypeMismatch "scalar" (Value arg))) newArgs
+  when (length newScalars /= length args) $
+    throwError (Default ("function applied to wrong number of arguments: expected "
+      ++ show (length args) ++ ", got " ++ show (length newScalars)))
+  return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym newScalars, 1)]))
 applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol _ symName _, 1)]))) refs = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
@@ -1328,18 +1337,15 @@ primitiveDataPatternMatch (PDQuotePat patExpr) ref = do
       exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
-primitiveDataPatternMatch (PDFunctionPat patName patArgs patKwargs) ref = do
+primitiveDataPatternMatch (PDFunctionPat patName patArgs) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (FunctionData name args kwargs)) -> do
+    Value (SymbolExprData (FunctionData name args)) -> do
       nameRef <- lift $ newEvaluatedObjectRef (Value (ScalarData name))
-      let argsCol = Value $ Collection $ Sq.fromList $ map (String . T.pack) args
+      let argsCol = Value $ Collection $ Sq.fromList $ map ScalarData args
       argsRef <- lift $ newEvaluatedObjectRef argsCol
-      let kwargsCol = Value $ Collection $ Sq.fromList $ map ScalarData kwargs
-      kwargsRef <- lift $ newEvaluatedObjectRef kwargsCol
       (++) <$> primitiveDataPatternMatch patName nameRef
-           <*> ((++) <$> primitiveDataPatternMatch patArgs argsRef
-                     <*> primitiveDataPatternMatch patKwargs kwargsRef)
+           <*> primitiveDataPatternMatch patArgs argsRef
     _ -> matchFail
 primitiveDataPatternMatch (PDSubPat patExpr) ref = do
   whnf <- lift $ evalRef ref

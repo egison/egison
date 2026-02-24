@@ -1324,8 +1324,8 @@ pdPattern = makeExprParser pdApplyOrAtom table
         "Function" -> do
           args <- many pdAtom
           case args of
-            [p1, p2, p3] -> return $ PDFunctionPat p1 p2 p3
-            _ -> fail "Function requires exactly 3 arguments"
+            [p1, p2] -> return $ PDFunctionPat p1 p2
+            _ -> fail "Function requires exactly 2 arguments"
         "Sub" -> do
           args <- many pdAtom
           case args of

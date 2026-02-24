@@ -260,8 +260,8 @@ rewriteDd (Div (Plus p1) (Plus p2)) =
  where
   rewriteDdPoly poly =
     match dfs poly (Multiset TermM)
-      [ [mc| term $a (($f & func $g $argnames $args, $n) : $mr) :
-               term $b ((func #g #argnames #args, #n) : #mr) : $pr ->
+      [ [mc| term $a (($f & func $g $args, $n) : $mr) :
+               term $b ((func #g #args, #n) : #mr) : $pr ->
                  rewriteDdPoly (Term (a + b) ((f, n) : mr) : pr) |]
       , [mc| _ -> poly |]
       ]

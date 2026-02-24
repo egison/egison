@@ -181,8 +181,8 @@ symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [S
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (QuoteFunction (Value funcVal), n) = Tuple [InductiveData "QuoteFunction" [funcVal], toEgison n]
 symbolExprToEgison (QuoteFunction whnf, n) = error $ "symbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
-symbolExprToEgison (FunctionData name argnames args, n) =
-  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map (String . pack) argnames)), Collection (Sq.fromList (map ScalarData args))], toEgison n]
+symbolExprToEgison (FunctionData name args, n) =
+  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData args))], toEgison n]
 
 scalarIndexToEgison :: Index ScalarData -> EgisonValue
 scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [ScalarData k]
@@ -276,12 +276,11 @@ egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
 egisonToSymbolExpr (Tuple [InductiveData "QuoteFunction" [funcVal], n]) = do
   n' <- fromEgison n
   return (QuoteFunction (Value funcVal), n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection argnames, Collection args], n]) = do
+egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection args], n]) = do
   name' <- extractScalar name
-  argnames' <- mapM extractString (toList argnames)
   args' <- mapM extractScalar (toList args)
   n' <- fromEgison n
-  return (FunctionData name' argnames' args', n')
+  return (FunctionData name' args', n')
 egisonToSymbolExpr val = throwErrorWithTrace (TypeMismatch "math symbol expression" (Value val))
 
 egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)

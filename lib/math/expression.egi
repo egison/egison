@@ -20,7 +20,7 @@ inductive pattern MathExpr :=
   | apply3 (MathExpr -> MathExpr -> MathExpr -> MathExpr) MathExpr MathExpr MathExpr
   | apply4 (MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathExpr) MathExpr MathExpr MathExpr MathExpr
   | quote MathExpr
-  | func MathExpr [MathExpr] [MathExpr]
+  | func MathExpr [MathExpr]
 
 inductive pattern IndexExpr :=
   | sub MathExpr
@@ -98,11 +98,11 @@ def mathExpr : Matcher MathExpr :=
         | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
             [mexpr]
         | _ -> []
-    | func $ $ $ as (mathExpr, list mathExpr, list mathExpr) with
+    | func $ $ as (mathExpr, list mathExpr) with
         | Div
-            (Plus [Term 1 [(Function $name $argnames $args, 1)]])
+            (Plus [Term 1 [(Function $name $args, 1)]])
             (Plus [Term 1 []]) ->
-            [(name, argnames, args)]
+            [(name, args)]
         | _ -> []
     | #$val as () with
         | $tgt -> if val = tgt then [()] else []
@@ -227,7 +227,12 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
                               a4' := mapSymbols fn a4
                           in if a1 = a1' && a2 = a2' && a3 = a3' && a4 = a4'
                               then x ^' n
-                              else fn ('g a1' a2' a3' a4') ^' n)
+                              else fn ('g a1' a2' a3' a4') ^' n
+                      | func _ $args ->
+                          let args' := map (mapSymbols fn) args
+                          in if args = args'
+                              then x ^' n
+                              else fn (updateFunctionArgs x args') ^' n)
                   xs))
     mexpr
 

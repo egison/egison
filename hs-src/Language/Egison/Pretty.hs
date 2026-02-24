@@ -531,7 +531,7 @@ instance Pretty IPrimitiveDataPattern where
   pretty (PDApply3Pat p1 p2 p3 p4) = applyLike [pretty "Apply3", pretty p1, pretty p2, pretty p3, pretty p4]
   pretty (PDApply4Pat p1 p2 p3 p4 p5) = applyLike [pretty "Apply4", pretty p1, pretty p2, pretty p3, pretty p4, pretty p5]
   pretty (PDQuotePat p) = applyLike [pretty "Quote", pretty p]
-  pretty (PDFunctionPat p1 p2 p3) = applyLike [pretty "Function", pretty p1, pretty p2, pretty p3]
+  pretty (PDFunctionPat p1 p2) = applyLike [pretty "Function", pretty p1, pretty p2]
   pretty (PDSubPat p) = applyLike [pretty "Sub", pretty p]
   pretty (PDSupPat p) = applyLike [pretty "Sup", pretty p]
   pretty (PDUserPat p) = applyLike [pretty "User", pretty p]

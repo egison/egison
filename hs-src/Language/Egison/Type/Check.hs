@@ -73,6 +73,7 @@ builtinTypes = concat
       , ("assert", binOp TString TBool TBool)
       , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
       , ("sortWithSign", Forall [] [] $ TFun (TCollection (TCollection TInt)) (TTuple [TInt, TCollection TInt]))
+      , ("updateFunctionArgs", Forall [] [] $ TFun TMathExpr (TFun (TCollection TMathExpr) TMathExpr))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
