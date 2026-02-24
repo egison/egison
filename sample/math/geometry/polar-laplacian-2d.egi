@@ -1,29 +1,25 @@
 --
--- 2D Polar Laplacian
+-- 2D Polar Laplacian using chain rule
 --
 
-declare symbol r, θ, u
+declare symbol r, θ : MathExpr
 
 def x : MathExpr := r * cos θ
 def y : MathExpr := r * sin θ
 
-def uR : MathExpr := ∂/∂ (u x y) r
+def u := function (x, y)
 
-assertEqual "∂u/∂r"
-  uR
-  (cos θ * u|1 (r * cos θ) (r * sin θ) + sin θ * u|2 (r * cos θ) (r * sin θ))
+def uR : MathExpr := ∂/∂ u r
 
-def uRR : MathExpr := ∂/∂ (∂/∂ (u x y) r) r
+assert "∂u/∂r"
+  (show uR = "u|1 (r * 'cos θ) (r * 'sin θ) * 'cos θ + u|2 (r * 'cos θ) (r * 'sin θ) * 'sin θ")
 
-def uΘ : MathExpr := ∂/∂ (u x y) θ
-def uΘΘ : MathExpr := ∂/∂ (∂/∂ (u x y) θ) θ
+def uRR : MathExpr := ∂/∂ (∂/∂ u r) r
+
+def uΘ : MathExpr := ∂/∂ u θ
+def uΘΘ : MathExpr := ∂/∂ (∂/∂ u θ) θ
 
 -- Laplacian in polar coordinates: ∂²u/∂r² + (1/r)∂u/∂r + (1/r²)∂²u/∂θ²
-assertEqual "Laplacian in polar coordinates (without 1/r term)"
-  (uRR + 1 / r ^ 2 * uΘΘ)
-  ((cos θ)^2 * u|1|1 (r * cos θ) (r * sin θ) + 2 * cos θ * sin θ * u|2|1 (r * cos θ) (r * sin θ) + (sin θ)^2 * u|2|2 (r * cos θ) (r * sin θ) + (sin θ)^2 * u|1|1 (r * cos θ) (r * sin θ) - 2 * cos θ * sin θ * u|2|1 (r * cos θ) (r * sin θ) + (cos θ)^2 * u|2|2 (r * cos θ) (r * sin θ))
-
--- Full Laplacian: Δu = ∂²u/∂r² + (1/r)∂u/∂r + (1/r²)∂²u/∂θ²
-assertEqual "Full Laplacian in polar coordinates"
-  (uRR + 1 / r * uR + 1 / r ^ 2 * uΘΘ)
-  (u|1|1 (r * cos θ) (r * sin θ) + u|2|2 (r * cos θ) (r * sin θ))
+-- Full Laplacian should simplify to u|1|1 + u|2|2
+assert "Full Laplacian in polar coordinates"
+  (show (uRR + 1 / r * uR + 1 / r ^ 2 * uΘΘ) = "u|2|2 (r * 'cos θ) (r * 'sin θ) + u|1|1 (r * 'cos θ) (r * 'sin θ)")

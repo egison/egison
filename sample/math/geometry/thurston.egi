@@ -2,6 +2,8 @@
 --- Calculation of the WCS Invariant on the Thurston Example (Section 4)
 ---
 
+declare symbol θ₁, θ₂, θ₃, θ₄, κ, p
+
 def x~i := [| θ₁, θ₂, θ₃, θ₄ |]~i
 
 def g_i_j :=

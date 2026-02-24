@@ -1,22 +1,24 @@
 --
--- 3D Polar (Spherical) Laplacian
+-- 3D Polar (Spherical) Laplacian using chain rule
 --
 
-declare symbol r, θ, φ, u
+declare symbol r, θ, φ : MathExpr
 
 def x := r * sin θ * cos φ
 def y := r * sin θ * sin φ
 def z := r * cos θ
 
-def uR := ∂/∂ (u x y z) r
-def uRR := ∂/∂ (∂/∂ (u x y z) r) r
-def uΘ := ∂/∂ (u x y z) θ
-def uΘΘ := ∂/∂ (∂/∂ (u x y z) θ) θ
-def uΦ := ∂/∂ (u x y z) φ
-def uΦΦ := ∂/∂ (∂/∂ (u x y z) φ) φ
+def u := function (x, y, z)
+
+def uR := ∂/∂ u r
+def uRR := ∂/∂ (∂/∂ u r) r
+def uΘ := ∂/∂ u θ
+def uΘΘ := ∂/∂ (∂/∂ u θ) θ
+def uΦ := ∂/∂ u φ
+def uΦΦ := ∂/∂ (∂/∂ u φ) φ
 
 -- Laplacian in spherical coordinates:
 -- Δu = ∂²u/∂r² + (2/r)∂u/∂r + (1/r²)∂²u/∂θ² + (cos θ / (r² sin θ))∂u/∂θ + (1/(r sin θ)²)∂²u/∂φ²
-assertEqual "Laplacian in spherical coordinates"
-  (uRR + 2 / r * uR + 1 / r ^ 2 * uΘΘ + cos θ / (r ^ 2 * sin θ) * uΘ + 1 / (r * sin θ) ^ 2 * uΦΦ)
-  (u|1|1 x y z + u|2|2 x y z + u|3|3 x y z)
+-- Should simplify to u|1|1 + u|2|2 + u|3|3
+assert "Laplacian in spherical coordinates"
+  (show (uRR + 2 / r * uR + 1 / r ^ 2 * uΘΘ + cos θ / (r ^ 2 * sin θ) * uΘ + 1 / (r * sin θ) ^ 2 * uΦΦ) = "u|2|2 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ) + u|1|1 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ) + u|3|3 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ)")
