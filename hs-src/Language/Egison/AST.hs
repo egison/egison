@@ -337,7 +337,7 @@ data PDPatternBase var
   | PDApply3Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply3
   | PDApply4Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply4
   | PDQuotePat (PDPatternBase var)                          -- Quote: SymbolExpr -> MathExpr
-  | PDFunctionPat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Function: SymbolExpr -> MathExpr, [MathExpr], [MathExpr]
+  | PDFunctionPat (PDPatternBase var) (PDPatternBase var) -- Function: SymbolExpr -> MathExpr, [MathExpr]
   | PDSubPat (PDPatternBase var)                            -- Sub: IndexExpr -> MathExpr
   | PDSupPat (PDPatternBase var)                            -- Sup: IndexExpr -> MathExpr
   | PDUserPat (PDPatternBase var)                           -- User: IndexExpr -> MathExpr

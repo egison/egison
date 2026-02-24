@@ -90,7 +90,7 @@ data SymbolExpr
   | Apply4 ScalarData ScalarData ScalarData ScalarData ScalarData
   | Quote ScalarData                     -- For backtick quote: `expr
   | QuoteFunction WHNFData              -- For single quote on functions: 'func
-  | FunctionData ScalarData [String] [ScalarData] -- fnname argnames args
+  | FunctionData ScalarData [ScalarData] -- fnname args
 
 -- Manual Eq instance (QuoteFunction comparison always returns False)
 instance Eq SymbolExpr where
@@ -104,7 +104,7 @@ instance Eq SymbolExpr where
     case (prettyFunctionName whnf1, prettyFunctionName whnf2) of
       (Just n1, Just n2) -> n1 == n2
       _ -> False  -- Anonymous functions are never equal
-  FunctionData n1 a1 k1 == FunctionData n2 a2 k2 = n1 == n2 && a1 == a2 && k1 == k2
+  FunctionData n1 k1 == FunctionData n2 k2 = n1 == n2 && k1 == k2
   _ == _ = False
 
 -- Helper function to create Apply constructors based on argument count
@@ -139,12 +139,12 @@ symbol _ _ _                  = mzero
 symbolM :: SymbolM -> p -> Eql
 symbolM SymbolM _ = Eql
 
-func :: Pattern (PP ScalarData, PP [String], PP [ScalarData])
-                SymbolM SymbolExpr (ScalarData, [String], [ScalarData])
-func _ _ (FunctionData name argnames args) = pure (name, argnames, args)
-func _ _ _                              = mzero
-funcM :: SymbolM -> SymbolExpr -> (ScalarM, List Eql, List ScalarM)
-funcM SymbolM _ = (ScalarM, List Eql, List ScalarM)
+func :: Pattern (PP ScalarData, PP [ScalarData])
+                SymbolM SymbolExpr (ScalarData, [ScalarData])
+func _ _ (FunctionData name args) = pure (name, args)
+func _ _ _                        = mzero
+funcM :: SymbolM -> SymbolExpr -> (ScalarM, List ScalarM)
+funcM SymbolM _ = (ScalarM, List ScalarM)
 
 apply1 :: Pattern (PP String, PP WHNFData, PP ScalarData) SymbolM SymbolExpr (String, WHNFData, ScalarData)
 apply1 _ _ (Apply1 (SingleSymbol (QuoteFunction fnWhnf)) a1) =
@@ -324,7 +324,7 @@ instance Printable SymbolExpr where
   pretty (Apply4 fn a1 a2 a3 a4)       = unwords (map pretty' [fn, a1, a2, a3, a4])
   pretty (Quote mExprs)                = "`" ++ pretty' mExprs
   pretty (QuoteFunction whnf)          = "'" ++ maybe "<function>" id (prettyFunctionName whnf)
-  pretty (FunctionData name _ _)       = pretty name
+  pretty (FunctionData name args)      = unwords (pretty name : map pretty' args)
 
 instance Printable TermExpr where
   isAtom (Term _ [])  = True

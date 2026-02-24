@@ -88,8 +88,6 @@ assertEqual "divergence"
 
 --
 -- Taylor Expansion
--- NOTE: V.substitute is not compatible with `function` values.
---       These definitions work but assertions are disabled.
 --
 def multivariateTaylorExpansion fexpr xs ys :=
   withSymbols [h]
@@ -104,3 +102,9 @@ def multivariateTaylorExpansion fexpr xs ys :=
              (iterate (compose (\e -> ∇ e xs) (\e -> V.* hs e)) fexpr))
 
 def taylorExpansion fexpr x a := multivariateTaylorExpansion fexpr [|x|] [|a|]
+
+assert "Taylor expansion of f(x)"
+  (show (take 3 (taylorExpansion f1 x 0)) = "[f1 0, x * f1|1 0, x^2 * f1|1|1 0 / 2]")
+
+assert "Multivariate Taylor expansion"
+  (show (take 3 (multivariateTaylorExpansion f2 [| x, y |] [| 0, 0 |])) = "[f2 0 0, x * f2|1 0 0 + y * f2|2 0 0, (x^2 * f2|1|1 0 0 + x * y * f2|2|1 0 0 + y * x * f2|1|2 0 0 + y^2 * f2|2|2 0 0) / 2]")

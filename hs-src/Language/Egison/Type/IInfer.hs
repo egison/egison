@@ -1707,17 +1707,14 @@ inferIExprWithContext expr ctx = case expr of
           expectedType' <- applySubstWithConstraintsM s expectedType
           return (expectedType', bindings, s)
         
-        PDFunctionPat patName patArgs patKwargs -> do
-          -- Function: SymbolExpr -> MathExpr, [MathExpr], [MathExpr]
+        PDFunctionPat patName patArgs -> do
+          -- Function: SymbolExpr -> MathExpr, [MathExpr]
           let mathExprTy = TMathExpr
           (_, bindings1, s1) <- inferPrimitiveDataPattern patName mathExprTy ctx
           argsCollTy <- applySubstWithConstraintsM s1 (TCollection mathExprTy)
           (_, bindings2, s2) <- inferPrimitiveDataPattern patArgs argsCollTy ctx
-          kwargsCollTy <- applySubstWithConstraintsM s2 (TCollection mathExprTy)
-          (_, bindings3, s3) <- inferPrimitiveDataPattern patKwargs kwargsCollTy ctx
-          let s = composeSubst s3 (composeSubst s2 s1)
-          expectedType' <- applySubstWithConstraintsM s expectedType
-          return (expectedType', bindings1 ++ bindings2 ++ bindings3, s)
+          expectedType' <- applySubstWithConstraintsM s2 expectedType
+          return (expectedType', bindings1 ++ bindings2, s2)
         
         PDSubPat patExpr -> do
           -- Sub: IndexExpr -> MathExpr
@@ -2655,6 +2652,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   let expectedFuncType = foldr TFun resultType paramVars
   appliedFuncType <- applySubstWithConstraintsM argSubst funcType
 
+
   -- First unify function type structure to get parameter bindings
   let funcScheme = tiScheme funcTIExpr
       (Forall _tvs funcConstraints _) = funcScheme
@@ -2745,9 +2743,17 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
 
-    Left _ -> do
-      -- Unification failed
-      throwError $ UnificationError appliedFuncType expectedFuncType ctx
+    Left _ ->
+      -- Special case: if function has type MathExpr, allow application returning MathExpr
+      -- (handles FunctionData application, e.g. f 0 where f := function (x))
+      case appliedFuncType of
+        TMathExpr -> do
+          classEnv' <- getClassEnv
+          let resultScheme = Forall [] [] TMathExpr
+              updatedFuncTI = applySubstToTIExprWithClassEnv classEnv' argSubst funcTIExpr
+              updatedArgTIs = map (applySubstToTIExprWithClassEnv classEnv' argSubst) argTIExprs
+          return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), argSubst)
+        _ -> throwError $ UnificationError appliedFuncType expectedFuncType ctx
 -- | Infer let bindings (non-recursive)
 
 -- | Infer let bindings (non-recursive) with context
@@ -2825,7 +2831,7 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDApply3Pat _ _ _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDApply4Pat _ _ _ _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDQuotePat _) = return (TSymbolExpr, emptySubst)
-    inferPatternType (PDFunctionPat _ _ _) = return (TSymbolExpr, emptySubst)
+    inferPatternType (PDFunctionPat _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDSubPat _) = return (TIndexExpr, emptySubst)
     inferPatternType (PDSupPat _) = return (TIndexExpr, emptySubst)
     inferPatternType (PDUserPat _) = return (TIndexExpr, emptySubst)
@@ -2913,7 +2919,7 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDApply3Pat _ _ _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDApply4Pat _ _ _ _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDQuotePat _) = return (TSymbolExpr, emptySubst)
-    inferPatternType (PDFunctionPat _ _ _) = return (TSymbolExpr, emptySubst)
+    inferPatternType (PDFunctionPat _ _) = return (TSymbolExpr, emptySubst)
     inferPatternType (PDSubPat _) = return (TIndexExpr, emptySubst)
     inferPatternType (PDSupPat _) = return (TIndexExpr, emptySubst)
     inferPatternType (PDUserPat _) = return (TIndexExpr, emptySubst)
@@ -3068,9 +3074,9 @@ extractIBindingsFromPattern pat ty = case pat of
   PDQuotePat p ->
     let mathExprTy = TMathExpr
     in extractIBindingsFromPattern p mathExprTy
-  PDFunctionPat p1 p2 p3 ->
+  PDFunctionPat p1 p2 ->
     let mathExprTy = TMathExpr
-    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 (TCollection mathExprTy) ++ extractIBindingsFromPattern p3 (TCollection mathExprTy)
+    in extractIBindingsFromPattern p1 mathExprTy ++ extractIBindingsFromPattern p2 (TCollection mathExprTy)
   PDSubPat p ->
     let mathExprTy = TMathExpr
     in extractIBindingsFromPattern p mathExprTy

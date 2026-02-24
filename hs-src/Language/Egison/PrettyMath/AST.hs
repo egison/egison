@@ -117,7 +117,7 @@ instance ToMathExpr E.SymbolExpr where
     case E.prettyFunctionName whnf of
       Just name -> Atom name []
       Nothing   -> Atom "f" []
-  toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _ _) = toMathExpr' js (Atom s [])
+  toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
       toMathExpr' (E.User x:js) (Partial e ps) =
@@ -127,7 +127,7 @@ instance ToMathExpr E.SymbolExpr where
       toMathExpr' (j:js) (Atom e is) =
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
       toMathExpr' _ _ = undefined -- TODO
-  toMathExpr (E.FunctionData name _ _) = toMathExpr name
+  toMathExpr (E.FunctionData name _) = toMathExpr name
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)

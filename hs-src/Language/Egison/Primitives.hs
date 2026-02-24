@@ -79,6 +79,7 @@ primitives =
         , ("assertEqual", assertEqual)
         
         , ("sortWithSign", sortWithSign)
+        , ("updateFunctionArgs", updateFunctionArgs)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -135,6 +136,17 @@ addSuperscript = twoArgs $ \fn sub ->
     (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
       return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value fn))
+
+updateFunctionArgs :: String -> PrimitiveFunc
+updateFunctionArgs = twoArgs' $ \funcVal newArgsColl ->
+  case (funcVal, newArgsColl) of
+    (ScalarData (SingleTerm 1 [(FunctionData name _, 1)]), Collection argsSeq) -> do
+      args' <- mapM extractScalar (toList argsSeq)
+      return $ ScalarData (SingleTerm 1 [(FunctionData name args', 1)])
+    _ -> throwErrorWithTrace (TypeMismatch "function value and collection of scalars" (Value funcVal))
+ where
+  extractScalar (ScalarData s) = return s
+  extractScalar val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
