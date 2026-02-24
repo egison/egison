@@ -3,15 +3,18 @@ declare symbol w, r, θ, φ, K: MathExpr
 -- Parameters
 def x : Vector MathExpr := [| w, r, θ, φ |]
 
--- Scale factor function
+-- Scale factor function a(w)
+def a := function (w)
+
+-- Spatial curvature factor
 def W (r: MathExpr) : MathExpr := 1 / '(1 - K * r^2)
 
 -- Metric tensor
 def g_i_j : Matrix MathExpr :=
   [| [| -1, 0, 0, 0 |]
-   , [| 0, `(a w)^2 * W r, 0, 0 |]
-   , [| 0, 0, `(a w)^2 * r^2, 0 |]
-   , [| 0, 0, 0, `(a w)^2 * r^2 * (sin θ)^2 |]
+   , [| 0, a^2 * W r, 0, 0 |]
+   , [| 0, 0, a^2 * r^2, 0 |]
+   , [| 0, 0, 0, a^2 * r^2 * (sin θ)^2 |]
    |]
 
 def g~i~j := M.inverse g_#_#
@@ -35,4 +38,4 @@ def scalarCurvature := withSymbols [i, j]
   expandAll' (g~i~j . Ric_i_j)
 
 -- Note: The expected scalar curvature is:
--- (6 * (`a|1|1 w) * (`a w) + 6 * (`a|1 w)^2 + 6 * K) / (`a w)^2
+-- (6 * a|1|1 * a + 6 * (a|1)^2 + 6 * K) / a^2

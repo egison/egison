@@ -1,6 +1,8 @@
 -- Spherical Laplacian in 3D using tensor notation
 
-declare symbol r, θ, φ, f
+declare symbol r, θ, φ : MathExpr
+
+def f := function (r, θ, φ)
 
 def x := [| r, θ, φ |]
 
@@ -11,7 +13,7 @@ def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensor
 def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
-def g~i~j := withSymbols [i, j] (unitTensor [3, 3])_i_j / g_i_j
+def g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor g_#_#"
   g_#_#
@@ -24,10 +26,10 @@ def Γ_i_j_k := withSymbols [j, k, l]
 def Γ~i_j_k := withSymbols [i, j, k, l]
   g~i~j . Γ_j_k_l
 
--- Laplacian
+-- Laplacian via Christoffel symbols
 def Laplacian := withSymbols [i, j, k]
-  g~i~j . ∂/∂ (∂/∂ (f r θ φ) x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ (f r θ φ) x~k
+  g~i~j . ∂/∂ (∂/∂ f x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ f x~k
 
 assertEqual "Laplacian in spherical coordinates"
   Laplacian
-  (f|1|1 r θ φ + 2 * f|1 r θ φ / r + f|2|2 r θ φ / r^2 + cos θ * f|2 r θ φ / (r^2 * sin θ) + f|3|3 r θ φ / (r^2 * (sin θ)^2))
+  (∂/∂ (∂/∂ f r) r + 2 * ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2 + cos θ * ∂/∂ f θ / (r^2 * sin θ) + ∂/∂ (∂/∂ f φ) φ / (r^2 * (sin θ)^2))
