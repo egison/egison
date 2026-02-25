@@ -1,15 +1,15 @@
 # sample/ ディレクトリ テスト結果
 
-テスト実施日: 2026-02-19（function symbol 対応更新: 2026-02-19）
+テスト実施日: 2026-02-19（function symbol 対応更新: 2026-02-19、applyN再評価修正: 2026-02-19）
 
 テスト方法:
 - 一般ファイル: `cabal run egison -- -t <file>`
 - mathファイル: `cabal run egison -- -t -l lib/math/normalize.egi <file>`
 - タイムアウト: 30秒（一部60〜180秒）
 
-全95ファイル中、正常動作 **60ファイル**、型警告あり **5ファイル**、エラー **21ファイル**、タイムアウト **9ファイル**。
+全95ファイル中、正常動作 **61ファイル**、型警告あり **5ファイル**、エラー **20ファイル**、タイムアウト **9ファイル**。
 
-修正作業により **20ファイル** を新たに動作可能にした（うち5ファイルは function symbol 化によるタイムアウト解消）。
+修正作業により **21ファイル** を新たに動作可能にした（うち5ファイルは function symbol 化によるタイムアウト解消、1ファイルは applyN再評価修正による）。
 
 ---
 
@@ -110,7 +110,7 @@
 
 | # | ファイル | 状態 | 備考 |
 |---|---|---|---|
-| 50 | eulers-formula.egi | ❌ | `cos(0)`, `sin(0)` が簡約されない |
+| 50 | eulers-formula.egi | ✅🔧 | `applyN` 再評価修正 + `declare symbol x` 追加 |
 | 51 | leibniz-formula.egi | ❌ | `Sd` (積分) 関数の正規化が未対応 |
 | 52 | vector-analysis.egi | ✅ | `function` symbol 使用（微分・テイラー展開テスト） |
 
@@ -178,13 +178,40 @@
 
 | 状態 | 件数 |
 |---|---|
-| ✅ 正常動作 | 60 |
+| ✅ 正常動作 | 61 |
 | ⚠️ 型警告（動作する） | 5 |
-| ❌ エラー | 21 |
+| ❌ エラー | 20 |
 | ⏳ タイムアウト | 9 |
 | **合計** | **95** |
 
-うち 🔧修正済み: 20ファイル
+うち 🔧修正済み: 21ファイル
+
+---
+
+## applyN 再評価修正まとめ
+
+### 修正内容
+`lib/math/expression.egi` の `mapSymbols` で、`apply1/2/3/4` の引数が代入により変化した際に、関数を再評価するよう変更。
+
+変更前（再構築のみ）:
+```egison
+else fn ('g a1') ^' n    -- 'g でquote → Apply1 ノードを再構築するだけ
+```
+
+変更後（関数適用を実行）:
+```egison
+else fn (g a1') ^' n     -- g を実際に適用 → cos 0 なら 1 まで簡約
+```
+
+この修正により `V.substitute` を通じた代入後、`apply1/2/3/4` 全般で関数が再評価される。
+`sin/cos` 個別の特別扱いではなく、`exp/log/sqrt` 等も同時に改善。
+
+### 影響ファイル
+| ファイル | 変更内容 |
+|---|---|
+| `lib/math/expression.egi` | `mapSymbols` の `apply1/2/3/4` 再評価化 |
+| `sample/math/analysis/eulers-formula.egi` | `declare symbol x` 追加（❌→✅） |
+| `mini-test/applyn-reval-after-substitute.egi` | 回帰テスト追加 |
 
 ---
 
