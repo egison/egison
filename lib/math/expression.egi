@@ -206,20 +206,20 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
                           let a1' := mapSymbols fn a1
                           in if a1 = a1'
                               then x ^' n
-                              else fn ('g a1') ^' n
+                              else fn (g a1') ^' n
                       | apply2 $g $a1 $a2 ->
                           let a1' := mapSymbols fn a1
                               a2' := mapSymbols fn a2
                           in if a1 = a1' && a2 = a2'
                               then x ^' n
-                              else fn ('g a1' a2') ^' n
+                              else fn (g a1' a2') ^' n
                       | apply3 $g $a1 $a2 $a3 ->
                           let a1' := mapSymbols fn a1
                               a2' := mapSymbols fn a2
                               a3' := mapSymbols fn a3
                           in if a1 = a1' && a2 = a2' && a3 = a3'
                               then x ^' n
-                              else fn ('g a1' a2' a3') ^' n
+                              else fn (g a1' a2' a3') ^' n
                       | apply4 $g $a1 $a2 $a3 $a4 ->
                           let a1' := mapSymbols fn a1
                               a2' := mapSymbols fn a2
@@ -227,7 +227,7 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
                               a4' := mapSymbols fn a4
                           in if a1 = a1' && a2 = a2' && a3 = a3' && a4 = a4'
                               then x ^' n
-                              else fn ('g a1' a2' a3' a4') ^' n
+                              else fn (g a1' a2' a3' a4') ^' n
                       | func _ $args ->
                           let args' := map (mapSymbols fn) args
                           in if args = args'
