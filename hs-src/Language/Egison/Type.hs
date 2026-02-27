@@ -40,7 +40,7 @@ module Language.Egison.Type
   ( -- * Core Types
     module Language.Egison.Type.Types
     -- * Type Inference
-  , module Language.Egison.Type.IInfer
+  , module Language.Egison.Type.Infer
     -- * Type Checking
   , module Language.Egison.Type.Check
     -- * Type Errors
@@ -54,7 +54,7 @@ module Language.Egison.Type
 import           Language.Egison.Type.Check
 import           Language.Egison.Type.Error
 import           Language.Egison.Type.Index
-import           Language.Egison.Type.IInfer
+import           Language.Egison.Type.Infer
 import           Language.Egison.Type.Tensor
 import           Language.Egison.Type.Types
 

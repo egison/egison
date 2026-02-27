@@ -19,7 +19,7 @@ When type class constrained functions (e.g., `+` with `Num` constraint) are appl
 
 1. **Function type from environment**: `Forall [t123] [Num t123] (t123 -> t123 -> t123)`
 2. **Expected type from arguments**: `Tensor MathExpr -> Tensor MathExpr -> result`
-3. **Unification** (line 2182 in IInfer.hs):
+3. **Unification** (line 2182 in Infer.hs):
    ```haskell
    unify (t123 -> t123 -> t123) (Tensor MathExpr -> Tensor MathExpr -> result)
    ```

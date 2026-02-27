@@ -38,7 +38,7 @@ Phase 5-6: 型推論フェーズ IExpr → (Type, Subst) → TIExpr
   出力: TIExpr (型情報付き内部表現) ※--dump-typed用に作成
   
   処理内容:
-  ├─ IInfer.hsで型推論 (IExpr → (Type, Subst))
+  ├─ Infer.hsで型推論 (IExpr → (Type, Subst))
   │   ├─ 制約生成 (型変数の割り当て)
   │   ├─ 制約解決 (Unification)
   │   ├─ 型クラス制約の収集
@@ -53,7 +53,7 @@ Phase 5-6: 型推論フェーズ IExpr → (Type, Subst) → TIExpr
   - 例: IApplyExpr + TypeScheme → TIExpr { tiScheme, tiExpr }
   - 型クラス制約は収集されるが、まだ解決されない
   
-  実装: Language.Egison.Type.IInfer (inferITopExpr :: ITopExpr -> Infer (Maybe (ITopExpr, Type), Subst))
+  実装: Language.Egison.Type.Infer (inferITopExpr :: ITopExpr -> Infer (Maybe (ITopExpr, Type), Subst))
         Language.Egison.Eval (iTopExprToTITopExprFromScheme :: ITopExpr -> TypeScheme -> TITopExpr)
   
   注: TIExprは--dump-typedやTypedDesugarのためだけに作成され、
@@ -163,12 +163,12 @@ TopExpr → Desugar(Expr→IExpr) → 型推論(IExpr→TIExpr) → TypedDesugar
 ```
 
 **完了した作業**:
-- ✅ `Language.Egison.Type.IInfer`を作成（IExpr用の型推論）
+- ✅ `Language.Egison.Type.Infer`を作成（IExpr用の型推論）
 - ✅ `TIExpr`をIExpr.hsに定義（TypeSchemeを保持）
 - ✅ `Language.Egison.Eval`のパイプラインを変更
 - ✅ `Language.Egison.PreDesugar`を削除
-- ✅ `Language.Egison.Type.Infer`を削除（IInfer.hsに統合）
-- ✅ `Language.Egison.Type.TypeInfer`を削除（IInfer.hsに統合）
+- ✅ `Language.Egison.Type.Infer`を削除（Infer.hsに統合）
+- ✅ `Language.Egison.Type.TypeInfer`を削除（Infer.hsに統合）
 - ✅ `Language.Egison.Type.TypedAST`を削除（TIExprに置き換え）
 - ✅ `IExpr`, `TIExpr`のPretty Printing実装
 - ✅ `--dump-desugared`, `--dump-typed`, `--dump-ti`オプションの実装
@@ -179,7 +179,7 @@ TopExpr → Desugar(Expr→IExpr) → 型推論(IExpr→TIExpr) → TypedDesugar
 
 **メリット**:
 - 構文糖衣展開が1箇所に集約（Desugar.hs）
-- 型推論がシンプルな構造に対して動作（IInfer.hs）
+- 型推論がシンプルな構造に対して動作（Infer.hs）
 - 型駆動変換のフレームワークが整備済み
 - 保守性の向上
 
@@ -256,7 +256,7 @@ data IExpr = IConstantExpr ConstantExpr
            | ...
 
 -- Phase 5-6: 型推論後 (Language.Egison.IExpr)
--- IInfer.hsで型推論を実行し、Eval.hsでIExprに型スキームを付与してTIExprに変換
+-- Infer.hsで型推論を実行し、Eval.hsでIExprに型スキームを付与してTIExprに変換
 data TIExpr = TIExpr
   { tiScheme :: TypeScheme    -- 型スキーム（型変数・制約・型を含む）
   , tiExpr   :: IExpr         -- 内部表現

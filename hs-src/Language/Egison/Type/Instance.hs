@@ -14,7 +14,7 @@ import           Language.Egison.Type.Unify (unifyStrict)
 
 -- | Find a matching instance for a given target type
 -- This searches through a list of instances and returns the first one that unifies with the target type
--- Used by both type inference (IInfer.hs) and type class expansion (TypeClassExpand.hs)
+-- Used by both type inference (Infer.hs) and type class expansion (TypeClassExpand.hs)
 -- IMPORTANT: Uses unifyStrict to ensure Tensor a does NOT unify with a
 -- This prevents incorrectly matching scalar instances as tensor instances
 findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo

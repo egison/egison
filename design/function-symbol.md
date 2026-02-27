@@ -132,7 +132,7 @@ f(0) = f(a)   -- False
 - `hs-src/Language/Egison/AST.hs` - PDFunctionPat 2引数化
 - `hs-src/Language/Egison/Parser/NonS.hs` - Function パターン引数数
 - `hs-src/Language/Egison/Pretty.hs` - PDFunctionPat pretty
-- `hs-src/Language/Egison/Type/IInfer.hs` - PDFunctionPat 型推論・MathExpr適用
+- `hs-src/Language/Egison/Type/Infer.hs` - PDFunctionPat 型推論・MathExpr適用
 - `hs-src/Language/Egison/Math/Rewrite.hs` - func pattern 2引数化
 - `lib/math/expression.egi` - inductive pattern func 2引数化・mathExpr matcher
 - `lib/math/analysis/derivative.egi` - func pattern 2引数化

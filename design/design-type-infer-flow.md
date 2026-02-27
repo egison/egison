@@ -14,7 +14,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ## 型推論の段階的な流れ
 
-### Phase 1: Lambda式の解析 (IInfer.hs:969-991)
+### Phase 1: Lambda式の解析 (Infer.hs:969-991)
 
 **入力**: `\t1 t2 -> foldl1 (+) (contract ((*) t1 t2))`
 
@@ -37,7 +37,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 2: `(*)` の適用 - 第1段階 (IInfer.hs:1901-1930)
+### Phase 2: `(*)` の適用 - 第1段階 (Infer.hs:1901-1930)
 
 **入力**: `(*) t1 t2`
 
@@ -92,7 +92,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 3: `contract` の適用 (IInfer.hs:2020-2035)
+### Phase 3: `contract` の適用 (Infer.hs:2020-2035)
 
 **入力**: `contract ((*) t1 t2)`
 
@@ -122,7 +122,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
    統一の結果、代入 `t0 = Tensor t1` が得られる。
 
    しかし、この代入を適用する際に `{Num t0}` という制約があるため:
-   - `applySubstWithConstraintsM` が呼ばれる (IInfer.hs:527-568)
+   - `applySubstWithConstraintsM` が呼ばれる (Infer.hs:527-568)
    - `adjustSubstForConstraints` が制約をチェック
    - `Num` インスタンスが `Tensor t1` に存在しないことを検出
    - 代入を調整: `t0 = Tensor t1` → `t0 = t1` (unwrap)
@@ -142,7 +142,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 4: `(+)` の型推論 (IInfer.hs:1901-1930)
+### Phase 4: `(+)` の型推論 (Infer.hs:1901-1930)
 
 **入力**: `(+)` (foldl1の引数として)
 
@@ -162,7 +162,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 5: `foldl1` の適用 (IInfer.hs:2604-2714)
+### Phase 5: `foldl1` の適用 (Infer.hs:2604-2714)
 
 **入力**: `foldl1 (+) (contract ((*) t1 t2))`
 
@@ -220,7 +220,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 6: Lambda式の構築 (IInfer.hs:969-991)
+### Phase 6: Lambda式の構築 (Infer.hs:969-991)
 
 **処理**:
 1. Lambda式のパラメータ型に substitution を適用:
@@ -254,7 +254,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 7: 型の一般化 (IInfer.hs:3054-3084)
+### Phase 7: 型の一般化 (Infer.hs:3054-3084)
 
 **入力**: `{Num t1, Num t1} Tensor t1 -> Tensor t1 -> t1`
 
@@ -351,7 +351,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ### 1. 制約を考慮した型統一
 
-`applySubstWithConstraintsM` (IInfer.hs:527-568) が重要な役割を果たす:
+`applySubstWithConstraintsM` (Infer.hs:527-568) が重要な役割を果たす:
 
 ```haskell
 applySubstWithConstraintsM :: Subst -> Type -> Infer Type
@@ -375,7 +375,7 @@ applySubstWithConstraintsM s@(Subst m) t = do
 - `(+) : {Num b} b -> b -> b` → 制約 `Num t2`
 - 統一後: `t0 = t2 = t1` → `[Num t1, Num t1]`
 
-`nub` による重複排除 (IInfer.hs:3074):
+`nub` による重複排除 (Infer.hs:3074):
 ```haskell
 generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
 ```

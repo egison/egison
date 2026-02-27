@@ -9,7 +9,7 @@
    - stripType関数を新しい構造に対応
    - エクスポートリストを更新
 
-2. **IInfer.hsの主要ケース**
+2. **Infer.hsの主要ケース**
    - Constants, Variables, Tuples, Collections
    - Cons, Join, Hash, Vector
    - Lambda, Application, If
@@ -118,7 +118,7 @@ ISeqExpr e1 e2 -> do
    - 次にメインのケースを変更
 
 5. **inferITopExprを変更**
-   - IInfer.hsの最後の重要な関数
+   - Infer.hsの最後の重要な関数
 
 6. **他のモジュールを対応**
    - Eval.hs - iTopExprToTITopExprFromScheme

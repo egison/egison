@@ -179,7 +179,7 @@ replWithState env evalState = (do
     Just (ReplTypeStr exprStr) -> do
       -- Parse and type check the expression
       -- Note: This feature is temporarily disabled due to refactoring.
-      -- TODO: Re-implement using IInfer pipeline.
+      -- TODO: Re-implement using Infer pipeline.
       liftIO $ putStrLn $ "Type checking in REPL is temporarily disabled during refactoring."
       liftIO $ putStrLn $ "Expression: " ++ exprStr
       replWithState env evalState

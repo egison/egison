@@ -392,7 +392,7 @@ matchAll [142] as list integer with
   - `IPatternFuncExpr [String] IPattern`を追加
 
 ### 2. 型推論
-- `hs-src/Language/Egison/Type/IInfer.hs`
+- `hs-src/Language/Egison/Type/Infer.hs`
   - `inferITopExpr`に`IPatternFunctionDecl`ケース追加
   - `inferIPattern`で`IInductiveOrPApplyPat`を解決
   - `inferPatternFuncEnv`を参照してパターン関数判定

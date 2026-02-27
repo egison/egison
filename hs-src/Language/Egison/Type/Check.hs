@@ -3,7 +3,7 @@ Module      : Language.Egison.Type.Check
 Licence     : MIT
 
 This module provides the built-in type environment for Egison programs.
-Note: Type checking is now handled by IInfer.hs. This module only provides
+Note: Type checking is now handled by Infer.hs. This module only provides
 the built-in type environment.
 -}
 

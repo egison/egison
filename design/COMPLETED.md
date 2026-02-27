@@ -107,7 +107,7 @@ $ ./egison --no-prelude mini-test/01-simple-constant.egi
 
 ### 変更統計
 
-- **修正ファイル数**: 5個（IExpr.hs, IInfer.hs, Pretty.hs, Eval.hs, TypeClassExpand.hs）
+- **修正ファイル数**: 5個（IExpr.hs, Infer.hs, Pretty.hs, Eval.hs, TypeClassExpand.hs）
 - **修正関数数**: 70以上
 - **修正行数**: 約500行
 - **エラー削減**: 75個 → 0個
@@ -120,7 +120,7 @@ $ ./egison --no-prelude mini-test/01-simple-constant.egi
 - `TIExpr`を`{tiScheme, tiExprNode}`に変更
 - `stripType`関数の完全な書き換え
 
-### 2. 型推論 (IInfer.hs) - 最大の変更
+### 2. 型推論 (Infer.hs) - 最大の変更
 
 - `inferIExpr :: IExpr -> Infer (TIExpr, Subst)`
 - 60以上のケースを順次変更

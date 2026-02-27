@@ -59,7 +59,7 @@ data TITopExpr
 - `processTopExpr` に `DeclareSymbol` のケースを追加
 - 宣言されたシンボルを型環境に登録
 
-### 6. 型推論 (`Language/Egison/Type/IInfer.hs`)
+### 6. 型推論 (`Language/Egison/Type/Infer.hs`)
 
 #### `InferState` の拡張
 
@@ -156,7 +156,7 @@ def m2 : Tensor Integer := [| [| b11, b12 |], [| b21, b22 |] |]
 - `hs-src/Language/Egison/Parser/NonS.hs`
 - `hs-src/Language/Egison/Desugar.hs`
 - `hs-src/Language/Egison/EnvBuilder.hs`
-- `hs-src/Language/Egison/Type/IInfer.hs`
+- `hs-src/Language/Egison/Type/Infer.hs`
 - `hs-src/Language/Egison/Type/TypedDesugar.hs`
 - `hs-src/Language/Egison/Eval.hs`
 - `mini-test/91-index-notation.egi`

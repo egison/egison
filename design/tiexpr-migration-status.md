@@ -13,7 +13,7 @@ TIExprを再帰的な構造に変更し、各部分式が型情報を持つよ�
 - ✅ `stripType` 関数を新しい構造に対応
 - ✅ エクスポートリストに新しい型を追加
 
-### 2. IInfer.hsの変更
+### 2. Infer.hsの変更
 - ✅ インポートリストに `TIExpr`, `TIExprNode`, `TIBindingExpr`, `TIMatchClause`, `TIPatternDef` を追加
 - ✅ ヘルパー関数 `mkTIExpr :: Type -> TIExprNode -> TIExpr` を追加
 - ✅ `inferIExpr` の型シグネチャを変更: `IExpr -> Infer (TIExpr, Subst)`
@@ -38,7 +38,7 @@ TIExprを再帰的な構造に変更し、各部分式が型情報を持つよ�
 - ✅ `inferIBindingsWithContext` - Let束縛の推論
 - ✅ `inferIRecBindingsWithContext` - LetRec束縛の推論
 
-残りのエラー数: 0個（IInfer.hs完了）✅
+残りのエラー数: 0個（Infer.hs完了）✅
 
 **TypeClassExpand.hsとEval.hsの対応が必要**
 
@@ -47,7 +47,7 @@ TIExprを再帰的な構造に変更し、各部分式が型情報を持つよ�
 
 ## 未完了の作業
 
-### IInfer.hsの残りのケース
+### Infer.hsの残りのケース
 以下のケースはまだ古い型シグネチャ `(IExpr, Type, Subst)` を返している：
 
 - ⏳ Let expressions (ILetExpr, ILetRecExpr)
@@ -99,7 +99,7 @@ IFooExpr子式 -> do
 
 ## 次のステップ
 
-1. IInfer.hsの残りのケースを変更（優先度順）:
+1. Infer.hsの残りのケースを変更（優先度順）:
    - Let/LetRec（重要度高）
    - Match/MatchAll（重要度高）
    - Tensor operations（型クラス展開で必要）
