@@ -70,19 +70,19 @@ Phase 7: Type Attachment (型情報の付与)
   
   実装: Language.Egison.Eval (iTopExprToTITopExprFromScheme)
   
-Phase 8: TypedDesugar (型駆動の変換) 【実装完了】
+Phase 8: TypedDesugar (型駆動の変換)
   入力: TIExpr (型情報あり、型クラス未解決)
   出力: TIExpr (型情報あり、変換後)
   
   処理内容:
   ├─ TypedDesugar.hs (オーケストレーション)
-  │   └─ ✅ tensorMap挿入 → 型クラス展開の順で変換を実行
-  ├─ 1. TensorMapInsertion.hs (tensorMap自動挿入) ✅
+  │   └─ tensorMap挿入 → 型クラス展開の順で変換を実行
+  ├─ 1. TensorMapInsertion.hs (tensorMap自動挿入)
   │   └─ insertTensorMaps :: TIExpr -> EvalM TIExpr
   │       - 必要に応じてtensorMap/tensorMap2を自動挿入
   │       - 複数テンソル引数の最適化（tensorMap2生成）
   │       - 型情報を元にテンソル/スカラーの判定
-  └─ 2. TypeClassExpand.hs (型クラスメソッド展開) ✅
+  └─ 2. TypeClassExpand.hs (型クラスメソッド展開)
       └─ expandTypeClassMethodsT :: TIExpr -> EvalM TIExpr
           - 型クラスメソッド（+, *, 等）→ 具体的な関数に展開
           - 制約を含む式の適切な処理
@@ -154,70 +154,6 @@ Phase 9-10: 評価 (Evaluation) IExpr → EgisonValue
 - ゼロ除算などの算術エラー
 - IOエラー
 
-## 実装の現状と今後の計画
-
-### 現在の実装状態 (✅ 完了)
-
-```
-TopExpr → Desugar(Expr→IExpr) → 型推論(IExpr→TIExpr) → TypedDesugar(実装済み) → 評価
-```
-
-**完了した作業**:
-- ✅ `Language.Egison.Type.Infer`を作成（IExpr用の型推論）
-- ✅ `TIExpr`をIExpr.hsに定義（TypeSchemeを保持）
-- ✅ `Language.Egison.Eval`のパイプラインを変更
-- ✅ `Language.Egison.PreDesugar`を削除
-- ✅ `Language.Egison.Type.Infer`を削除（Infer.hsに統合）
-- ✅ `Language.Egison.Type.TypeInfer`を削除（Infer.hsに統合）
-- ✅ `Language.Egison.Type.TypedAST`を削除（TIExprに置き換え）
-- ✅ `IExpr`, `TIExpr`のPretty Printing実装
-- ✅ `--dump-desugared`, `--dump-typed`, `--dump-ti`オプションの実装
-- ✅ `Language.Egison.Type.TypedDesugar`の実装完了
-- ✅ `Language.Egison.Type.TypeClassExpand`のTIExpr版実装完了
-- ✅ `Language.Egison.Type.TensorMapInsertion`の実装完了（tensorMap2対応含む）
-- ✅ TIExprがTypeScheme（型変数・制約・型）を保持するように変更
-
-**メリット**:
-- 構文糖衣展開が1箇所に集約（Desugar.hs）
-- 型推論がシンプルな構造に対して動作（Infer.hs）
-- 型駆動変換のフレームワークが整備済み
-- 保守性の向上
-
-### 今後の実装タスク
-
-#### ✅ タスク1: tensorMapの自動挿入 (Phase 8) - 完了
-
-**現状**: 実装完了（TensorMapInsertion.hs）
-
-**完了した作業**:
-- [x] 基本フレームワーク実装（型情報を保持しながら再帰処理）
-- [x] 関数適用時の型情報取得
-- [x] Tensor型とScalar型の不一致検出ロジック
-- [x] 自動tensorMap挿入ロジック
-- [x] 複数テンソル引数の最適化（tensorMap2生成）
-- [x] テンソル添字記法のサポート
-
-#### ✅ タスク2: 型クラスメソッド展開の実装 (Phase 8) - 完了
-
-**現状**: TIExpr版実装完了（TypeClassExpand.hs）
-
-**完了した作業**:
-- [x] Expr版の実装（TypeClassExpand.hs）
-- [x] TIExpr版の実装（expandTypeClassMethodsT）
-- [x] 型クラスメソッド → 具体的な関数への展開
-- [x] インスタンス選択ロジックの実装（型情報を使用）
-- [x] 制約を含む式の適切な処理
-- [x] TypedDesugar.hsでの統合
-- [x] `--dump-ti`オプションの実装
-- [x] Pretty.hsでの制約表示対応
-
-#### タスク3: REPLでの型チェック機能の改善
-**優先度**: 低
-
-**作業内容**:
-- [ ] REPL内でのTIExpr Pretty Printing
-- [ ] より詳細な型エラーメッセージ
-
 ## 中間表現 (IR) の設計
 
 各段階で適切な中間表現を定義：
@@ -270,15 +206,10 @@ data TIExpr = TIExpr
 -- IExpr + TypeScheme → TIExpr
 -- 型推論で得られた型スキームをIExprに付与
 
--- Phase 8: TypedDesugar後 (実行可能形式) ✅ 実装済み
+-- Phase 8: TypedDesugar後
 -- tensorMapが挿入され、型クラスメソッドが具体的な関数に展開される
 -- TIExpr → TIExpr (1. tensorMap挿入、2. 型クラス展開の順で処理)
 -- 例: tensorMap2生成、(+) → numIntegerPlus, など
---
--- 実装済みの機能:
--- ✅ tensorMap自動挿入: 関数適用時にTensor型とScalar型の不一致を検出してtensorMapを挿入
--- ✅ tensorMap2生成: 複数テンソル引数の最適化
--- ✅ 型クラスメソッド展開: 型クラスメソッド呼び出しを具体的な関数に展開
 
 -- Phase 9-10: 評価結果
 data EgisonValue = ...
@@ -288,18 +219,18 @@ data EgisonValue = ...
 
 | 表現 | 段階 | 型情報 | 糖衣構文 | 型クラス | 特徴 |
 |------|------|--------|----------|----------|------|
-| `Expr` | パース後 | ❌ | ⭕ | ❌ | 高レベルAST |
-| `IExpr` | Desugar後 | ❌ | ❌ | ❌ | 糖衣構文展開済み |
-| `TIExpr` | 型推論後/実行前 | ⭕ | ❌ | 未解決※ | 型スキーム付き、実行可能 |
-| `EgisonValue` | 実行後 | ⭕ | ❌ | ❌ | 評価結果 |
+| `Expr` | パース後 | なし | あり | なし | 高レベルAST |
+| `IExpr` | Desugar後 | なし | なし | なし | 糖衣構文展開済み |
+| `TIExpr` | 型推論後/実行前 | あり | なし | 未解決※ | 型スキーム付き、実行可能 |
+| `EgisonValue` | 実行後 | あり | なし | なし | 評価結果 |
 
-※ 型クラスは型推論時に収集され、Phase 8で型クラスメソッドが具体的な関数に展開されます（実装完了）。
+※ 型クラスは型推論時に収集され、Phase 8で型クラスメソッドが具体的な関数に展開されます。
 
 ## 型情報の保持戦略
 
 ### TypedDesugar後も型情報を保持する
 
-TypedDesugar後の中間表現（TIExpr）は**型情報を保持**します。
+TypedDesugar後の中間表現（TIExpr）は型情報を保持します。
 
 #### 理由
 
@@ -329,21 +260,6 @@ data TIExpr = TIExpr
 tiExprTypeVars :: TIExpr -> [TyVar]
 tiExprConstraints :: TIExpr -> [Constraint]
 tiExprType :: TIExpr -> Type
-```
-
-評価中のエラーメッセージ例：
-
-```
-❌ 型消去した場合:
-Error: Pattern match failed at line 42
-  in function 'processData'
-
-✅ 型情報を保持した場合:
-Error: Pattern match failed at line 42
-  in function 'processData'
-  Expected type: List Integer
-  Actual value: [1, 2, "three"]
-  Type mismatch at index 2: expected Integer, got String
 ```
 
 #### 最適化との両立
@@ -382,11 +298,7 @@ TypeScheme = Forall [TyVar] [Constraint] Type
 注意: 型クラス制約は Phase 8 (TypedDesugar) で具体的な関数への展開に使用されます。
       型スキーム内に制約として保持されており、Phase 8で制約を満たす具体的な実装に変換されます。
 
-## 現在の実装の確認
-
-### パターンマッチの処理
-
-現在の実装（hs-src/Language/Egison/）を確認した結果：
+## パターンマッチの処理
 
 **Desugar段階** (`Desugar.hs`):
 - `MatchExpr` → `IMatchExpr` への単純な変換
@@ -399,10 +311,7 @@ TypeScheme = Forall [TyVar] [Constraint] Type
 - 実際のパターンマッチングは `patternMatch` 関数で実行
 - マッチャーの評価とパターンマッチングのアルゴリズム実行
 
-この設計は合理的：
-- Desugarは構文的な変換のみ
-- パターンマッチの複雑なロジックは評価時に処理
-- Egisonの強力なパターンマッチング機能を評価器で実現
+この設計では、Desugarは構文的な変換のみを行い、パターンマッチの複雑なロジックは評価時に処理します。
 
 ## デバッグサポート
 
@@ -413,7 +322,7 @@ egison --dump-loads file.egi       # Phase 1: モジュール読み込み後
 egison --dump-env file.egi         # Phase 2: 環境構築後
 egison --dump-desugared file.egi   # Phase 3-4: Desugar後 (IExpr)
 egison --dump-typed file.egi       # Phase 5-6: 型推論後 (TIExpr)
-egison --dump-ti file.egi          # Phase 8: TypedDesugar後 (TIExpr) ✅ 実装済み
+egison --dump-ti file.egi          # Phase 8: TypedDesugar後 (TIExpr)
 egison --verbose file.egi          # 全段階の詳細出力
 ```
 
@@ -431,11 +340,9 @@ $ egison --dump-typed test.egi
 def add : Integer -> Integer -> Integer
   := (λx y -> ((+ : Integer -> Integer -> Integer) (x : Integer) (y : Integer)) : Integer -> Integer -> Integer) : Integer -> Integer -> Integer
 
-# TIExprのダンプ例 (Phase 8: TypedDesugar後) ✅ 実装済み
+# TIExprのダンプ例 (Phase 8: TypedDesugar後)
 $ egison --dump-ti test.egi
 === Executable IR (Phase 8) ===
 def add : ∀. Integer -> Integer -> Integer
   := λx y -> (numIntegerPlus x y)
-  (型クラスメソッド展開とtensorMap挿入後の形式)
-  ✅ 実装完了: 型クラス展開、tensorMap挿入、制約表示すべて対応済み
 ```
