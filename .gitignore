@@ -16,6 +16,5 @@ docs/_build
 dist-newstyle/
 docs
 cabal.project.local
-cabal.project.local.dev
 mini-test
 egison-jupyter/
