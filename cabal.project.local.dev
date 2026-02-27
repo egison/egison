@@ -1,0 +1,17 @@
+-- Development configuration with optimizations disabled
+-- Use this for even lower memory usage during development
+-- To use: cp cabal.project.local.dev cabal.project.local
+
+-- Limit parallel build jobs to 1
+jobs: 1
+
+-- Package-specific settings for development
+package egison
+  -- All GHC options in one line (multiple ghc-options lines only use the last one)
+  -- Override any -O flags, limit heap to 2GB, disable optimization passes
+  ghc-options: -O0 +RTS -M2G -A128M -RTS -fno-specialise -fmax-simplifier-iterations=1 -fno-full-laziness
+
+-- Apply to all packages
+package *
+  ghc-options: +RTS -M2G -RTS
+  optimization: 0
