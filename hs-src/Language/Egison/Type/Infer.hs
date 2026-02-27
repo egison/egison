@@ -1,5 +1,5 @@
 {- |
-Module      : Language.Egison.Type.IInfer
+Module      : Language.Egison.Type.Infer
 Licence     : MIT
 
 This module provides type inference for IExpr (Internal Expression).
@@ -18,7 +18,7 @@ The typed AST (TIExpr) is created in a separate phase by combining IExpr with Ty
 Previous modules (Infer.hs for Expr, TypeInfer.hs for Expr→TypedExpr) are deprecated.
 -}
 
-module Language.Egison.Type.IInfer
+module Language.Egison.Type.Infer
   ( -- * Type inference
     inferIExpr
   , inferITopExpr

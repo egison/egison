@@ -120,7 +120,7 @@ Library
                    Language.Egison.Type.Env
                    Language.Egison.Type.Error
                    Language.Egison.Type.Index
-                   Language.Egison.Type.IInfer
+                   Language.Egison.Type.Infer
                    Language.Egison.Type.Subst
                    Language.Egison.Type.TensorMapInsertion
                    Language.Egison.Type.TypeClassExpand

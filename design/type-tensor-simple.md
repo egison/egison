@@ -91,7 +91,7 @@ m1~i~j . m2_j_k  -- 行列積の結果
    - `declare` を予約語として追加
    - `declareSymbolExpr` パーサーを追加
 
-4. **型推論** (`Language/Egison/Type/IInfer.hs`)
+4. **型推論** (`Language/Egison/Type/Infer.hs`)
    ```haskell
    data InferState = InferState
      { ...
@@ -122,7 +122,7 @@ double t1  -- テンソル t1 に対して double を適用
 
 上記のコードは以下の順序で変換されます：
 
-1. **型推論（IInfer.hs）**: 型情報を収集し、TIExpr（型付き内部表現）を生成
+1. **型推論（Infer.hs）**: 型情報を収集し、TIExpr（型付き内部表現）を生成
    ```egison
    double t1  -- double : {Num a} a -> a, t1 : Tensor Integer
    ```
@@ -254,7 +254,7 @@ eta展開して `tensorMap` でラップします。
 
 | ファイル | 役割 |
 |---------|------|
-| `Language/Egison/Type/IInfer.hs` | 型推論、tensorMap 挿入 |
+| `Language/Egison/Type/Infer.hs` | 型推論、tensorMap 挿入 |
 | `Language/Egison/Type/TensorMapInsertion.hs` | tensorMap 挿入のヘルパー |
 | `Language/Egison/Type/TypeClassExpand.hs` | 型クラスの展開 |
 | `Language/Egison/Type/Unify.hs` | 型のunification |

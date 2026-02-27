@@ -32,7 +32,7 @@
 ### Phase 5-6: 型推論
 | ファイル | 役割 | 主要な型・関数 |
 |---------|------|---------------|
-| `hs-src/Language/Egison/Type/IInfer.hs` | IExpr型推論（統合モジュール） | `inferIExpr :: IExpr -> Infer (Type, Subst)`, `Infer`モナド |
+| `hs-src/Language/Egison/Type/Infer.hs` | IExpr型推論（統合モジュール） | `inferIExpr :: IExpr -> Infer (Type, Subst)`, `Infer`モナド |
 | `hs-src/Language/Egison/Type/Unify.hs` | 単一化 | `unify` |
 | `hs-src/Language/Egison/Type/Subst.hs` | 型代入 | `Subst`, `applySubst` |
 | `hs-src/Language/Egison/Type/Types.hs` | 型データ型 | `Type`, `TypeScheme`, `Constraint` |
@@ -124,7 +124,7 @@
              │
              ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Phase 5-6: Type Inference (IInfer.hs)                       │
+│ Phase 5-6: Type Inference (Infer.hs)                       │
 │   IExpr → (Type, Subst)                                     │
 |   Tensor Applicationの展開
 │   基盤: Unify.hs, Subst.hs, Types.hs                       │

@@ -70,7 +70,7 @@ def . : {Num t0} Tensor t0 -> Tensor t0 -> Tensor t0 :=
 
 # 関連ファイル
 
-- `hs-src/Language/Egison/Type/IInfer.hs`
+- `hs-src/Language/Egison/Type/Infer.hs`
 - `design/type-tensor-simple.md`
 
 # テスト

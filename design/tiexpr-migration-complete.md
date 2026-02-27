@@ -29,7 +29,7 @@ data TIExprNode
   | ...
 ```
 
-### 2. 型推論 (IInfer.hs)
+### 2. 型推論 (Infer.hs)
 
 全ての型推論関数を変更：
 
@@ -89,7 +89,7 @@ $ egison --no-prelude mini-test/01-simple-constant.egi
 
 ### 中期（最適化）
 
-1. **IInfer.hs**
+1. **Infer.hs**
    - IndexedExprのindicesを`[Index IExpr]`から`[Index TIExpr]`に変更
    - MatcherExprの完全な型推論
 
