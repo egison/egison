@@ -35,6 +35,8 @@ module Language.Egison.Core
     , whnfToType
     -- * Environment
     , recursiveBind
+    , recursiveBindPatFuncs
+    , recursiveBindAll
     , makeBindings'
     -- * Pattern matching
     , patternMatch
@@ -228,7 +230,7 @@ evalExprShallow env (IHashExpr assocs) = do
       _            -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
   makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
-evalExprShallow env@(Env _fs _) (IIndexedExpr override expr indices) = do
+evalExprShallow env@(Env _fs _ _) (IIndexedExpr override expr indices) = do
   -- Tensor or hash
   whnf <- case expr of
               IVarExpr v -> do
@@ -327,9 +329,9 @@ evalExprShallow env (IMemoizedLambdaExpr names body) = do
 
 evalExprShallow env (ICambdaExpr name expr) = return . Value $ CFunc env name expr
 
-evalExprShallow (Env _ Nothing) (IFunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
+evalExprShallow (Env _ Nothing _) (IFunctionExpr _) = throwError $ Default "function symbol is not bound to a variable"
 
-evalExprShallow env@(Env _ (Just (name, is))) (IFunctionExpr args) = do
+evalExprShallow env@(Env _ (Just (name, is)) _) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
   is' <- mapM unwrapMaybeFromIndex is
   return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args', 1)])
@@ -492,8 +494,8 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   return $ newITensor ns xs
  where
   evalWithIndex :: Env -> [ScalarData] {- index -} -> EvalM ObjectRef
-  evalWithIndex env@(Env frame maybe_vwi) ms = do
-    let env' = maybe env (\(name, indices) -> Env frame $ Just (name, zipWith changeIndex indices ms)) maybe_vwi
+  evalWithIndex env@(Env frame maybe_vwi pfEnv) ms = do
+    let env' = maybe env (\(name, indices) -> Env frame (Just (name, zipWith changeIndex indices ms)) pfEnv) maybe_vwi
     fn <- evalExprShallow env' fnExpr
     newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map ScalarData ms))))]
   changeIndex :: Index (Maybe a) -> a -> Index (Maybe a) -- Maybe we can refactor this function
@@ -807,6 +809,53 @@ recursiveBind env bindings = do
     liftIO $ writeIORef ref (newThunk env'' expr')
   return env'
 
+-- | Bind pattern function definitions into the pattern function environment.
+-- Analogous to 'recursiveBind' but uses the separate 'PatFuncEnv' so that
+-- pattern functions never pollute the regular value environment.
+-- Supports mutual recursion among pattern functions.
+recursiveBindPatFuncs :: Env -> [(String, IExpr)] -> EvalM Env
+recursiveBindPatFuncs env [] = return env
+recursiveBindPatFuncs env bindings = do
+  -- Create dummy refs so that mutually-recursive pattern functions can reference
+  -- each other via the env that will be closed over by each PatternFunc value.
+  refs <- mapM (\_ -> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) bindings
+  let namedRefs = zip (map fst bindings) refs
+  let env' = extendPatFuncEnv env namedRefs
+  -- Fill in each ref with the real thunk, closing over env' so that pattern
+  -- functions can call each other.
+  forM_ (zip (map snd bindings) refs) $ \(expr, ref) ->
+    liftIO $ writeIORef ref (newThunk env' expr)
+  return env'
+
+-- | Bind regular value definitions and pattern function definitions together in
+-- one step, so that all thunks are closed over a single environment that
+-- contains both regular values (in the normal env layers) and pattern functions
+-- (in the patFuncEnv).  This is necessary for mutual visibility: ordinary
+-- definitions can invoke pattern functions (e.g. in matchAll expressions), and
+-- pattern functions can invoke other pattern functions.
+recursiveBindAll :: Env -> [(Var, IExpr)] -> [(String, IExpr)] -> EvalM Env
+recursiveBindAll env valBindings patFuncBindings = do
+  -- 1. Create dummy refs for regular value bindings.
+  valBinds <- mapM (\(var, _) -> (var,) <$> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) valBindings
+  -- 2. Create dummy refs for pattern function bindings.
+  pfRefs  <- mapM (\_ -> newThunkRef nullEnv (IConstantExpr UndefinedExpr)) patFuncBindings
+  let pfNamedRefs = zip (map fst patFuncBindings) pfRefs
+  -- 3. Build a combined env: regular layers + patFuncEnv, both containing dummies.
+  let envWithVal  = extendEnv env valBinds
+  let envFinal    = extendPatFuncEnv envWithVal pfNamedRefs
+  -- 4. Fill in regular value thunks, closing over envFinal.
+  forM_ valBindings $ \(var, expr) -> do
+    let envForVar = memorizeVarInEnv envFinal var
+    let ref = fromJust (refVar envFinal var)
+    let expr' = case expr of
+                  ILambdaExpr Nothing args body -> ILambdaExpr (Just var) args body
+                  _ -> expr
+    liftIO $ writeIORef ref (newThunk envForVar expr')
+  -- 5. Fill in pattern function thunks, closing over envFinal.
+  forM_ (zip (map snd patFuncBindings) pfRefs) $ \(expr, ref) ->
+    liftIO $ writeIORef ref (newThunk envFinal expr)
+  return envFinal
+
 recursiveMatchBind :: Env -> [IBindingExpr] -> EvalM Env
 recursiveMatchBind env bindings = do
   -- List of variables defined in |bindings|
@@ -830,8 +879,8 @@ recursiveMatchBind env bindings = do
   return env'
 
 memorizeVarInEnv :: Env -> Var -> Env
-memorizeVarInEnv (Env frame _) (Var var is) =
-  Env frame (Just (var, map (fmap (\_ -> Nothing)) is))
+memorizeVarInEnv (Env frame _ pfEnv) (Var var is) =
+  Env frame (Just (var, map (fmap (\_ -> Nothing)) is)) pfEnv
 
 --
 -- Pattern Match
@@ -965,15 +1014,12 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
   let env' = extendEnvForNonLinearPatterns env bindings loops in
   case pattern of
     IInductiveOrPApplyPat name args ->
-      case refVar env (stringToVar name) of
+      -- Check the pattern function environment first (separate from the value env).
+      -- If found there it must be a PatternFunc; otherwise treat as an inductive
+      -- pattern constructor.
+      case refPatFunc env name of
+        Just _  -> processMState' (mstate { mTrees = MAtom (IPApplyPat (IVarExpr name) args) target matcher:trees })
         Nothing -> processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
-        Just ref -> do
-          whnf <- evalRef ref
-          case whnf of
-            Value PatternFunc{} ->
-              processMState' (mstate { mTrees = MAtom (IPApplyPat (IVarExpr name) args) target matcher:trees })
-            _                   ->
-              processMState' (mstate { mTrees = MAtom (IInductivePat name args) target matcher:trees })
 
     INotPat _ -> throwErrorWithTrace (EgisonBug "should not reach here (not-pattern)")
     IVarPat _ -> throwError $ Default $ "cannot use variable except in pattern function:" ++ show pattern
@@ -993,7 +1039,14 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
                 else return MNil
 
     IPApplyPat func args -> do
-      func' <- evalExprShallow env' func
+      -- For a plain variable, look up the pattern function environment first so
+      -- that pattern functions and ordinary values live in separate namespaces.
+      func' <- case func of
+        IVarExpr name ->
+          case refPatFunc env' name of
+            Just ref -> evalRef ref
+            Nothing  -> evalExprShallow env' func
+        _ -> evalExprShallow env' func
       case func' of
         Value (PatternFunc env'' names expr) ->
           return . msingleton $ mstate { mTrees = MNode penv (MState env'' [] [] [] [MAtom expr target matcher]) : trees }

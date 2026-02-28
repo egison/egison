@@ -37,10 +37,13 @@ module Language.Egison.Data
     -- * Environment
     , Env (..)
     , EnvLayer
+    , PatFuncEnv
     , Binding
     , nullEnv
     , extendEnv
+    , extendPatFuncEnv
     , refVar
+    , refPatFunc
     , envToBindingList
     -- * Errors
     , EgisonError (..)
@@ -523,8 +526,14 @@ instance Show ObjectRef where
 -- VarEntry list is sorted by index length (shortest first) for efficient prefix matching
 type EnvLayer = Map String [VarEntry ObjectRef]
 
--- | Environment: list of layers (for scoping) plus optional index context
-data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe ScalarData)]))
+-- | Pattern function environment: maps pattern function names to their ObjectRefs.
+-- Kept separate from the regular value environment so that pattern typing is
+-- independent of which matcher is in scope (matcher polymorphism).
+type PatFuncEnv = Map String ObjectRef
+
+-- | Environment: list of layers (for scoping) plus optional index context,
+-- plus a separate store for pattern functions.
+data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe ScalarData)])) PatFuncEnv
 
 type Binding = (Var, ObjectRef)
 
@@ -542,12 +551,12 @@ instance {-# OVERLAPPING #-} Show (Index EgisonValue) where
   show (DF i j) = "_df-" ++ show i ++ "-" ++ show j
 
 nullEnv :: Env
-nullEnv = Env [] Nothing
+nullEnv = Env [] Nothing Map.empty
 
 -- | Extend environment with new bindings
 -- Groups bindings by base name and sorts by index length (shortest first)
 extendEnv :: Env -> [Binding] -> Env
-extendEnv (Env layers idx) bindings = Env (newLayer : layers) idx
+extendEnv (Env layers idx pfEnv) bindings = Env (newLayer : layers) idx pfEnv
   where
     -- Group bindings by base variable name
     grouped :: Map String [VarEntry ObjectRef]
@@ -569,6 +578,12 @@ extendEnv (Env layers idx) bindings = Env (newLayer : layers) idx
     
     newLayer = grouped
 
+-- | Extend the pattern function environment with new name→ref bindings.
+-- The regular value layers and index context are preserved unchanged.
+extendPatFuncEnv :: Env -> [(String, ObjectRef)] -> Env
+extendPatFuncEnv (Env layers idx pfEnv) newBindings =
+  Env layers idx (foldr (\(name, ref) acc -> Map.insert name ref acc) pfEnv newBindings)
+
 -- | Look up a variable in the environment
 -- Search algorithm:
 --   1. Try exact match
@@ -576,7 +591,7 @@ extendEnv (Env layers idx) bindings = Env (newLayer : layers) idx
 --   3. Try suffix removal (find shorter indices, pick longest match)
 -- No recursion is used; all matching is done in a single pass to avoid infinite loops.
 refVar :: Env -> Var -> Maybe ObjectRef
-refVar (Env layers _) (Var name targetIndices) =
+refVar (Env layers _ _) (Var name targetIndices) =
   -- Search through all layers
   msum $ map searchInLayer layers
   where
@@ -641,10 +656,14 @@ refVar (Env layers _) (Var name targetIndices) =
       length target < length candidate &&
       target == take (length target) candidate
 
+-- | Look up a pattern function by name in the pattern function environment.
+refPatFunc :: Env -> String -> Maybe ObjectRef
+refPatFunc (Env _ _ pfEnv) name = Map.lookup name pfEnv
+
 -- | Convert environment to list of bindings
 -- Used for completion and debugging
 envToBindingList :: Env -> [Binding]
-envToBindingList (Env layers _) =
+envToBindingList (Env layers _ _) =
   [ (Var name (veIndices entry), veValue entry)
   | layer <- layers
   , (name, entries) <- Map.toList layer

@@ -16,9 +16,8 @@ Two insertion modes:
    of xs might be Tensors at runtime.
 
 According to tensor-map-insertion-simple.md:
-- For type constructors containing scalar types, always insert tensorMap/tensorMap2
-- tensorMap/tensorMap2 act as identity for scalar values
-- This simplifies implementation by avoiding is_tensor flag tracking
+- When a binary function with scalar parameter types is passed as an argument, always wrap it with tensorMap2
+- tensorMap/tensorMap2 act as identity for scalar values, so wrapping is safe regardless of whether the actual argument is a tensor or scalar
 
 Example:
   def f (x : Integer) : Integer := x
