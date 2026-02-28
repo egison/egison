@@ -53,28 +53,27 @@ def tile :=
 --
 -- Pattern modularization
 --
-def pattern twin (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pat :: ~pat2
+def pattern pair (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pat :: ~pat2
 
-def pattern shuntsu (pat1 : Tile) (pat2 : [Tile]) : [Tile] :=
+def pattern sequence (pat1 : Tile) (pat2 : [Tile]) : [Tile] :=
   (num $s $n & ~pat1) :: num #s #(n + 1) :: num #s #(n + 2) :: ~pat2
---  (num $s $n & ~pat1) :: num #s #(i.+ n 1) :: num #s #(i.+ n 2) :: ~pat2
 
-def pattern kohtsu (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pat :: #pat :: ~pat2
+def pattern triplet (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: #pat :: #pat :: ~pat2
 
 --
 -- A function that determines whether the hand is completed or not.
 --
 def complete? : [Tile] -> Bool :=
   \match as multiset tile with
-    | twin
+    | pair
         $th_1
-        (shuntsu $sh_1
-           (shuntsu $sh_2
-              (shuntsu $sh_3 (shuntsu $sh_4 [] | kohtsu $kh_1 [])
-                | kohtsu $kh_1 (kohtsu $kh_2 []))
-             | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 [])))
-          | kohtsu $kh_1 (kohtsu $kh_2 (kohtsu $kh_3 (kohtsu $kh_4 []))))
-        | (twin $th_2 (twin $th_3 (twin $th_4 (twin $th_5 (twin $th_6 (twin $th_7 []))))))
+        (sequence $sh_1
+           (sequence $sh_2
+              (sequence $sh_3 (sequence $sh_4 [] | triplet $kh_1 [])
+                | triplet $kh_1 (triplet $kh_2 []))
+             | triplet $kh_1 (triplet $kh_2 (triplet $kh_3 [])))
+          | triplet $kh_1 (triplet $kh_2 (triplet $kh_3 (triplet $kh_4 []))))
+        | (pair $th_2 (pair $th_3 (pair $th_4 (pair $th_5 (pair $th_6 (pair $th_7 []))))))
     -> True
     | _ -> False
 

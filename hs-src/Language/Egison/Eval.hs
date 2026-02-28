@@ -201,7 +201,9 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Collect all definitions to bind them together later (Phase 9)
   -- Non-definition expressions (ITest, IExecute) will be evaluated in Phase 10
   -- Also collect typed ASTs if dump-typed, dump-ti, or dump-tc is enabled
-  ((allBindings, nonDefExprs), typedExprs, tiExprs, tcExprs) <- foldM (\((bindings, nonDefs), typedExprs, tiExprs, tcExprs) expr -> do
+  -- The accumulator separates regular value bindings from pattern function bindings so
+  -- they can be placed in different environments after collection.
+  ((allBindings, allPatFuncBindings, nonDefExprs), typedExprs, tiExprs, tcExprs) <- foldM (\((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs) expr -> do
     -- Get current type and class environments from EvalState
     currentTypeEnv <- getTypeEnv
     currentClassEnv <- getClassEnv
@@ -210,7 +212,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     mITopExpr <- desugarTopExpr expr
     
     case mITopExpr of
-      Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)  -- No desugared output
+      Nothing -> return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)  -- No desugared output
       Just iTopExpr -> do
         -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
         let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
@@ -251,22 +253,26 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             -- Type errors are handled immediately, not collected
             topExpr' <- desugarTopExpr expr
             case topExpr' of
-              Nothing -> return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)
+              Nothing -> return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
               Just topExpr'' -> do
                 -- Evaluate type-error expressions immediately (not collected)
                 -- This is a fallback for permissive mode
                 case topExpr'' of
                   IDefine name expr ->
-                    return ((bindings ++ [(name, expr)], nonDefs), typedExprs, tiExprs, tcExprs)
+                    return ((bindings ++ [(name, expr)], patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
                   IDefineMany defs ->
-                    return ((bindings ++ defs, nonDefs), typedExprs, tiExprs, tcExprs)
+                    return ((bindings ++ defs, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
+                  IPatternFunctionDecl name _tyVars params _retType body ->
+                    let paramNames = map fst params
+                        patternFuncExpr = IPatternFuncExpr paramNames body
+                    in return ((bindings, patFuncBindings ++ [(name, patternFuncExpr)], nonDefs), typedExprs, tiExprs, tcExprs)
                   _ ->
                     -- Non-definition: collect for later evaluation
-                    return ((bindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs, tcExprs)
+                    return ((bindings, patFuncBindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs, tcExprs)
 
           Right (Nothing, _subst) ->
             -- No code generated (e.g., load statements that are already processed)
-            return ((bindings, nonDefs), typedExprs, tiExprs, tcExprs)
+            return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
           
           Right (Just tiTopExpr, _subst) -> do
             -- Phase 7: inferITopExpr now returns TITopExpr directly
@@ -282,7 +288,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             case mTiTopExprAfterTensorMap of
               Nothing ->
                 -- Load/LoadFile statements - no evaluation needed
-                return ((bindings, nonDefs), typedExprs', tiExprs, tcExprs)
+                return ((bindings, patFuncBindings, nonDefs), typedExprs', tiExprs, tcExprs)
 
               Just tiTopExprAfterTensorMap -> do
                 -- Collect TensorMap-inserted AST for --dump-ti (after TensorMap insertion)
@@ -295,7 +301,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                 case mTcTopExprAfterTypeClass of
                   Nothing ->
                     -- Load/LoadFile statements - no evaluation needed
-                    return ((bindings, nonDefs), typedExprs', tiExprs', tcExprs)
+                    return ((bindings, patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs)
 
                   Just tcTopExprAfterTypeClass -> do
                     -- Collect TypeClass-expanded AST for --dump-tc (after TypeClass expansion)
@@ -312,22 +318,22 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                     case iTopExprExpanded of
                       IDefine name expr ->
                         -- Collect definition for later binding
-                        return ((bindings ++ [(name, expr)], nonDefs), typedExprs', tiExprs', tcExprs')
+                        return ((bindings ++ [(name, expr)], patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs')
                       IDefineMany defs ->
                         -- Collect multiple definitions for later binding
-                        return ((bindings ++ defs, nonDefs), typedExprs', tiExprs', tcExprs')
+                        return ((bindings ++ defs, patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs')
                       IPatternFunctionDecl name _tyVars params _retType body ->
-                        -- Pattern functions are now collected as regular definitions
-                        -- They will be bound together with all other definitions via recursiveBind
+                        -- Collect pattern function definition separately; it will be bound
+                        -- into the pattern function environment (not the value environment)
+                        -- via recursiveBindPatFuncs after all regular definitions are bound.
                         let paramNames = map fst params
                             patternFuncExpr = IPatternFuncExpr paramNames body
-                            var = stringToVar name
-                        in return ((bindings ++ [(var, patternFuncExpr)], nonDefs), typedExprs', tiExprs', tcExprs')
+                        in return ((bindings, patFuncBindings ++ [(name, patternFuncExpr)], nonDefs), typedExprs', tiExprs', tcExprs')
                       _ ->
                         -- Non-definition expressions (ITest, IExecute)
                         -- Collect for evaluation after all definitions are bound
-                        return ((bindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
-    ) (([], []), [], [], []) exprs
+                        return ((bindings, patFuncBindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
+    ) (([], [], []), [], [], []) exprs
 
   -- Dump typed AST BEFORE evaluation (so dumps are available even if evaluation fails)
   -- This is important for debugging - we want to see the typed AST even when there are runtime errors
@@ -340,10 +346,13 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   when (optDumpTc opts && shouldDumpTyped) $ do
     dumpTc tcExprs
 
-  -- Phase 9: Bind all definitions together using recursiveBind
-  -- This ensures mutual recursion works correctly (e.g., length can reference foldl even if defined earlier)
-  -- Pattern functions are now included in allBindings and will be bound together with other definitions
-  env' <- recursiveBind env allBindings
+  -- Phase 9: Bind all regular value definitions and pattern function definitions
+  -- together in a single step via recursiveBindAll so that every thunk is closed
+  -- over a single environment that contains both regular values and pattern
+  -- functions.  Regular values go into the normal env layers; pattern functions
+  -- go into the separate PatFuncEnv.  This is necessary because ordinary
+  -- definitions may contain matchAll expressions that invoke pattern functions.
+  envWithPatFuncs <- recursiveBindAll env allBindings allPatFuncBindings
 
   -- Phase 10: Evaluate non-definition expressions in order
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
@@ -360,7 +369,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             Nothing -> return ()
             Just val -> valueToStr val >>= liftIO . putStrLn
           return (mVal, env'')
-    ) (Nothing, env') nonDefExprs
+    ) (Nothing, envWithPatFuncs) nonDefExprs
 
   return (lastVal, finalEnv)
 
@@ -439,25 +448,30 @@ loadEgisonLibrary env path = do
 -- Helper functions
 --
 
-collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([(Var, IExpr)], [ITopExpr])
-collectDefs opts exprs = collectDefs' opts exprs [] []
+collectDefs :: EgisonOpts -> [ITopExpr] -> EvalM ([(Var, IExpr)], [(String, IExpr)], [ITopExpr])
+collectDefs opts exprs = collectDefs' opts exprs [] [] []
   where
-    collectDefs' :: EgisonOpts -> [ITopExpr] -> [(Var, IExpr)] -> [ITopExpr] -> EvalM ([(Var, IExpr)], [ITopExpr])
-    collectDefs' opts (expr:exprs) bindings rest =
+    collectDefs' :: EgisonOpts -> [ITopExpr] -> [(Var, IExpr)] -> [(String, IExpr)] -> [ITopExpr] -> EvalM ([(Var, IExpr)], [(String, IExpr)], [ITopExpr])
+    collectDefs' opts (expr:exprs) bindings patFuncBindings rest =
       case expr of
-        IDefine name expr -> collectDefs' opts exprs ((name, expr) : bindings) rest
-        IDefineMany defs  -> collectDefs' opts exprs (defs ++ bindings) rest
-        ITest{}     -> collectDefs' opts exprs bindings (expr : rest)
-        IExecute{}  -> collectDefs' opts exprs bindings (expr : rest)
+        IDefine name expr -> collectDefs' opts exprs ((name, expr) : bindings) patFuncBindings rest
+        IDefineMany defs  -> collectDefs' opts exprs (defs ++ bindings) patFuncBindings rest
+        IPatternFunctionDecl name _tyVars params _retType body ->
+          let paramNames = map fst params
+              patternFuncExpr = IPatternFuncExpr paramNames body
+          in collectDefs' opts exprs bindings ((name, patternFuncExpr) : patFuncBindings) rest
+        ITest{}     -> collectDefs' opts exprs bindings patFuncBindings (expr : rest)
+        IExecute{}  -> collectDefs' opts exprs bindings patFuncBindings (expr : rest)
         ILoadFile _ | optNoIO opts -> throwError (Default "No IO support")
         ILoadFile file -> do
           exprs' <- loadFile file >>= desugarTopExprs
-          collectDefs' opts (exprs' ++ exprs) bindings rest
+          collectDefs' opts (exprs' ++ exprs) bindings patFuncBindings rest
         ILoad _ | optNoIO opts -> throwError (Default "No IO support")
         ILoad file -> do
           exprs' <- loadLibraryFile file >>= desugarTopExprs
-          collectDefs' opts (exprs' ++ exprs) bindings rest
-    collectDefs' _ [] bindings rest = return (bindings, reverse rest)
+          collectDefs' opts (exprs' ++ exprs) bindings patFuncBindings rest
+        _ -> collectDefs' opts exprs bindings patFuncBindings rest
+    collectDefs' _ [] bindings patFuncBindings rest = return (bindings, patFuncBindings, reverse rest)
 
 evalTopExpr' :: Env -> ITopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr' env (IDefine name expr) = do
@@ -481,15 +495,15 @@ evalTopExpr' env (ILoad file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadLibraryFile file >>= desugarTopExprs
-  (bindings, _) <- collectDefs opts exprs
-  env' <- recursiveBind env bindings
+  (bindings, patFuncBindings, _) <- collectDefs opts exprs
+  env' <- recursiveBindAll env bindings patFuncBindings
   return (Nothing, env')
 evalTopExpr' env (ILoadFile file) = do
   opts <- ask
   when (optNoIO opts) $ throwError (Default "No IO support")
   exprs <- loadFile file >>= desugarTopExprs
-  (bindings, _) <- collectDefs opts exprs
-  env' <- recursiveBind env bindings
+  (bindings, patFuncBindings, _) <- collectDefs opts exprs
+  env' <- recursiveBindAll env bindings patFuncBindings
   return (Nothing, env')
 evalTopExpr' env (IDeclareSymbol _names _mType) = do
   -- Symbol declarations are only used during type inference
