@@ -70,9 +70,17 @@ class MulGroup a extends MulMonoid a where
 class Ring a extends AddGroup a, MulMonoid a
 class Field a extends Ring a, MulGroup a
 
+class GCDDomain a extends Ring a where
+  gcd (x: a) (y: a) : a
+
+class EuclideanDomain a extends GCDDomain a where
+  divMod (x: a) (y: a) : (a, a)
+
 -- Derived operators
 def (-) {AddGroup a} (x: a) (y: a) : a := x + neg y
 def (/) {Field a} (x: a) (y: a) : a := x * inv y
+def modulo {EuclideanDomain a} (x: a) (y: a) : a := snd (divMod x y)
+def quotient {EuclideanDomain a} (x: a) (y: a) : a := fst (divMod x y)
 
 -- MathExpr instances
 instance AddSemigroup MathExpr where
@@ -95,6 +103,12 @@ instance MulGroup MathExpr where
 
 instance Ring MathExpr
 instance Field MathExpr
+
+instance GCDDomain MathExpr where
+  gcd x y := gcdForMathExpr x y
+
+instance EuclideanDomain MathExpr where
+  divMod x y := (i.quotient x y, i.modulo x y)
 
 -- Float instances
 instance AddSemigroup Float where

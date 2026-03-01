@@ -17,8 +17,8 @@ def rt (n: MathExpr) (x: MathExpr) : MathExpr :=
             | #0 -> 0
             | ?isMonomial -> rtMonomial n x
             | poly $xs / poly $ys ->
-                let xd := reduce gcd xs
-                    yd := reduce gcd ys
+                let xd := reduce gcdForMathExpr xs
+                    yd := reduce gcdForMathExpr ys
                     d := rtMonomial n (xd / yd)
                  in d *' rt'' n (sum' (map (/' xd) xs) /' sum' (map (/' yd) ys))
             | _ -> rt'' n x
@@ -54,7 +54,7 @@ def rtPositiveTerm (n: MathExpr) (x: MathExpr) : MathExpr :=
           g (n: MathExpr) (x: MathExpr) : MathExpr :=
             let d := match x as termExpr with
                         | term $m $xs ->
-                            gcd n (reduce gcd (map snd (toAssoc (pF m) ++ xs)))
+                            gcdForMathExpr n (reduce gcdForMathExpr (map snd (toAssoc (pF m) ++ xs)))
              in rt'' (n / d) (rt d x)
           in match x as termExpr with
             | term $m $xs ->

@@ -1,0 +1,17 @@
+--
+-- Minitest: GCDDomain and EuclideanDomain
+--
+
+-- GCDDomain: gcd
+assertEqual "gcd 12 8" (gcd 12 8) 4
+assertEqual "gcd 15 10" (gcd 15 10) 5
+assertEqual "gcd 7 0" (gcd 7 0) 7
+assertEqual "gcd 0 5" (gcd 0 5) 5
+
+-- EuclideanDomain: divMod
+assertEqual "divMod 10 3" (divMod 10 3) (3, 1)
+assertEqual "divMod 15 4" (divMod 15 4) (3, 3)
+
+-- Derived: modulo, quotient
+assertEqual "modulo 10 3" (modulo 10 3) 1
+assertEqual "quotient 10 3" (quotient 10 3) 3
