@@ -100,8 +100,8 @@ handleOptionWithState env evalState opts =
       return ()
     -- Execute a script from the main function
     EgisonOpts { optExecFile = Just (file, args) } -> do
-      result <- fromEvalT $ evalTopExprs env [LoadFile file, Execute (makeApply "main" [CollectionExpr (map (ConstantExpr . StringExpr . T.pack) args)])]
-      liftIO $ either print (const $ return ()) result
+      result <- fromEvalTWithState evalState $ evalTopExprs env [LoadFile file, Execute (makeApply "main" [CollectionExpr (map (ConstantExpr . StringExpr . T.pack) args)])]
+      liftIO $ either print (const $ return ()) (fmap fst result)
     EgisonOpts { optMapTsvInput = Just expr } ->
       handleOption env (opts { optSubstituteString = Just $ "\\x -> map (" ++ expr ++ ") x" })
     EgisonOpts { optFilterTsvInput = Just expr } ->

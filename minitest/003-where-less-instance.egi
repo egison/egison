@@ -1,0 +1,26 @@
+--
+-- Test: instance without "where" keyword (marker instance)
+--
+
+class Addable a where
+  add (x: a) (y: a) : a
+
+class Multipliable a where
+  mul (x: a) (y: a) : a
+
+class MyRing a extends Addable a, Multipliable a
+
+instance Addable Integer where
+  add x y := i.+ x y
+
+instance Multipliable Integer where
+  mul x y := i.* x y
+
+-- Marker instance without "where"
+instance MyRing Integer
+
+def ringOp {MyRing a} (x: a) (y: a) : a :=
+  add (mul x y) y
+
+def main (args: [String]) : IO () :=
+  print (show (ringOp 3 4))

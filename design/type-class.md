@@ -221,11 +221,11 @@ EuclideanDomain a extends GCDDomain a    divMod
 
 ### Phase 1: 型クラスの基盤強化
 
-| # | 項目 | 該当ファイル | 内容 |
-|---|---|---|---|
-| 1-1 | 複数スーパークラスのパース | `NonS.hs` | `classHeader` の `withExtends` を修正し、カンマ区切りの複数制約をパースする。AST/EnvBuilder は対応済み |
-| 1-2 | スーパークラス制約の伝播 | `Infer.hs` | 制約 `C a` を追加する際、`ClassEnv` から `C` のスーパークラスを再帰的に取得し、対応する制約も追加する |
-| 1-3 | `where` なしインスタンス（任意） | `NonS.hs` | `reserved "where"` を `optional` にする。空メソッドで代用できるため優先度低 |
+| # | 項目 | 該当ファイル | 状態 | 内容 |
+|---|---|---|---|---|
+| 1-1 | 複数スーパークラスのパース | `NonS.hs` | **完了** | `classHeader` を修正し、カンマ区切りの複数制約をパースできるようにした。インデントガードも追加 |
+| 1-2 | スーパークラス制約の伝播 | `Infer.hs` | **完了** | `expandSuperclasses` を実装。`addConstraints` と `instConstraints` の両方でスーパークラスを再帰的に展開する |
+| 1-3 | `where` なしインスタンス | `NonS.hs` | **完了** | `reserved "where"` を `option` にし、`where` なしマーカーインスタンス（`instance MyRing Integer`）をサポート |
 
 ### Phase 2: Num クラスの分割
 
