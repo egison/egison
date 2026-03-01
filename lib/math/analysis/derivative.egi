@@ -36,7 +36,7 @@ def ∂/∂' (f : MathExpr) (!x : MathExpr) : MathExpr :=
       let g' := ∂/∂' g x
        in if isMonomial g'
             then g'
-            else let d := foldl1 (\a b -> (gcd a b)) (fromPoly g')
+            else let d := foldl1 (\a b -> (gcdForMathExpr a b)) (fromPoly g')
                   in d *' (mapPoly (/' d) g')
     -- term (constant)
     | #0 -> 0

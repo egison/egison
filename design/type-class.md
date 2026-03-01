@@ -239,7 +239,9 @@ EuclideanDomain a extends GCDDomain a    divMod
 
 ### Phase 3: CAS 向け拡張
 
-| # | 項目 | 該当ファイル | 内容 |
-|---|---|---|---|
-| 3-1 | `GCDDomain` / `EuclideanDomain` 定義 | 新規 `.egi` | CAS 用の型クラスを追加 |
-| 3-2 | `Poly` / `Div` 型のインスタンス | 新規 `.egi` | `type-cas.md` で設計した各インスタンスを実装 |
+| # | 項目 | 該当ファイル | 状態 | 内容 |
+|---|---|---|---|---|
+| 3-1 | `GCDDomain` / `EuclideanDomain` 定義 | `lib/core/base.egi` | **完了** | `GCDDomain a extends Ring a` と `EuclideanDomain a extends GCDDomain a` を定義。導出関数 `modulo`, `quotient` も追加 |
+| 3-2 | MathExpr インスタンス | `lib/core/base.egi` | **完了** | `gcd` は既存の `gcdForMathExpr` を使用、`divMod` は `i.quotient`/`i.modulo` を使用 |
+| 3-3 | 既存 `gcd` のリネーム | `arithmetic.egi`, `root.egi`, `derivative.egi` | **完了** | 型クラスメソッド `gcd` との衝突を回避するため `gcdForMathExpr` にリネーム |
+| 3-4 | `Poly` / `Div` 型のインスタンス | 新規 `.egi` | 未着手 | `type-cas.md` で設計した各インスタンスを実装 |

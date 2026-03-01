@@ -53,7 +53,7 @@ def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
         else 1 /' x ^' i.neg n
       else '(^) x n
 
-def gcd (x: MathExpr) (y: MathExpr) : MathExpr :=
+def gcdForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
   match (x, y) as (termExpr, termExpr) with
     | (_, #0) -> x
     | (#0, _) -> y
