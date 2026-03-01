@@ -33,16 +33,24 @@ Data-files:          lib/core/*.egi
                      lib/math/analysis/*.egi
                      lib/math/geometry/*.egi
 
+Extra-doc-files:     Changelog.md
+
 Extra-source-files:  README.md
-                     Changelog.md
                      benchmark/Benchmark.hs
                      benchmark/*.egi
                      test/lib/math/*.egi
                      test/lib/core/*.egi
                      sample/*.egi
-                     sample/sat/*.egi
+                     sample/database/*.egi
+                     sample/io/*.egi
+                     sample/math/algebra/*.egi
+                     sample/math/analysis/*.egi
                      sample/math/geometry/*.egi
                      sample/math/number/*.egi
+                     sample/physics/*.egi
+                     sample/repl/*.egi
+                     sample/rosetta/*.egi
+                     sample/sat/*.egi
                      emacs/egison-mode.el
 
 source-repository head
@@ -53,24 +61,24 @@ Library
   default-language:    GHC2021
   Build-Depends:
       base                 >= 4.8     && < 5
-    , random               >= 1.0     && < 2.0
+    , random               >= 1.0     && < 2
     , containers           >= 0.6     && < 0.8
     , unordered-containers >= 0.1.0.0 && < 0.3
     , haskeline            >= 0.7     && < 0.9
     , transformers         >= 0.4     && < 0.7
-    , mtl                  >= 2.2.2   && < 3.0
-    , parsec               >= 3.0     && < 4.0
-    , megaparsec           >= 7.0.0   && < 12.0
-    , parser-combinators   >= 1.0     && < 2.0
-    , directory            >= 1.3.0   && < 2.0
-    , filepath             >= 1.4     && < 2.0
+    , mtl                  >= 2.2.2   && < 3
+    , parsec               >= 3.0     && < 4
+    , megaparsec           >= 7.0.0   && < 12
+    , parser-combinators   >= 1.0     && < 2
+    , directory            >= 1.3.0   && < 2
+    , filepath             >= 1.4     && < 2
     , text                 >= 0.2     && < 2.2
-    , regex-tdfa           >= 1.2.0   && < 2.0
-    , process              >= 1.0     && < 2.0
+    , regex-tdfa           >= 1.2.0   && < 2
+    , process              >= 1.0     && < 2
     , vector               >= 0.12    && < 0.14
-    , hashable             >= 1.0     && < 2.0
+    , hashable             >= 1.0     && < 2
     , optparse-applicative >= 0.14    && < 0.20
-    , prettyprinter        >= 1.0     && < 2.0
+    , prettyprinter        >= 1.0     && < 2
     , unicode-show         >= 0.1     && < 0.2
     , sweet-egison         >= 0.1.2.1 && < 0.2
   if !impl(ghc > 8.0)
@@ -177,7 +185,7 @@ Executable egison
     , haskeline
     , mtl
     , directory
-    , filepath             >= 1.4     && < 2.0
+    , filepath             >= 1.4     && < 2
     , text
     , regex-tdfa
     , optparse-applicative

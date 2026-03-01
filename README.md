@@ -7,6 +7,28 @@ This is the repository of the interpreter of Egison.
 
 For more information, visit <a target="_blank" href="https://www.egison.org">our website</a>.
 
+## What's New in Egison 5
+
+Egison 5 introduces a static type system based on Hindley-Milner type inference.
+The type checker infers types automatically, so **type annotations are completely optional**.
+You can add type annotations for documentation and safety, but they are not required.
+
+```hs
+-- Type annotations are optional. Both styles work:
+def fact n :=
+  if n == 0 then 1 else n * fact (n - 1)
+
+def fact (n : Integer) : Integer :=
+  if n == 0 then 1 else n * fact (n - 1)
+```
+
+In addition, Egison 5 supports:
+
+- **Type classes**: Haskell-style type classes and instances (`class Eq a where ...`, `instance Eq Integer where ...`)
+- **Algebraic data types**: User-defined inductive data types (`inductive Maybe a := | Nothing | Just a`)
+- **Polymorphism**: Parametric polymorphism with type variables (`def id {a} (x: a) : a := x`)
+- **Symbol declarations**: `declare symbol x, y, z` for declaring symbolic variables used in tensor and math calculations
+
 ## Refereed Papers
 
 ### Pattern Matching
@@ -31,9 +53,9 @@ We can use pattern matching for enumeration.
 The following code enumerates all twin primes from the infinite list of prime numbers with pattern matching!
 
 ```hs
-def twinPrimes :=
+def twinPrimes : [(Integer, Integer)] :=
   matchAll primes as list integer with
-  | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
+    | _ ++ $p :: #(p + 2) :: _ -> (p, p + 2)
 
 take 8 twinPrimes
 -- [(3, 5), (5, 7), (11, 13), (17, 19), (29, 31), (41, 43), (59, 61), (71, 73)]
@@ -45,25 +67,34 @@ The following code is a program that determines poker-hands written in Egison.
 All hands are expressed in a single pattern.
 
 ```hs
-def poker cs :=
+inductive Suit := Spade | Heart | Club | Diamond
+inductive Card := Card Suit Integer
+
+inductive pattern Suit := | spade | heart | club | diamond
+inductive pattern Card := | card Suit Integer
+
+def suit := algebraicDataMatcher | spade | heart | club | diamond
+def card := algebraicDataMatcher | card suit (mod 13)
+
+def poker (cs: [Card]) : String :=
   match cs as multiset card with
-  | card $s $n :: card #s #(n-1) :: card #s #(n-2) :: card #s #(n-3) :: card #s #(n-4) :: _
+  | [card $s $n, card #s #(n - 1), card #s #(n - 2), card #s #(n - 3), card #s #(n - 4)]
     -> "Straight flush"
-  | card _ $n :: card _ #n :: card _ #n :: card _ #n :: _ :: []
+  | [card _ $n, card _ #n, card _ #n, card _ #n, _]
     -> "Four of a kind"
-  | card _ $m :: card _ #m :: card _ #m :: card _ $n :: card _ #n :: []
+  | [card _ $m, card _ #m, card _ #m, card _ $n, card _ #n]
     -> "Full house"
-  | card $s _ :: card #s _ :: card #s _ :: card #s _ :: card #s _ :: []
+  | [card $s _, card #s _, card #s _, card #s _, card #s _]
     -> "Flush"
-  | card _ $n :: card _ #(n-1) :: card _ #(n-2) :: card _ #(n-3) :: card _ #(n-4) :: []
+  | [card _ $n, card _ #(n - 1), card _ #(n - 2), card _ #(n - 3), card _ #(n - 4)]
     -> "Straight"
-  | card _ $n :: card _ #n :: card _ #n :: _ :: _ :: []
+  | [card _ $n, card _ #n, card _ #n, _, _]
     -> "Three of a kind"
-  | card _ $m :: card _ #m :: card _ $n :: card _ #n :: _ :: []
+  | [card _ $m, card _ #m, card _ $n, card _ #n, _]
     -> "Two pair"
-  | card _ $n :: card _ #n :: _ :: _ :: _ :: []
+  | [card _ $n, card _ #n, _, _, _]
     -> "One pair"
-  | _ :: _ :: _ :: _ :: _ :: [] -> "Nothing"
+  | [_, _, _, _, _] -> "Nothing"
 ```
 
 ### Graphs
@@ -72,26 +103,27 @@ We can pattern-match against graphs.
 We can write a program to solve the travelling salesman problem in a single pattern-matching expression.
 
 ```hs
-def graph := multiset (string, multiset (string, integer))
+def station : Matcher String := string
+def price : Matcher Integer := integer
+def graph : Matcher [(String, [(String, Integer)])] :=
+  multiset (station, multiset (station, price))
 
-def graphData :=
-  [("Berlin", [("New York", 14), ("London", 2), ("Tokyo", 14), ("Vancouver", 13)]),
-   ("New York", [("Berlin", 14), ("London", 12), ("Tokyo", 18), ("Vancouver", 6)]),
-   ("London", [("Berlin", 2), ("New York", 12), ("Tokyo", 15), ("Vancouver", 10)]),
-   ("Tokyo", [("Berlin", 14), ("New York", 18), ("London", 15), ("Vancouver", 12)]),
-   ("Vancouver", [("Berlin", 13), ("New York", 6), ("London", 10), ("Tokyo", 12)])]
+def graphData : [(String, [(String, Integer)])] :=
+  [ ("Berlin",    [("St. Louis", 14), ("Oxford", 2),  ("Nara", 14), ("Vancouver", 13)])
+  , ("St. Louis", [("Berlin", 14),    ("Oxford", 12), ("Nara", 18), ("Vancouver", 6)])
+  , ("Oxford",    [("Berlin", 2),     ("St. Louis", 12), ("Nara", 15), ("Vancouver", 10)])
+  , ("Nara",      [("Berlin", 14),    ("St. Louis", 18), ("Oxford", 15), ("Vancouver", 12)])
+  , ("Vancouver", [("Berlin", 13),    ("St. Louis", 6),  ("Oxford", 10), ("Nara", 12)]) ]
 
-def trips :=
-  let n := length graphData in
-    matchAll graphData as graph with
-    | (#"Berlin", (($s_1,$p_1) : _)) ::
-        loop $i (2, n - 1)
-          ((#s_(i - 1), ($s_i, $p_i) :: _) :: ...)
-          ((#s_(n - 1), (#"Berlin" & $s_n, $p_n) :: _) :: [])
-    -> sum (map (\i -> p_i) [1..n]), map (\i -> s_i) [1..n]
-
-car (sortBy (\(_, x), (_, y) -> compare x y)) trips)
--- (["London", "New York", "Vancouver", "Tokyo"," Berlin"], 46)
+def trips : [(Integer, [String])] :=
+  matchAll graphData as graph with
+    | (#"Berlin", ($s_1, $p_1) :: _) :: (loop $i (2, 4, _)
+                                           (( #s_(i - 1)
+                                           , ($s_i, $p_i) :: _ ) :: ...)
+                                           (( #s_4
+                                           , ( #"Berlin" & $s_5
+                                           , $p_5 ) :: _ ) :: _)) ->
+      (sum (map (\i -> p_i) (between 1 5)), s)
 ```
 
 ## Egison as a Computer Algebra System
@@ -104,6 +136,7 @@ The most part of this computer algebra system is written in Egison and extensibl
 Egison treats unbound variables as symbols.
 
 ```
+> declare symbol x, y
 > x
 x
 > (x + y)^2
@@ -132,6 +165,7 @@ The symbol `i` is defined to rewrite `i^2` to `-1` in Egison library.
 * [Rewriting rule for `i` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
 
 ```
+> declare symbol x, y
 > i * i
 -1
 > (1 + i) * (1 + i)
@@ -147,6 +181,7 @@ The rewriting rule for `sqrt` is also defined in Egison library.
 * [Rewriting rule for `sqrt` in `normalize.egi`](https://github.com/egison/egison/blob/master/lib/math/normalize.egi)
 
 ```
+> declare symbol x, y
 > sqrt 2 * sqrt 2
 2
 > sqrt 6 * sqrt 10
@@ -159,7 +194,7 @@ x * sqrt 2 * sqrt y
 
 The following is a sample to calculate the 5th roots of unity.
 
-* [Definition of `q-f'` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
+* [Definition of `qF'` in `equations.egi`](https://github.com/egison/egison/blob/master/lib/math/algebra/equations.egi)
 
 ```
 > qF' 1 1 (-1)
@@ -181,6 +216,7 @@ We can implement differentiation easily in Egison.
 * [Definition of `d/d` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
 
 ```
+> declare symbol x
 > d/d (x ^ 3) x
 3 * x^2
 > d/d (e ^ (i * x)) x
@@ -196,10 +232,11 @@ exp (x * i) * i
 The following sample executes Taylor expansion on Egison.
 We verify [Euler's formula](https://en.wikipedia.org/wiki/Euler%27s_formula) in the following sample.
 
-* [Definition of `taylor-expansion` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
+* [Definition of `taylorExpansion` in `derivative.egi`](https://github.com/egison/egison/blob/master/lib/math/analysis/derivative.egi)
 
 ```
-> take 8 (taylorExpansion (exp (i * x)) x 0)
+> declare symbol x
+> take 8 (taylorExpansion (e^(i * x)) x 0)
 [1, x * i, - x^2 / 2, - x^3 * i / 6, x^4 / 24, x^5 * i / 120, - x^6 / 720, - x^7 * i / 5040]
 > take 8 (taylorExpansion (cos x) x 0)
 [1, 0, - x^2 / 2, 0, x^4 / 24, 0, - x^6 / 720, 0]
@@ -220,37 +257,39 @@ The following sample is from [Riemann Curvature Tensor of S2 - Egison Mathematic
 
 
 ```hs
+declare symbol r, θ, φ: MathExpr
+
 -- Parameters
-def x := [| θ, φ |]
+def x : Vector MathExpr := [| θ, φ |]
 
-def X := [| r * (sin θ) * (cos φ) -- x
-      , r * (sin θ) * (sin φ) -- y
-      , r * (cos θ)           -- z
-      |]
+def X : Vector MathExpr := [| r * sin θ * cos φ -- x
+          , r * sin θ * sin φ -- y
+          , r * cos θ         -- z
+          |]
 
-def e_i_j := (∂/∂ X_j x~i)
+def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g_i_j := generateTensor (\x y -> V.* e_x_# e_y_#) [2, 2]
-def g~i~j := M.inverse g_#_#
+def g[_i_j] : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [2, 2]
+def g[~i~j] : Matrix MathExpr := M.inverse g_#_#
 
 g_#_# -- [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
 g~#~# -- [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
 
 -- Christoffel symbols
-def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i[_j_k] : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
 Γ_1_#_# -- [| [| 0, 0 |], [| 0, -1 * r^2 * (sin θ) * (cos θ) |] |]_#_#
 Γ_2_#_# -- [| [| 0, r^2 * (sin θ) * (cos θ) |], [| r^2 * (sin θ) * (cos θ), 0 |] |]_#_#
 
-def Γ~i_j_k := withSymbols [m]
+def Γ~i_j_k : Tensor MathExpr := withSymbols [m]
   g~i~m . Γ_m_j_k
 
-Γ~1_#_# -- [| [| 0, 0 |], [| 0, -1 * (sin θ) * (cos θ) |] |]_#_#
+Γ~1_#_# -- [| [| 0, 0 |], [| 0, -1 * sin θ * cos θ |] |]_#_#
 Γ~2_#_# -- [| [| 0, (cos θ) / (sin θ) |], [| (cos θ) / (sin θ), 0 |] |]_#_#
 
 -- Riemann curvature
-def R~i_j_k_l := withSymbols [m]
+def R~i_j_k_l : Tensor MathExpr := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 R~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
@@ -266,37 +305,37 @@ By designing the index completion rules for omitted indices, we can use the abov
 The following sample is from [Curvature Form - Egison Mathematics Notebook](https://www.egison.org/math/curvature-form.html).
 
 ```hs
--- Parameters and metric tensor
-def x := [| θ, φ |]
+declare symbol r, θ, φ: MathExpr
 
-def g_i_j := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
-def g~i~j := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
+-- Parameters and metric tensor
+def x : Vector MathExpr := [| θ, φ |]
+
+def g_i_j : Matrix MathExpr := [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_i_j
+def g~i~j : Matrix MathExpr := [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~i~j
 
 -- Christoffel symbols
-def Γ_j_l_k := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
+def Γ_j_l_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_j_l x~k + ∂/∂ g_j_k x~l - ∂/∂ g_k_l x~j)
 
-def Γ~i_k_l := withSymbols [j] g~i~j . Γ_j_l_k
+def Γ~i_k_l : Tensor MathExpr := withSymbols [j] g~i~j . Γ_j_l_k
+
+-- Riemann curvature
+def R~i_j_k_l : Tensor MathExpr := withSymbols [m]
+  ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 -- Exterior derivative
-def d %t := !(flip ∂/∂) x t
-
--- Wedge product
-infixl expression 7 ∧
-
-def (∧) %x %y := x !. y
+def d (t : Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x t
 
 -- Connection form
-def ω~i_j := Γ~i_j_#
+def ω~i_j : Matrix MathExpr := Γ~i_j_#
 
 -- Curvature form
-def Ω~i_j := withSymbols [k]
+def Ω~i_j : Tensor MathExpr := withSymbols [k]
   antisymmetrize (d ω~i_j + ω~i_k ∧ ω~k_j)
 
 Ω~#_#_1_1 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
 Ω~#_#_1_2 -- [| [| 0, (sin θ)^2  / 2|], [| -1 / 2, 0 |] |]~#_#
 Ω~#_#_2_1 -- [| [| 0, -1 * (sin θ)^2 / 2 |], [| 1 / 2, 0 |] |]~#_#
 Ω~#_#_2_2 -- [| [| 0, 0 |], [| 0, 0 |] |]~#_#
-
 ```
 
 ### Egison Mathematics Notebook
