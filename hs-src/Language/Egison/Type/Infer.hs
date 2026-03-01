@@ -162,13 +162,32 @@ addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
 clearWarnings :: Infer ()
 clearWarnings = modify $ \st -> st { inferWarnings = [] }
 
--- | Add type class constraints (with deduplication)
+-- | Add type class constraints (with deduplication and superclass propagation)
+-- When adding a constraint like "Ord a", this also adds superclass constraints
+-- (e.g., "Eq a") recursively, so that superclass methods are available.
 addConstraints :: [Constraint] -> Infer ()
-addConstraints cs = modify $ \st ->
-  let existing = inferConstraints st
-      -- Only add constraints that are not already present
-      newConstraints = filter (`notElem` existing) cs
-  in st { inferConstraints = existing ++ newConstraints }
+addConstraints cs = do
+  classEnv <- getClassEnv
+  let expanded = expandSuperclasses classEnv cs
+  modify $ \st ->
+    let existing = inferConstraints st
+        newConstraints = filter (`notElem` existing) expanded
+    in st { inferConstraints = existing ++ newConstraints }
+
+-- | Expand a list of constraints by recursively adding superclass constraints.
+-- e.g., [Ord a] -> [Ord a, Eq a]  (since Ord extends Eq)
+expandSuperclasses :: ClassEnv -> [Constraint] -> [Constraint]
+expandSuperclasses classEnv = go []
+  where
+    go seen [] = seen
+    go seen (c:rest)
+      | c `elem` seen = go seen rest
+      | otherwise =
+          let supers = case lookupClass (constraintClass c) classEnv of
+                Nothing -> []
+                Just info -> map (\superName -> Constraint superName (constraintType c))
+                                 (classSupers info)
+          in go (seen ++ [c]) (supers ++ rest)
 
 -- | Get accumulated constraints
 getConstraints :: Infer [Constraint]
@@ -3100,7 +3119,11 @@ inferITopExpr topExpr = case topExpr of
       Just existingScheme -> do
         -- There's an explicit type signature: check that the inferred type matches
         st <- get
-        let (instConstraints, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
+        classEnv <- getClassEnv
+        let (instConstraints0, expectedType, newCounter) = instantiate existingScheme (inferCounter st)
+            -- Expand superclass constraints so that superclass methods are available
+            -- e.g., {Ord a} -> {Ord a, Eq a} since Ord extends Eq
+            instConstraints = expandSuperclasses classEnv instConstraints0
         modify $ \s -> s { inferCounter = newCounter }
         -- Add instantiated constraints to the inference context
         -- This is crucial for constraint-aware unification inside the definition body
@@ -3143,7 +3166,10 @@ inferITopExpr topExpr = case topExpr of
             genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
             updatedScheme = Forall genVars constraints' finalType
         
-        -- Keep the updated scheme (with actual type variables) in the environment
+        -- Update the environment with the expanded scheme
+        -- This is important so that call sites see the full constraints
+        -- (including superclass-expanded ones) and pass all needed dictionaries
+        modify $ \s -> s { inferEnv = extendEnv var updatedScheme (inferEnv s) }
         return (Just (TIDefine updatedScheme var exprTI''), finalSubst)
       
       Nothing -> do

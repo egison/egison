@@ -1,0 +1,14 @@
+--
+-- Baseline: Eq type class usage (no superclass involved)
+--
+
+class Eq a where
+  (==) (x: a) (y: a) : Bool
+
+instance Eq Integer where
+  (==) x y := x = y
+
+def isEqual {Eq a} (x: a) (y: a) : Bool := x == y
+
+def main (args: [String]) : IO () :=
+  print (show (isEqual 3 3))

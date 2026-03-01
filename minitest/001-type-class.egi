@@ -1,0 +1,47 @@
+--
+-- Type class tests: multiple superclass, marker class, superclass propagation
+--
+
+-- Basic type classes
+class Eq a where
+  (==) (x: a) (y: a) : Bool
+
+instance Eq Integer where
+  (==) x y := x = y
+
+class Ord a extends Eq a where
+  (<) (x: a) (y: a) : Bool
+
+instance Ord Integer where
+  (<) x y := i.< x y
+
+-- Multiple superclasses
+class Addable a where
+  add (x: a) (y: a) : a
+
+class Multipliable a where
+  mul (x: a) (y: a) : a
+
+class MyRing a extends Addable a, Multipliable a
+
+instance Addable Integer where
+  add x y := i.+ x y
+
+instance Multipliable Integer where
+  mul x y := i.* x y
+
+instance MyRing Integer where
+
+-- Test: superclass constraint propagation
+-- lessOrEqual has {Ord a} but uses (==) from Eq (superclass of Ord)
+def lessOrEqual {Ord a} (x: a) (y: a) : Bool :=
+  if x == y then True else x < y
+
+-- Test: multiple superclass usage
+-- ringOp has {MyRing a} but uses add from Addable and mul from Multipliable
+def ringOp {MyRing a} (x: a) (y: a) : a :=
+  add (mul x y) y
+
+def main (args: [String]) : IO () := do
+  print (show (lessOrEqual 3 5))
+  print (show (ringOp 3 4))
