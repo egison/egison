@@ -359,28 +359,40 @@ instanceExpr = try $ do
   pos <- L.indentLevel
   reserved "instance"
   -- Parse optional instance constraints: Eq a =>
-  (constraints, classNm, instTypes) <- instanceHeader
-  reserved "where"
+  (constraints, classNm, instTypes) <- instanceHeader pos
+  hasWhere <- option False (True <$ reserved "where")
   -- Parse method implementations (indented)
-  methods <- instanceMethodsParser pos
+  methods <- if hasWhere
+    then instanceMethodsParser pos
+    else return []
   return $ InstanceDeclExpr $ InstanceDecl constraints classNm instTypes methods
 
 -- | Parse instance header: "Eq Integer" or "{Eq a} Eq [a]"
--- Note: instance types are parsed until "where" is encountered
-instanceHeader :: Parser ([ConstraintExpr], String, [TypeExpr])
-instanceHeader = try withConstraints <|> withoutConstraints
+-- Note: instance types are parsed until "where" or end of declaration
+instanceHeader :: Pos -> Parser ([ConstraintExpr], String, [TypeExpr])
+instanceHeader basePos = try withConstraints <|> withoutConstraints
   where
     -- New syntax: {Eq a} Eq [a]
     withConstraints = do
       constraints <- typeConstraints
       classNm <- upperId
-      instTypes <- someTill typeAtomSimple (lookAhead (reserved "where"))
+      instTypes <- many (try $ do
+        notFollowedBy (reserved "where")
+        guardIndented
+        typeAtomSimple)
       return (constraints, classNm, instTypes)
 
     withoutConstraints = do
       classNm <- upperId
-      instTypes <- someTill typeAtomSimple (lookAhead (reserved "where"))
+      instTypes <- many (try $ do
+        notFollowedBy (reserved "where")
+        guardIndented
+        typeAtomSimple)
       return ([], classNm, instTypes)
+
+    guardIndented = do
+      curPos <- L.indentLevel
+      guard (curPos > basePos)
 
 -- | Parse instance methods
 instanceMethodsParser :: Pos -> Parser [InstanceMethod]
