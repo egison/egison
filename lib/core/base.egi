@@ -46,28 +46,77 @@ def char : Matcher Char := eq
 def integer : Matcher Integer := eq
 def float : Matcher Float := eq
 
-class Num a where
+-- Additive hierarchy
+class AddSemigroup a where
   (+) (x: a) (y: a) : a
-  (-) (x: a) (y: a) : a
+
+class AddMonoid a extends AddSemigroup a where
+  zero : a
+
+class AddGroup a extends AddMonoid a where
+  neg (x: a) : a
+
+-- Multiplicative hierarchy
+class MulSemigroup a where
   (*) (x: a) (y: a) : a
-  (/) (x: a) (y: a) : a
 
---instance Num Integer where
---  (+) x y := i.+ x y
---  (-) x y := i.- x y
---  (*) x y := i.* x y
---  (/) x y := i./ x y
-instance Num MathExpr where
+class MulMonoid a extends MulSemigroup a where
+  one : a
+
+class MulGroup a extends MulMonoid a where
+  inv (x: a) : a
+
+-- Composite structures
+class Ring a extends AddGroup a, MulMonoid a
+class Field a extends Ring a, MulGroup a
+
+-- Derived operators
+def (-) {AddGroup a} (x: a) (y: a) : a := x + neg y
+def (/) {Field a} (x: a) (y: a) : a := x * inv y
+
+-- MathExpr instances
+instance AddSemigroup MathExpr where
   (+) x y := plusForMathExpr x y
-  (-) x y := minusForMathExpr x y
-  (*) x y := multForMathExpr x y
-  (/) x y := divForMathExpr x y
 
-instance Num Float where
+instance AddMonoid MathExpr where
+  zero := 0
+
+instance AddGroup MathExpr where
+  neg x := minusForMathExpr 0 x
+
+instance MulSemigroup MathExpr where
+  (*) x y := multForMathExpr x y
+
+instance MulMonoid MathExpr where
+  one := 1
+
+instance MulGroup MathExpr where
+  inv x := divForMathExpr 1 x
+
+instance Ring MathExpr
+instance Field MathExpr
+
+-- Float instances
+instance AddSemigroup Float where
   (+) x y := f.+ x y
-  (-) x y := f.- x y
+
+instance AddMonoid Float where
+  zero := 0.0
+
+instance AddGroup Float where
+  neg x := f.- 0.0 x
+
+instance MulSemigroup Float where
   (*) x y := f.* x y
-  (/) x y := f./ x y
+
+instance MulMonoid Float where
+  one := 1.0
+
+instance MulGroup Float where
+  inv x := f./ 1.0 x
+
+instance Ring Float
+instance Field Float
 
 --
 -- Utility

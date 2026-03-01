@@ -32,11 +32,11 @@ def nat : Matcher Integer :=
 --
 -- Eigenvalues and eigenvectors
 --
-def M.eigenvalues {Num a} (m: Matrix a) : [a] :=
+def M.eigenvalues {Ring a} (m: Matrix a) : [a] :=
   let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
    in [e1, e2]
 
-def M.eigenvectors {Num a} (m: Matrix a) : [(a, Vector a)] :=
+def M.eigenvectors {Ring a} (m: Matrix a) : [(a, Vector a)] :=
   let (e1, e2) := qF (M.det (T.- m (scalarToTensor x [2, 2]))) x
    in [ (e1, clearIndex (T.- m (scalarToTensor e1 [2, 2]))_i_1)
       , (e2, clearIndex (T.- m (scalarToTensor e2 [2, 2]))_i_1) ]
@@ -44,7 +44,7 @@ def M.eigenvectors {Num a} (m: Matrix a) : [(a, Vector a)] :=
 --
 -- LU decomposition
 --
-def M.LU {Num a} (x: Matrix a) : (Matrix a, Matrix a) :=
+def M.LU {Field a} (x: Matrix a) : (Matrix a, Matrix a) :=
   match tensorShape x as list integer with
     | [#2, #2] ->
       let L := generateTensor

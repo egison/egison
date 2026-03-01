@@ -4,8 +4,6 @@
 
 def abs (x: MathExpr) : MathExpr := if isRational x then i.abs x else 'abs x
 
-def neg (x: MathExpr) : MathExpr := if isRational x then i.neg x else - x
-
 def exp (x: MathExpr) : MathExpr :=
   if isTerm x
     then match x as termExpr with

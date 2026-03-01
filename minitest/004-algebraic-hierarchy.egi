@@ -1,0 +1,27 @@
+--
+-- Minitest: Algebraic type class hierarchy
+--
+
+-- AddSemigroup: (+)
+assertEqual "addition" (1 + 2) 3
+
+-- MulSemigroup: (*)
+assertEqual "multiplication" (3 * 4) 12
+
+-- AddGroup: neg, derived (-)
+assertEqual "neg" (neg 5) (-5)
+assertEqual "subtraction" (10 - 3) 7
+
+-- MulGroup: inv, derived (/)
+assertEqual "inv" (inv 2) (1 / 2)
+assertEqual "division" (10 / 2) 5
+
+-- AddMonoid: zero via sum
+assertEqual "sum" (sum [1, 2, 3]) 6
+
+-- MulMonoid: one via product
+assertEqual "product" (product [2, 3, 4]) 24
+
+-- Float instances
+assertEqual "float add" (f.+ 1.0 2.0) 3.0
+assertEqual "float mul" (f.* 2.0 3.0) 6.0

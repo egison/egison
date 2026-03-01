@@ -11,12 +11,12 @@ def tensorOrder {a} (A: Tensor a) : Integer := length (tensorShape A)
 
 def unitTensor (ns: [Integer]) : Tensor Integer := generateTensor kroneckerDelta ns
 
-def scalarToTensor {Num a} (x: a) (ns: [Integer]) : Tensor a := x * unitTensor ns
+def scalarToTensor {MulSemigroup a} (x: a) (ns: [Integer]) : Tensor a := x * unitTensor ns
 
 def zeroTensor (ns: [Integer]) : Tensor Integer := generateTensor (\_ -> 0) ns
 
 def (.') (t1: Tensor MathExpr) (t2: Tensor MathExpr) : Tensor MathExpr := 
   foldl1 (+') (contract (t1 *' t2))
 
-def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
+def (.) {Ring a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
   foldl1 (+) (contract (t1 * t2))
