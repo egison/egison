@@ -43,12 +43,15 @@ Tensor (Poly (Div Integer) [x])      -- 有理数係数多項式を成分とす�
 
 ```egison
 -- 不定元（簡約規則なし。正規形の次数に制限なし）
-declare indeterminate x, y
+declare symbol x, y
 
 -- シンボル（簡約規則あり。正規形の次数が有限になる）
 declare symbol i with i^2 = -1
 declare symbol √2 with √2^2 = 2
 ```
+
+`with` 句の有無で不定元とシンボルを区別する。
+`declare symbol` は現在のEgisonに既に存在するキーワードであり、新しいキーワード `indeterminate` を導入せずに統一的に扱える。
 
 ### 違い
 
@@ -218,43 +221,43 @@ t + q
 
 ```egison
 class AddSemigroup a where
-  (+) : a -> a -> a
+  (+) (x: a) (y: a) : a
 
-class (AddSemigroup a) => AddMonoid a where
+class AddMonoid a extends AddSemigroup a where
   zero : a
 
-class (AddMonoid a) => AddGroup a where
-  neg : a -> a
+class AddGroup a extends AddMonoid a where
+  neg (x: a) : a
 ```
 
 ### 乗法的構造
 
 ```egison
 class MulSemigroup a where
-  (*) : a -> a -> a
+  (*) (x: a) (y: a) : a
 
-class (MulSemigroup a) => MulMonoid a where
+class MulMonoid a extends MulSemigroup a where
   one : a
 
-class (MulMonoid a) => MulGroup a where
-  inv : a -> a
+class MulGroup a extends MulMonoid a where
+  inv (x: a) : a
 ```
 
 ### 複合構造
 
 ```egison
-class (AddGroup a, MulMonoid a) => Ring a
-class (Ring a, MulGroup a) => Field a
+class Ring a extends AddGroup a, MulMonoid a
+class Field a extends Ring a, MulGroup a
 ```
 
 ### CAS 用の操作
 
 ```egison
-class (Ring a) => GCDDomain a where
-  gcd : a -> a -> a
+class GCDDomain a extends Ring a where
+  gcd (x: a) (y: a) : a
 
-class (GCDDomain a) => EuclideanDomain a where
-  divMod : a -> a -> (a, a)
+class EuclideanDomain a extends GCDDomain a where
+  divMod (x: a) (y: a) : (a, a)
 ```
 
 ### インスタンス例
@@ -265,29 +268,29 @@ instance EuclideanDomain Integer where
   divMod := ...
   gcd := ...
 
-instance (Ring a) => Ring (Poly a [s]) where
+instance {Ring a} Ring (Poly a [s]) where
   (+) := ...
   (*) := ...
 
-instance (Field a) => EuclideanDomain (Poly a [s]) where
+instance {Field a} EuclideanDomain (Poly a [s]) where
   divMod := ...
   gcd := ...
 
-instance (GCDDomain a) => GCDDomain (Poly a [s]) where
+instance {GCDDomain a} GCDDomain (Poly a [s]) where
   gcd := ...
 
-instance (GCDDomain a) => Ring (Div a) where
+instance {GCDDomain a} Ring (Div a) where
   (+) (p/q) (r/s) := simplify ((p*s + r*q) / (q*s))
   (*) (p/q) (r/s) := simplify ((p*r) / (q*s))
 
-instance (GCDDomain a) => Field (Div a)
+instance {GCDDomain a} Field (Div a)
 ```
 
 ### 型クラス制約による安全性
 
 ```egison
 -- gcd を多項式に使うには係数が体である必要がある
-gcd : (EuclideanDomain a) => a -> a -> a
+def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
 
 -- Poly Integer [x] で gcd を使うには Field Integer が必要 → エラー
 -- Poly (Div Integer) [x] で gcd を使うには Field (Div Integer) ✓ → OK
@@ -343,3 +346,19 @@ Factor 型からの Integer 等への coerce はユーザーの責任とする�
 def x : Factor := 'sqrt 2
 def n : Integer := coerce x    -- ユーザーの責任
 ```
+
+---
+
+## 現在のEgisonとの統合に向けたTODO
+
+現在のEgisonの構文・型システムとこの設計ドキュメントを自然に統合するための作業項目。
+
+| # | 優先度 | 項目 | 状態 | 内容 |
+|---|---|---|---|---|
+| 1 | 高 | 型クラス制約構文の統一 | **完了** | `(C a) =>` を現在のEgisonの `extends` / `{C a}` 構文に修正済み |
+| 2 | 高 | `declare indeterminate` の廃止 | **完了** | `declare symbol` に統合し、`with` 句の有無で不定元とシンボルを区別する形に修正済み |
+| 3 | 中 | `Poly a [...]` の型レベルリスト構文 | 未着手 | 現在の型システム（`Types.hs` の `Type` ADT）には型レベルリストが存在しない。`[a]`（コレクション型）との構文上の曖昧性解消と、内部表現の拡張方針を決める必要がある |
+| 4 | 中 | `Num` クラスの分割 | 未着手 | 現在の `Num` クラス（`+`, `-`, `*`, `/` を一括定義）を設計ドキュメントの代数的階層（`AddSemigroup` → `Ring` → `Field`）に分割する。現在 `Num` を使用しているのはインスタンス2つ（`MathExpr`, `Float`）と関数2つ（`sum`, `product`）のみなので移行の影響範囲は小さい |
+| 5 | 中 | `introduce ... with ...` 構文の修正 | 未着手 | `sqrt` 関数の定義例で使われている `introduce ... with ... return ...` はEgisonに存在しない構文。簡約規則の動的登録を宣言的構文で表現するか、`IO` 型に包むかを決める必要がある |
+| 6 | 低 | `coerce` の安全性設計 | 未着手 | `Factor` → `Integer` 等のダウンキャストの安全なAPIを設計する。Egisonの強みであるパターンマッチを活用した安全な抽出方法を検討する |
+| 7 | 低 | マーカークラスのサポート確認 | 未着手 | `instance Ring Integer`（`where` なし）や `class Ring a extends AddGroup a, MulMonoid a`（メソッドなし）が現在のEgisonの型クラスシステムで処理できるか確認し、必要なら実装を拡張する |
