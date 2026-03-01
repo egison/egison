@@ -18,12 +18,13 @@ module Language.Egison.Parser.NonS
        , lowerReservedWords
        ) where
 
+import           Control.Monad                  (guard)
 import           Control.Monad.State            (get, gets, put)
 
 import           Data.Char                      (isAsciiUpper, isLetter)
 import           Data.Either                    (isRight)
 import           Data.Function                  (on)
-import           Data.Functor                   (($>))
+import           Data.Functor                   (($>), void)
 import           Data.List                      (groupBy, insertBy, sortOn)
 import           Data.Maybe                     (catMaybes, isJust, isNothing)
 import           Data.Text                      (pack)
@@ -272,35 +273,55 @@ classExpr = try $ do
   pos <- L.indentLevel
   reserved "class"
   -- Parse optional superclass constraints: extends Eq a
-  (superclasses, classNm, typeParams) <- classHeader
-  reserved "where"
-  -- Parse methods - use alignSome for consistent indentation handling
-  methods <- many $ try $ do
-    _ <- indentGuardGT pos
-    -- Check that this looks like a method definition
-    notFollowedBy (reserved "def" <|> reserved "class" <|> reserved "instance" <|> reserved "inductive")
-    classMethod
+  (superclasses, classNm, typeParams) <- classHeader pos
+  -- 'where' is optional: marker classes (no methods) can omit it
+  hasWhere <- option False (True <$ reserved "where")
+  methods <- if hasWhere
+    then many $ try $ do
+      _ <- indentGuardGT pos
+      -- Check that this looks like a method definition
+      notFollowedBy (reserved "def" <|> reserved "class" <|> reserved "instance" <|> reserved "inductive")
+      classMethod
+    else return []
   return $ ClassDeclExpr $ ClassDecl classNm typeParams superclasses methods
 
--- | Parse class header: "Ord a extends Eq a" or "Eq a"
--- Note: type parameters are parsed until "where" or "extends" is encountered
-classHeader :: Parser ([ConstraintExpr], String, [String])
-classHeader = try withExtends <|> withoutExtends
+-- | Parse class header: "Ord a extends Eq a" or "Ring a extends AddGroup a, MulMonoid a" or "Eq a"
+-- Supports multiple superclass constraints separated by commas.
+-- The basePos parameter is the indentation level of the 'class' keyword,
+-- used to prevent consuming tokens from the next top-level declaration.
+classHeader :: Pos -> Parser ([ConstraintExpr], String, [String])
+classHeader basePos = try withExtends <|> withoutExtends
   where
     withExtends = do
       classNm <- upperId
       typeParams <- someTill typeVarIdent (lookAhead (reserved "extends"))
       reserved "extends"
-      -- Parse superclass constraints (single constraint only for now)
-      superClassName <- upperId
-      superTypeArgs <- manyTill typeVarIdent (lookAhead (reserved "where"))
-      let constraints = [ConstraintExpr superClassName (map TEVar superTypeArgs)]
+      -- Parse comma-separated superclass constraints: AddGroup a, MulMonoid a
+      constraints <- superConstraint `sepBy1` symbol ","
       return (constraints, classNm, typeParams)
+
+    -- Parse a single superclass constraint: ClassName typeArg1 typeArg2 ...
+    -- Type args are consumed until we see "where", ",", or a new top-level declaration
+    superConstraint = do
+      superClassName <- upperId
+      superTypeArgs <- many (try $ do
+        notFollowedBy (reserved "where" <|> void (symbol ","))
+        guardIndented
+        typeVarIdent)
+      return $ ConstraintExpr superClassName (map TEVar superTypeArgs)
 
     withoutExtends = do
       classNm <- upperId
-      typeParams <- manyTill typeVarIdent (lookAhead (reserved "where"))
+      typeParams <- many (try $ do
+        notFollowedBy (reserved "where")
+        guardIndented
+        typeVarIdent)
       return ([], classNm, typeParams)
+
+    -- Reject tokens at the same indentation as 'class' (i.e., new top-level declarations)
+    guardIndented = do
+      curPos <- L.indentLevel
+      guard (curPos > basePos)
 
 -- | Parse a single class method
 -- e.g., (==) (x: a) (y: a) : Bool

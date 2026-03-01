@@ -1,0 +1,22 @@
+--
+-- Test: explicit multiple constraints (no superclass propagation needed)
+--
+
+class Eq a where
+  (==) (x: a) (y: a) : Bool
+
+instance Eq Integer where
+  (==) x y := x = y
+
+class Ord a extends Eq a where
+  (<) (x: a) (y: a) : Bool
+
+instance Ord Integer where
+  (<) x y := i.< x y
+
+-- Explicitly require both Eq and Ord (not relying on superclass)
+def lessOrEqual {Eq a, Ord a} (x: a) (y: a) : Bool :=
+  if x == y then True else x < y
+
+def main (args: [String]) : IO () :=
+  print (show (lessOrEqual 3 5))
