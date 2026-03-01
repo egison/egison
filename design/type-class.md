@@ -229,12 +229,13 @@ EuclideanDomain a extends GCDDomain a    divMod
 
 ### Phase 2: Num クラスの分割
 
-| # | 項目 | 該当ファイル | 内容 |
-|---|---|---|---|
-| 2-1 | 代数的型クラス階層の定義 | `lib/core/base.egi` | `AddSemigroup` → `AddMonoid` → `AddGroup`、`MulSemigroup` → `MulMonoid` → `MulGroup`、`Ring`、`Field` を定義 |
-| 2-2 | 既存インスタンスの分割 | `lib/core/base.egi` | `Num MathExpr` / `Num Float` を各クラスのインスタンスに分割 |
-| 2-3 | 制約の更新 | `lib/math/common/arithmetic.egi` | `{Num a}` を `{AddMonoid a}` や `{Ring a}` 等の適切な制約に変更 |
-| 2-4 | `(-)` と `(/)` の導出 | `lib/core/base.egi` | `(-) := x + neg y`、`(/) := x * inv y` をトップレベル関数として定義 |
+| # | 項目 | 該当ファイル | 状態 | 内容 |
+|---|---|---|---|---|
+| 2-1 | 代数的型クラス階層の定義 | `lib/core/base.egi` | **完了** | `AddSemigroup` → `AddMonoid` → `AddGroup`、`MulSemigroup` → `MulMonoid` → `MulGroup`、`Ring`、`Field` を定義 |
+| 2-2 | 既存インスタンスの分割 | `lib/core/base.egi` | **完了** | `Num MathExpr` / `Num Float` を各クラスのインスタンスに分割（8クラス×2型） |
+| 2-3 | 制約の更新 | 全 `.egi` ライブラリ | **完了** | `{Num a}` を `{AddMonoid a}`, `{MulSemigroup a}`, `{Ring a}`, `{Field a}` 等の最小制約に変更 |
+| 2-4 | `(-)` と `(/)` の導出 | `lib/core/base.egi` | **完了** | `(-) := x + neg y`、`(/) := x * inv y` をトップレベル関数として定義 |
+| 2-5 | 0-arity メソッド対応 | `TypeClassExpand.hs` | **完了** | `zero`, `one` 等の定数メソッドが空ラムダにラップされる問題を修正。辞書アクセスを直接返すように変更 |
 
 ### Phase 3: CAS 向け拡張
 
