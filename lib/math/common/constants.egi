@@ -2,5 +2,5 @@
 -- Mathematical constants
 --
 
-def MinkowskiMetric {Num a} : Matrix a :=
+def MinkowskiMetric {Ring a} : Matrix a :=
   [|[|-1, 0, 0, 0|], [|0, 1, 0, 0|], [|0, 0, 1, 0|], [|0, 0, 0, 1|]|]

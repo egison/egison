@@ -36,7 +36,7 @@ def ω := withSymbols [i, j, k, l]
   (M.inverse A)~i_j . ω0~j_k . A~k_l + (M.inverse A)~i_j . d A~j_l
 
 -- Curvature form
-def wedge {Num a} (X : Tensor a) (Y : Tensor a) : Tensor a := X !. Y
+def wedge {Ring a} (X : Tensor a) (Y : Tensor a) : Tensor a := X !. Y
 
 wedge ω~i_k ω~k_j
 

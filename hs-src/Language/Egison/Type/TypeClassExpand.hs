@@ -442,14 +442,16 @@ expandTypeClassMethodsT tiExpr = do
                                             (TIConstantExpr (StringExpr (pack methodKey)))
                           dictAccess = TIExpr methodScheme $
                                        TIIndexedExpr False dictExpr [Sub indexExpr]
-                          -- Calculate result type after applying all parameters
-                          resultType = applyParamsToType methodType (length paramExprs)
-                          -- Fully applied results don't need constraints
-                          bodyScheme = case resultType of
-                                         TFun _ _ -> methodScheme  -- Partial application
-                                         _ -> Forall [] [] resultType  -- Fully applied: no constraints
-                          body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
-                      return $ TILambdaExpr Nothing paramVars body
+                      -- 0-arity methods (constants like zero, one): return dict access directly
+                      if null paramVars
+                        then return $ TIIndexedExpr False dictExpr [Sub indexExpr]
+                        else do
+                          let resultType = applyParamsToType methodType (length paramExprs)
+                              bodyScheme = case resultType of
+                                             TFun _ _ -> methodScheme
+                                             _ -> Forall [] [] resultType
+                              body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
+                          return $ TILambdaExpr Nothing paramVars body
                     _ -> do
                       -- Concrete type: find matching instance
                       let instances = lookupInstances className classEnv'
@@ -489,14 +491,16 @@ expandTypeClassMethodsT tiExpr = do
                                                (TIConstantExpr (StringExpr (pack methodKey)))
                               dictAccess = TIExpr methodScheme $
                                            TIIndexedExpr False dictExprBase [Sub indexExpr]
-                              -- Calculate result type after applying all parameters
-                              resultType = applyParamsToType methodType (length paramExprs)
-                              -- Fully applied results don't need constraints
-                              bodyScheme = case resultType of
-                                             TFun _ _ -> methodScheme  -- Partial application
-                                             _ -> Forall [] [] resultType  -- Fully applied: no constraints
-                              body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
-                          return $ TILambdaExpr Nothing paramVars body
+                          -- 0-arity methods (constants like zero, one): return dict access directly
+                          if null paramVars
+                            then return $ TIIndexedExpr False dictExprBase [Sub indexExpr]
+                            else do
+                              let resultType = applyParamsToType methodType (length paramExprs)
+                                  bodyScheme = case resultType of
+                                                 TFun _ _ -> methodScheme
+                                                 _ -> Forall [] [] resultType
+                                  body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
+                              return $ TILambdaExpr Nothing paramVars body
                         Nothing -> checkConstrainedVariable
                 Nothing -> checkConstrainedVariable
             Nothing -> checkConstrainedVariable
@@ -1000,15 +1004,17 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 let methodType = getMethodTypeFromClass env className (sanitizeMethodName methodName) tyArg
                     methodConstraint = Constraint className tyArg
                     methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
-                    indexExpr = TIExpr (Forall [] [] TString) 
+                    indexExpr = TIExpr (Forall [] [] TString)
                                       (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
+                    dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParam)
                     dictAccess = TIExpr methodScheme $
-                                 TIIndexedExpr False
-                                   (TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParam))
-                                   [Sub indexExpr]
-                    -- Create: dictAccess etaVar1 etaVar2 ... etaVarN
-                    body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
-                return $ TILambdaExpr Nothing paramVars body
+                                 TIIndexedExpr False dictExpr [Sub indexExpr]
+                -- 0-arity methods (constants like zero, one): return dict access directly
+                if null paramVars
+                  then return $ TIIndexedExpr False dictExpr [Sub indexExpr]
+                  else do
+                    let body = TIExpr methodScheme (TIApplyExpr dictAccess paramExprs)
+                    return $ TILambdaExpr Nothing paramVars body
               Nothing -> return $ TIVarExpr methodName
           Nothing -> do
             -- Not a method - just return the variable as-is

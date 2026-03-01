@@ -1,6 +1,6 @@
-def coordinates {Num a} : Vector a := [x, y, z]
+def coordinates {Ring a} : Vector a := [x, y, z]
 
-def metric {Num a} : Matrix a :=
+def metric {Ring a} : Matrix a :=
   generateTensor
     (\match as list integer with
       | [$n, #n] -> 1
