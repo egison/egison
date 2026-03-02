@@ -144,7 +144,7 @@ def sum : {Num t0} [t0] -> t0 :=
 - `(+)` の型は `{Num t0} t0 -> t0 -> t0`：両パラメータが `{Num t0} t0`（スカラー）
 - → `tensorMap2` でラップ
 
-#### Phase 8-1: TensorMapInsertion
+#### Phase 7a: TensorMapInsertion
 
 ```egison
 def sum : {Num t0} [t0] -> t0 :=
@@ -152,7 +152,7 @@ def sum : {Num t0} [t0] -> t0 :=
     foldl1 (tensorMap2 (+)) xs
 ```
 
-#### Phase 8-2: TypeClassExpand
+#### Phase 7b: TypeClassExpand
 
 ```egison
 def sum : {Num t0} [t0] -> t0 :=

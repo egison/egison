@@ -2,11 +2,11 @@
 Module      : Language.Egison.Type.TypedDesugar
 Licence     : MIT
 
-This module implements Phase 8 of the processing flow: TypedDesugar.
+This module implements Phase 7 of the processing flow: TypedDesugar.
 It orchestrates type-driven transformations on TIExpr (Typed Internal Expressions)
 by calling specialized expansion modules.
 
-Type-Driven Transformations (Phase 8):
+Type-Driven Transformations (Phase 7):
   1. Type class dictionary passing (via TypeClassExpand)
      - Instance selection based on types
      - Method call concretization
@@ -53,7 +53,7 @@ desugarTypedExprT tiexpr = do
   return tiexpr''
 
 -- | Desugar a top-level typed expression (TITopExpr)
--- This is the main entry point for Phase 8 transformations.
+-- This is the main entry point for Phase 7 transformations.
 desugarTypedTopExprT :: TITopExpr -> EvalM (Maybe TITopExpr)
 desugarTypedTopExprT topExpr = case topExpr of
   TIDefine scheme var tiexpr -> do

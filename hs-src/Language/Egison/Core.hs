@@ -7,10 +7,10 @@
 Module      : Language.Egison.Core
 Licence     : MIT
 
-This module implements Phase 10: Evaluation.
+This module implements Phase 9: Evaluation.
 It provides functions to evaluate expressions and perform pattern matching.
 
-Evaluation Phase (Phase 10):
+Evaluation Phase (Phase 9):
   - Pattern matching execution (patternMatch function)
     * Egison's powerful non-linear pattern matching with backtracking
     * Pattern matching is NOT desugared but executed during evaluation

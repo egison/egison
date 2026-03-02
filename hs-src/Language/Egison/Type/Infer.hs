@@ -2600,7 +2600,7 @@ inferIApplication funcName funcType args initSubst = do
 
 -- | Infer application (helper) with context
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
--- TensorMap insertion has been moved to Phase 8 (TensorMapInsertion module)
+-- TensorMap insertion has been moved to Phase 7 (TensorMapInsertion module)
 -- This function now only performs type inference and unification
 -- When a Tensor argument is passed to a scalar parameter, the result type is wrapped in Tensor
 --
