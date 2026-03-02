@@ -66,7 +66,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , TIPattern (..), TIPatternNode (..), TILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..), stringToVar
-                                            , tiExprType)
+                                            , tiExprType, mapTIExprChildren)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
@@ -254,57 +254,8 @@ getClassEnv = inferClassEnv <$> get
 resolveConstraintsInTIExpr :: ClassEnv -> Subst -> TIExpr -> TIExpr
 resolveConstraintsInTIExpr classEnv subst (TIExpr (Forall vars constraints ty) node) =
   let resolvedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
-      resolvedNode = resolveConstraintsInNode classEnv subst node
+      resolvedNode = mapTIExprChildren (resolveConstraintsInTIExpr classEnv subst) node
   in TIExpr (Forall vars resolvedConstraints ty) resolvedNode
-
--- | Resolve constraints in a TIExprNode recursively
-resolveConstraintsInNode :: ClassEnv -> Subst -> TIExprNode -> TIExprNode
-resolveConstraintsInNode classEnv subst node = case node of
-  TIConstantExpr c -> TIConstantExpr c
-  TIVarExpr name -> TIVarExpr name
-  TILambdaExpr mVar params body ->
-    TILambdaExpr mVar params (resolveConstraintsInTIExpr classEnv subst body)
-  TIApplyExpr func args ->
-    TIApplyExpr (resolveConstraintsInTIExpr classEnv subst func)
-                (map (resolveConstraintsInTIExpr classEnv subst) args)
-  TITupleExpr exprs ->
-    TITupleExpr (map (resolveConstraintsInTIExpr classEnv subst) exprs)
-  TICollectionExpr exprs ->
-    TICollectionExpr (map (resolveConstraintsInTIExpr classEnv subst) exprs)
-  TIIfExpr cond thenExpr elseExpr ->
-    TIIfExpr (resolveConstraintsInTIExpr classEnv subst cond)
-             (resolveConstraintsInTIExpr classEnv subst thenExpr)
-             (resolveConstraintsInTIExpr classEnv subst elseExpr)
-  TILetExpr bindings body ->
-    TILetExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
-              (resolveConstraintsInTIExpr classEnv subst body)
-  TILetRecExpr bindings body ->
-    TILetRecExpr (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) bindings)
-                 (resolveConstraintsInTIExpr classEnv subst body)
-  TIIndexedExpr override expr indices ->
-    TIIndexedExpr override (resolveConstraintsInTIExpr classEnv subst expr) 
-                  (fmap (resolveConstraintsInTIExpr classEnv subst) <$> indices)
-  TIGenerateTensorExpr func shape ->
-    TIGenerateTensorExpr (resolveConstraintsInTIExpr classEnv subst func)
-                         (resolveConstraintsInTIExpr classEnv subst shape)
-  TITensorExpr shape elems ->
-    TITensorExpr (resolveConstraintsInTIExpr classEnv subst shape)
-                 (resolveConstraintsInTIExpr classEnv subst elems)
-  TITensorContractExpr tensor ->
-    TITensorContractExpr (resolveConstraintsInTIExpr classEnv subst tensor)
-  TITensorMapExpr func tensor ->
-    TITensorMapExpr (resolveConstraintsInTIExpr classEnv subst func)
-                    (resolveConstraintsInTIExpr classEnv subst tensor)
-  TITensorMap2Expr func t1 t2 ->
-    TITensorMap2Expr (resolveConstraintsInTIExpr classEnv subst func)
-                     (resolveConstraintsInTIExpr classEnv subst t1)
-                     (resolveConstraintsInTIExpr classEnv subst t2)
-  TIMatchExpr mode target matcher clauses ->
-    TIMatchExpr mode
-                (resolveConstraintsInTIExpr classEnv subst target)
-                (resolveConstraintsInTIExpr classEnv subst matcher)
-                (map (\(p, e) -> (p, resolveConstraintsInTIExpr classEnv subst e)) clauses)
-  _ -> node
 
 resolveConstraintWithInstances :: ClassEnv -> Subst -> Constraint -> Constraint
 resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =

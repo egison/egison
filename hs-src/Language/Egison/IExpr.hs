@@ -35,6 +35,7 @@ module Language.Egison.IExpr
   , tipType
   , stripType
   , stripTypeTopExpr
+  , mapTIExprChildren
   , Var (..)
   , stringToVar
   , extractNameFromVar
@@ -482,6 +483,79 @@ stripTypeTopExpr (TIPatternFunctionDecl name _scheme params retType body) =
     
     stripTypeLoopRange :: TILoopRange -> ILoopRange
     stripTypeLoopRange (TILoopRange e1 e2 pat) = ILoopRange (stripType e1) (stripType e2) (stripTypePat pat)
+
+-- | Apply a function to all immediate TIExpr children of a TIExprNode.
+-- Patterns are left untouched; use a separate pattern traversal if needed.
+-- When adding a new TIExprNode constructor, add its case here to keep
+-- all generic traversals (constraint resolution, etc.) working.
+mapTIExprChildren :: (TIExpr -> TIExpr) -> TIExprNode -> TIExprNode
+mapTIExprChildren f node = case node of
+  -- Leaf nodes
+  TIConstantExpr c        -> TIConstantExpr c
+  TIVarExpr name          -> TIVarExpr name
+  TIFunctionExpr names    -> TIFunctionExpr names
+
+  -- Single child
+  TILambdaExpr mVar ps body    -> TILambdaExpr mVar ps (f body)
+  TIMemoizedLambdaExpr args body -> TIMemoizedLambdaExpr args (f body)
+  TICambdaExpr var body         -> TICambdaExpr var (f body)
+  TIWithSymbolsExpr syms body   -> TIWithSymbolsExpr syms (f body)
+  TIQuoteExpr e                 -> TIQuoteExpr (f e)
+  TIQuoteSymbolExpr e           -> TIQuoteSymbolExpr (f e)
+  TITensorContractExpr e        -> TITensorContractExpr (f e)
+  TIFlipIndicesExpr e           -> TIFlipIndicesExpr (f e)
+
+  -- Two children
+  TIConsExpr e1 e2               -> TIConsExpr (f e1) (f e2)
+  TIJoinExpr e1 e2               -> TIJoinExpr (f e1) (f e2)
+  TISeqExpr e1 e2                -> TISeqExpr (f e1) (f e2)
+  TIGenerateTensorExpr fn sh     -> TIGenerateTensorExpr (f fn) (f sh)
+  TITensorExpr sh el             -> TITensorExpr (f sh) (f el)
+  TITensorMapExpr fn t           -> TITensorMapExpr (f fn) (f t)
+  TITransposeExpr p t            -> TITransposeExpr (f p) (f t)
+  TISubrefsExpr b e1 e2          -> TISubrefsExpr b (f e1) (f e2)
+  TISuprefsExpr b e1 e2          -> TISuprefsExpr b (f e1) (f e2)
+  TIUserrefsExpr b e1 e2         -> TIUserrefsExpr b (f e1) (f e2)
+
+  -- Three children
+  TIIfExpr c t e                    -> TIIfExpr (f c) (f t) (f e)
+  TITensorMap2Expr fn t1 t2         -> TITensorMap2Expr (f fn) (f t1) (f t2)
+  TITensorMap2WedgeExpr fn t1 t2    -> TITensorMap2WedgeExpr (f fn) (f t1) (f t2)
+
+  -- List children
+  TITupleExpr es           -> TITupleExpr (map f es)
+  TICollectionExpr es      -> TICollectionExpr (map f es)
+  TIVectorExpr es          -> TIVectorExpr (map f es)
+  TIInductiveDataExpr n es -> TIInductiveDataExpr n (map f es)
+
+  -- Function + args
+  TIApplyExpr fn args      -> TIApplyExpr (f fn) (map f args)
+  TIWedgeApplyExpr fn args -> TIWedgeApplyExpr (f fn) (map f args)
+
+  -- Hash pairs
+  TIHashExpr pairs -> TIHashExpr [(f k, f v) | (k, v) <- pairs]
+
+  -- Bindings + body
+  TILetExpr bs body    -> TILetExpr (mapBind f bs) (f body)
+  TILetRecExpr bs body -> TILetRecExpr (mapBind f bs) (f body)
+  TIDoExpr bs body     -> TIDoExpr (mapBind f bs) (f body)
+
+  -- Pattern matching (expression children only; patterns are untouched)
+  TIMatchExpr mode tgt mat cls ->
+    TIMatchExpr mode (f tgt) (f mat) (mapClause f cls)
+  TIMatchAllExpr mode tgt mat cls ->
+    TIMatchAllExpr mode (f tgt) (f mat) (mapClause f cls)
+
+  -- Matcher
+  TIMatcherExpr pds ->
+    TIMatcherExpr [(pat, f expr, mapBind f bs) | (pat, expr, bs) <- pds]
+
+  -- Indexed
+  TIIndexedExpr ov expr idxs ->
+    TIIndexedExpr ov (f expr) (fmap f <$> idxs)
+  where
+    mapBind g  = map (\(p, e) -> (p, g e))
+    mapClause g = map (\(p, e) -> (p, g e))
 
 -- | Typed pattern with recursive structure (like TIExpr)
 data TIPattern = TIPattern
