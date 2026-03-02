@@ -2,7 +2,7 @@
 Module      : Language.Egison.Type.TensorMapInsertion
 Licence     : MIT
 
-This module implements automatic tensorMap insertion for Phase 8 of the Egison compiler.
+This module implements automatic tensorMap insertion for Phase 7 of the Egison compiler.
 This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.

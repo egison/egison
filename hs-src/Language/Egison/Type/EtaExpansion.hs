@@ -3,7 +3,7 @@ Module      : Language.Egison.Type.EtaExpansion
 Licence     : MIT
 
 This module implements eta expansion for type class methods.
-It runs BEFORE TensorMapInsertion and TypeClassExpand in Phase 8.
+It runs BEFORE TensorMapInsertion and TypeClassExpand in Phase 7.
 
 The purpose is to transform type class method references into explicit lambda expressions:
   (+)  becomes  \etaVar1 etaVar2 -> (+) etaVar1 etaVar2
@@ -11,7 +11,7 @@ The purpose is to transform type class method references into explicit lambda ex
 This allows TensorMapInsertion to properly wrap binary functions with tensorMap2,
 and TypeClassExpand to later replace the method reference with dictionary access.
 
-Processing order in Phase 8:
+Processing order in Phase 7:
   1. EtaExpansion (this module) - eta-expand type class methods
   2. TensorMapInsertion - insert tensorMap/tensorMap2 where needed
   3. TypeClassExpand - replace method references with dictionary access

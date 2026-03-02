@@ -58,19 +58,12 @@ Phase 5-6: 型推論フェーズ IExpr → (Type, Subst) → TIExpr
   
   注: TIExprは--dump-typedやTypedDesugarのためだけに作成され、
       実際の評価には型情報を抜いたIExprが使用されます。
+  
+  注: 以前は Phase 7 (Type Attachment) として IExpr + TypeScheme → TIExpr の
+      変換を独立フェーズで行っていたが、現在は inferITopExpr が TIExpr を直接
+      生成するため Phase 5-6 に統合された。
   ↓
-Phase 7: Type Attachment (型情報の付与)
-  入力: IExpr + TypeScheme
-  出力: TIExpr (型スキーム付き内部表現)
-  
-  処理内容:
-  - 型推論で得られた型スキームをIExprに付与
-  - 環境から型スキームを取得（型変数名を保持）
-  - TIExpr = TIExpr { tiScheme :: TypeScheme, tiExpr :: IExpr }
-  
-  実装: Language.Egison.Eval (iTopExprToTITopExprFromScheme)
-  
-Phase 8: TypedDesugar (型駆動の変換)
+Phase 7: TypedDesugar (型駆動の変換)
   入力: TIExpr (型情報あり、型クラス未解決)
   出力: TIExpr (型情報あり、変換後)
   
@@ -98,7 +91,7 @@ Phase 8: TypedDesugar (型駆動の変換)
         Language.Egison.Type.TensorMapInsertion (insertTensorMaps :: TIExpr -> EvalM TIExpr)
   ↓
 【型情報を抜く】IExpr (型なし) ← TIExpr (型あり)
-  処理: Phase 8で変換したTIExprから型情報を抜いてIExprに戻す
+  処理: Phase 7で変換したTIExprから型情報を抜いてIExprに戻す
   理由:
   - 元のevalExpr (Core.hs) がIExprベースで実装されている
   - 実行時に型情報は不要（最適化）
@@ -107,7 +100,7 @@ Phase 8: TypedDesugar (型駆動の変換)
   実装: Language.Egison.IExpr (stripType :: TIExpr -> IExpr)
         Language.Egison.Eval (evalExpandedTopExprsTyped')
   ↓
-Phase 9-10: 評価 (Evaluation) IExpr → EgisonValue
+Phase 8-9: 評価 (Evaluation) IExpr → EgisonValue
   入力: IExpr (型情報なし内部表現)
   出力: EgisonValue (評価結果)
   
@@ -202,16 +195,16 @@ data TIExpr = TIExpr
 -- 例: Forall ["a", "b"] [Constraint "Eq" (TVar "a")] (TFun (TVar "a") (TVar "b"))
 -- 型変数、型クラス制約、型情報を保持
 
--- Phase 7: Type Attachment
+-- Phase 5-6: Type Inference (TIExpr directly generated)
 -- IExpr + TypeScheme → TIExpr
 -- 型推論で得られた型スキームをIExprに付与
 
--- Phase 8: TypedDesugar後
+-- Phase 7: TypedDesugar後
 -- tensorMapが挿入され、型クラスメソッドが具体的な関数に展開される
 -- TIExpr → TIExpr (1. tensorMap挿入、2. 型クラス展開の順で処理)
 -- 例: tensorMap2生成、(+) → numIntegerPlus, など
 
--- Phase 9-10: 評価結果
+-- Phase 8-9: 評価結果
 data EgisonValue = ...
 ```
 
@@ -224,7 +217,7 @@ data EgisonValue = ...
 | `TIExpr` | 型推論後/実行前 | あり | なし | 未解決※ | 型スキーム付き、実行可能 |
 | `EgisonValue` | 実行後 | あり | なし | なし | 評価結果 |
 
-※ 型クラスは型推論時に収集され、Phase 8で型クラスメソッドが具体的な関数に展開されます。
+※ 型クラスは型推論時に収集され、Phase 7で型クラスメソッドが具体的な関数に展開されます。
 
 ## 型情報の保持戦略
 
@@ -295,8 +288,8 @@ TypeScheme = Forall [TyVar] [Constraint] Type
 - `Forall ["a"] [] (TCollection (TVar "a"))` - 多相型（[a]）
 - `Forall ["a"] [Constraint "Eq" (TVar "a")] (TFun (TVar "a") (TVar "a"))` - 型クラス制約付き
 
-注意: 型クラス制約は Phase 8 (TypedDesugar) で具体的な関数への展開に使用されます。
-      型スキーム内に制約として保持されており、Phase 8で制約を満たす具体的な実装に変換されます。
+注意: 型クラス制約は Phase 7 (TypedDesugar) で具体的な関数への展開に使用されます。
+      型スキーム内に制約として保持されており、Phase 7で制約を満たす具体的な実装に変換されます。
 
 ## パターンマッチの処理
 
@@ -322,7 +315,7 @@ egison --dump-loads file.egi       # Phase 1: モジュール読み込み後
 egison --dump-env file.egi         # Phase 2: 環境構築後
 egison --dump-desugared file.egi   # Phase 3-4: Desugar後 (IExpr)
 egison --dump-typed file.egi       # Phase 5-6: 型推論後 (TIExpr)
-egison --dump-ti file.egi          # Phase 8: TypedDesugar後 (TIExpr)
+egison --dump-ti file.egi          # Phase 7: TypedDesugar後 (TIExpr)
 egison --verbose file.egi          # 全段階の詳細出力
 ```
 
@@ -340,9 +333,9 @@ $ egison --dump-typed test.egi
 def add : Integer -> Integer -> Integer
   := (λx y -> ((+ : Integer -> Integer -> Integer) (x : Integer) (y : Integer)) : Integer -> Integer -> Integer) : Integer -> Integer -> Integer
 
-# TIExprのダンプ例 (Phase 8: TypedDesugar後)
+# TIExprのダンプ例 (Phase 7: TypedDesugar後)
 $ egison --dump-ti test.egi
-=== Executable IR (Phase 8) ===
+=== Executable IR (Phase 7) ===
 def add : ∀. Integer -> Integer -> Integer
   := λx y -> (numIntegerPlus x y)
 ```

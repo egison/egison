@@ -79,7 +79,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
    ```
    統一結果: `[t_arg1 = t0, t_arg2 = t0]`
 
-8. TensorMap挿入判定 (Phase 8で実行):
+8. TensorMap挿入判定 (Phase 7で実行):
    - `t_arg1 (= t0)` は `{Num t0}` という制約付き
    - `t0` は `Tensor a` と統一できない（Numインスタンスがないため）
    - したがってスカラー型と判定される
@@ -238,7 +238,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
    しかし、実際には引数が `Tensor t1` である可能性がある:
    - `(*)` の適用時に、引数は実際には Tensor として渡される
-   - TensorMap挿入 (Phase 8) で調整される
+   - TensorMap挿入 (Phase 7) で調整される
 
    最終的な型:
    ```
@@ -254,7 +254,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 7: 型の一般化 (Infer.hs:3054-3084)
+### 型の一般化 (Infer.hs:3054-3084)
 
 **入力**: `{Num t1, Num t1} Tensor t1 -> Tensor t1 -> t1`
 
@@ -301,7 +301,7 @@ def dot := \t1 t2 -> foldl1 (+) (contract ((*) t1 t2))
 
 ---
 
-### Phase 8: TensorMap挿入 (TensorMapInsertion.hs:221-691)
+### Phase 7: TensorMap挿入 (TensorMapInsertion.hs:221-691)
 
 **注**: このフェーズは型推論後、評価前に実行されます
 

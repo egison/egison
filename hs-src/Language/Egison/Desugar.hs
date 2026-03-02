@@ -15,7 +15,7 @@ Syntactic Desugaring (Phase 3-4):
   
 Design Note (design/implementation.md):
 Pattern matching itself is NOT desugared here. Match expressions (IMatchExpr, 
-IMatchAllExpr) are kept as-is and processed during evaluation (Phase 10).
+IMatchAllExpr) are kept as-is and processed during evaluation (Phase 9).
 This allows Egison's sophisticated pattern matching to be implemented in the evaluator.
 -}
 

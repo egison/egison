@@ -9,12 +9,10 @@ Processing Flow (design/implementation.md):
   2. expandLoads (File loading with caching)
   3. Environment Building Phase (Collect data constructors, type classes, instances, type signatures)
   4. Desugar (Syntactic desugaring)
-  5. Type Inference Phase (Constraint generation, unification, type class constraint processing)
-  6. Type Check Phase (Verify type annotations, check type class constraints)
-  7. TypedTopExpr (Typed AST)
-  8. TypedDesugar (Type-driven transformations: type class expansion, tensorMap insertion)
-  9. TITopExpr (Evaluatable typed IR with type info preserved)
- 10. Evaluation (Pattern matching execution, expression evaluation, IO actions)
+  5-6. Type Inference Phase (Constraint generation, unification, TIExpr generation)
+  7. TypedDesugar (Type-driven transformations: tensorMap insertion, type class expansion)
+  8. Definition Binding (Recursive binding of all definitions)
+  9. Evaluation (Pattern matching execution, expression evaluation, IO actions)
 -}
 
 module Language.Egison.Eval
@@ -163,14 +161,14 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   when (optDumpTyped opts && shouldDumpTyped) $
     dumpPhaseExprs "Typed AST (Phase 5-6: Type Inference)" "End of Typed AST" (accumTypedExprs accum)
   when (optDumpTi opts && shouldDumpTyped) $
-    dumpPhaseExprs "Typed AST after TensorMap Insertion (Phase 8a)" "End of TensorMap Insertion AST" (accumTiExprs accum)
+    dumpPhaseExprs "Typed AST after TensorMap Insertion (Phase 7a)" "End of TensorMap Insertion AST" (accumTiExprs accum)
   when (optDumpTc opts && shouldDumpTyped) $
-    dumpPhaseExprs "Typed AST after Type Class Expansion (Phase 8b)" "End of Type Class Expansion AST" (accumTcExprs accum)
+    dumpPhaseExprs "Typed AST after Type Class Expansion (Phase 7b)" "End of Type Class Expansion AST" (accumTcExprs accum)
 
-  -- Phase 9: Bind all definitions together (supports mutual recursion)
+  -- Phase 8: Bind all definitions together (supports mutual recursion)
   envWithPatFuncs <- recursiveBindAll env (accumBindings accum) (accumPatFuncBindings accum)
 
-  -- Phase 10: Evaluate non-definition expressions in order
+  -- Phase 9: Evaluate non-definition expressions in order
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
       evalResult <- catchError
         (Right <$> evalTopExpr' currentEnv iExpr)
@@ -288,7 +286,7 @@ handleTypeError err acc expr printValues = do
     Nothing      -> return acc
     Just iExpr   -> return $ classifyITopExpr iExpr printValues acc
 
--- | Run TensorMap insertion and TypeClass expansion (Phase 8a-8b),
+-- | Run TensorMap insertion and TypeClass expansion (Phase 7a-7b),
 -- then classify the resulting ITopExpr.
 runTypedDesugaring :: EgisonOpts -> PipelineAccum -> TITopExpr -> Bool -> EvalM PipelineAccum
 runTypedDesugaring opts acc tiTopExpr printValues = do
@@ -296,7 +294,7 @@ runTypedDesugaring opts acc tiTopExpr printValues = do
              then acc { accumTypedExprs = accumTypedExprs acc ++ [Just tiTopExpr] }
              else acc
 
-  -- Phase 8a: TensorMap Insertion
+  -- Phase 7a: TensorMap Insertion
   mAfterTensor <- desugarTypedTopExprT_TensorMapOnly tiTopExpr
   case mAfterTensor of
     Nothing -> return acc1
@@ -305,7 +303,7 @@ runTypedDesugaring opts acc tiTopExpr printValues = do
                  then acc1 { accumTiExprs = accumTiExprs acc1 ++ [Just afterTensor] }
                  else acc1
 
-      -- Phase 8b: Type Class Expansion
+      -- Phase 7b: Type Class Expansion
       mAfterTC <- desugarTypedTopExprT_TypeClassOnly afterTensor
       case mAfterTC of
         Nothing -> return acc2

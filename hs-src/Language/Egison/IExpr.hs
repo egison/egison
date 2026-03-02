@@ -211,9 +211,9 @@ makeIApply fn args = IApplyExpr (IVarExpr fn) args
 --
 -- Typed Internal Expressions
 --------------------------------------------------------------------------------
--- Phase 9: TIExpr - Evaluatable Typed IR with Type Info Preserved
+-- Phase 7 output: TIExpr - Typed IR with Type Info Preserved
 --------------------------------------------------------------------------------
--- TIExpr is the result of Phase 8 (TypedDesugar) and input to Phase 10 (Evaluation).
+-- TIExpr is the result of Phase 7 (TypedDesugar) and input to Phase 8-9 (Binding/Evaluation).
 -- It carries type information alongside the expression for:
 --   - Better runtime error messages with type information
 --   - Type-based dispatch during evaluation
@@ -224,8 +224,8 @@ makeIApply fn args = IApplyExpr (IVarExpr fn) args
 -- Type classes have already been resolved to dictionary passing, so no type class
 -- constraints are needed here.
 
--- | Typed top-level expression (Phase 9: TITopExpr)
--- Result of TypedDesugar phase, ready for evaluation.
+-- | Typed top-level expression
+-- Result of Phase 7 (TypedDesugar), ready for evaluation.
 data TITopExpr
   = TIDefine TypeScheme Var TIExpr     -- ^ Typed definition with type scheme (includes type vars & constraints)
   | TIDefineMany [(Var, TIExpr)]       -- ^ Multiple definitions (letrec)
@@ -242,9 +242,9 @@ data TITopExpr
     -- TIPattern: typed body
   deriving Show
 
--- | Typed internal expression (Phase 9: TIExpr)
+-- | Typed internal expression (TIExpr)
 -- Each expression node carries its inferred/checked type scheme with type variables and constraints.
--- TypeScheme info is preserved for Phase 8 (TypedDesugar) to perform type-driven transformations
+-- TypeScheme info is preserved for Phase 7 (TypedDesugar) to perform type-driven transformations
 -- such as type class dictionary passing and tensorMap insertion.
 --
 -- NEW: TIExpr is now RECURSIVE - each sub-expression is also a TIExpr,
