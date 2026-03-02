@@ -140,8 +140,8 @@ classifyITopExpr iExpr printValues acc = case iExpr of
     acc { accumNonDefExprs = accumNonDefExprs acc ++ [(iExpr, printValues)] }
 
 --------------------------------------------------------------------------------
--- Phase 2-10: Environment Building → Desugar → Type Inference/Check →
---             TypedDesugar → Evaluation
+-- Phase 2-9: Environment Building → Desugar → Type Inference →
+--            TypedDesugar → Binding → Evaluation
 --------------------------------------------------------------------------------
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
