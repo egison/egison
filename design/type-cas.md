@@ -622,7 +622,7 @@ def n : Integer := coerce x    -- ユーザーの責任
 | 2 | 高 | `declare indeterminate` の廃止 | **完了** | `declare symbol` に統合し、`with` 句の有無で不定元とシンボルを区別する形に修正済み |
 | 3 | 中 | `Poly a [...]` / `Poly a [..]` の型構文 | 設計済み | 閉じた `[s1, ...]` と開いた `[..]` の2形式。Type ADT に `TPoly Type SymbolSet` を追加し、`SymbolSet` は `Closed [SymbolExpr]` / `Open` の2構成子。パーサーでの `[a]`（コレクション型）との曖昧性解消が必要 |
 | 4 | 中 | 構成的な内部表現 (`CASValue`) | 設計中 | 基本構造（`CASInteger`, `CASPoly`, `CASDiv` の再帰的データ型、ローラン多項式）は決定。`CASFactor` の要否、`EgisonValue` との統合方針、正規化の詳細、パターンマッチの提供、既存コードの移行方針が未決定。詳細は「オープンな問題 > CASValue の残設計課題」を参照 |
-| 5 | 中 | `Num` クラスの分割 | 設計中 | 詳細は `type-class.md` を参照。前提として型クラス基盤の強化（複数スーパークラスのパース、スーパークラス制約伝播）が必要 |
+| 5 | 中 | `Num` クラスの分割 | **完了** | `AddSemigroup` → `AddMonoid` → `AddGroup`、`MulSemigroup` → `MulMonoid` → `MulGroup`、`Ring`、`Field`、`GCDDomain`、`EuclideanDomain` の階層を定義・実装済み。前提の基盤強化（複数スーパークラスのパース、制約伝播、0-arity メソッド）も完了。詳細は `type-class.md` を参照 |
 | 6 | 中 | `introduce ... with ...` 構文の修正 | 未着手 | `sqrt` 関数の定義例で使われている `introduce ... with ... return ...` はEgisonに存在しない構文。簡約規則の動的登録を宣言的構文で表現するか、`IO` 型に包むかを決める必要がある |
 | 7 | 低 | `coerce` の安全性設計 | 未着手 | `Factor` → `Integer` 等のダウンキャストの安全なAPIを設計する。Egisonの強みであるパターンマッチを活用した安全な抽出方法を検討する |
 | 8 | 低 | マーカークラスのサポート確認 | **確認済み** | メソッドなしクラス定義は動作する。`where` なしインスタンスは不可だが `where` + 空メソッドで代用可能。詳細は `type-class.md` を参照 |
