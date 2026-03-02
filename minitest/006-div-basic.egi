@@ -1,0 +1,19 @@
+-- Minimal reproduction of the / operator dispatch failure.
+--
+-- The / operator works in test expressions (TITest/TIExecute):
+--   def x := 3
+--   x / 2           --> 3 / 2   (OK)
+--
+-- But fails when used inside a TIDefine whose result is later evaluated:
+--   def x := 3
+--   def y := x / 2
+--   y               --> Evaluation error: fieldMathExpr / ringMathExpr
+--
+-- Root cause: Field and Ring are marker type classes (no methods).
+-- The type class expansion generates dictionary variable names
+-- (fieldMathExpr, ringMathExpr) that have no runtime binding,
+-- so Egison's math system treats them as symbolic variables.
+
+def x : MathExpr := 3
+def y : MathExpr := x / 2
+assertEqual "div-in-def" y (3 / 2)

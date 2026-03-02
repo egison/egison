@@ -154,11 +154,13 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
 
   TITest tiexpr -> do
     tiexpr' <- expandTypeClassMethodsT tiexpr
-    return $ Just (TITest tiexpr')
+    tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
+    return $ Just (TITest tiexpr'')
 
   TIExecute tiexpr -> do
     tiexpr' <- expandTypeClassMethodsT tiexpr
-    return $ Just (TIExecute tiexpr')
+    tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
+    return $ Just (TIExecute tiexpr'')
 
   TILoadFile path ->
     return $ Just (TILoadFile path)
