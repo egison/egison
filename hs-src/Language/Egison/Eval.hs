@@ -60,7 +60,7 @@ import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarnings
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
-import           Language.Egison.Type.Error (formatTypeError, formatTypeWarning)
+import           Language.Egison.Type.Error (TypeError, formatTypeError, formatTypeWarning)
 import           Language.Egison.Type.Check (builtinEnv)
 import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
 import           Language.Egison.Pretty (prettyStr)
@@ -75,13 +75,8 @@ evalExpr env expr = desugarExpr expr >>= evalExprDeep env
 --------------------------------------------------------------------------------
 -- Phase 1: expandLoads - File Loading with Caching
 --------------------------------------------------------------------------------
--- Recursively expand all Load/LoadFile statements into a flat list of TopExprs.
--- This phase handles file reading and prevents duplicate loading through caching.
--- After this phase, all source code is loaded and ready for environment building.
 
 -- | Expand all Load/LoadFile statements recursively into a flat list of TopExprs.
--- Files are loaded recursively and deduplicated (same file loaded multiple times
--- will only appear once in the final list).
 expandLoads :: [TopExpr] -> EvalM [TopExpr]
 expandLoads [] = return []
 expandLoads (expr:rest) = case expr of
@@ -104,255 +99,76 @@ expandLoads (expr:rest) = case expr of
 --------------------------------------------------------------------------------
 
 -- | Evaluate an Egison top expression.
--- Implements the complete processing flow:
---   expandLoads → Environment Building → Desugar → Type Inference/Check → 
---   TypedDesugar → Evaluation
 evalTopExpr :: Env -> TopExpr -> EvalM (Maybe EgisonValue, Env)
 evalTopExpr env topExpr = do
-  -- Phase 1: Expand all Load/LoadFile recursively
   expanded <- expandLoads [topExpr]
-  -- Phase 2-10: Process all expanded expressions through remaining pipeline
   evalExpandedTopExprsTyped env expanded
 
 -- | Evaluate expanded top expressions using typed pipeline
--- TODO: Implement type environment accumulation for proper type checking
 evalExpandedTopExprsTyped :: Env -> [TopExpr] -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped env exprs = evalExpandedTopExprsTyped' env exprs False True
 
 --------------------------------------------------------------------------------
--- Phase 2-10: Environment Building → Desugar → Type Inference/Check → 
+-- Pipeline Accumulator
+--------------------------------------------------------------------------------
+
+-- | Accumulator used during per-expression fold in phases 3-8.
+-- Separates value bindings, pattern function bindings, non-definition expressions,
+-- and optional dump lists for --dump-typed / --dump-ti / --dump-tc flags.
+data PipelineAccum = PipelineAccum
+  { accumBindings       :: [(Var, IExpr)]
+  , accumPatFuncBindings :: [(String, IExpr)]
+  , accumNonDefExprs    :: [(ITopExpr, Bool)]
+  , accumTypedExprs     :: [Maybe TITopExpr]
+  , accumTiExprs        :: [Maybe TITopExpr]
+  , accumTcExprs        :: [Maybe TITopExpr]
+  }
+
+emptyAccum :: PipelineAccum
+emptyAccum = PipelineAccum [] [] [] [] [] []
+
+-- | Classify an ITopExpr into one of the accumulator bins.
+classifyITopExpr :: ITopExpr -> Bool -> PipelineAccum -> PipelineAccum
+classifyITopExpr iExpr printValues acc = case iExpr of
+  IDefine name expr ->
+    acc { accumBindings = accumBindings acc ++ [(name, expr)] }
+  IDefineMany defs ->
+    acc { accumBindings = accumBindings acc ++ defs }
+  IPatternFunctionDecl name _tyVars params _retType body ->
+    let paramNames = map fst params
+        patternFuncExpr = IPatternFuncExpr paramNames body
+    in acc { accumPatFuncBindings = accumPatFuncBindings acc ++ [(name, patternFuncExpr)] }
+  _ ->
+    acc { accumNonDefExprs = accumNonDefExprs acc ++ [(iExpr, printValues)] }
+
+--------------------------------------------------------------------------------
+-- Phase 2-10: Environment Building → Desugar → Type Inference/Check →
 --             TypedDesugar → Evaluation
 --------------------------------------------------------------------------------
 
 -- | Evaluate expanded top expressions using the typed pipeline with optional printing.
--- This function implements phases 2-10 of the processing flow.
 evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe EgisonValue, Env)
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
-  
-  --------------------------------------------------------------------------------
-  -- Phase 2: Environment Building Phase (完全に独立したフェーズ)
-  --------------------------------------------------------------------------------
-  -- Collect ALL environment information BEFORE type inference begins:
-  --   1. Data constructor definitions (from InductiveDecl)
-  --   2. Type class definitions (from ClassDeclExpr)
-  --   3. Instance definitions (from InstanceDeclExpr)
-  --   4. Type signatures (from DefineWithType)
-  
-  -- Get existing environments (may contain previously loaded libraries)
-  currentTypeEnv <- getTypeEnv
-  currentClassEnv <- getClassEnv
-  currentPatternEnv <- getPatternEnv
 
-  -- Build environments from current expressions
-  envResult <- buildEnvironments exprs
+  -- Phase 2: Environment Building
+  buildAndMergeEnvironments exprs opts
 
-  -- Merge existing environments with newly built environments
-  -- New definitions extend existing ones (can override)
-  let newTypeEnv = ebrTypeEnv envResult
-      -- If currentTypeEnv is empty, use builtinEnv as base
-      baseTypeEnv = if null (envToList currentTypeEnv) then builtinEnv else currentTypeEnv
-      mergedTypeEnv = extendEnvMany (envToList newTypeEnv) baseTypeEnv
-      mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
-      -- Merge pattern environments (new definitions can override)
-      -- Pattern constructors from ebrPatternConstructorEnv and pattern functions from ebrPatternTypeEnv
-      patternConstructorEnv = ebrPatternConstructorEnv envResult
-      newPatternFuncEnv = ebrPatternTypeEnv envResult
-  
-  -- Get current pattern function environment
-  currentPatternFuncEnv <- getPatternFuncEnv
-  
-  let -- Merge both into a single pattern environment
-      mergedPatternEnv = foldr (\(name, scheme) env -> extendPatternEnv name scheme env) 
-                               (foldr (\(name, scheme) env -> extendPatternEnv name scheme env)
-                                      currentPatternEnv
-                                      (patternEnvToList patternConstructorEnv))
-                               (patternEnvToList newPatternFuncEnv)
-      -- Also update pattern function environment separately
-      mergedPatternFuncEnv = foldr (\(name, scheme) env -> extendPatternEnv name scheme env)
-                                   currentPatternFuncEnv
-                                   (patternEnvToList newPatternFuncEnv)
-
-  -- Update EvalState with merged environments
-  setTypeEnv mergedTypeEnv
-  setClassEnv mergedClassEnv
-  setPatternEnv mergedPatternEnv
-  setPatternFuncEnv mergedPatternFuncEnv
-  
-  -- Register constructors to EvalState
-  forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
-    registerConstructor ctorName ctorInfo
-  
-  -- Dump environment if requested
-  when (optDumpEnv opts) $ do
-    dumpEnvironment mergedTypeEnv mergedClassEnv (ebrConstructorEnv envResult) 
-                    (ebrPatternConstructorEnv envResult) (ebrPatternTypeEnv envResult)
-  
-  -- Dump desugared AST if requested
-  when (optDumpDesugared opts) $ do
-    desugaredExprs <- desugarTopExprs exprs
-    dumpDesugared (map Just desugaredExprs)
-  
-  -- Get the environments for type inference
-  -- Permissive mode allows falling back to untyped evaluation on type errors
   let permissive = not (optTypeCheckStrict opts)
-  
-  -- Process each expression sequentially through phases 3-8 (type inference and desugaring)
-  -- Collect all definitions to bind them together later (Phase 9)
-  -- Non-definition expressions (ITest, IExecute) will be evaluated in Phase 10
-  -- Also collect typed ASTs if dump-typed, dump-ti, or dump-tc is enabled
-  -- The accumulator separates regular value bindings from pattern function bindings so
-  -- they can be placed in different environments after collection.
-  ((allBindings, allPatFuncBindings, nonDefExprs), typedExprs, tiExprs, tcExprs) <- foldM (\((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs) expr -> do
-    -- Get current type and class environments from EvalState
-    currentTypeEnv <- getTypeEnv
-    currentClassEnv <- getClassEnv
-    
-    -- Phase 3-4: Desugar (TopExpr → ITopExpr)
-    mITopExpr <- desugarTopExpr expr
-    
-    case mITopExpr of
-      Nothing -> return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)  -- No desugared output
-      Just iTopExpr -> do
-        -- Phase 5-6: Type Inference (ITopExpr → TypedITopExpr)
-        let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
-        -- Get the current pattern environment from EvalState
-        currentPatternEnv' <- getPatternEnv
-        currentPatternFuncEnv' <- getPatternFuncEnv
-        -- Add pattern function types to inferEnv so they can be referenced as variables
-        let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
-            enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
-            initState = (initialInferStateWithConfig inferConfig) {
-              inferEnv = enrichedTypeEnv,
-              inferClassEnv = currentClassEnv,
-              inferPatternEnv = currentPatternEnv',
-              inferPatternFuncEnv = currentPatternFuncEnv'
-            }
-        (result, warnings, finalState) <- liftIO $ 
-          runInferWithWarningsAndState (inferITopExpr iTopExpr) initState
-        
-        let updatedTypeEnv = inferEnv finalState
-        let updatedClassEnv = inferClassEnv finalState
-        let updatedPatternEnv = inferPatternEnv finalState
-        let updatedPatternFuncEnv = inferPatternFuncEnv finalState
-    
-        -- Print type warnings if any
-        when (not (null warnings)) $ do
-          liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
-        
-        -- Update type, class, and pattern environments in EvalState
-        setTypeEnv updatedTypeEnv
-        setClassEnv updatedClassEnv
-        setPatternEnv updatedPatternEnv
-        setPatternFuncEnv updatedPatternFuncEnv
-        
-        case result of
-          Left err -> do
-            liftIO $ hPutStrLn stderr $ "Type error:\n" ++ formatTypeError err
-            -- Fallback: Use untyped evaluation if type checking fails (permissive mode)
-            -- Type errors are handled immediately, not collected
-            topExpr' <- desugarTopExpr expr
-            case topExpr' of
-              Nothing -> return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
-              Just topExpr'' -> do
-                -- Evaluate type-error expressions immediately (not collected)
-                -- This is a fallback for permissive mode
-                case topExpr'' of
-                  IDefine name expr ->
-                    return ((bindings ++ [(name, expr)], patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
-                  IDefineMany defs ->
-                    return ((bindings ++ defs, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
-                  IPatternFunctionDecl name _tyVars params _retType body ->
-                    let paramNames = map fst params
-                        patternFuncExpr = IPatternFuncExpr paramNames body
-                    in return ((bindings, patFuncBindings ++ [(name, patternFuncExpr)], nonDefs), typedExprs, tiExprs, tcExprs)
-                  _ ->
-                    -- Non-definition: collect for later evaluation
-                    return ((bindings, patFuncBindings, nonDefs ++ [(topExpr'', printValues)]), typedExprs, tiExprs, tcExprs)
 
-          Right (Nothing, _subst) ->
-            -- No code generated (e.g., load statements that are already processed)
-            return ((bindings, patFuncBindings, nonDefs), typedExprs, tiExprs, tcExprs)
-          
-          Right (Just tiTopExpr, _subst) -> do
-            -- Phase 7: inferITopExpr now returns TITopExpr directly
-            -- No need for separate conversion
+  -- Phases 3-8: Desugar, type-infer, typed-desugar each expression
+  accum <- foldM (processOneExpr opts permissive printValues) emptyAccum exprs
 
-            -- Collect typed AST for --dump-typed (Phase 6: after type inference, before TypedDesugar)
-            let typedExprs' = if optDumpTyped opts then typedExprs ++ [Just tiTopExpr] else typedExprs
+  -- Dump typed ASTs before evaluation
+  when (optDumpTyped opts && shouldDumpTyped) $
+    dumpPhaseExprs "Typed AST (Phase 5-6: Type Inference)" "End of Typed AST" (accumTypedExprs accum)
+  when (optDumpTi opts && shouldDumpTyped) $
+    dumpPhaseExprs "Typed AST after TensorMap Insertion (Phase 8a)" "End of TensorMap Insertion AST" (accumTiExprs accum)
+  when (optDumpTc opts && shouldDumpTyped) $
+    dumpPhaseExprs "Typed AST after Type Class Expansion (Phase 8b)" "End of Type Class Expansion AST" (accumTcExprs accum)
 
-            -- Phase 8a: TensorMap Insertion
-            -- Insert tensorMap where needed (scalar vs tensor argument type conversion)
-            mTiTopExprAfterTensorMap <- desugarTypedTopExprT_TensorMapOnly tiTopExpr
-
-            case mTiTopExprAfterTensorMap of
-              Nothing ->
-                -- Load/LoadFile statements - no evaluation needed
-                return ((bindings, patFuncBindings, nonDefs), typedExprs', tiExprs, tcExprs)
-
-              Just tiTopExprAfterTensorMap -> do
-                -- Collect TensorMap-inserted AST for --dump-ti (after TensorMap insertion)
-                let tiExprs' = if optDumpTi opts then tiExprs ++ [Just tiTopExprAfterTensorMap] else tiExprs
-
-                -- Phase 8b: Type Class Expansion
-                -- Expand type class method calls to dictionary-based dispatch
-                mTcTopExprAfterTypeClass <- desugarTypedTopExprT_TypeClassOnly tiTopExprAfterTensorMap
-
-                case mTcTopExprAfterTypeClass of
-                  Nothing ->
-                    -- Load/LoadFile statements - no evaluation needed
-                    return ((bindings, patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs)
-
-                  Just tcTopExprAfterTypeClass -> do
-                    -- Collect TypeClass-expanded AST for --dump-tc (after TypeClass expansion)
-                    let tcExprs' = if optDumpTc opts then tcExprs ++ [Just tcTopExprAfterTypeClass] else tcExprs
-
-                    -- Extract ITopExpr for evaluation
-                    let iTopExprExpanded = stripTypeTopExpr tcTopExprAfterTypeClass
-
-                    -- Type scheme is already in the environment (added by inferITopExpr), no need to add again
-
-                    -- Phase 9-10: Collect definitions and non-definitions
-                    -- Definitions will be bound together using recursiveBind to support mutual recursion
-                    -- Non-definitions will be evaluated sequentially after all definitions are bound
-                    case iTopExprExpanded of
-                      IDefine name expr ->
-                        -- Collect definition for later binding
-                        return ((bindings ++ [(name, expr)], patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs')
-                      IDefineMany defs ->
-                        -- Collect multiple definitions for later binding
-                        return ((bindings ++ defs, patFuncBindings, nonDefs), typedExprs', tiExprs', tcExprs')
-                      IPatternFunctionDecl name _tyVars params _retType body ->
-                        -- Collect pattern function definition separately; it will be bound
-                        -- into the pattern function environment (not the value environment)
-                        -- via recursiveBindPatFuncs after all regular definitions are bound.
-                        let paramNames = map fst params
-                            patternFuncExpr = IPatternFuncExpr paramNames body
-                        in return ((bindings, patFuncBindings ++ [(name, patternFuncExpr)], nonDefs), typedExprs', tiExprs', tcExprs')
-                      _ ->
-                        -- Non-definition expressions (ITest, IExecute)
-                        -- Collect for evaluation after all definitions are bound
-                        return ((bindings, patFuncBindings, nonDefs ++ [(iTopExprExpanded, printValues)]), typedExprs', tiExprs', tcExprs')
-    ) (([], [], []), [], [], []) exprs
-
-  -- Dump typed AST BEFORE evaluation (so dumps are available even if evaluation fails)
-  -- This is important for debugging - we want to see the typed AST even when there are runtime errors
-  when (optDumpTyped opts && shouldDumpTyped) $ do
-    dumpTyped typedExprs
-
-  when (optDumpTi opts && shouldDumpTyped) $ do
-    dumpTi tiExprs
-
-  when (optDumpTc opts && shouldDumpTyped) $ do
-    dumpTc tcExprs
-
-  -- Phase 9: Bind all regular value definitions and pattern function definitions
-  -- together in a single step via recursiveBindAll so that every thunk is closed
-  -- over a single environment that contains both regular values and pattern
-  -- functions.  Regular values go into the normal env layers; pattern functions
-  -- go into the separate PatFuncEnv.  This is necessary because ordinary
-  -- definitions may contain matchAll expressions that invoke pattern functions.
-  envWithPatFuncs <- recursiveBindAll env allBindings allPatFuncBindings
+  -- Phase 9: Bind all definitions together (supports mutual recursion)
+  envWithPatFuncs <- recursiveBindAll env (accumBindings accum) (accumPatFuncBindings accum)
 
   -- Phase 10: Evaluate non-definition expressions in order
   (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
@@ -369,14 +185,141 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
             Nothing -> return ()
             Just val -> valueToStr val >>= liftIO . putStrLn
           return (mVal, env'')
-    ) (Nothing, envWithPatFuncs) nonDefExprs
+    ) (Nothing, envWithPatFuncs) (accumNonDefExprs accum)
 
   return (lastVal, finalEnv)
 
 --------------------------------------------------------------------------------
--- Phase 2 Helper: Environment Building (moved to EnvBuilder module)
+-- Phase 2: Environment Building & Merging
 --------------------------------------------------------------------------------
--- | Evaluate an Egison top expression.
+
+buildAndMergeEnvironments :: [TopExpr] -> EgisonOpts -> EvalM ()
+buildAndMergeEnvironments exprs opts = do
+  currentTypeEnv <- getTypeEnv
+  currentClassEnv <- getClassEnv
+  currentPatternEnv <- getPatternEnv
+  currentPatternFuncEnv <- getPatternFuncEnv
+
+  envResult <- buildEnvironments exprs
+
+  let newTypeEnv = ebrTypeEnv envResult
+      baseTypeEnv = if null (envToList currentTypeEnv) then builtinEnv else currentTypeEnv
+      mergedTypeEnv = extendEnvMany (envToList newTypeEnv) baseTypeEnv
+      mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
+      patternConstructorEnv = ebrPatternConstructorEnv envResult
+      newPatternFuncEnv = ebrPatternTypeEnv envResult
+      mergedPatternEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
+                               (foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
+                                      currentPatternEnv
+                                      (patternEnvToList patternConstructorEnv))
+                               (patternEnvToList newPatternFuncEnv)
+      mergedPatternFuncEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
+                                   currentPatternFuncEnv
+                                   (patternEnvToList newPatternFuncEnv)
+
+  setTypeEnv mergedTypeEnv
+  setClassEnv mergedClassEnv
+  setPatternEnv mergedPatternEnv
+  setPatternFuncEnv mergedPatternFuncEnv
+
+  forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
+    registerConstructor ctorName ctorInfo
+
+  when (optDumpEnv opts) $
+    dumpEnvironment mergedTypeEnv mergedClassEnv (ebrConstructorEnv envResult)
+                    (ebrPatternConstructorEnv envResult) (ebrPatternTypeEnv envResult)
+
+  when (optDumpDesugared opts) $ do
+    desugaredExprs <- desugarTopExprs exprs
+    dumpDesugared (map Just desugaredExprs)
+
+--------------------------------------------------------------------------------
+-- Per-Expression Pipeline (Phases 3-8)
+--------------------------------------------------------------------------------
+
+processOneExpr :: EgisonOpts -> Bool -> Bool -> PipelineAccum -> TopExpr -> EvalM PipelineAccum
+processOneExpr opts permissive printValues acc expr = do
+  currentTypeEnv <- getTypeEnv
+  currentClassEnv <- getClassEnv
+
+  mITopExpr <- desugarTopExpr expr
+
+  case mITopExpr of
+    Nothing -> return acc
+    Just iTopExpr -> do
+      -- Phase 5-6: Type Inference
+      let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
+      currentPatternEnv' <- getPatternEnv
+      currentPatternFuncEnv' <- getPatternFuncEnv
+      let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
+          enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
+          initState = (initialInferStateWithConfig inferConfig) {
+            inferEnv = enrichedTypeEnv,
+            inferClassEnv = currentClassEnv,
+            inferPatternEnv = currentPatternEnv',
+            inferPatternFuncEnv = currentPatternFuncEnv'
+          }
+      (result, warnings, finalState) <- liftIO $
+        runInferWithWarningsAndState (inferITopExpr iTopExpr) initState
+
+      when (not (null warnings)) $
+        liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
+
+      setTypeEnv (inferEnv finalState)
+      setClassEnv (inferClassEnv finalState)
+      setPatternEnv (inferPatternEnv finalState)
+      setPatternFuncEnv (inferPatternFuncEnv finalState)
+
+      case result of
+        Left err -> handleTypeError err acc expr printValues
+
+        Right (Nothing, _subst) ->
+          return acc
+
+        Right (Just tiTopExpr, _subst) ->
+          runTypedDesugaring opts acc tiTopExpr printValues
+
+-- | Handle type error: fall back to untyped evaluation in permissive mode.
+handleTypeError :: TypeError -> PipelineAccum -> TopExpr -> Bool -> EvalM PipelineAccum
+handleTypeError err acc expr printValues = do
+  liftIO $ hPutStrLn stderr $ "Type error:\n" ++ formatTypeError err
+  topExpr' <- desugarTopExpr expr
+  case topExpr' of
+    Nothing      -> return acc
+    Just iExpr   -> return $ classifyITopExpr iExpr printValues acc
+
+-- | Run TensorMap insertion and TypeClass expansion (Phase 8a-8b),
+-- then classify the resulting ITopExpr.
+runTypedDesugaring :: EgisonOpts -> PipelineAccum -> TITopExpr -> Bool -> EvalM PipelineAccum
+runTypedDesugaring opts acc tiTopExpr printValues = do
+  let acc1 = if optDumpTyped opts
+             then acc { accumTypedExprs = accumTypedExprs acc ++ [Just tiTopExpr] }
+             else acc
+
+  -- Phase 8a: TensorMap Insertion
+  mAfterTensor <- desugarTypedTopExprT_TensorMapOnly tiTopExpr
+  case mAfterTensor of
+    Nothing -> return acc1
+    Just afterTensor -> do
+      let acc2 = if optDumpTi opts
+                 then acc1 { accumTiExprs = accumTiExprs acc1 ++ [Just afterTensor] }
+                 else acc1
+
+      -- Phase 8b: Type Class Expansion
+      mAfterTC <- desugarTypedTopExprT_TypeClassOnly afterTensor
+      case mAfterTC of
+        Nothing -> return acc2
+        Just afterTC -> do
+          let acc3 = if optDumpTc opts
+                     then acc2 { accumTcExprs = accumTcExprs acc2 ++ [Just afterTC] }
+                     else acc2
+              iTopExprExpanded = stripTypeTopExpr afterTC
+          return $ classifyITopExpr iTopExprExpanded printValues acc3
+
+--------------------------------------------------------------------------------
+-- Remaining public API
+--------------------------------------------------------------------------------
+
 evalTopExprStr :: Env -> TopExpr -> EvalM (Maybe String, Env)
 evalTopExprStr env topExpr = do
   (val, env') <- evalTopExpr env topExpr
@@ -393,21 +336,17 @@ valueToStr val = do
     Just lang -> return (prettyMath lang val)
 
 -- | Evaluate Egison top expressions.
--- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprs :: Env -> [TopExpr] -> EvalM Env
 evalTopExprs env exprs = evalTopExprs' env exprs True True
 
 -- | Evaluate Egison top expressions with control over printing and dumping.
 evalTopExprs' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM Env
 evalTopExprs' env exprs printValues shouldDumpTyped = do
-  -- Expand all Load/LoadFile recursively
   expanded <- expandLoads exprs
-  -- Evaluate using typed pipeline with printing
   (_, env') <- evalExpandedTopExprsTyped' env expanded printValues shouldDumpTyped
   return env'
 
 -- | Evaluate Egison top expressions without printing.
--- Pipeline: ExpandLoads → TypeCheck → TypedDesugar → Eval
 evalTopExprsNoPrint :: Env -> [TopExpr] -> EvalM Env
 evalTopExprsNoPrint env exprs = evalTopExprs' env exprs False True
 
@@ -506,12 +445,8 @@ evalTopExpr' env (ILoadFile file) = do
   env' <- recursiveBindAll env bindings patFuncBindings
   return (Nothing, env')
 evalTopExpr' env (IDeclareSymbol _names _mType) = do
-  -- Symbol declarations are only used during type inference
-  -- At runtime, they don't produce any value or modify the environment
   return (Nothing, env)
 evalTopExpr' _env (IPatternFunctionDecl name _ _ _ _) = do
-  -- Pattern function declarations are now handled via recursiveBind
-  -- They should not reach here; this is a fallback
   throwError $ Default $ "Pattern function " ++ name ++ " should have been converted to IPatternFuncExpr"
 
 --------------------------------------------------------------------------------
@@ -615,49 +550,16 @@ dumpDesugared desugaredExprs = do
     putStrLn ""
     putStrLn "=== End of Desugared AST ==="
 
--- | Dump typed AST after Phase 6 (Type Inference & Check)
-dumpTyped :: [Maybe TITopExpr] -> EvalM ()
-dumpTyped typedExprs = do
-  liftIO $ do
-    putStrLn "=== Typed AST (Phase 5-6: Type Inference) ==="
-    putStrLn ""
-    if null typedExprs
-      then putStrLn "  (none)"
-      else forM_ (zip [1 :: Int ..] typedExprs) $ \(i :: Int, mExpr) ->
-        case mExpr of
-          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
-          Just expr -> do
-            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
-    putStrLn ""
-    putStrLn "=== End of Typed AST ==="
-
-dumpTi :: [Maybe TITopExpr] -> EvalM ()
-dumpTi tiExprs = do
-  liftIO $ do
-    putStrLn "=== Typed AST after TensorMap Insertion (Phase 8a) ==="
-    putStrLn ""
-    if null tiExprs
-      then putStrLn "  (none)"
-      else forM_ (zip [1 :: Int ..] tiExprs) $ \(i :: Int, mExpr) ->
-        case mExpr of
-          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
-          Just expr -> do
-            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
-    putStrLn ""
-    putStrLn "=== End of TensorMap Insertion AST ==="
-
-dumpTc :: [Maybe TITopExpr] -> EvalM ()
-dumpTc tcExprs = do
-  liftIO $ do
-    putStrLn "=== Typed AST after Type Class Expansion (Phase 8b) ==="
-    putStrLn ""
-    if null tcExprs
-      then putStrLn "  (none)"
-      else forM_ (zip [1 :: Int ..] tcExprs) $ \(i :: Int, mExpr) ->
-        case mExpr of
-          Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
-          Just expr -> do
-            putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
-    putStrLn ""
-    putStrLn "=== End of Type Class Expansion AST ==="
-
+-- | Generic dump for typed AST phases (--dump-typed, --dump-ti, --dump-tc).
+dumpPhaseExprs :: String -> String -> [Maybe TITopExpr] -> EvalM ()
+dumpPhaseExprs header footer exprs = liftIO $ do
+  putStrLn $ "=== " ++ header ++ " ==="
+  putStrLn ""
+  if null exprs
+    then putStrLn "  (none)"
+    else forM_ (zip [1 :: Int ..] exprs) $ \(i :: Int, mExpr) ->
+      case mExpr of
+        Nothing -> putStrLn $ "  [" ++ show i ++ "] (skipped)"
+        Just expr -> putStrLn $ "  [" ++ show i ++ "] " ++ prettyStr expr
+  putStrLn ""
+  putStrLn $ "=== " ++ footer ++ " ==="

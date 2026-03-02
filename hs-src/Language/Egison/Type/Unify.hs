@@ -3,6 +3,11 @@ Module      : Language.Egison.Type.Unify
 Licence     : MIT
 
 This module provides type unification for the Egison type system.
+
+Three unification modes are supported via 'TensorHandling':
+  - 'TensorStrict': Tensor a does NOT unify with a (for TensorMapInsertion)
+  - 'TensorTopLevel': Tensor a freely unifies with a (for top-level annotations)
+  - 'TensorConstraintAware': Constraint-aware Tensor handling (for general inference)
 -}
 
 module Language.Egison.Type.Unify
@@ -30,437 +35,273 @@ data UnifyError
   | TypeMismatch Type Type        -- ^ Types cannot be unified
   deriving (Eq, Show)
 
--- | Unify two types, returning a substitution if successful
--- This is a wrapper around unifyWithConstraints with empty constraints
--- Discards the flag since it's not needed in basic unification
+--------------------------------------------------------------------------------
+-- Tensor Handling Modes
+--------------------------------------------------------------------------------
+
+-- | Controls how Tensor types interact with non-Tensor types during unification.
+data TensorHandling
+  = TensorStrict
+    -- ^ Tensor a does NOT unify with a. Used for type class instance checking
+    -- in TensorMapInsertion to distinguish Tensor types from scalar types.
+  | TensorTopLevel
+    -- ^ Tensor a freely unifies with a at top-level definitions.
+    -- According to type-tensor-simple.md: only for top-level tensor definitions,
+    -- Tensor a unifying with a yields a.
+  | TensorConstraintAware
+    -- ^ Constraint-aware: if type variable has constraints and Tensor lacks
+    -- instances for them, prefer binding to the element type instead.
+  deriving (Eq)
+
+--------------------------------------------------------------------------------
+-- Public API (signatures unchanged)
+--------------------------------------------------------------------------------
+
+-- | Unify two types, returning a substitution if successful.
+-- Discards the unwrap flag since it's not needed in basic unification.
 unify :: Type -> Type -> Either UnifyError Subst
 unify t1 t2 = fmap fst (unifyWithConstraints emptyClassEnv [] t1 t2)
 
-
--- | Strict unification that does NOT allow Tensor a to unify with a
--- This is a wrapper around unifyStrictWithConstraints with empty constraints
--- This is used for checking type class instances in TensorMapInsertion
--- to ensure that Tensor types are properly distinguished from scalar types
+-- | Strict unification that does NOT allow Tensor a to unify with a.
+-- Used for checking type class instances in TensorMapInsertion.
 unifyStrict :: Type -> Type -> Either UnifyError Subst
 unifyStrict = unifyStrictWithConstraints emptyClassEnv []
 
-
--- | Strict unification with type class constraints
--- This is like unifyStrict but considers type class constraints when unifying type variables.
+-- | Strict unification with type class constraints.
 -- IMPORTANT: This does NOT allow Tensor a to unify with a (strict unification).
--- When unifying a constrained type variable with Tensor type, it checks if Tensor
--- has instances for all the constraints.
 unifyStrictWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError Subst
 unifyStrictWithConstraints classEnv constraints t1 t2 =
-  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
-      t2' = normalizeInductiveTypes (normalizeTensorType t2)
-  in unifyStrictWithConstraints' classEnv constraints t1' t2'
+  fmap fst $ unifyNormalized TensorStrict classEnv constraints t1 t2
 
-unifyStrictWithConstraints' :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError Subst
--- Same types unify trivially
-unifyStrictWithConstraints' _ _ TInt TInt = Right emptySubst
-unifyStrictWithConstraints' _ _ TMathExpr TMathExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TPolyExpr TPolyExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TTermExpr TTermExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TSymbolExpr TSymbolExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TIndexExpr TIndexExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TFloat TFloat = Right emptySubst
-unifyStrictWithConstraints' _ _ TBool TBool = Right emptySubst
-unifyStrictWithConstraints' _ _ TChar TChar = Right emptySubst
-unifyStrictWithConstraints' _ _ TString TString = Right emptySubst
-
--- Special rule: TInt and TMathExpr unify
-unifyStrictWithConstraints' _ _ TInt TMathExpr = Right emptySubst
-unifyStrictWithConstraints' _ _ TMathExpr TInt = Right emptySubst
-
--- Type variables - use constraint-aware strict unification
-unifyStrictWithConstraints' classEnv constraints (TVar v) t =
-  unifyVarStrictWithConstraints classEnv constraints v t
-unifyStrictWithConstraints' classEnv constraints t (TVar v) =
-  unifyVarStrictWithConstraints classEnv constraints v t
-
-unifyStrictWithConstraints' classEnv constraints (TTuple ts1) (TTuple ts2)
-  | length ts1 == length ts2 = unifyManyStrictWithConstraints classEnv constraints ts1 ts2
-  | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
-
-unifyStrictWithConstraints' classEnv constraints (TCollection t1) (TCollection t2) =
-  unifyStrictWithConstraints classEnv constraints t1 t2
-
--- Inductive types
-unifyStrictWithConstraints' classEnv constraints (TInductive n1 ts1) (TInductive n2 ts2)
-  | n1 == n2 && length ts1 == length ts2 = unifyManyStrictWithConstraints classEnv constraints ts1 ts2
-  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
-
-unifyStrictWithConstraints' classEnv constraints (THash k1 v1) (THash k2 v2) = do
-  s1 <- unifyStrictWithConstraints classEnv constraints k1 k2
-  let constraints' = map (applySubstConstraint s1) constraints
-  s2 <- unifyStrictWithConstraints classEnv constraints' (applySubst s1 v1) (applySubst s1 v2)
-  Right $ composeSubst s2 s1
-
-unifyStrictWithConstraints' classEnv constraints (TMatcher t1) (TMatcher t2) =
-  unifyStrictWithConstraints classEnv constraints t1 t2
-
-unifyStrictWithConstraints' classEnv constraints (TFun a1 r1) (TFun a2 r2) = do
-  s1 <- unifyStrictWithConstraints classEnv constraints a1 a2
-  let constraints' = map (applySubstConstraint s1) constraints
-  s2 <- unifyStrictWithConstraints classEnv constraints' (applySubst s1 r1) (applySubst s1 r2)
-  Right $ composeSubst s2 s1
-
-unifyStrictWithConstraints' classEnv constraints (TIO t1) (TIO t2) =
-  unifyStrictWithConstraints classEnv constraints t1 t2
-
-unifyStrictWithConstraints' classEnv constraints (TIORef t1) (TIORef t2) =
-  unifyStrictWithConstraints classEnv constraints t1 t2
-
-unifyStrictWithConstraints' _ _ TPort TPort = Right emptySubst
-
--- Tensor types - STRICT: Tensor a does NOT unify with a
-unifyStrictWithConstraints' classEnv constraints (TTensor t1) (TTensor t2) =
-  unifyStrictWithConstraints classEnv constraints t1 t2
-
--- TAny unifies with anything
-unifyStrictWithConstraints' _ _ TAny _ = Right emptySubst
-unifyStrictWithConstraints' _ _ _ TAny = Right emptySubst
-
--- Mismatched types
-unifyStrictWithConstraints' _ _ t1 t2 = Left $ TypeMismatch t1 t2
-
--- | Unify a type variable with a type using strict unification with constraints
--- IMPORTANT: This is STRICT - Tensor a does NOT unify with a
-unifyVarStrictWithConstraints :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError Subst
-unifyVarStrictWithConstraints classEnv constraints v t
-  | TVar v == t = Right emptySubst
-  | otherwise = case t of
-      -- Tensor type: check if the type variable's constraints allow Tensor
-      TTensor elemType ->
-        let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
-        in if null varConstraints
-           then
-             -- No constraints: can bind to Tensor (with occurs check)
-             if v `Set.member` freeTyVars t
-             then Left $ OccursCheck v t
-             else Right $ singletonSubst v t
-           else
-             -- Has constraints: check if Tensor has instances for ALL of them
-             if all (hasInstanceForTensorType classEnv elemType) varConstraints
-             then
-               -- All constraints satisfied: can bind to Tensor
-               if v `Set.member` freeTyVars t
-               then Left $ OccursCheck v t
-               else Right $ singletonSubst v t
-             else
-               -- Some constraint not satisfied by Tensor: cannot unify (strict)
-               Left $ TypeMismatch (TVar v) t
-      _ ->
-        -- Non-Tensor type: regular occurs check and bind
-        if v `Set.member` freeTyVars t
-        then Left $ OccursCheck v t
-        else Right $ singletonSubst v t
-
--- | Unify multiple type pairs with strict unification and constraints
-unifyManyStrictWithConstraints :: ClassEnv -> [Constraint] -> [Type] -> [Type] -> Either UnifyError Subst
-unifyManyStrictWithConstraints _ _ [] [] = Right emptySubst
-unifyManyStrictWithConstraints classEnv constraints (t1:ts1) (t2:ts2) = do
-  s1 <- unifyStrictWithConstraints classEnv constraints t1 t2
-  let constraints' = map (applySubstConstraint s1) constraints
-  s2 <- unifyManyStrictWithConstraints classEnv constraints' (map (applySubst s1) ts1) (map (applySubst s1) ts2)
-  Right $ composeSubst s2 s1
-unifyManyStrictWithConstraints _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
-
--- | Unify a type variable with a type
-unifyVar :: TyVar -> Type -> Either UnifyError Subst
-unifyVar v t
-  | TVar v == t = Right emptySubst
-  | occursIn v t = Left $ OccursCheck v t
-  | otherwise = Right $ singletonSubst v t
-
--- | Occurs check: ensure a type variable doesn't occur in a type
--- This prevents infinite types like a = [a]
-occursIn :: TyVar -> Type -> Bool
-occursIn v t = v `Set.member` freeTyVars t
-
--- | Unify Matcher b with (t1, t2, ...) by treating each ti as Matcher ci
--- Result: b = (c1, c2, ...) where ti unifies with Matcher ci
-unifyMatcherWithTuple :: Type -> [Type] -> Either UnifyError Subst
-unifyMatcherWithTuple b ts = do
-  -- Process each element: extract inner type or create constraint
-  (innerTypes, s1) <- unifyEachAsMatcher ts emptySubst
-  -- Now unify b with (c1, c2, ...)
-  let tupleType = TTuple innerTypes
-  s2 <- unify (applySubst s1 b) tupleType
-  Right $ composeSubst s2 s1
-  where
-    -- Unify each type in the tuple with Matcher ci, extracting ci
-    unifyEachAsMatcher :: [Type] -> Subst -> Either UnifyError ([Type], Subst)
-    unifyEachAsMatcher [] s = Right ([], s)
-    unifyEachAsMatcher (t:rest) s = do
-      let t' = applySubst s t
-      (innerType, s1) <- case t' of
-        -- If already Matcher c, extract c
-        TMatcher inner -> Right (inner, emptySubst)
-        -- If type variable, unify it with Matcher (fresh variable)
-        TVar v -> do
-          -- Generate a new variable name for the inner type
-          let innerVar = TyVar (getTyVarName v ++ "'")
-              innerType = TVar innerVar
-          s' <- unify t' (TMatcher innerType)
-          Right (applySubst s' innerType, s')
-        -- Other types cannot be unified with Matcher
-        _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
-      
-      let s2 = composeSubst s1 s
-      (restInnerTypes, s3) <- unifyEachAsMatcher rest s2
-      Right (applySubst s3 innerType : restInnerTypes, s3)
-    
-    getTyVarName :: TyVar -> String
-    getTyVarName (TyVar name) = name
-
--- | Unify two types, allowing Tensor a to unify with a at top-level definitions
--- This is used only for top-level definitions with type annotations
--- According to type-tensor-simple.md: "トップレベル定義のテンソルについてのみ、Tensor a型が a型とunifyするとa型になる。"
+-- | Unify two types, allowing Tensor a to unify with a at top-level definitions.
+-- According to type-tensor-simple.md: only for top-level tensor definitions.
 unifyWithTopLevel :: Type -> Type -> Either UnifyError Subst
 unifyWithTopLevel t1 t2 =
-  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
-      t2' = normalizeInductiveTypes (normalizeTensorType t2)
-  in unifyWithTopLevel' t1' t2'
+  fmap fst $ unifyNormalized TensorTopLevel emptyClassEnv [] t1 t2
 
-unifyWithTopLevel' :: Type -> Type -> Either UnifyError Subst
--- Same types unify trivially
-unifyWithTopLevel' TInt TInt = Right emptySubst
-unifyWithTopLevel' TMathExpr TMathExpr = Right emptySubst
-unifyWithTopLevel' TPolyExpr TPolyExpr = Right emptySubst
-unifyWithTopLevel' TTermExpr TTermExpr = Right emptySubst
-unifyWithTopLevel' TSymbolExpr TSymbolExpr = Right emptySubst
-unifyWithTopLevel' TIndexExpr TIndexExpr = Right emptySubst
-unifyWithTopLevel' TFloat TFloat = Right emptySubst
-unifyWithTopLevel' TBool TBool = Right emptySubst
-unifyWithTopLevel' TChar TChar = Right emptySubst
-unifyWithTopLevel' TString TString = Right emptySubst
-
--- Special rule: TInt and TMathExpr unify to TMathExpr
-unifyWithTopLevel' TInt TMathExpr = Right emptySubst
-unifyWithTopLevel' TMathExpr TInt = Right emptySubst
-
--- Type variables
-unifyWithTopLevel' (TVar v) t = unifyVar v t
-unifyWithTopLevel' t (TVar v) = unifyVar v t
-
-unifyWithTopLevel' (TTuple ts1) (TTuple ts2)
-  | length ts1 == length ts2 = unifyManyWithTopLevel ts1 ts2
-  | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
-
-unifyWithTopLevel' (TCollection t1) (TCollection t2) = unifyWithTopLevel t1 t2
-
--- Inductive types
-unifyWithTopLevel' (TInductive n1 ts1) (TInductive n2 ts2)
-  | n1 == n2 && length ts1 == length ts2 = unifyManyWithTopLevel ts1 ts2
-  | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
-
-unifyWithTopLevel' (THash k1 v1) (THash k2 v2) = do
-  s1 <- unifyWithTopLevel k1 k2
-  s2 <- unifyWithTopLevel (applySubst s1 v1) (applySubst s1 v2)
-  Right $ composeSubst s2 s1
-
-unifyWithTopLevel' (TMatcher t1) (TMatcher t2) = unifyWithTopLevel t1 t2
-
-unifyWithTopLevel' (TFun a1 r1) (TFun a2 r2) = do
-  s1 <- unifyWithTopLevel a1 a2
-  s2 <- unifyWithTopLevel (applySubst s1 r1) (applySubst s1 r2)
-  Right $ composeSubst s2 s1
-
-unifyWithTopLevel' (TIO t1) (TIO t2) = unifyWithTopLevel t1 t2
-
-unifyWithTopLevel' (TIORef t1) (TIORef t2) = unifyWithTopLevel t1 t2
-
-unifyWithTopLevel' TPort TPort = Right emptySubst
-
--- TAny unifies with anything
-unifyWithTopLevel' TAny _ = Right emptySubst
-unifyWithTopLevel' _ TAny = Right emptySubst
-
--- Tensor types
--- Tensor a and Tensor b unify if a and b unify
-unifyWithTopLevel' (TTensor t1) (TTensor t2) = unifyWithTopLevel t1 t2
--- Tensor a and a can unify as a (only at top-level definitions)
--- Tensor MathExpr can unifies with MathExpr as MathExpr
-unifyWithTopLevel' (TTensor t1) t2 = do
-  s <- unifyWithTopLevel t1 t2
-  -- Return substitution that unifies t1 with t2, result type is t2 (scalar)
-  Right s
-
-unifyWithTopLevel' t1 (TTensor t2) = do
-  s <- unifyWithTopLevel t1 t2
-  -- Return substitution that unifies t1 with t2, result type is t1 (scalar)
-  Right s
-
--- Mismatched types
-unifyWithTopLevel' t1 t2 = Left $ TypeMismatch t1 t2
-
--- | Unify a list of type pairs with top-level tensor unification
-unifyManyWithTopLevel :: [Type] -> [Type] -> Either UnifyError Subst
-unifyManyWithTopLevel [] [] = Right emptySubst
-unifyManyWithTopLevel (t1:ts1) (t2:ts2) = do
-  s1 <- unifyWithTopLevel t1 t2
-  s2 <- unifyManyWithTopLevel (map (applySubst s1) ts1) (map (applySubst s1) ts2)
-  Right $ composeSubst s2 s1
-unifyManyWithTopLevel _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])  -- Length mismatch
-
--- | Unify a list of type pairs
-unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
-unifyMany [] [] = Right emptySubst
-unifyMany (t1:ts1) (t2:ts2) = do
-  s1 <- unify t1 t2
-  s2 <- unifyMany (map (applySubst s1) ts1) (map (applySubst s1) ts2)
-  Right $ composeSubst s2 s1
-unifyMany _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])  -- Length mismatch
-
---------------------------------------------------------------------------------
--- Constraint-Aware Unification
---------------------------------------------------------------------------------
-
--- | Unify two types while considering type class constraints
--- This function chooses unifiers that satisfy type class constraints
--- Specifically, when unifying Tensor a with a constrained type variable t:
---   - If C t constraint exists and C (Tensor a) is not satisfiable,
---     prefer t = a over t = Tensor a
--- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped during unification
+-- | Unify two types while considering type class constraints.
+-- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped.
 unifyWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
-unifyWithConstraints classEnv constraints t1 t2 =
+unifyWithConstraints = unifyNormalized TensorConstraintAware
+
+-- | Unify a list of type pairs.
+unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
+unifyMany ts1 ts2 =
+  fmap fst $ unifyManyG TensorConstraintAware emptyClassEnv [] ts1 ts2
+
+--------------------------------------------------------------------------------
+-- Normalization Entry Point
+--------------------------------------------------------------------------------
+
+-- | Trivial success: empty substitution, no Tensor unwrapping.
+ok :: Either UnifyError (Subst, Bool)
+ok = Right (emptySubst, False)
+
+-- | Normalize types and delegate to core unification.
+unifyNormalized :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
+unifyNormalized mode classEnv constraints t1 t2 =
   let t1' = normalizeInductiveTypes (normalizeTensorType t1)
       t2' = normalizeInductiveTypes (normalizeTensorType t2)
-  in unifyWithConstraints' classEnv constraints t1' t2'
+  in unifyG mode classEnv constraints t1' t2'
 
-unifyWithConstraints' :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
+--------------------------------------------------------------------------------
+-- Generic Core Unification
+--------------------------------------------------------------------------------
+
+-- | Core unification function parametrized by TensorHandling mode.
+-- All public unification variants delegate to this single function, eliminating
+-- the previous code duplication across three nearly-identical implementations.
+unifyG :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
+
 -- Same types unify trivially
-unifyWithConstraints' _ _ TInt TInt = Right (emptySubst, False)
-unifyWithConstraints' _ _ TMathExpr TMathExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TPolyExpr TPolyExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TTermExpr TTermExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TSymbolExpr TSymbolExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TIndexExpr TIndexExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TFloat TFloat = Right (emptySubst, False)
-unifyWithConstraints' _ _ TBool TBool = Right (emptySubst, False)
-unifyWithConstraints' _ _ TChar TChar = Right (emptySubst, False)
-unifyWithConstraints' _ _ TString TString = Right (emptySubst, False)
+unifyG _ _ _ TInt TInt = ok
+unifyG _ _ _ TMathExpr TMathExpr = ok
+unifyG _ _ _ TPolyExpr TPolyExpr = ok
+unifyG _ _ _ TTermExpr TTermExpr = ok
+unifyG _ _ _ TSymbolExpr TSymbolExpr = ok
+unifyG _ _ _ TIndexExpr TIndexExpr = ok
+unifyG _ _ _ TFloat TFloat = ok
+unifyG _ _ _ TBool TBool = ok
+unifyG _ _ _ TChar TChar = ok
+unifyG _ _ _ TString TString = ok
 
--- Special rule: TInt and TMathExpr unify to TMathExpr
-unifyWithConstraints' _ _ TInt TMathExpr = Right (emptySubst, False)
-unifyWithConstraints' _ _ TMathExpr TInt = Right (emptySubst, False)
+-- Special rule: TInt and TMathExpr unify
+unifyG _ _ _ TInt TMathExpr = ok
+unifyG _ _ _ TMathExpr TInt = ok
 
--- Type variables - with constraint-aware Tensor handling
-unifyWithConstraints' classEnv constraints (TVar v) t =
-  unifyVarWithConstraints classEnv constraints v t
-unifyWithConstraints' classEnv constraints t (TVar v) =
-  unifyVarWithConstraints classEnv constraints v t
+-- Type variables: delegated to mode-specific handler
+unifyG mode ce cs (TVar v) t = unifyVarG mode ce cs v t
+unifyG mode ce cs t (TVar v) = unifyVarG mode ce cs v t
 
-unifyWithConstraints' classEnv constraints (TTuple ts1) (TTuple ts2)
-  | length ts1 == length ts2 = unifyManyWithConstraints classEnv constraints ts1 ts2
+-- Tuples
+unifyG mode ce cs (TTuple ts1) (TTuple ts2)
+  | length ts1 == length ts2 = unifyManyG mode ce cs ts1 ts2
   | otherwise = Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
 
-unifyWithConstraints' classEnv constraints (TCollection t1) (TCollection t2) = do
-  (s, flag) <- unifyWithConstraints classEnv constraints t1 t2
-  Right (s, flag)
+-- Collections
+unifyG mode ce cs (TCollection t1) (TCollection t2) =
+  unifyNormalized mode ce cs t1 t2
 
 -- Inductive types
-unifyWithConstraints' classEnv constraints (TInductive n1 ts1) (TInductive n2 ts2)
-  | n1 == n2 && length ts1 == length ts2 = unifyManyWithConstraints classEnv constraints ts1 ts2
+unifyG mode ce cs (TInductive n1 ts1) (TInductive n2 ts2)
+  | n1 == n2 && length ts1 == length ts2 = unifyManyG mode ce cs ts1 ts2
   | otherwise = Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
 
-unifyWithConstraints' classEnv constraints (THash k1 v1) (THash k2 v2) = do
-  (s1, flag1) <- unifyWithConstraints classEnv constraints k1 k2
-  (s2, flag2) <- unifyWithConstraints classEnv (map (applySubstConstraint s1) constraints) (applySubst s1 v1) (applySubst s1 v2)
-  Right (composeSubst s2 s1, flag1 || flag2)
+-- Hash types (two components with substitution threading)
+unifyG mode ce cs (THash k1 v1) (THash k2 v2) = do
+  (s1, f1) <- unifyNormalized mode ce cs k1 k2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <- unifyNormalized mode ce cs' (applySubst s1 v1) (applySubst s1 v2)
+  Right (composeSubst s2 s1, f1 || f2)
 
--- Special rule: Matcher b unifies with (t1, t2, ...)
--- by treating each ti as Matcher ci, resulting in b = (c1, c2, ...)
-unifyWithConstraints' classEnv constraints (TMatcher b) (TTuple ts) =
-  unifyMatcherWithTupleWithConstraints classEnv constraints b ts
-unifyWithConstraints' classEnv constraints (TTuple ts) (TMatcher b) =
-  unifyMatcherWithTupleWithConstraints classEnv constraints b ts
+-- Matcher-Tuple special rule (ConstraintAware mode only)
+unifyG TensorConstraintAware ce cs (TMatcher b) (TTuple ts) =
+  unifyMatcherWithTupleG ce cs b ts
+unifyG TensorConstraintAware ce cs (TTuple ts) (TMatcher b) =
+  unifyMatcherWithTupleG ce cs b ts
 
-unifyWithConstraints' classEnv constraints (TMatcher t1) (TMatcher t2) = do
-  (s, flag) <- unifyWithConstraints classEnv constraints t1 t2
-  Right (s, flag)
+-- Matcher types
+unifyG mode ce cs (TMatcher t1) (TMatcher t2) =
+  unifyNormalized mode ce cs t1 t2
 
-unifyWithConstraints' classEnv constraints (TFun a1 r1) (TFun a2 r2) = do
-  (s1, flag1) <- unifyWithConstraints classEnv constraints a1 a2
-  (s2, flag2) <- unifyWithConstraints classEnv (map (applySubstConstraint s1) constraints) (applySubst s1 r1) (applySubst s1 r2)
-  Right (composeSubst s2 s1, flag1 || flag2)
+-- Function types (two components with substitution threading)
+unifyG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
+  (s1, f1) <- unifyNormalized mode ce cs a1 a2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <- unifyNormalized mode ce cs' (applySubst s1 r1) (applySubst s1 r2)
+  Right (composeSubst s2 s1, f1 || f2)
 
-unifyWithConstraints' classEnv constraints (TIO t1) (TIO t2) = do
-  (s, flag) <- unifyWithConstraints classEnv constraints t1 t2
-  Right (s, flag)
+-- IO types
+unifyG mode ce cs (TIO t1) (TIO t2) =
+  unifyNormalized mode ce cs t1 t2
 
-unifyWithConstraints' classEnv constraints (TIORef t1) (TIORef t2) = do
-  (s, flag) <- unifyWithConstraints classEnv constraints t1 t2
-  Right (s, flag)
+-- IORef types
+unifyG mode ce cs (TIORef t1) (TIORef t2) =
+  unifyNormalized mode ce cs t1 t2
 
-unifyWithConstraints' _ _ TPort TPort = Right (emptySubst, False)
+-- Port type
+unifyG _ _ _ TPort TPort = ok
 
--- Tensor types - both Tensor
-unifyWithConstraints' classEnv constraints (TTensor t1) (TTensor t2) = do
-  (s, flag) <- unifyWithConstraints classEnv constraints t1 t2
-  Right (s, flag)
+-- Tensor types: both Tensor — same for all modes
+unifyG mode ce cs (TTensor t1) (TTensor t2) =
+  unifyNormalized mode ce cs t1 t2
 
--- IMPORTANT: Constraint-aware handling for Tensor <-> non-Tensor
--- When unifying Tensor a with non-Tensor, prefer non-Tensor if it satisfies constraints
-unifyWithConstraints' classEnv constraints (TTensor t1) t2 =
-  unifyTensorWithConstraints classEnv constraints t1 t2
-unifyWithConstraints' classEnv constraints t1 (TTensor t2) =
-  unifyTensorWithConstraints classEnv constraints t2 t1
+-- Tensor vs non-Tensor: TopLevel allows unwrapping
+unifyG TensorTopLevel _ _ (TTensor t1) t2 = do
+  (s, _) <- unifyNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  Right (s, True)
+unifyG TensorTopLevel _ _ t1 (TTensor t2) = do
+  (s, _) <- unifyNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  Right (s, True)
+
+-- Tensor vs non-Tensor: ConstraintAware uses constraint-aware logic
+unifyG TensorConstraintAware ce cs (TTensor t1) t2 =
+  unifyTensorWithConstraints ce cs t1 t2
+unifyG TensorConstraintAware ce cs t1 (TTensor t2) =
+  unifyTensorWithConstraints ce cs t2 t1
+
+-- TensorStrict: Tensor vs non-Tensor falls through to mismatch below
 
 -- TAny unifies with anything
-unifyWithConstraints' _ _ TAny _ = Right (emptySubst, False)
-unifyWithConstraints' _ _ _ TAny = Right (emptySubst, False)
+unifyG _ _ _ TAny _ = ok
+unifyG _ _ _ _ TAny = ok
 
 -- Mismatched types
-unifyWithConstraints' _ _ t1 t2 = Left $ TypeMismatch t1 t2
+unifyG _ _ _ t1 t2 = Left $ TypeMismatch t1 t2
 
--- | Unify type variable with another type, considering constraints
--- Note: occurs check is deferred to handle cases like unifying t0 with Tensor t0
--- when t0 has constraints (e.g., {Num t0}) and there's no Num (Tensor t0) instance.
--- In such cases, we bind t0 to the element type (t0 itself), which is identity.
--- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped during unification
-unifyVarWithConstraints :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError (Subst, Bool)
-unifyVarWithConstraints classEnv constraints v t
-  | TVar v == t = Right (emptySubst, False)
+--------------------------------------------------------------------------------
+-- Generic Unify-Many
+--------------------------------------------------------------------------------
+
+-- | Unify multiple type pairs generically.
+unifyManyG :: TensorHandling -> ClassEnv -> [Constraint] -> [Type] -> [Type] -> Either UnifyError (Subst, Bool)
+unifyManyG _ _ _ [] [] = ok
+unifyManyG mode ce cs (t1:ts1) (t2:ts2) = do
+  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <- unifyManyG mode ce cs' (map (applySubst s1) ts1) (map (applySubst s1) ts2)
+  Right (composeSubst s2 s1, f1 || f2)
+unifyManyG _ _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
+
+--------------------------------------------------------------------------------
+-- Variable Unification (mode-specific dispatch)
+--------------------------------------------------------------------------------
+
+-- | Unify a type variable with a type, delegating to mode-specific logic.
+unifyVarG :: TensorHandling -> ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError (Subst, Bool)
+unifyVarG TensorStrict ce cs v t =
+  fmap (\s -> (s, False)) $ unifyVarStrict ce cs v t
+unifyVarG TensorTopLevel _ _ v t =
+  fmap (\s -> (s, False)) $ unifyVarSimple v t
+unifyVarG TensorConstraintAware ce cs v t =
+  unifyVarConstraintAware ce cs v t
+
+-- | Simple variable unification (no constraint or Tensor logic).
+unifyVarSimple :: TyVar -> Type -> Either UnifyError Subst
+unifyVarSimple v t
+  | TVar v == t = Right emptySubst
+  | v `Set.member` freeTyVars t = Left $ OccursCheck v t
+  | otherwise = Right $ singletonSubst v t
+
+-- | Strict variable unification with constraints.
+-- Tensor a does NOT unify with a unless all constraints are satisfied by Tensor.
+unifyVarStrict :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError Subst
+unifyVarStrict classEnv constraints v t
+  | TVar v == t = Right emptySubst
   | otherwise = case t of
-      -- Special handling for Tensor types with constraints
       TTensor elemType ->
-        -- Check if the type variable has constraints
         let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
         in if null varConstraints
-           then
-             -- No constraints on this variable, bind to Tensor (need occurs check)
-             if v `Set.member` freeTyVars t
-             then Left $ OccursCheck v t
-             else Right (singletonSubst v t, False)
-           else
-             -- Has constraints: check if Tensor has instances for all of them
-             if all (hasInstanceForTensorType classEnv elemType) varConstraints
-             then
-               -- All constraints have Tensor instances, bind to Tensor (need occurs check)
-               if v `Set.member` freeTyVars t
-               then Left $ OccursCheck v t
-               else Right (singletonSubst v t, False)
-             else
-               -- Some constraint lacks Tensor instance, bind to element type instead
-               -- This allows tensorMap to handle the Tensor -> scalar conversion
-               -- Special case: if v == elemType (e.g., t0 with Tensor t0), return identity
-               -- FLAG: Set to True because Tensor was unwrapped
-               if TVar v == elemType
-               then Right (emptySubst, True)
-               else if v `Set.member` freeTyVars elemType
-                    then Left $ OccursCheck v elemType
-                    else Right (singletonSubst v elemType, True)
-      _ ->
-        -- Non-Tensor type, regular occurs check
-        if v `Set.member` freeTyVars t
-        then Left $ OccursCheck v t
-        else Right (singletonSubst v t, False)
+           then occursCheckAndBind v t
+           else if all (hasInstanceForTensorType classEnv elemType) varConstraints
+                then occursCheckAndBind v t
+                else Left $ TypeMismatch (TVar v) t
+      _ -> occursCheckAndBind v t
 
--- | Check if there's an instance for Constraint (Tensor elemType)
--- e.g., check if Num (Tensor Integer) exists given elemType = Integer and constraint = Num
+-- | Constraint-aware variable unification.
+-- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped.
+unifyVarConstraintAware :: ClassEnv -> [Constraint] -> TyVar -> Type -> Either UnifyError (Subst, Bool)
+unifyVarConstraintAware classEnv constraints v t
+  | TVar v == t = Right (emptySubst, False)
+  | otherwise = case t of
+      TTensor elemType ->
+        let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
+        in if null varConstraints
+           then fmap (\s -> (s, False)) $ occursCheckAndBind v t
+           else if all (hasInstanceForTensorType classEnv elemType) varConstraints
+                then fmap (\s -> (s, False)) $ occursCheckAndBind v t
+                else
+                  -- Some constraint lacks Tensor instance, bind to element type instead.
+                  -- This allows tensorMap to handle the Tensor -> scalar conversion.
+                  if TVar v == elemType
+                  then Right (emptySubst, True)
+                  else if v `Set.member` freeTyVars elemType
+                       then Left $ OccursCheck v elemType
+                       else Right (singletonSubst v elemType, True)
+      _ ->
+        fmap (\s -> (s, False)) $ occursCheckAndBind v t
+
+-- | Occurs check and variable binding (shared helper).
+occursCheckAndBind :: TyVar -> Type -> Either UnifyError Subst
+occursCheckAndBind v t
+  | v `Set.member` freeTyVars t = Left $ OccursCheck v t
+  | otherwise = Right $ singletonSubst v t
+
+--------------------------------------------------------------------------------
+-- Tensor-Specific Helpers (ConstraintAware mode only)
+--------------------------------------------------------------------------------
+
+-- | Unify Tensor elemType with a non-Tensor type, considering constraints.
+unifyTensorWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
+unifyTensorWithConstraints classEnv constraints elemType otherType =
+  case otherType of
+    TVar v ->
+      unifyVarConstraintAware classEnv constraints v (TTensor elemType)
+    _ -> do
+      (s, _) <- unifyNormalized TensorConstraintAware classEnv constraints elemType otherType
+      Right (s, True)
+
+-- | Check if there's an instance for Constraint (Tensor elemType).
 hasInstanceForTensorType :: ClassEnv -> Type -> Constraint -> Bool
 hasInstanceForTensorType classEnv elemType (Constraint className _) =
   let tensorType = TTensor elemType
@@ -470,69 +311,38 @@ hasInstanceForTensorType classEnv elemType (Constraint className _) =
                      Left _  -> False
          ) instances
 
--- | Unify Tensor elemType with a non-Tensor type, considering constraints
--- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped during unification
-unifyTensorWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
-unifyTensorWithConstraints classEnv constraints elemType otherType =
-  case otherType of
-    TVar v ->
-      -- Symmetric case: handled by unifyVarWithConstraints
-      unifyVarWithConstraints classEnv constraints v (TTensor elemType)
-    _ ->
-      -- Normal unification: Tensor elemType with otherType means elemType = otherType
-      -- FLAG: Set to True because we're unwrapping Tensor
-      do
-        (s, _) <- unifyWithConstraints classEnv constraints elemType otherType
-        Right (s, True)
+--------------------------------------------------------------------------------
+-- Matcher-Tuple Unification (ConstraintAware mode only)
+--------------------------------------------------------------------------------
 
--- | Unify multiple type pairs with constraints
--- Returns (Subst, Bool) where Bool indicates if any Tensor was unwrapped during unification
-unifyManyWithConstraints :: ClassEnv -> [Constraint] -> [Type] -> [Type] -> Either UnifyError (Subst, Bool)
-unifyManyWithConstraints _ _ [] [] = Right (emptySubst, False)
-unifyManyWithConstraints classEnv constraints (t1:ts1) (t2:ts2) = do
-  (s1, flag1) <- unifyWithConstraints classEnv constraints t1 t2
-  let constraints' = map (applySubstConstraint s1) constraints
-  (s2, flag2) <- unifyManyWithConstraints classEnv constraints' (map (applySubst s1) ts1) (map (applySubst s1) ts2)
-  Right (composeSubst s2 s1, flag1 || flag2)
-unifyManyWithConstraints _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
-
--- | Unify Matcher b with (t1, t2, ...) using constraint-aware unification
--- Result: b = (c1, c2, ...) where ti unifies with Matcher ci
--- Returns (Subst, Bool) where Bool indicates if any Tensor was unwrapped during unification
-unifyMatcherWithTupleWithConstraints :: ClassEnv -> [Constraint] -> Type -> [Type] -> Either UnifyError (Subst, Bool)
-unifyMatcherWithTupleWithConstraints classEnv constraints b ts = do
-  -- Process each element: extract inner type or create constraint
-  (innerTypes, s1, flag1) <- unifyEachAsMatcherWithConstraints classEnv constraints ts emptySubst
-  -- Now unify b with (c1, c2, ...)
+-- | Unify Matcher b with (t1, t2, ...) by treating each ti as Matcher ci.
+-- Result: b = (c1, c2, ...) where ti unifies with Matcher ci.
+unifyMatcherWithTupleG :: ClassEnv -> [Constraint] -> Type -> [Type] -> Either UnifyError (Subst, Bool)
+unifyMatcherWithTupleG classEnv constraints b ts = do
+  (innerTypes, s1, flag1) <- unifyEachAsMatcher classEnv constraints ts emptySubst
   let tupleType = TTuple innerTypes
       constraints' = map (applySubstConstraint s1) constraints
-  (s2, flag2) <- unifyWithConstraints classEnv constraints' (applySubst s1 b) tupleType
+  (s2, flag2) <- unifyNormalized TensorConstraintAware classEnv constraints' (applySubst s1 b) tupleType
   Right (composeSubst s2 s1, flag1 || flag2)
   where
-    -- Unify each type in the tuple with Matcher ci, extracting ci
-    unifyEachAsMatcherWithConstraints :: ClassEnv -> [Constraint] -> [Type] -> Subst -> Either UnifyError ([Type], Subst, Bool)
-    unifyEachAsMatcherWithConstraints _ _ [] s = Right ([], s, False)
-    unifyEachAsMatcherWithConstraints env cons (t:rest) s = do
+    unifyEachAsMatcher :: ClassEnv -> [Constraint] -> [Type] -> Subst -> Either UnifyError ([Type], Subst, Bool)
+    unifyEachAsMatcher _ _ [] s = Right ([], s, False)
+    unifyEachAsMatcher env cons (t:rest) s = do
       let t' = applySubst s t
           cons' = map (applySubstConstraint s) cons
       (innerType, s1, flag1) <- case t' of
-        -- If already Matcher c, extract c
         TMatcher inner -> Right (inner, emptySubst, False)
-        -- If type variable, unify it with Matcher (fresh variable)
         TVar v -> do
-          -- Generate a new variable name for the inner type
           let innerVar = TyVar (getTyVarName v ++ "'")
-              innerType = TVar innerVar
-          (s', flag) <- unifyWithConstraints env cons' t' (TMatcher innerType)
-          Right (applySubst s' innerType, s', flag)
-        -- Other types cannot be unified with Matcher
+              innerTy = TVar innerVar
+          (s', flag) <- unifyNormalized TensorConstraintAware env cons' t' (TMatcher innerTy)
+          Right (applySubst s' innerTy, s', flag)
         _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
 
       let s2 = composeSubst s1 s
           cons'' = map (applySubstConstraint s2) cons
-      (restInnerTypes, s3, flag2) <- unifyEachAsMatcherWithConstraints env cons'' rest s2
+      (restInnerTypes, s3, flag2) <- unifyEachAsMatcher env cons'' rest s2
       Right (applySubst s3 innerType : restInnerTypes, s3, flag1 || flag2)
 
     getTyVarName :: TyVar -> String
     getTyVarName (TyVar name) = name
-
