@@ -525,14 +525,15 @@ expandTypeClassMethodsT tiExpr = do
                           let varExpr = TIExpr scheme (TIVarExpr varName)
                           return $ TIApplyExpr varExpr dictArgs
                         else do
-                          -- Has type variable constraints - pass dictionary parameters
-                          -- This handles recursive calls in polymorphic functions
-                          -- Generate dictionary argument expressions for each constraint
+                          -- Has type variable constraints - pass dictionary parameters.
+                          -- Use originalConstraints from the definition (not exprConstraints
+                          -- from the call site) to include superclass constraints that may
+                          -- be missing from the call-site type annotation.
                           let makeDict c =
                                 let dictName = constraintToDictParam c
                                     dictType = TVar (TyVar "dict")
                                 in TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
-                              dictArgs = map makeDict exprConstraints
+                              dictArgs = map makeDict originalConstraints
                               varExpr = TIExpr scheme (TIVarExpr varName)
                           return $ TIApplyExpr varExpr dictArgs
                 _ ->
