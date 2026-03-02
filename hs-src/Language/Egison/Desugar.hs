@@ -36,6 +36,8 @@ import           Language.Egison.AST
 import           Language.Egison.Data
 import           Language.Egison.IExpr
 import           Language.Egison.RState
+import           Language.Egison.EvalState  (MonadEval(..))
+import           Language.Egison.Type.Env   (lookupClass, ClassInfo(..))
 import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeConstructorName, 
                                              typeExprToType, capitalizeFirst, lowerFirst, TyVar(..))
 
@@ -140,12 +142,10 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
       let instTypeName = typeConstructorName (typeExprToType (head instTypes))
       -- Generate individual method definitions with constraint parameters
       methodDefs <- mapM (desugarInstanceMethod constraints classNm instTypeName) methods
-      -- Generate dictionary definition (with constraints if any)
-      let dictDef = makeDictDef constraints classNm instTypeName methods
-      -- Return all definitions
-      case methodDefs of
-        []  -> return Nothing
-        _   -> return $ Just $ IDefineMany (dictDef : methodDefs)
+      -- Generate dictionary definition with superclass references
+      dictDef <- makeDictDef classNm instTypeName methods
+      -- Always generate the dictionary (even for marker classes with no methods)
+      return $ Just $ IDefineMany (dictDef : methodDefs)
   where
     desugarInstanceMethod :: [ConstraintExpr] -> String -> String -> InstanceMethod -> EvalM (Var, IExpr)
     desugarInstanceMethod _constrs clsNm typNm (InstanceMethod methName params body) = do
@@ -165,30 +165,35 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
       iexpr <- desugar lambdaExpr
       return (var, iexpr)
     
-    makeDictDef :: [ConstraintExpr] -> String -> String -> [InstanceMethod] -> (Var, IExpr)
-    makeDictDef _constrs clsNm typNm meths =
+    makeDictDef :: String -> String -> [InstanceMethod] -> EvalM (Var, IExpr)
+    makeDictDef clsNm typNm meths = do
       let dictName = lowerFirst clsNm ++ typNm  -- e.g., "eqCollection"
           dictVar = stringToVar dictName
-          
-          -- For nested instances (with constraints), the dictionary becomes a function
-          -- that takes dictionary parameters and returns a hash.
-          -- e.g., for instance {Eq a} Eq [a]:
-          --   eqCollection = \dict_Eq -> {| ("eq", eqCollectionEq dict_Eq), ... |}
-          --
-          -- Dictionary parameters will be automatically added by addDictionaryParametersT
-          -- after type inference, so we don't add them here manually.
-          -- We just create the hash with references to the methods.
-          
-          hashEntries = map (makeHashEntry clsNm typNm) meths
-          hashExpr = IHashExpr hashEntries
-      in (dictVar, hashExpr)
+          methodEntries = map (makeHashEntry clsNm typNm) meths
+      -- Add superclass dictionary references (Haskell-style nested dicts)
+      superEntries <- makeSuperclassEntries clsNm typNm
+      let hashExpr = IHashExpr (methodEntries ++ superEntries)
+      return (dictVar, hashExpr)
     
     makeHashEntry :: String -> String -> InstanceMethod -> (IExpr, IExpr)
     makeHashEntry clsNm typNm (InstanceMethod methName _ _) =
       let keyExpr = IConstantExpr (StringExpr (pack (sanitizeMethodName methName)))
-          -- Reference to the method function
           funcName = lowerFirst clsNm ++ typNm ++ capitalizeFirst (sanitizeMethodName methName)
           valueExpr = IVarExpr funcName
+      in (keyExpr, valueExpr)
+
+    makeSuperclassEntries :: String -> String -> EvalM [(IExpr, IExpr)]
+    makeSuperclassEntries clsNm typNm = do
+      classEnv <- getClassEnv
+      case lookupClass clsNm classEnv of
+        Just info -> return $ map (makeSuperEntry typNm) (classSupers info)
+        Nothing   -> return []
+
+    makeSuperEntry :: String -> String -> (IExpr, IExpr)
+    makeSuperEntry typNm superName =
+      let keyExpr = IConstantExpr (StringExpr (pack ("__super_" ++ superName)))
+          superDictName = lowerFirst superName ++ typNm
+          valueExpr = IVarExpr superDictName
       in (keyExpr, valueExpr)
     
 
