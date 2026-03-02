@@ -237,6 +237,29 @@ EuclideanDomain a extends GCDDomain a    divMod
 | 2-4 | `(-)` と `(/)` の導出 | `lib/core/base.egi` | **完了** | `(-) := x + neg y`、`(/) := x * inv y` をトップレベル関数として定義 |
 | 2-5 | 0-arity メソッド対応 | `TypeClassExpand.hs` | **完了** | `zero`, `one` 等の定数メソッドが空ラムダにラップされる問題を修正。辞書アクセスを直接返すように変更 |
 
+### Phase 2.5: Haskellスタイルのネスト辞書パッシングへの移行
+
+| # | 項目 | 該当ファイル | 状態 | 内容 |
+|---|---|---|---|---|
+| 2.5-1 | 辞書にスーパークラス参照を追加 | `Desugar.hs` | **完了** | `makeDictDef` を修正し、各辞書に `("__super_ClassName", superDictExpr)` エントリを追加。マーカー型クラス（Ring, Field）でもスーパークラス参照を含む辞書を生成するようになった |
+| 2.5-2 | 制約の脱展開 | `TypeClassExpand.hs` | **完了** | `deExpandConstraints` を実装。展開された制約 `{Field a, Ring a, AddGroup a, ...}` から最小セット `{Field a}` を算出する。`addDictionaryParametersT` 等で使用 |
+| 2.5-3 | スーパークラスチェーンアクセス | `TypeClassExpand.hs` | **完了** | `findSuperclassPath` と `buildSuperclassChain` を実装。メソッドアクセスを `(dict_Field)_("__super_Ring")_("__super_MulMonoid")_("__super_MulSemigroup")_("times")` のようなチェーンに変換 |
+| 2.5-4 | 辞書パラメータの最小化 | `TypeClassExpand.hs` | **完了** | `addDictionaryParametersT`, `checkConstrainedVariable`, `applyConcreteConstraintDictionaries` で脱展開した制約を使用。1制約につき1辞書パラメータのみ生成 |
+| 2.5-5 | TITest/TIExecute の辞書適用 | `TypedDesugar.hs` | **完了** | `TITest` と `TIExecute` にも `applyConcreteConstraintDictionaries` を適用。制約が最小化されているため二重適用は発生しない |
+| 2.5-6 | 辞書参照のリマッピング | `TypeClassExpand.hs` | **完了** | `remapDictRefsInBody` を実装。Step 1（expandTypeClassMethodsT）で展開済みの辞書参照名（dict_MulSemigroup等）を、Step 3（addDictionaryParametersT）の脱展開パラメータ名（dict_Field等）からのスーパークラスチェーンに置換 |
+
+**設計の概要**:
+
+以前のフラットな辞書パッシング（全スーパークラスを展開して並列に渡す）から、Haskellスタイルのネスト辞書パッシング（1制約につき1辞書、スーパークラスは辞書内の `__super_*` 参照で辿る）に移行した。
+
+- 旧: `\dict_Field dict_Ring dict_AddGroup dict_AddMonoid dict_AddSemigroup dict_MulMonoid dict_MulSemigroup dict_MulGroup x y -> (dict_MulSemigroup)_("times") x ((dict_MulGroup)_("inv") y)`
+- 新: `\dict_Field x y -> (dict_Field)_("__super_Ring")_("__super_MulMonoid")_("__super_MulSemigroup")_("times") x ((dict_Field)_("__super_MulGroup")_("inv") y)`
+
+これにより以下の問題が解決された:
+- Ring/Field のようなメソッドなしマーカー型クラスの辞書が存在しなかった問題
+- 展開された制約の順序が定義と呼び出しで不一致になる問題
+- TIDefine と TITest で辞書適用フェーズが異なり二重適用が起きる問題
+
 ### Phase 3: CAS 向け拡張
 
 | # | 項目 | 該当ファイル | 状態 | 内容 |
