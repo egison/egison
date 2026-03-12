@@ -637,3 +637,89 @@ def n : Integer := coerce x    -- ユーザーの責任
 | 6 | 中 | `introduce ... with ...` 構文の修正 | 未着手 | `sqrt` 関数の定義例で使われている `introduce ... with ... return ...` はEgisonに存在しない構文。簡約規則の動的登録を宣言的構文で表現するか、`IO` 型に包むかを決める必要がある |
 | 7 | 低 | `coerce` の安全性設計 | 未着手 | `Factor` → `Integer` 等のダウンキャストの安全なAPIを設計する。Egisonの強みであるパターンマッチを活用した安全な抽出方法を検討する |
 | 8 | 低 | マーカークラスのサポート確認 | **確認済み** | メソッドなしクラス定義は動作する。`where` なしインスタンスは不可だが `where` + 空メソッドで代用可能。詳細は `type-class.md` を参照 |
+
+---
+
+## 実装前に決めるべき未決定事項
+
+### 1. ローラン多項式の正規化規則（優先度: 高）
+
+`casPlus` / `casMult` の実装に直結する。現在の `Math/Normalize.hs` のロジックを確認し、新設計に移植する方針を決める必要がある。
+
+#### 1a. 項の順序
+
+負の冪を含む場合の単項式の標準順序を決める。降冪順（`r², r, 1, r⁻¹, r⁻²`）が自然だが、多変数の場合の辞書式順序の具体的な定義が必要。現在の `ScalarData` での順序を踏襲するか、新たに定義するか。
+
+#### 1b. 零の正規表現
+
+各レベルで `0` をどう正規化するか：
+
+- `CASInteger 0` は `CASInteger` レベルの零
+- `CASPoly []` は `CASPoly` レベルの零
+- `CASDiv (CASInteger 0) (CASInteger 1)` は `CASDiv` レベルの零
+
+方針の選択肢：
+- 各レベルの零をそのまま保持し、比較時に考慮する
+- 正規化時に最も内側の表現に統一する（例: `CASPoly []` → `CASPoly []` のまま、`CASDiv` の分子が零なら `CASDiv` ごと除去）
+
+#### 1c. GCD 簡約の詳細
+
+`CASDiv` の分子・分母からモノミアルの共通因子を抽出して `CASPoly` の負冪に戻す処理のアルゴリズム。
+
+### 2. CASFactor の演算の扱い（優先度: 高）
+
+`casPlus` の定義（178行目）に `CASFactor` のケースがない。以下を決める必要がある：
+
+- `CASFactor` 同士や `CASFactor` と他の `CASValue` の演算は型レベルで禁止するか？（`Factor` 型には `Ring` インスタンスを与えず、`Poly` に昇格してからでないと演算できない設計にするか）
+- それとも `CASFactor` を自動的に `CASPoly` に昇格してから演算するか？
+
+型レベルで禁止する場合、`casPlus` に `CASFactor` ケースは不要だが、その方針を明示する必要がある。
+
+### 3. embed 関数の実装詳細（優先度: 高）
+
+`embed` が自動挿入されることは記述されているが、各変換の具体的な実装が体系的に列挙されていない。主な変換：
+
+```
+Integer → Poly Integer [s]:
+  CASInteger n → CASPoly [CASTerm (CASInteger n) []]
+
+Integer → Div Integer:
+  CASInteger n → CASDiv (CASInteger n) (CASInteger 1)
+
+Factor → Poly Integer [s]:
+  CASFactor sym → CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
+
+Poly Integer [s] → Poly (Div Integer) [s]:
+  CASPoly terms → CASPoly (map liftCoeff terms)
+  where liftCoeff (CASTerm (CASInteger n) m) = CASTerm (CASDiv (CASInteger n) (CASInteger 1)) m
+
+Poly a [S₁] → Poly a [S₂]  (S₁ ⊆ S₂):
+  内部表現は変わらない（Monomial のシンボルは S₂ の部分集合として有効）
+```
+
+### 4. introduce ... with ... 構文の代替設計（優先度: 中）
+
+`sqrt` 関数の定義例で使われている `introduce ... with ... return ...` はEgisonに存在しない構文。簡約規則を動的に登録する仕組みがないと `Factor` 型の動的生成が実装できない。選択肢：
+
+- `IO` モナドに包み、副作用として簡約規則を登録する
+- `declare symbol ... with ...` を実行時にも使えるよう拡張する
+- 宣言的構文を新設する
+
+### 5. 開いた Poly [..] のランタイム表現と型具体化（優先度: 中）
+
+`CASPoly [CASTerm]` のデータ構造は閉じた `Poly` と同じで問題ないが、以下が未定：
+
+- 型推論時に `Poly a [..]` から `Poly a [x, y]` のような閉じた型に具体化する規則
+- 開いた `Poly` の値を閉じた `Poly` の関数に渡す際の型チェック
+
+### 6. Poly a [s] のインスタンス定義における s の扱い（優先度: 中）
+
+```egison
+instance {Ring a} Ring (Poly a [s]) where
+```
+
+この `[s]` は任意のシンボル集合に対するインスタンスを意味するが、Haskell側の型クラス解決でシンボル集合をどう扱うか（型レベルリストとして？パラメトリックに？）が具体化されていない。
+
+### 7. パターンマッチの提供（優先度: 低）
+
+現在の `PolyExprData` / `TermExprData` / `SymbolExprData` に相当するものを `CASValue` でどう提供するか。算術演算の実装後に対応可能。
