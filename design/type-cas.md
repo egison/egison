@@ -243,16 +243,18 @@ def t : Poly Integer ['sqrt 2] := s + 1    -- Poly Integer ['sqrt 2]
 ### sqrt 関数の定義例
 
 ```egison
+-- トップレベルでパターン変数を使った汎用規則を宣言
+declare rule auto ('sqrt $x)^2 = x
+
 sqrt : Integer -> Factor
 sqrt n =
   if (isPerfectSquare n) then embed (isqrt n)
-  else declare rule auto ('sqrt n)^2 = n
-       in 'sqrt n
+  else 'sqrt n
 ```
 
+- `declare rule auto ('sqrt $x)^2 = x` はトップレベル宣言で、任意の `x` に対して `('sqrt x)^2` を `x` に簡約する
 - 完全平方数のときは整数を返す（Integer ⊂ Factor で embed）
-- そうでないとき、新しい Factor `'sqrt n` を生成し、自動簡約規則 `('sqrt n)^2 = n` を登録する
-- `declare rule auto ... in ...` は式レベルの構文（`let ... in ...` に類似）で、スコープ内で規則が有効になる
+- そうでないとき、新しい Factor `'sqrt n` を生成する。簡約規則は既にトップレベルで宣言済み
 - `sin`, `cos` などの超越関数も同様にユーザーが定義できる
 
 ---
@@ -610,11 +612,12 @@ Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に
 ```egison
 -- 自動規則 (auto): 正規化時に常に適用される。正規形を定義する。
 declare rule auto i^2 = -1
-declare rule auto ('sqrt n)^2 = n
+declare rule auto ('sqrt $x)^2 = x
 
 -- 手動規則: 名前付きで登録し、ユーザーが明示的に適用する。
-declare rule trig_pythagorean ('sin x)^2 + ('cos x)^2 = 1
-declare rule trig_addition sin(a + b) = sin(a) * cos(b) + cos(a) * sin(b)
+-- $x で束縛、#x で同じ値を要求（Egison の非線形パターンマッチ）
+declare rule trig_pythagorean ('sin $x)^2 + ('cos #x)^2 = 1
+declare rule trig_addition 'sin ($a + $b) = 'sin a * 'cos b + 'cos a * 'sin b
 ```
 
 - **自動規則 (`auto`)**: `casNormalize` 実行時に常に適用される。`i^2 = -1` のように正規形を一意に定める規則に使う。Maxima の `tellsimp` に相当。
@@ -623,7 +626,7 @@ declare rule trig_addition sin(a + b) = sin(a) * cos(b) + cos(a) * sin(b)
 #### 手動規則の適用
 
 ```egison
-declare rule trig_pythagorean ('sin x)^2 + ('cos x)^2 = 1
+declare rule trig_pythagorean ('sin $x)^2 + ('cos #x)^2 = 1
 
 def expr := ('sin x)^2 + ('cos x)^2 + 1
 
@@ -638,15 +641,12 @@ simplify expr using trig_pythagorean
 - `sin(x)^2 + cos(x)^2 = 1` を常に自動適用すると、`sin(x)^2` を見るたびに `1 - cos(x)^2` に置換するか `cos(x)^2` を `1 - sin(x)^2` に置換するかの選択が生じ、正規形が一意に定まらない
 - Mathematica も同様の問題に対して「ユーザーが `TrigReduce` 等を明示的に呼ぶ」方針を取っている
 
-#### `declare symbol ... with` との関係
+#### `declare symbol` と `declare rule` の分離
 
-`declare symbol i with i^2 = -1` は以下の糖衣構文として扱える:
+`declare symbol` と `declare rule` は常に分けて定義する。`declare symbol ... with ...` の糖衣構文は採用しない。
 
 ```egison
--- 糖衣構文
-declare symbol i with i^2 = -1
-
--- 脱糖後
+-- シンボル宣言と簡約規則は常に別々に書く
 declare symbol i
 declare rule auto i^2 = -1
 ```
@@ -696,11 +696,11 @@ def n : Integer := coerce x    -- ユーザーの責任
 | # | 優先度 | 項目 | 状態 | 内容 |
 |---|---|---|---|---|
 | 1 | 高 | 型クラス制約構文の統一 | **完了** | `(C a) =>` を現在のEgisonの `extends` / `{C a}` 構文に修正済み |
-| 2 | 高 | `declare indeterminate` の廃止 | **完了** | `declare symbol` に統合し、`with` 句の有無で不定元とシンボルを区別する形に修正済み |
+| 2 | 高 | `declare indeterminate` の廃止 | **完了** | `declare symbol` に統合。簡約規則は `declare rule` で別途宣言する（`with` 句は廃止） |
 | 3 | 中 | `Poly a [...]` / `Poly a [..]` の型構文 | 設計済み | 閉じた `[s1, ...]` と開いた `[..]` の2形式。Type ADT に `TPoly Type SymbolSet` を追加し、`SymbolSet` は `Closed [SymbolExpr]` / `Open` の2構成子。パーサーでの `[a]`（コレクション型）との曖昧性解消が必要 |
-| 4 | 中 | 構成的な内部表現 (`CASValue`) | 設計中 | 基本構造（`CASInteger`, `CASPoly`, `CASDiv` の再帰的データ型、ローラン多項式）は決定。`EgisonValue` との統合は一括置換方針に決定。`CASFactor` コンストラクタを採用。正規化の詳細、パターンマッチの提供、既存コードの移行方針が未決定。詳細は「オープンな問題 > CASValue の残設計課題」を参照 |
+| 4 | 中 | 構成的な内部表現 (`CASValue`) | 設計中 | 基本構造（`CASInteger`, `CASPoly`, `CASDiv` の再帰的データ型、ローラン多項式）は決定。`EgisonValue` との統合は一括置換方針に決定。`CASFactor` コンストラクタを採用。`Factor` には `Ring` インスタンスを与えず `embed` で自動昇格する方針に決定。正規化の詳細、パターンマッチの提供、既存コードの移行方針が未決定。詳細は「オープンな問題 > CASValue の残設計課題」を参照 |
 | 5 | 中 | `Num` クラスの分割 | **完了** | `AddSemigroup` → `AddMonoid` → `AddGroup`、`MulSemigroup` → `MulMonoid` → `MulGroup`、`Ring`、`Field`、`GCDDomain`、`EuclideanDomain` の階層を定義・実装済み。前提の基盤強化（複数スーパークラスのパース、制約伝播、0-arity メソッド）も完了。詳細は `type-class.md` を参照 |
-| 6 | 中 | 簡約規則の宣言構文 (`declare rule`) | **設計済み** | `declare rule auto` (自動適用) と `declare rule name` (手動適用) の2段階で簡約規則を宣言する設計に決定。`declare symbol ... with ...` は糖衣構文として残す。`sqrt` 関数の定義例は `declare rule auto` を使う形に修正。詳細は「簡約規則の宣言 (`declare rule`)」セクションを参照 |
+| 6 | 中 | 簡約規則の宣言構文 (`declare rule`) | **設計済み** | `declare rule auto` (自動適用) と `declare rule name` (手動適用) の2段階。トップレベル宣言のみ許可。パターン変数 `$x` で汎用規則を定義可能。`declare symbol ... with ...` の糖衣構文は廃止。詳細は「簡約規則の宣言 (`declare rule`)」セクションを参照 |
 | 7 | 低 | `coerce` の安全性設計 | 未着手 | `Factor` → `Integer` 等のダウンキャストの安全なAPIを設計する。Egisonの強みであるパターンマッチを活用した安全な抽出方法を検討する |
 | 8 | 低 | マーカークラスのサポート確認 | **確認済み** | メソッドなしクラス定義は動作する。`where` なしインスタンスは不可だが `where` + 空メソッドで代用可能。詳細は `type-class.md` を参照 |
 
@@ -742,14 +742,13 @@ casTermsGcd = foldl1 (\(CASTerm a xs) (CASTerm b ys) -> CASTerm (casGcd a b) (mo
 
 将来的に多項式GCD（ユークリッドの互除法等）へ拡張できるよう、`casGcd` を型クラスまたはパターンマッチで分離し、モノミアルGCDと多項式GCDを差し替え可能にしておく。
 
-### 2. CASFactor の演算の扱い（優先度: 高）
+### 2. CASFactor の演算の扱い — **決定済み**
 
-`casPlus` の定義（178行目）に `CASFactor` のケースがない。以下を決める必要がある：
+`Factor` 型には `Ring` インスタンスを与えない。演算が必要な文脈では、型チェッカーが coercive subtyping（`Embed` 型クラス）により自動的に `Poly` へ `embed` を挿入する。
 
-- `CASFactor` 同士や `CASFactor` と他の `CASValue` の演算は型レベルで禁止するか？（`Factor` 型には `Ring` インスタンスを与えず、`Poly` に昇格してからでないと演算できない設計にするか）
-- それとも `CASFactor` を自動的に `CASPoly` に昇格してから演算するか？
-
-型レベルで禁止する場合、`casPlus` に `CASFactor` ケースは不要だが、その方針を明示する必要がある。
+- `casPlus` / `casMult` に `CASFactor` のケースは不要
+- 包含関係 `Factor ⊂ Poly Integer [s]` と `embed` の変換規則（`CASFactor sym → CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]`）で処理される
+- これにより演算関数の実装がシンプルになり、既存の `embed` 自動挿入の仕組みと一貫する
 
 ### 3. embed 関数の実装詳細 — **方針決定済み**
 
@@ -828,11 +827,11 @@ Coq の Coercion mechanism に倣い、型チェッカーに coercive subtyping 
 - **自動規則** (`declare rule auto`): 正規化時に常に適用。正規形を定義する規則用。
 - **手動規則** (`declare rule name`): 名前付きで登録し、`simplify expr using name` で明示的に適用。
 
-これにより `sin(x)^2 + cos(x)^2 = 1` のような複数シンボル間の関係式も自然に宣言できる。`declare symbol ... with ...` は `declare symbol` + `declare rule auto` の糖衣構文として残す。
+これにより `sin(x)^2 + cos(x)^2 = 1` のような複数シンボル間の関係式も自然に宣言できる。`declare symbol` と `declare rule` は常に分けて定義し、`declare symbol ... with ...` の糖衣構文は採用しない。
+
+`declare rule` はトップレベル宣言のみを許可する。パターン変数 `$x` を使うことで汎用的な規則をトップレベルで定義できるため、式レベル構文（`declare rule auto ... in ...`）や `IO` モナドは不要。
 
 詳細は「簡約規則の宣言 (`declare rule`)」セクションを参照。
-
-`sqrt` 関数の定義例における `introduce ... with ...` 構文については、`declare rule auto` を式レベルで使えるように拡張する（`declare rule auto ('sqrt n)^2 = n in 'sqrt n`）か、`IO` モナドに包むかの選択が残っている。
 
 ### 5. 開いた Poly [..] のランタイム表現と型具体化 — **方針決定済み**
 
@@ -884,3 +883,38 @@ instance Ring (Poly Integer [i]) where
 ### 7. パターンマッチの提供（優先度: 低）
 
 現在の `PolyExprData` / `TermExprData` / `SymbolExprData` に相当するものを `CASValue` でどう提供するか。算術演算の実装後に対応可能。
+
+---
+
+## 実装 TODO
+
+### Phase 1: CASValue の基盤実装（設計確定済み、着手可能）
+
+- [ ] `CASValue` データ型の定義（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）
+- [ ] `casPlus`, `casMult` の実装（`CASInteger`, `CASPoly`, `CASDiv` の3ケース。`CASFactor` は不要）
+- [ ] ローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）
+- [ ] `EgisonValue` の `ScalarData` を `CASData CASValue` に一括置換
+- [ ] 既存モジュールの移行（`Math/Arith.hs`, `Math/Normalize.hs`, `Math/Rewrite.hs`, `Data.hs`, `Primitives/Arith.hs`）
+
+### Phase 2: 型システムへの統合（設計確定済み、着手可能）
+
+- [ ] `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor`、`TInteger` を追加
+- [ ] `SymbolSet` の定義（`Closed [SymbolExpr]` / `Open`）
+- [ ] パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` をパース（`[a]` コレクション型との曖昧性解消）
+- [ ] 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
+- [ ] `join` の実装（二項演算時の最小上界計算）
+- [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
+- [ ] 開いた `[..]` のフレッシュ型変数への脱糖
+
+### Phase 3: 簡約規則（設計確定済み、着手可能）
+
+- [ ] `declare rule` のパーサー実装（`declare rule auto ...` / `declare rule name ...`）
+- [ ] パターン変数 `$x` と非線形パターン `#x` のサポート
+- [ ] 規則環境（`ReductionEnv`）の構築（プログラムロード時に収集）
+- [ ] `casNormalize` での自動規則の適用
+- [ ] `simplify expr using rule_name` の実装
+
+### Phase 4: 残課題（実装後に対応）
+
+- [ ] `CASValue` のパターンマッチ提供 — 現在の `PolyExprData` / `TermExprData` / `SymbolExprData` に相当する機能を `CASPoly`, `CASTerm`, `SymbolExpr` の3層で提供する。`CASValue` の係数が再帰的なので、マッチャーも再帰的に動作する設計が必要
+- [ ] `coerce` の安全性設計 — `Factor` → `Integer` 等のダウンキャストについて。パターンマッチで安全に値を抽出できれば `coerce` は不要になる可能性が高い。Phase 4 のパターンマッチ提供の結果を見て判断する
