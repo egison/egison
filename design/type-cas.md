@@ -858,8 +858,10 @@ Egison の設計は以下の点で異なる。
 
 - [ ] `CASValue` データ型の定義（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）
 - [ ] `casPlus`, `casMult` の実装（`CASInteger`, `CASPoly`, `CASDiv` の3ケース。`CASFactor` は不要）
+ - CASFactorをCASPolyにliftして計算する分岐は必要では？
 - [ ] ローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）
 - [ ] `EgisonValue` の `ScalarData` を `CASData CASValue` に一括置換
+ - EgisonValue = CASDiv (CASPoly Integer [..])であることを使う？
 - [ ] 既存モジュールの移行（`Math/Arith.hs`, `Math/Normalize.hs`, `Math/Rewrite.hs`, `Data.hs`, `Primitives/Arith.hs`）
 
 ### Phase 2: 型システムへの統合（設計確定済み、着手可能）
@@ -872,16 +874,18 @@ Egison の設計は以下の点で異なる。
 - [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
 - [ ] 開いた `[..]` のフレッシュ型変数への脱糖
 
-### Phase 3: 簡約規則（設計確定済み、着手可能）
-
-- [ ] `declare rule` のパーサー実装（`declare rule auto ...` / `declare rule name ...`）
-- [ ] パターン変数 `$x` と非線形パターン `#x` のサポート
-- [ ] 規則環境（`ReductionEnv`）の構築（プログラムロード時に収集）
-- [ ] `casNormalize` での自動規則の適用
-- [ ] `simplify expr using rule_name` の実装
-
-### Phase 4: パターンマッチと残課題
+### Phase 3: パターンマッチ
 
 - [ ] `poly` マッチャーの実装 — `poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs)`。`:+` パターン（順序不問の項分解）、モノミアルの `multiset (factor, integer)` によるマッチを提供
 - [ ] `div` マッチャーの実装 — `div {a} (m : Matcher a) : Matcher (Div a)`。`$n / $d` パターンで分子・分母を分解
 - [ ] `declare rule` の規則適用エンジンで `poly` / `div` マッチャーを利用し、関数引数内のパターン分解を実装
+
+### Phase 4: 簡約規則（設計確定済み、着手可能）
+
+- [ ] `declare rule` のパーサー実装（`declare rule auto ...` / `declare rule name ...`）
+  - パターン変数 `$x` と非線形パターン `#x` のサポート
+    - Egisonプログラムに変換したい
+- [ ] 規則環境（`ReductionEnv`）の構築（プログラムロード時に収集）
+- [ ] `casNormalize` での自動規則の適用
+- [ ] `simplify expr using rule_name` の実装
+
