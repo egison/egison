@@ -780,9 +780,9 @@ Egison の設計は以下の点で異なる。
 
 #### 正規化の詳細
 
-正規化の基本方針（項の順序、零の表現、モノミアルGCD）は決定済みだが、以下の詳細が未定：
+正規化の基本方針（項の順序、零の表現、モノミアルGCD）は決定済み。
 
-- 関係式が多項式的でない場合の規則適用の仕組み（例: `sin(x+y) = sin(x)cos(y) + cos(x)sin(y)` のような関数引数のパターンマッチを含む規則）
+関数引数のパターンマッチを含む規則（例: `'sin ($a + $b) = 'sin a * 'cos b + 'cos a * 'sin b`）の適用の仕組みも、パターンマッチの設計により解決済み。規則の左辺 `'sin ($a + $b)` は、`SymbolExpr` の `Apply1` コンストラクタにマッチし、その引数（`CASValue`）を `poly` マッチャーで分解して `$a + $b` を束縛する。つまり、`declare rule` の規則適用エンジンは、CAS マッチャー（`poly`, `div` 等）を内部的に利用して関数引数内のパターンを分解する。
 
 #### パターンマッチの提供
 
@@ -857,16 +857,14 @@ match expr as div (poly integer ['x]) with
 - `Data.hs`: `EgisonValue` との相互変換、`EgisonData` インスタンス
 - `Primitives/Arith.hs`: プリミティブ算術関数
 
-### 2. Poly の入れ子 vs 多変数（優先度: 低）
+### 2. Poly の入れ子 vs 多変数（解決済み）
 
 ```egison
 Poly (Poly Integer [x]) [y]     -- Z[x, x⁻¹][y, y⁻¹]: y について整理、係数が x のローラン多項式
 Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に扱う
 ```
 
-数学的に同型だが、正規形が異なる。
-区別するかどうかはグレブナー基底などの実装時に判断する。
-入れ子の場合の具体的な内部表現は「構成的な内部表現 > 表現の対応」の `Poly (Poly Integer [x]) [y]` の例を参照。
+数学的に同型だが、正規形が異なる。型システムの設計上、両者は異なる型・異なる内部表現・異なるマッチャー（`poly (poly integer ['x]) ['y]` vs `poly integer ['x, 'y]`）として自然に区別される。ユーザーが型注釈で選択する。入れ子の場合の具体的な内部表現は「構成的な内部表現 > 表現の対応」の `Poly (Poly Integer [x]) [y]` の例を参照。
 
 ### 3. `coerce` の安全性設計（優先度: 低）
 
@@ -906,7 +904,8 @@ Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に
 - [ ] `casNormalize` での自動規則の適用
 - [ ] `simplify expr using rule_name` の実装
 
-### Phase 4: 残課題（実装後に対応）
+### Phase 4: パターンマッチと残課題
 
-- [ ] `CASValue` のパターンマッチ提供 — 現在の `PolyExprData` / `TermExprData` / `SymbolExprData` に相当する機能を `CASPoly`, `CASTerm`, `SymbolExpr` の3層で提供する。`CASValue` の係数が再帰的なので、マッチャーも再帰的に動作する設計が必要
-- [ ] `coerce` の安全性設計 — `Factor` → `Integer` 等のダウンキャストについて。パターンマッチで安全に値を抽出できれば `coerce` は不要になる可能性が高い。Phase 4 のパターンマッチ提供の結果を見て判断する
+- [ ] `poly` マッチャーの実装 — `poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs)`。`:+` パターン（順序不問の項分解）、モノミアルの `multiset (factor, integer)` によるマッチを提供
+- [ ] `div` マッチャーの実装 — `div {a} (m : Matcher a) : Matcher (Div a)`。`$n / $d` パターンで分子・分母を分解
+- [ ] `declare rule` の規則適用エンジンで `poly` / `div` マッチャーを利用し、関数引数内のパターン分解を実装
