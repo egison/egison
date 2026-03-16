@@ -786,7 +786,66 @@ Egison の設計は以下の点で異なる。
 
 #### パターンマッチの提供
 
-現在 `PolyExprData`, `TermExprData`, `SymbolExprData` で数式の内部構造にパターンマッチできる。新しい `CASValue` で同等の機能をどう提供するか。構成的な表現になるため、各層（`CASInteger`, `CASPoly`, `CASDiv`）に対するパターンマッチの設計が必要。`CASValue` の係数が再帰的なので、マッチャーも再帰的に動作する設計が必要。
+`multiset` が `Matcher a → Matcher [a]` であるのと同様に、CAS の各層をパラメトリックなマッチャーとして設計する。マッチャーの合成により、入れ子の数式構造に対するパターンマッチを統一的に扱える。
+
+##### マッチャーの定義
+
+```egison
+-- poly: 係数マッチャーとファクターのリストを受け取り、多項式のマッチャーを返す
+poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs)
+
+-- div: 被除数のマッチャーを受け取り、分数のマッチャーを返す
+div {a} (m : Matcher a) : Matcher (Div a)
+```
+
+##### 利用例
+
+```egison
+-- Poly Integer [x] のパターンマッチ
+match expr as poly integer ['x] with
+  | $a :+ $rest -> ...   -- a : Integer, rest : Poly Integer [x]
+
+-- Poly (Poly Integer [x]) [y] のパターンマッチ（入れ子）
+match expr as poly (poly integer ['x]) ['y] with
+  | $a :+ $rest -> ...   -- a : Poly Integer [x]
+
+-- Poly Integer [x, y] のパターンマッチ（多変数）
+match expr as poly integer ['x, 'y] with
+  | $a :+ $rest -> ...   -- a : Integer
+
+-- Div (Poly Integer [x]) のパターンマッチ
+match expr as div (poly integer ['x]) with
+  | $n / $d -> ...       -- n, d : Poly Integer [x]
+```
+
+##### シンボル集合への multiset factor によるマッチ
+
+`poly` の第2引数は `[Factor]` であり、`multiset factor` でマッチできる。これにより、シンボル集合自体にもパターンマッチが使える。
+
+```egison
+-- 項の分解時、モノミアル部分も multiset でマッチ
+-- モノミアルは [(Factor, Integer)] なので：
+match term as termOf (poly integer ['x, 'y]) with
+  | ($coeff, $mono) ->
+    match mono as multiset (factor, integer) with
+      | ('x, $n) :: ('y, $m) :: [] -> ...  -- x^n * y^m
+```
+
+##### coerce の代替としての安全な抽出
+
+この設計により、ダウンキャスト（`coerce`）の代わりにパターンマッチで安全に値を抽出できる。
+
+```egison
+-- Div (Poly Integer [x]) → Poly Integer [x] への安全な抽出
+match expr as div (poly integer ['x]) with
+  | $n / #1 -> n    -- 分母が1のときだけ安全に取り出す
+```
+
+##### 設計の利点
+
+- **`multiset` と同じ仕組み**: `poly m fs` の `:+` パターンは `multiset m` の `::` パターンと同じ意味論（順序不問の分解）
+- **`Factor` は CAS の既存概念**: 新しい型を導入せず、`multiset factor` でシンボル集合をマッチ
+- **合成が統一的**: `poly`, `div`, `multiset`, `factor` がすべて同じマッチャー合成の仕組みで組み合わさる
 
 #### 既存コードの移行
 
@@ -811,7 +870,7 @@ Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に
 
 ### 3. `coerce` の安全性設計（優先度: 低）
 
-`Factor` → `Integer` 等のダウンキャストの安全なAPIを設計する。Egisonの強みであるパターンマッチを活用した安全な抽出方法を検討する。パターンマッチで安全に値を抽出できれば `coerce` は不要になる可能性が高い。パターンマッチ提供（課題1）の結果を見て判断する。
+課題1のパターンマッチ設計により、ダウンキャストは `coerce` ではなくパターンマッチで安全に行える。例えば `div (poly integer ['x])` に対して `$n / #1` でマッチすれば、分母が1の場合のみ安全に `Poly Integer [x]` を取り出せる。`coerce` は不要になる見込み。
 
 ### 4. `Poly a [...]` / `Poly a [..]` の型構文実装（優先度: 中）
 
