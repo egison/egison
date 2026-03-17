@@ -19,6 +19,9 @@ module Language.Egison.Math.CAS
       CASValue (..)
     , CASTerm (..)
     , Monomial
+    , SymbolExpr (..)
+    , Id
+    , makeApplyExpr
     -- * Smart constructors
     , casInteger
     , casFactor
@@ -45,13 +48,20 @@ module Language.Egison.Math.CAS
     -- * Conversion from/to ScalarData (for migration)
     , scalarDataToCASValue
     , casValueToScalarData
+    , oldSymbolExprToNew
+    , newSymbolExprToOld
+    , oldMonomialToNew
+    , newMonomialToOld
     ) where
 
 import           Data.List (sortBy, groupBy)
 import           Data.Ord (comparing)
 import           Data.Function (on)
 
-import           Language.Egison.Math.Expr (SymbolExpr(..), Monomial, ScalarData(..), PolyExpr(..), TermExpr(..))
+import           Language.Egison.IExpr (Index (..))
+import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
+import qualified Language.Egison.Math.Expr as OldExpr
+import           Language.Egison.Math.Expr (ScalarData(..), PolyExpr(..), TermExpr(..))
 
 -- | CASValue represents mathematical values in the CAS.
 -- The structure is compositional: each constructor has a well-defined semantics.
@@ -73,6 +83,100 @@ data CASValue
 -- The coefficient is a CASValue, enabling nested polynomial structures.
 data CASTerm = CASTerm CASValue Monomial
   deriving (Eq, Show)
+
+-- | We choose the definition 'monomials' without its coefficients.
+-- ex. 2 x^2 y^3 is *not* a monomial. x^2 t^3 is a monomial.
+type Monomial = [(SymbolExpr, Integer)]
+
+-- | Identifier type for symbols
+type Id = String
+
+-- | SymbolExpr represents atomic symbolic expressions in the CAS.
+-- NOTE: This uses CASValue instead of ScalarData for full integration with the new CAS system.
+data SymbolExpr
+  = Symbol Id String [Index CASValue]
+  | Apply1 CASValue CASValue
+  | Apply2 CASValue CASValue CASValue
+  | Apply3 CASValue CASValue CASValue CASValue
+  | Apply4 CASValue CASValue CASValue CASValue CASValue
+  | Quote CASValue                     -- For backtick quote: `expr
+  | QuoteFunction WHNFData             -- For single quote on functions: 'func
+  | FunctionData CASValue [CASValue]   -- fnname args
+
+-- Manual Eq instance (QuoteFunction comparison uses function name)
+instance Eq SymbolExpr where
+  Symbol id1 s1 js1 == Symbol id2 s2 js2 = id1 == id2 && s1 == s2 && js1 == js2
+  Apply1 f1 a1 == Apply1 f2 a2 = f1 == f2 && a1 == a2
+  Apply2 f1 a1 b1 == Apply2 f2 a2 b2 = f1 == f2 && a1 == a2 && b1 == b2
+  Apply3 f1 a1 b1 c1 == Apply3 f2 a2 b2 c2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2
+  Apply4 f1 a1 b1 c1 d1 == Apply4 f2 a2 b2 c2 d2 = f1 == f2 && a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+  Quote m1 == Quote m2 = m1 == m2
+  QuoteFunction whnf1 == QuoteFunction whnf2 =
+    case (prettyFunctionName whnf1, prettyFunctionName whnf2) of
+      (Just n1, Just n2) -> n1 == n2
+      _ -> False  -- Anonymous functions are never equal
+  FunctionData n1 k1 == FunctionData n2 k2 = n1 == n2 && k1 == k2
+  _ == _ = False
+
+instance Show SymbolExpr where
+  show = prettySymbolExpr
+
+-- | Pretty print a SymbolExpr
+prettySymbolExpr :: SymbolExpr -> String
+prettySymbolExpr (Symbol _ (':':':':':':_) []) = "#"
+prettySymbolExpr (Symbol _ s [])               = s
+prettySymbolExpr (Symbol _ s js)               = s ++ concatMap showIndex js
+  where
+    showIndex (Sup i)    = "~" ++ prettyCAS' i
+    showIndex (Sub i)    = "_" ++ prettyCAS' i
+    showIndex (SupSub i) = "~_" ++ prettyCAS' i
+    showIndex (DF _ _)   = ""
+    showIndex (User i)   = "|" ++ prettyCAS' i
+prettySymbolExpr (Apply1 fn a1)                = unwords [prettyCAS' fn, prettyCAS' a1]
+prettySymbolExpr (Apply2 fn a1 a2)             = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2]
+prettySymbolExpr (Apply3 fn a1 a2 a3)          = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2, prettyCAS' a3]
+prettySymbolExpr (Apply4 fn a1 a2 a3 a4)       = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2, prettyCAS' a3, prettyCAS' a4]
+prettySymbolExpr (Quote mExprs)                = "`" ++ prettyCAS' mExprs
+prettySymbolExpr (QuoteFunction whnf)          = "'" ++ maybe "<function>" id (prettyFunctionName whnf)
+prettySymbolExpr (FunctionData name args)      = unwords (prettyCAS name : map prettyCAS' args)
+
+-- | Pretty print a CASValue (basic version for SymbolExpr Show instance)
+prettyCAS :: CASValue -> String
+prettyCAS (CASInteger n) = show n
+prettyCAS (CASFactor sym) = prettySymbolExpr sym
+prettyCAS (CASPoly []) = "0"
+prettyCAS (CASPoly terms) = prettyTerms terms
+  where
+    prettyTerms [] = "0"
+    prettyTerms (t:ts) = prettyTerm t ++ concatMap withSign ts
+    withSign term@(CASTerm coeff _)
+      | isNegative coeff = " - " ++ prettyTerm (negateCAST term)
+      | otherwise = " + " ++ prettyTerm term
+    prettyTerm (CASTerm coeff []) = prettyCAS coeff
+    prettyTerm (CASTerm (CASInteger 1) mono) = prettyMono mono
+    prettyTerm (CASTerm (CASInteger (-1)) mono) = "- " ++ prettyMono mono
+    prettyTerm (CASTerm coeff mono) = prettyCAS coeff ++ " * " ++ prettyMono mono
+    prettyMono mono = unwords (map prettyPow mono)
+    prettyPow (sym, 1) = prettySymbolExpr sym
+    prettyPow (sym, n) = prettyCAS' (CASFactor sym) ++ "^" ++ show n
+    isNegative (CASInteger n) = n < 0
+    isNegative _ = False
+    negateCAST (CASTerm (CASInteger n) m) = CASTerm (CASInteger (-n)) m
+    negateCAST t = t
+prettyCAS (CASDiv num denom) = prettyCAS' num ++ " / " ++ prettyCAS' denom
+
+prettyCAS' :: CASValue -> String
+prettyCAS' v@(CASInteger _) = prettyCAS v
+prettyCAS' v@(CASFactor _) = prettyCAS v
+prettyCAS' v = "(" ++ prettyCAS v ++ ")"
+
+-- | Helper function to create Apply constructors based on argument count
+makeApplyExpr :: CASValue -> [CASValue] -> SymbolExpr
+makeApplyExpr fn [a1] = Apply1 fn a1
+makeApplyExpr fn [a1, a2] = Apply2 fn a1 a2
+makeApplyExpr fn [a1, a2, a3] = Apply3 fn a1 a2 a3
+makeApplyExpr fn [a1, a2, a3, a4] = Apply4 fn a1 a2 a3 a4
+makeApplyExpr _ _ = error "makeApplyExpr: unsupported number of arguments (must be 1-4)"
 
 --------------------------------------------------------------------------------
 -- Smart Constructors
@@ -397,6 +501,48 @@ divideTermBy (CASTerm coeff1 mono1) (CASTerm coeff2 mono2) =
 -- Conversion Functions (for migration from ScalarData)
 --------------------------------------------------------------------------------
 
+-- | Convert old SymbolExpr (with ScalarData) to new SymbolExpr (with CASValue)
+oldSymbolExprToNew :: OldExpr.SymbolExpr -> SymbolExpr
+oldSymbolExprToNew (OldExpr.Symbol id name indices) =
+  Symbol id name (map (fmap scalarDataToCASValue) indices)
+oldSymbolExprToNew (OldExpr.Apply1 f a) =
+  Apply1 (scalarDataToCASValue f) (scalarDataToCASValue a)
+oldSymbolExprToNew (OldExpr.Apply2 f a b) =
+  Apply2 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b)
+oldSymbolExprToNew (OldExpr.Apply3 f a b c) =
+  Apply3 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b) (scalarDataToCASValue c)
+oldSymbolExprToNew (OldExpr.Apply4 f a b c d) =
+  Apply4 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b) (scalarDataToCASValue c) (scalarDataToCASValue d)
+oldSymbolExprToNew (OldExpr.Quote s) = Quote (scalarDataToCASValue s)
+oldSymbolExprToNew (OldExpr.QuoteFunction whnf) = QuoteFunction whnf
+oldSymbolExprToNew (OldExpr.FunctionData f args) =
+  FunctionData (scalarDataToCASValue f) (map scalarDataToCASValue args)
+
+-- | Convert new SymbolExpr (with CASValue) to old SymbolExpr (with ScalarData)
+newSymbolExprToOld :: SymbolExpr -> OldExpr.SymbolExpr
+newSymbolExprToOld (Symbol id name indices) =
+  OldExpr.Symbol id name (map (fmap casValueToScalarData) indices)
+newSymbolExprToOld (Apply1 f a) =
+  OldExpr.Apply1 (casValueToScalarData f) (casValueToScalarData a)
+newSymbolExprToOld (Apply2 f a b) =
+  OldExpr.Apply2 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b)
+newSymbolExprToOld (Apply3 f a b c) =
+  OldExpr.Apply3 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b) (casValueToScalarData c)
+newSymbolExprToOld (Apply4 f a b c d) =
+  OldExpr.Apply4 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b) (casValueToScalarData c) (casValueToScalarData d)
+newSymbolExprToOld (Quote s) = OldExpr.Quote (casValueToScalarData s)
+newSymbolExprToOld (QuoteFunction whnf) = OldExpr.QuoteFunction whnf
+newSymbolExprToOld (FunctionData f args) =
+  OldExpr.FunctionData (casValueToScalarData f) (map casValueToScalarData args)
+
+-- | Convert old Monomial to new Monomial
+oldMonomialToNew :: OldExpr.Monomial -> Monomial
+oldMonomialToNew = map (\(sym, exp) -> (oldSymbolExprToNew sym, exp))
+
+-- | Convert new Monomial to old Monomial
+newMonomialToOld :: Monomial -> OldExpr.Monomial
+newMonomialToOld = map (\(sym, exp) -> (newSymbolExprToOld sym, exp))
+
 -- | Convert ScalarData to CASValue
 -- This is used during the migration period to convert existing code
 scalarDataToCASValue :: ScalarData -> CASValue
@@ -410,7 +556,7 @@ polyExprToCASValue (Plus terms) = CASPoly (map termExprToCAS terms)
 
 -- | Convert TermExpr to CASTerm
 termExprToCAS :: TermExpr -> CASTerm
-termExprToCAS (Term coeff mono) = CASTerm (CASInteger coeff) mono
+termExprToCAS (Term coeff mono) = CASTerm (CASInteger coeff) (oldMonomialToNew mono)
 
 -- | Convert CASValue back to ScalarData
 -- This is needed for compatibility with code that still uses ScalarData
@@ -420,7 +566,7 @@ casValueToScalarData (CASInteger n) =
     then Div (Plus []) (Plus [Term 1 []])
     else Div (Plus [Term n []]) (Plus [Term 1 []])
 casValueToScalarData (CASFactor sym) =
-  Div (Plus [Term 1 [(sym, 1)]]) (Plus [Term 1 []])
+  Div (Plus [Term 1 [(newSymbolExprToOld sym, 1)]]) (Plus [Term 1 []])
 casValueToScalarData (CASPoly terms) =
   Div (Plus (map casTermToTermExpr terms)) (Plus [Term 1 []])
 casValueToScalarData (CASDiv num denom) =
@@ -431,6 +577,6 @@ casValueToScalarData (CASDiv num denom) =
 -- | Convert CASTerm to TermExpr
 -- Note: This only works for terms with CASInteger coefficients
 casTermToTermExpr :: CASTerm -> TermExpr
-casTermToTermExpr (CASTerm (CASInteger coeff) mono) = Term coeff mono
+casTermToTermExpr (CASTerm (CASInteger coeff) mono) = Term coeff (newMonomialToOld mono)
 casTermToTermExpr (CASTerm _ _) =
   error "casTermToTermExpr: non-integer coefficient (nested polynomials not supported in ScalarData)"

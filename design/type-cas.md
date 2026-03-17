@@ -885,14 +885,17 @@ Egison の設計は以下の点で異なる。
 - [x] その他の `ScalarData` 参照箇所を修正しコンパイルを通す
   - **現状**: `CASData` と `ScalarData` が並存。変換関数で相互運用可能。完全な置換は Phase 2 以降で段階的に実施予定。
 
-#### Step 9: SymbolExpr の CASValue 参照への移行（未着手）
+#### Step 9: SymbolExpr の CASValue 参照への移行（完了）
 
-- [ ] `SymbolExpr` を `CASValue` 参照に移行
-  - **課題**: `CASValue` → `CASTerm` → `Monomial` → `SymbolExpr` → `CASValue` という相互再帰構造を実現するには、両者を同一モジュールに定義するか、hs-boot ファイルを使う必要がある
-  - **試行した方法**:
-    1. `SymbolExpr` を `CAS.hs` に移動し、`Expr.hs` から SOURCE インポートで `ScalarData` の構造を取得しようとしたが、hs-boot ファイルでのデータコンストラクタのエクスポートに制限があった
-    2. 現時点では `CAS.hs` が `Expr.hs` から `SymbolExpr` をインポートする構造を維持
-  - **今後の方針**: Phase 2 の型システム実装時に、`SymbolExpr` の `ScalarData` 参照を `CASValue` に変更する。その際、`Expr.hs` を段階的に廃止し、`CAS.hs` に統合する
+- [x] `SymbolExpr` を `CASValue` 参照に移行
+  - `hs-src/Language/Egison/Math/CAS.hs` に新しい `SymbolExpr` を定義（`CASValue` を参照）
+  - `hs-src/Language/Egison/Math/Expr.hs` には旧 `SymbolExpr`（`ScalarData` を参照）を維持
+  - 変換関数を追加:
+    - `oldSymbolExprToNew`: 旧 `SymbolExpr` → 新 `SymbolExpr`
+    - `newSymbolExprToOld`: 新 `SymbolExpr` → 旧 `SymbolExpr`
+    - `oldMonomialToNew`, `newMonomialToOld`: `Monomial` の変換
+  - `{-# SOURCE #-}` インポートで `WHNFData` の循環依存を解決
+  - 既存コードとの互換性を維持しながら、新しい CAS システムでは `CASValue` ベースの `SymbolExpr` を使用可能
 
 ### Phase 2: 型システムへの統合（基盤実装完了）
 
