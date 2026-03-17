@@ -28,6 +28,9 @@ module Language.Egison.Data
     , mathExprToEgison
     , egisonToScalarData
     , extractScalar
+    -- * CAS types (re-exported from Math.CAS)
+    , CASValue(..)
+    , casValueToScalarData
     -- * Internal data
     , Object (..)
     , ObjectRef
@@ -85,6 +88,7 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.IExpr
 import           Language.Egison.Math
+import           Language.Egison.Math.CAS (CASValue(..), casValueToScalarData)
 import           Language.Egison.RState
 
 --
@@ -97,6 +101,7 @@ data EgisonValue
   | String Text
   | Bool Bool
   | ScalarData ScalarData
+  | CASData CASValue  -- New CAS type (will eventually replace ScalarData)
   | TensorData (Tensor EgisonValue)
   | Float Double
   | InductiveData String [EgisonValue]
@@ -313,6 +318,7 @@ instance Show EgisonValue where
   show (Bool True) = "True"
   show (Bool False) = "False"
   show (ScalarData mExpr) = show mExpr
+  show (CASData casVal) = show (casValueToScalarData casVal)  -- Convert for display
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
   show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
@@ -357,6 +363,7 @@ isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
 isAtomic (ScalarData m)       = isAtom m
+isAtomic (CASData casVal)     = isAtom (casValueToScalarData casVal)
 isAtomic (PolyExprData _)     = False
 isAtomic (TermExprData _)     = False
 isAtomic (SymbolExprData _)   = False
@@ -368,6 +375,9 @@ instance Eq EgisonValue where
   (String str) == (String str')                                    = str == str'
   (Bool b) == (Bool b')                                            = b == b'
   (ScalarData x) == (ScalarData y)                                 = x == y
+  (CASData x) == (CASData y)                                       = x == y
+  (ScalarData x) == (CASData y)                                    = x == casValueToScalarData y
+  (CASData x) == (ScalarData y)                                    = casValueToScalarData x == y
   (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = js == js' && xs == xs'
   (Float x) == (Float x')                                          = x == x'
   (InductiveData name vals) == (InductiveData name' vals')         = name == name' && vals == vals'

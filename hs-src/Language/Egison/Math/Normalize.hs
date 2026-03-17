@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 {- |
-Module      : Language.Egison.Math.Expr
+Module      : Language.Egison.Math.Normalize
 Licence     : MIT
 
 This module implements the normalization of polynomials. Normalization rules
@@ -10,14 +10,19 @@ in Rewrite.hs.
 -}
 
 module Language.Egison.Math.Normalize
-  ( mathNormalize'
+  ( -- * ScalarData normalization (backward compatible)
+    mathNormalize'
   , termsGcd
   , mathDivideTerm
+  -- * CASValue normalization (re-exported from CAS)
+  , casNormalize
+  , casNormalizePoly
   ) where
 
 import           Control.Egison
 
 import           Language.Egison.Math.Expr
+import           Language.Egison.Math.CAS (casNormalize, casNormalizePoly)
 
 
 mathNormalize' :: ScalarData -> ScalarData

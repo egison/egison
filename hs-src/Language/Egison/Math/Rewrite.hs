@@ -8,7 +8,10 @@ This module implements rewrite rules for common mathematical functions.
 -}
 
 module Language.Egison.Math.Rewrite
-  ( rewriteSymbol
+  ( -- * ScalarData rewrite (backward compatible)
+    rewriteSymbol
+  -- * CASValue rewrite (using conversion)
+  , casRewriteSymbol
   ) where
 
 import           Control.Egison
@@ -16,7 +19,12 @@ import           Control.Egison
 import           Language.Egison.Math.Arith
 import           Language.Egison.Math.Expr
 import           Language.Egison.Math.Normalize
+import           Language.Egison.Math.CAS (CASValue, scalarDataToCASValue, casValueToScalarData)
 import {-# SOURCE #-} Language.Egison.Data (WHNFData)
+
+-- | Apply rewrite rules to a CASValue (via conversion)
+casRewriteSymbol :: CASValue -> CASValue
+casRewriteSymbol = scalarDataToCASValue . rewriteSymbol . casValueToScalarData
 
 
 rewriteSymbol :: ScalarData -> ScalarData

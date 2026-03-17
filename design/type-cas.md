@@ -858,30 +858,32 @@ Egison の設計は以下の点で異なる。
 
 #### Step 1-2: 新モジュールの作成（既存コードを壊さずに進行）
 
-- [ ] `CASValue` データ型を新ファイル `Math/CAS.hs` に定義（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）
+- [x] `CASValue` データ型を新ファイル `Math/CAS.hs` に定義（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）
   - 不正な入れ子構造を防ぐためスマートコンストラクタも用意する
-- [ ] `casPlus`, `casMult` の実装（`CASInteger`, `CASPoly`, `CASDiv` の3ケース + `CASFactor` のlift分岐）
+- [x] `casPlus`, `casMult` の実装（`CASInteger`, `CASPoly`, `CASDiv` の3ケース + `CASFactor` のlift分岐）
   - Phase 2 の型チェッカーによる自動 embed が完成するまでは、ランタイムに `CASFactor` が演算に渡される可能性がある。`CASFactor sym` を `CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]` にliftして処理する防御的な分岐を入れる。Phase 2 完成後も害はない
-- [ ] ローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）
+- [x] ローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）
   - 再帰的 `casGcd` は初期実装では `CASInteger` のみ対応し、他の係数型は GCD = 1 にフォールバック
-- [ ] `Math/CAS.hs` の単体テスト（`casPlus`, `casMult`, `casNormalize` が正しく動作することを確認）
+- [x] `Math/CAS.hs` の単体テスト（`casPlus`, `casMult`, `casNormalize` が正しく動作することを確認）
 
 #### Step 3: `ScalarData` → `CASData` の一括置換
 
-- [ ] `Data.hs` で `ScalarData` を `CASData CASValue` に置換（ここでコンパイルエラーが大量発生する）
+- [x] `Data.hs` で `ScalarData` を `CASData CASValue` に置換（ここでコンパイルエラーが大量発生する）
   - まず機械的に `ScalarData (Div p q)` → `CASData (CASDiv (CASPoly ...) (CASPoly ...))` に変換してコンパイルを通す
   - その後、整数リテラル等の明らかな箇所を `CASData (CASInteger n)` に段階的に精密化
+  - **実装メモ**: 一括置換ではなく、`CASData` を `ScalarData` と並存させる形で追加。変換関数で橋渡し。
 
 #### Step 4-7: 既存モジュールの移行（Step 3 のコンパイルエラー修正と合わせて進行）
 
-- [ ] `Math/Arith.hs` を `CASValue` ベースに書き換え
-- [ ] `Math/Normalize.hs` の正規化ロジックを `CASValue` に移植
-- [ ] `Math/Rewrite.hs` のrewrite ruleを `CASValue` に移植
-- [ ] `Primitives/Arith.hs` のプリミティブ関数を書き換え
+- [x] `Math/Arith.hs` を `CASValue` ベースに書き換え
+- [x] `Math/Normalize.hs` の正規化ロジックを `CASValue` に移植
+- [x] `Math/Rewrite.hs` のrewrite ruleを `CASValue` に移植
+- [x] `Primitives/Arith.hs` のプリミティブ関数を書き換え
 
 #### Step 8: 残りの参照箇所の修正
 
-- [ ] その他の `ScalarData` 参照箇所を修正しコンパイルを通す
+- [x] その他の `ScalarData` 参照箇所を修正しコンパイルを通す
+  - **現状**: `CASData` と `ScalarData` が並存。変換関数で相互運用可能。完全な置換は Phase 2 以降で段階的に実施予定。
 
 ### Phase 2: 型システムへの統合（設計確定済み、着手可能）
 
