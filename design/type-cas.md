@@ -911,8 +911,10 @@ Egison の設計は以下の点で異なる。
   - `joinTypes`, `isSubtype`, `symbolSetSubset` 関数を実装
 - [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
   - 基盤は整備済み。型チェッカーへの統合は Phase 2.5 として後続実装予定
-- [ ] 開いた `[..]` のフレッシュ型変数への脱糖
-  - 基盤は整備済み（`SymbolSetVar TyVar` コンストラクタ）。型推論での脱糖は後続実装予定
+- [x] 開いた `[..]` のフレッシュ型変数への脱糖
+  - `hs-src/Language/Egison/Type/Infer.hs` に `freshenOpenSymbolSets` 関数を追加
+  - `SymbolSetOpen` を `SymbolSetVar` に変換し、各出現ごとにフレッシュな型変数を生成
+  - `unifySymbolSets` でサブセットチェックを実装（`[x] ⊆ [x, y]` の判定）
 
 ### Phase 3: パターンマッチ
 

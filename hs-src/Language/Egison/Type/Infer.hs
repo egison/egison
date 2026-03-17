@@ -39,6 +39,8 @@ module Language.Egison.Type.Infer
   , runInferIWithEnv
     -- * Helper functions
   , freshVar
+  , freshSymbolSetVar
+  , freshenOpenSymbolSets
   , getEnv
   , setEnv
   , withEnv
@@ -218,6 +220,41 @@ freshVar prefix = do
   let n = inferCounter st
   put st { inferCounter = n + 1 }
   return $ TVar $ TyVar $ prefix ++ show n
+
+-- | Generate a fresh symbol set variable
+freshSymbolSetVar :: Infer SymbolSet
+freshSymbolSetVar = do
+  st <- get
+  let n = inferCounter st
+  put st { inferCounter = n + 1 }
+  return $ SymbolSetVar $ TyVar $ "ss" ++ show n
+
+-- | Replace SymbolSetOpen with fresh SymbolSetVar in a type.
+-- Each occurrence of [..] becomes a fresh type variable.
+-- This implements the desugaring: Poly a [..] -> Poly a s_fresh
+freshenOpenSymbolSets :: Type -> Infer Type
+freshenOpenSymbolSets ty = case ty of
+  -- CAS types with symbol sets
+  TPoly t SymbolSetOpen -> do
+    t' <- freshenOpenSymbolSets t
+    freshSS <- freshSymbolSetVar
+    return $ TPoly t' freshSS
+  TPoly t ss -> do
+    t' <- freshenOpenSymbolSets t
+    return $ TPoly t' ss
+  TDiv t -> TDiv <$> freshenOpenSymbolSets t
+  -- Recursive cases
+  TTuple ts -> TTuple <$> mapM freshenOpenSymbolSets ts
+  TCollection t -> TCollection <$> freshenOpenSymbolSets t
+  TInductive name ts -> TInductive name <$> mapM freshenOpenSymbolSets ts
+  TTensor t -> TTensor <$> freshenOpenSymbolSets t
+  THash k v -> THash <$> freshenOpenSymbolSets k <*> freshenOpenSymbolSets v
+  TMatcher t -> TMatcher <$> freshenOpenSymbolSets t
+  TFun t1 t2 -> TFun <$> freshenOpenSymbolSets t1 <*> freshenOpenSymbolSets t2
+  TIO t -> TIO <$> freshenOpenSymbolSets t
+  TIORef t -> TIORef <$> freshenOpenSymbolSets t
+  -- Base cases (no recursion needed)
+  _ -> return ty
 
 -- | Get the current type environment
 getEnv :: Infer TypeEnv

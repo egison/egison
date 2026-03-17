@@ -375,8 +375,10 @@ unifySymbolSets SymbolSetOpen ss = Just ss
 unifySymbolSets ss SymbolSetOpen = Just ss
 unifySymbolSets (SymbolSetClosed s1) (SymbolSetClosed s2)
   | s1 == s2 = Just (SymbolSetClosed s1)
-  -- For now, require exact match. Later can implement subset checking.
-  | otherwise = Nothing
+  -- Subset checking: unify to the larger set
+  | all (`elem` s2) s1 = Just (SymbolSetClosed s2)  -- s1 ⊆ s2
+  | all (`elem` s1) s2 = Just (SymbolSetClosed s1)  -- s2 ⊆ s1
+  | otherwise = Nothing  -- No subset relationship
 unifySymbolSets (SymbolSetVar v1) (SymbolSetVar v2)
   | v1 == v2 = Just (SymbolSetVar v1)
   | otherwise = Just (SymbolSetVar v1)  -- Arbitrary choice; needs substitution tracking
