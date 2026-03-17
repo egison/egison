@@ -375,9 +375,9 @@ casTermsGcd terms = foldl1 termGcd terms
 -- | GCD of two monomials: take minimum exponent for each shared symbol
 monoGcd :: Monomial -> Monomial -> Monomial
 monoGcd [] _ = []
-monoGcd ((sym, exp):rest) mono =
+monoGcd ((sym, expo):rest) mono =
   case lookup sym mono of
-    Just exp' -> (sym, min exp exp') : monoGcd rest mono
+    Just exp' -> (sym, min expo exp') : monoGcd rest mono
     Nothing   -> monoGcd rest mono
 
 -- | Divide a term by another term (for GCD reduction)
