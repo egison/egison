@@ -10,6 +10,7 @@ This module defines the type system for Egison.
 
 module Language.Egison.Type.Types
   ( Type(..)
+  , SymbolSet(..)
   , TypeScheme(..)
   , TyVar(..)
   , TensorShape(..)
@@ -21,6 +22,8 @@ module Language.Egison.Type.Types
   , freeTyVars
   , isTensorType
   , isScalarType
+  , isCASType
+  , isSubsetSymbolSet
   , typeToName
   , typeConstructorName
   , sanitizeMethodName
@@ -36,7 +39,7 @@ import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
-import           Language.Egison.AST        (TypeExpr(..))
+import           Language.Egison.AST        (TypeExpr(..), SymbolSetExpr(..))
 import           Language.Egison.Type.Index ()
 
 -- | Type variable
@@ -57,14 +60,22 @@ data TensorShape
   | ShapeUnknown              -- ^ To be inferred
   deriving (Eq, Ord, Show, Generic, Hashable)
 
+-- | Symbol set for polynomial types
+-- Used to specify the indeterminates in a polynomial type
+data SymbolSet
+  = SymbolSetClosed [String]  -- ^ Fixed symbol set, e.g., [x, y] in Poly Integer [x, y]
+  | SymbolSetOpen             -- ^ Open symbol set, e.g., [..] in Poly Integer [..]
+  | SymbolSetVar TyVar        -- ^ Symbol set variable (for unification with open sets)
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
 -- | Egison types
 data Type
   = TInt                              -- ^ Integer
   | TMathExpr                         -- ^ MathExpr (mathematical expression, unifies with Integer)
-  | TPolyExpr                         -- ^ PolyExpr (polynomial expression)
-  | TTermExpr                         -- ^ TermExpr (term in polynomial)
-  | TSymbolExpr                       -- ^ SymbolExpr (symbolic variable)
-  | TIndexExpr                        -- ^ IndexExpr (subscript/superscript index)
+  | TPolyExpr                         -- ^ PolyExpr (polynomial expression) - legacy
+  | TTermExpr                         -- ^ TermExpr (term in polynomial) - legacy
+  | TSymbolExpr                       -- ^ SymbolExpr (symbolic variable) - legacy
+  | TIndexExpr                        -- ^ IndexExpr (subscript/superscript index) - legacy
   | TFloat                            -- ^ Float (Double)
   | TBool                             -- ^ Bool
   | TChar                             -- ^ Char
@@ -81,6 +92,10 @@ data Type
   | TIORef Type                       -- ^ IORef type
   | TPort                             -- ^ Port type (file handles)
   | TAny                              -- ^ Any type (for gradual typing)
+  -- New CAS types (Phase 2)
+  | TFactor                           -- ^ Factor type (atomic mathematical factor from quote ')
+  | TDiv Type                         -- ^ Div type, e.g., Div Integer = rationals
+  | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Type alias: MathExpr = Integer in Egison
@@ -142,6 +157,14 @@ freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
 freeTyVars TPort            = Set.empty
 freeTyVars TAny             = Set.empty
+-- New CAS types
+freeTyVars TFactor          = Set.empty
+freeTyVars (TDiv t)         = freeTyVars t
+freeTyVars (TPoly t ss)     = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
+  where
+    freeTyVarsSymbolSet (SymbolSetClosed _) = Set.empty
+    freeTyVarsSymbolSet SymbolSetOpen       = Set.empty
+    freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool
@@ -151,6 +174,27 @@ isTensorType _           = False
 -- | Check if a type is a scalar (non-tensor) type
 isScalarType :: Type -> Bool
 isScalarType = not . isTensorType
+
+-- | Check if a type is a CAS type (Factor, Div, or Poly)
+isCASType :: Type -> Bool
+isCASType TFactor     = True
+isCASType (TDiv _)    = True
+isCASType (TPoly _ _) = True
+isCASType _           = False
+
+-- | Check if one symbol set is a subset of another
+-- Used for coercive subtyping: Poly a [x] can be embedded into Poly a [x, y]
+isSubsetSymbolSet :: SymbolSet -> SymbolSet -> Bool
+-- Open is a superset of everything
+isSubsetSymbolSet _ SymbolSetOpen = True
+-- Open is only subset of itself
+isSubsetSymbolSet SymbolSetOpen _ = False
+-- Closed is subset if all elements are contained
+isSubsetSymbolSet (SymbolSetClosed s1) (SymbolSetClosed s2) =
+  all (`elem` s2) s1
+-- Variables require unification
+isSubsetSymbolSet (SymbolSetVar _) _ = False
+isSubsetSymbolSet _ (SymbolSetVar _) = False
 
 -- | Convert a Type to a string name for dictionary and method naming
 -- This is used for generating instance dictionary names and method names
@@ -168,6 +212,13 @@ typeToName (TInductive name _) = name
 typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
 typeToName (TTensor t) = "Tensor" ++ typeToName t
+typeToName TFactor = "Factor"
+typeToName (TDiv t) = "Div" ++ typeToName t
+typeToName (TPoly t ss) = "Poly" ++ typeToName t ++ symbolSetToName ss
+  where
+    symbolSetToName (SymbolSetClosed syms) = concatMap ('_':) syms
+    symbolSetToName SymbolSetOpen = "_Open"
+    symbolSetToName (SymbolSetVar (TyVar v)) = "_" ++ v
 typeToName _ = "Unknown"
 
 -- | Get the type constructor name only, without type parameters
@@ -197,6 +248,10 @@ typeConstructorName (TIO _) = "IO"
 typeConstructorName (TIORef _) = "IORef"
 typeConstructorName TPort = "Port"
 typeConstructorName TAny = "Any"
+-- New CAS types
+typeConstructorName TFactor = "Factor"
+typeConstructorName (TDiv _) = "Div"
+typeConstructorName (TPoly _ _) = "Poly"
 
 -- | Sanitize method names for use in identifiers
 -- Converts operator symbols to alphanumeric names
@@ -247,6 +302,13 @@ typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
+-- New CAS types
+typeExprToType TEFactor = TFactor
+typeExprToType (TEDiv t) = TDiv (typeExprToType t)
+typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSet ss)
+  where
+    symbolSetExprToSymbolSet (SSEClosed syms) = SymbolSetClosed syms
+    symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
 
 -- | Normalize inductive type names to primitive types if applicable
 -- This is used to convert TInductive "MathExpr" [] to TMathExpr, etc.
@@ -257,7 +319,10 @@ normalizeInductiveTypes (TInductive name []) = case name of
   "TermExpr"   -> TTermExpr
   "SymbolExpr" -> TSymbolExpr
   "IndexExpr"  -> TIndexExpr
+  "Factor"     -> TFactor  -- New CAS type
   _            -> TInductive name []
+-- Normalize Div to TDiv
+normalizeInductiveTypes (TInductive "Div" [t]) = TDiv (normalizeInductiveTypes t)
 -- Convert TInductive "Vector", "Matrix", and "DiffForm" to Tensor (they are aliases)
 normalizeInductiveTypes (TInductive "Vector" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive "Matrix" [t]) = TTensor (normalizeInductiveTypes t)
@@ -271,6 +336,9 @@ normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (nor
 normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
 normalizeInductiveTypes (TTensor t) = TTensor (normalizeInductiveTypes t)
+-- New CAS types
+normalizeInductiveTypes (TDiv t) = TDiv (normalizeInductiveTypes t)
+normalizeInductiveTypes (TPoly t ss) = TPoly (normalizeInductiveTypes t) ss
 normalizeInductiveTypes t = t  -- Other types remain unchanged
 
 -- | Capitalize first character

@@ -26,7 +26,7 @@ import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
                                               emptySubst, singletonSubst, applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
-                                              Constraint(..))
+                                              Constraint(..), SymbolSet(..))
 import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, InstanceInfo(..), emptyClassEnv)
 
 -- | Unification errors
@@ -181,6 +181,20 @@ unifyG mode ce cs (TIORef t1) (TIORef t2) =
 
 -- Port type
 unifyG _ _ _ TPort TPort = ok
+
+-- CAS types
+unifyG _ _ _ TFactor TFactor = ok
+
+unifyG mode ce cs (TDiv t1) (TDiv t2) =
+  unifyNormalized mode ce cs t1 t2
+
+unifyG mode ce cs (TPoly t1 ss1) (TPoly t2 ss2) = do
+  -- First unify the coefficient types
+  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  -- Then unify the symbol sets
+  case unifySymbolSets ss1 ss2 of
+    Just _  -> Right (s1, f1)
+    Nothing -> Left $ TypeMismatch (TPoly t1 ss1) (TPoly t2 ss2)
 
 -- Tensor types: both Tensor — same for all modes
 unifyG mode ce cs (TTensor t1) (TTensor t2) =
@@ -346,3 +360,25 @@ unifyMatcherWithTupleG classEnv constraints b ts = do
 
     getTyVarName :: TyVar -> String
     getTyVarName (TyVar name) = name
+
+--------------------------------------------------------------------------------
+-- CAS Symbol Set Unification
+--------------------------------------------------------------------------------
+
+-- | Unify two symbol sets, returning the unified symbol set if compatible.
+-- Rules:
+--   - Open [..] unifies with anything, resulting in the more specific one
+--   - Closed [x, y] unifies with Closed [x, y] if they're equal (or one is subset)
+--   - SymbolSetVar can unify with concrete symbol sets
+unifySymbolSets :: SymbolSet -> SymbolSet -> Maybe SymbolSet
+unifySymbolSets SymbolSetOpen ss = Just ss
+unifySymbolSets ss SymbolSetOpen = Just ss
+unifySymbolSets (SymbolSetClosed s1) (SymbolSetClosed s2)
+  | s1 == s2 = Just (SymbolSetClosed s1)
+  -- For now, require exact match. Later can implement subset checking.
+  | otherwise = Nothing
+unifySymbolSets (SymbolSetVar v1) (SymbolSetVar v2)
+  | v1 == v2 = Just (SymbolSetVar v1)
+  | otherwise = Just (SymbolSetVar v1)  -- Arbitrary choice; needs substitution tracking
+unifySymbolSets (SymbolSetVar _) ss = Just ss
+unifySymbolSets ss (SymbolSetVar _) = Just ss

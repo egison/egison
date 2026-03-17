@@ -24,7 +24,7 @@ import           Data.List                  (intercalate)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
-import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..))
+import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..))
 
 -- | Source location information
 data SourceLocation = SourceLocation
@@ -234,6 +234,14 @@ prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t
 prettyType TPort = "Port"
 prettyType TAny = "_"
+-- New CAS types
+prettyType TFactor = "Factor"
+prettyType (TDiv t) = "Div " ++ prettyType t
+prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
+  where
+    prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+    prettySymbolSet SymbolSetOpen = "[..]"
+    prettySymbolSet (SymbolSetVar (TyVar v)) = v
 
 -- | Pretty print a tensor shape
 prettyShape :: TensorShape -> String

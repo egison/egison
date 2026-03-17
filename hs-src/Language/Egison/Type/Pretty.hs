@@ -15,11 +15,11 @@ module Language.Egison.Type.Pretty
 
 import           Data.List                  (intercalate)
 
-import           Language.Egison.AST        (TypeExpr (..))
+import           Language.Egison.AST        (TypeExpr (..), SymbolSetExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
 import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..), TyVar (..), Type (..),
-                                             TypeScheme (..))
+                                             TypeScheme (..), SymbolSet(..))
 
 -- | Pretty print a Type
 prettyType :: Type -> String
@@ -54,6 +54,16 @@ prettyType (TIO t)          = "IO " ++ prettyTypeAtom t
 prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
 prettyType TPort            = "Port"
 prettyType TAny             = "_"
+-- New CAS types
+prettyType TFactor          = "Factor"
+prettyType (TDiv t)         = "Div " ++ prettyTypeAtom t
+prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
+
+-- | Pretty print a SymbolSet
+prettySymbolSet :: SymbolSet -> String
+prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+prettySymbolSet SymbolSetOpen          = "[..]"
+prettySymbolSet (SymbolSetVar (TyVar v)) = v
 
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String
@@ -73,6 +83,7 @@ prettyTypeAtom t@(TTuple _) = prettyType t
 prettyTypeAtom t@(TCollection _) = prettyType t
 prettyTypeAtom t@TPort       = prettyType t
 prettyTypeAtom t@TAny        = prettyType t
+prettyTypeAtom t@TFactor     = prettyType t
 prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme
@@ -141,6 +152,24 @@ prettyTypeExpr (TEPattern t)  = "Pattern " ++ prettyTypeExprAtom t
 prettyTypeExpr (TETensor t) = "Tensor " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEApp t args) =
   prettyTypeExprAtom t ++ " " ++ unwords (map prettyTypeExprAtom args)
+prettyTypeExpr (TEIO t) = "IO " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEVector t) = "Vector " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEMatrix t) = "Matrix " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEDiffForm t) = "DiffForm " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEConstrained cs t) = prettyConstraintExprs cs ++ " " ++ prettyTypeExpr t
+  where
+    prettyConstraintExprs [] = ""
+    prettyConstraintExprs constraints = "{" ++ intercalate ", " (map prettyConstraintExpr constraints) ++ "}"
+    prettyConstraintExpr _ = "..."  -- TODO: implement constraint printing
+-- New CAS types
+prettyTypeExpr TEFactor = "Factor"
+prettyTypeExpr (TEDiv t) = "Div " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
+
+-- | Pretty print a SymbolSetExpr
+prettySymbolSetExpr :: SymbolSetExpr -> String
+prettySymbolSetExpr (SSEClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+prettySymbolSetExpr SSEOpen          = "[..]"
 
 -- | Pretty print an atomic TypeExpr
 prettyTypeExprAtom :: TypeExpr -> String
@@ -153,5 +182,6 @@ prettyTypeExprAtom t@TEString    = prettyTypeExpr t
 prettyTypeExprAtom t@(TEVar _)   = prettyTypeExpr t
 prettyTypeExprAtom t@(TEList _)  = prettyTypeExpr t
 prettyTypeExprAtom t@(TETuple _) = prettyTypeExpr t
+prettyTypeExprAtom t@TEFactor    = prettyTypeExpr t
 prettyTypeExprAtom t             = "(" ++ prettyTypeExpr t ++ ")"
 

@@ -894,15 +894,25 @@ Egison の設計は以下の点で異なる。
     2. 現時点では `CAS.hs` が `Expr.hs` から `SymbolExpr` をインポートする構造を維持
   - **今後の方針**: Phase 2 の型システム実装時に、`SymbolExpr` の `ScalarData` 参照を `CASValue` に変更する。その際、`Expr.hs` を段階的に廃止し、`CAS.hs` に統合する
 
-### Phase 2: 型システムへの統合（設計確定済み、着手可能）
+### Phase 2: 型システムへの統合（基盤実装完了）
 
-- [ ] `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor`、`TInteger` を追加
-- [ ] `SymbolSet` の定義（`Closed [SymbolExpr]` / `Open`）
-- [ ] パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` をパース（`[a]` コレクション型との曖昧性解消）
-- [ ] 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
-- [ ] `join` の実装（二項演算時の最小上界計算）
+- [x] `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor` を追加
+  - `hs-src/Language/Egison/Type/Types.hs` に追加
+- [x] `SymbolSet` の定義（`SymbolSetClosed [String]` / `SymbolSetOpen` / `SymbolSetVar TyVar`）
+  - `hs-src/Language/Egison/Type/Types.hs` に追加
+- [x] パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Div a` / `Factor` をパース
+  - `hs-src/Language/Egison/Parser/NonS.hs` に `factorTypeExpr`, `divTypeExpr`, `polyTypeExpr`, `symbolSetExpr` を追加
+  - `hs-src/Language/Egison/AST.hs` に `TEFactor`, `TEDiv`, `TEPoly`, `SymbolSetExpr` を追加
+- [x] 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
+  - `hs-src/Language/Egison/Type/Unify.hs` に `TFactor`, `TDiv`, `TPoly` の単一化規則を追加
+  - `unifySymbolSets` 関数でシンボル集合の統合を実装
+- [x] `join` の実装（二項演算時の最小上界計算）
+  - `hs-src/Language/Egison/Type/Join.hs` を新規作成
+  - `joinTypes`, `isSubtype`, `symbolSetSubset` 関数を実装
 - [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
+  - 基盤は整備済み。型チェッカーへの統合は Phase 2.5 として後続実装予定
 - [ ] 開いた `[..]` のフレッシュ型変数への脱糖
+  - 基盤は整備済み（`SymbolSetVar TyVar` コンストラクタ）。型推論での脱糖は後続実装予定
 
 ### Phase 3: パターンマッチ
 

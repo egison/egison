@@ -656,6 +656,10 @@ typeAtomSimple =
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
   <|> try diffFormTypeExpr
+  -- New CAS types
+  <|> try factorTypeExpr
+  <|> try divTypeExpr
+  <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -677,6 +681,10 @@ typeAtom =
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
   <|> try diffFormTypeExpr
+  -- New CAS types
+  <|> try factorTypeExpr
+  <|> try divTypeExpr
+  <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -694,7 +702,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO"]
+    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Div", "Poly"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -721,6 +729,39 @@ diffFormTypeExpr = do
   elemType <- typeAtomOrParenType
   return $ TEDiffForm elemType
 
+-- | Parse Factor type
+factorTypeExpr :: Parser TypeExpr
+factorTypeExpr = TEFactor <$ reserved "Factor"
+
+-- | Parse Div type (e.g., Div Integer)
+divTypeExpr :: Parser TypeExpr
+divTypeExpr = do
+  _ <- reserved "Div"
+  innerType <- typeAtomOrParenType
+  return $ TEDiv innerType
+
+-- | Parse Poly type (e.g., Poly Integer [x, y] or Poly Integer [..])
+polyTypeExpr :: Parser TypeExpr
+polyTypeExpr = do
+  _ <- reserved "Poly"
+  coeffType <- typeAtomOrParenType
+  symbolSet <- symbolSetExpr
+  return $ TEPoly coeffType symbolSet
+
+-- | Parse a symbol set expression
+-- Either [..] for open, or [x, y, z] for closed
+symbolSetExpr :: Parser SymbolSetExpr
+symbolSetExpr = brackets $ openSymbolSet <|> closedSymbolSet
+  where
+    -- [..] - open symbol set
+    openSymbolSet = SSEOpen <$ symbol ".."
+    -- [x, y, z] - closed symbol set with symbol names
+    closedSymbolSet = SSEClosed <$> symbolName `sepBy` symbol ","
+    -- Symbol names are lowercase identifiers
+    symbolName = lexeme $ do
+      c <- lowerChar
+      cs <- many identChar
+      return (c : cs)
 
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do
@@ -731,7 +772,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm"]
+    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Div", "Poly"]
 
 expr :: Parser Expr
 expr = do

@@ -35,6 +35,7 @@ module Language.Egison.AST
   , extractNameFromVarWithIndices
   -- Type annotations
   , TypeExpr (..)
+  , SymbolSetExpr (..)
   , TensorShapeExpr (..)
   , ShapeDim (..)
   , TensorIndexExpr (..)
@@ -449,6 +450,16 @@ data TypeExpr
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
   | TEConstrained [ConstraintExpr] TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a
+  -- New CAS types (Phase 2)
+  | TEFactor                           -- ^ Factor type (atomic mathematical factor)
+  | TEDiv TypeExpr                     -- ^ Div type, e.g., Div Integer
+  | TEPoly TypeExpr SymbolSetExpr      -- ^ Poly type, e.g., Poly Integer [x, y]
+  deriving (Show, Eq)
+
+-- | Symbol set expression for polynomial types
+data SymbolSetExpr
+  = SSEClosed [String]                 -- ^ Fixed symbol set, e.g., [x, y]
+  | SSEOpen                            -- ^ Open symbol set, [..]
   deriving (Show, Eq)
 
 -- | Tensor shape expression

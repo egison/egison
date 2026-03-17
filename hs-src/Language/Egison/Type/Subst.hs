@@ -26,7 +26,7 @@ import qualified Data.Map.Strict            as Map
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
-import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..), Constraint(..))
+import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..), Constraint(..), SymbolSet(..))
 
 -- | Type substitution: a mapping from type variables to types
 newtype Subst = Subst { unSubst :: Map TyVar Type }
@@ -70,6 +70,19 @@ applySubst s (TIO t)          = TIO (applySubst s t)
 applySubst s (TIORef t)       = TIORef (applySubst s t)
 applySubst _ TPort            = TPort
 applySubst _ TAny             = TAny
+-- New CAS types
+applySubst _ TFactor          = TFactor
+applySubst s (TDiv t)         = TDiv (applySubst s t)
+applySubst s (TPoly t ss)     = TPoly (applySubst s t) (applySubstSymbolSet s ss)
+
+-- | Apply a substitution to a SymbolSet
+applySubstSymbolSet :: Subst -> SymbolSet -> SymbolSet
+applySubstSymbolSet _ ss@(SymbolSetClosed _) = ss
+applySubstSymbolSet _ SymbolSetOpen = SymbolSetOpen
+applySubstSymbolSet (Subst m) ss@(SymbolSetVar v) =
+  case Map.lookup v m of
+    Just (TPoly _ ss') -> ss'  -- If variable maps to a Poly type, extract its symbol set
+    _                  -> ss   -- Otherwise keep as variable
 
 -- | Apply a substitution to a type scheme
 applySubstScheme :: Subst -> TypeScheme -> TypeScheme
