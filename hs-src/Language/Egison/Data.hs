@@ -133,11 +133,11 @@ data EgisonValue
   -- ClassMethodRef className methodName
   -- Looks up implementation from the instance environment in EvalState
   | ClassMethodRef String String
-  -- MathExpr internal types for direct pattern matching
-  | PolyExprData PolyExpr
-  | TermExprData TermExpr
-  | SymbolExprData SymbolExpr
-  | IndexExprData (Index ScalarData)
+  -- CAS internal types for direct pattern matching
+  | CASPolyData [CAS.CASTerm]
+  | CASTermData CAS.CASTerm
+  | CASSymbolData CAS.SymbolExpr
+  | CASIndexData (Index CASValue)
 
 type Matcher = EgisonValue
 
@@ -242,8 +242,8 @@ scalarIndexToEgison (Sub k)  = InductiveData "Sub"  [scalarToCAS k]
 scalarIndexToEgison (User k) = InductiveData "User" [scalarToCAS k]
 
 -- Direct index conversion for primitive pattern matching
-indexToEgison :: Index ScalarData -> EgisonValue
-indexToEgison = IndexExprData
+indexToEgison :: Index CASValue -> EgisonValue
+indexToEgison = CASIndexData
 
 -- Implementation of 'toMathExpr' (Primitive function)
 egisonToScalarData :: EgisonValue -> EvalM ScalarData
@@ -396,21 +396,22 @@ instance Show EgisonValue where
   show Undefined = "undefined"
   show World = "#<world>"
   show (ClassMethodRef clsName methName) = "#<class-method " ++ clsName ++ "." ++ methName ++ ">"
-  -- MathExpr internal types
-  show (PolyExprData polyExpr) = show polyExpr
-  show (TermExprData termExpr) = show termExpr
-  show (SymbolExprData symbolExpr) = show symbolExpr
-  show (IndexExprData indexExpr) = show indexExpr
+  -- CAS internal types
+  show (CASPolyData terms) = show (CAS.CASPoly terms)
+  show (CASTermData term) = show term
+  show (CASSymbolData sym) = show sym
+  show (CASIndexData idx) = show idx
 
 -- False if we have to put parenthesis around it to make it an atomic expression.
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
 isAtomic (CASData cv)         = isAtom (casValueToScalarData cv)
-isAtomic (PolyExprData _)     = False
-isAtomic (TermExprData _)     = False
-isAtomic (SymbolExprData _)   = False
-isAtomic (IndexExprData _)    = False
+-- CAS internal types
+isAtomic (CASPolyData _)      = False
+isAtomic (CASTermData _)      = False
+isAtomic (CASSymbolData _)    = False
+isAtomic (CASIndexData _)     = False
 isAtomic _                    = True
 
 instance Eq EgisonValue where
@@ -426,11 +427,11 @@ instance Eq EgisonValue where
   (IntHash vals) == (IntHash vals')                                = vals == vals'
   (CharHash vals) == (CharHash vals')                              = vals == vals'
   (StrHash vals) == (StrHash vals')                                = vals == vals'
-  -- MathExpr internal types
-  (PolyExprData p) == (PolyExprData p')                            = p == p'
-  (TermExprData t) == (TermExprData t')                            = t == t'
-  (SymbolExprData s) == (SymbolExprData s')                        = s == s'
-  (IndexExprData i) == (IndexExprData i')                          = i == i'
+  -- CAS internal types
+  (CASPolyData ts) == (CASPolyData ts')                            = ts == ts'
+  (CASTermData t) == (CASTermData t')                              = t == t'
+  (CASSymbolData s) == (CASSymbolData s')                          = s == s'
+  (CASIndexData i) == (CASIndexData i')                            = i == i'
   -- Temporary: searching a better solution
   (Func (Just name1) _ _ _) == (Func (Just name2) _ _ _)           = name1 == name2
   _ == _                                                           = False
@@ -601,7 +602,7 @@ type PatFuncEnv = Map String ObjectRef
 
 -- | Environment: list of layers (for scoping) plus optional index context,
 -- plus a separate store for pattern functions.
-data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe ScalarData)])) PatFuncEnv
+data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe CASValue)])) PatFuncEnv
 
 type Binding = (Var, ObjectRef)
 

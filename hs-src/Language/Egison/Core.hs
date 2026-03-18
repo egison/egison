@@ -348,11 +348,11 @@ evalExprShallow env@(Env _ (Just (name, is)) _) (IFunctionExpr args) = do
   extractCASVal (CASData cv) = return cv
   extractCASVal v = throwErrorWithTrace (TypeMismatch "CASData" (Value v))
 
-  unwrapMaybeFromIndex :: Index (Maybe ScalarData) -> EvalM (Index CASValue)
+  unwrapMaybeFromIndex :: Index (Maybe CASValue) -> EvalM (Index CASValue)
   unwrapMaybeFromIndex (Sub Nothing) = throwError $ Default "function symbol can be used only with generateTensor"
   unwrapMaybeFromIndex (Sup Nothing) = throwError $ Default "function symbol can be used only with generateTensor"
-  unwrapMaybeFromIndex (Sub (Just i)) = return (Sub (scalarDataToCASValue i))
-  unwrapMaybeFromIndex (Sup (Just i)) = return (Sup (scalarDataToCASValue i))
+  unwrapMaybeFromIndex (Sub (Just i)) = return (Sub i)
+  unwrapMaybeFromIndex (Sup (Just i)) = return (Sup i)
 
 evalExprShallow env (IIfExpr test expr expr') = do
   test <- evalExprDeep env test >>= fromEgison
@@ -501,15 +501,15 @@ evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
 evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
-  xs    <- mapM (evalWithIndex env . map (\n -> SingleTerm n [])) (enumTensorIndices ns)
+  xs    <- mapM (evalWithIndex env . map CASInteger) (enumTensorIndices ns)
   return $ newITensor ns xs
  where
-  evalWithIndex :: Env -> [ScalarData] {- index -} -> EvalM ObjectRef
+  evalWithIndex :: Env -> [CASValue] {- index -} -> EvalM ObjectRef
   evalWithIndex env@(Env frame maybe_vwi pfEnv) ms = do
     let env' = maybe env (\(name, indices) -> Env frame (Just (name, zipWith changeIndex indices ms)) pfEnv) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map (CASData . scalarDataToCASValue) ms))))]
-  changeIndex :: Index (Maybe a) -> a -> Index (Maybe a) -- Maybe we can refactor this function
+    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map CASData ms))))]
+  changeIndex :: Index (Maybe a) -> a -> Index (Maybe a)
   changeIndex (Sup Nothing) m = Sup (Just m)
   changeIndex (Sub Nothing) m = Sub (Just m)
 
@@ -1234,25 +1234,38 @@ bindPrimitiveDataPattern pdp ref = do
     Nothing      -> throwErrorWithTrace PrimitiveMatchFailure
     Just binding -> return binding
 
--- Helper functions to convert internal math types to ScalarData (MathExpr)
-polyExprToScalarData :: PolyExpr -> ScalarData
-polyExprToScalarData polyExpr = Div polyExpr (Plus [Term 1 []])
-
-termExprToScalarData :: TermExpr -> ScalarData
-termExprToScalarData termExpr = Div (Plus [termExpr]) (Plus [Term 1 []])
-
-symbolExprToScalarData :: SymbolExpr -> ScalarData
-symbolExprToScalarData symbolExpr = Div (Plus [Term 1 [(symbolExpr, 1)]]) (Plus [Term 1 []])
-
 -- Check if pattern is a pattern variable
 isPatternVar :: IPrimitiveDataPattern -> Bool
 isPatternVar (PDPatVar _) = True
 isPatternVar _            = False
 
--- Helper: Extract function object from ScalarData if it contains QuoteFunction
-extractFunctionObject :: ScalarData -> WHNFData
-extractFunctionObject (SingleTerm 1 [(QuoteFunction funcWHNF, 1)]) = funcWHNF
-extractFunctionObject scalarData = Value (CASData (scalarDataToCASValue scalarData))
+-- Helper: Extract function object from CASValue if it contains QuoteFunction
+extractFunctionObjectCAS :: CASValue -> WHNFData
+extractFunctionObjectCAS (CAS.CASFactor (CAS.QuoteFunction funcWHNF)) = funcWHNF
+extractFunctionObjectCAS (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(CAS.QuoteFunction funcWHNF, 1)]]) = funcWHNF
+extractFunctionObjectCAS cv = Value (CASData cv)
+
+-- Helper: Extract numerator from CASValue
+getCASNumerator :: CASValue -> CASValue
+getCASNumerator (CAS.CASDiv num _) = num
+getCASNumerator cv = cv
+
+-- Helper: Extract denominator from CASValue
+getCASenominator :: CASValue -> CASValue
+getCASenominator (CAS.CASDiv _ den) = den
+getCASenominator _ = CAS.CASInteger 1
+
+-- Helper: Convert CASValue to list of CASTerms
+casToTerms :: CASValue -> [CAS.CASTerm]
+casToTerms (CAS.CASPoly terms) = terms
+casToTerms (CAS.CASInteger 0) = []
+casToTerms (CAS.CASInteger n) = [CAS.CASTerm (CAS.CASInteger n) []]
+casToTerms (CAS.CASFactor sym) = [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
+casToTerms cv = [CAS.CASTerm cv []]
+
+-- Helper: Convert CAS.SymbolExpr to CASValue (single term with coefficient 1)
+symbolToCASValue :: CAS.SymbolExpr -> CASValue
+symbolToCASValue sym = CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
 
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
@@ -1294,19 +1307,20 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
   case whnf of
     Value val | val == evalConstant expr -> return []
     _                                    -> matchFail
--- ScalarData (MathExpr) primitive patterns
+-- CASValue primitive patterns
 primitiveDataPatternMatch (PDDivPat patNum patDen) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (CASData cv) -> do
-      let Div num den = casValueToScalarData cv
-      -- Pattern variable の場合は PolyExpr -> ScalarData に変換
+      let num = getCASNumerator cv
+          den = getCASenominator cv
+      -- Pattern variable: return CASData; otherwise use CASPolyData for nested matching
       let numVal = if isPatternVar patNum
-                   then Value (CASData (scalarDataToCASValue (polyExprToScalarData num)))
-                   else Value (PolyExprData num)
+                   then Value (CASData num)
+                   else Value (CASPolyData (casToTerms num))
       let denVal = if isPatternVar patDen
-                   then Value (CASData (scalarDataToCASValue (polyExprToScalarData den)))
-                   else Value (PolyExprData den)
+                   then Value (CASData den)
+                   else Value (CASPolyData (casToTerms den))
       numRef <- lift $ newEvaluatedObjectRef numVal
       denRef <- lift $ newEvaluatedObjectRef denVal
       (++) <$> primitiveDataPatternMatch patNum numRef
@@ -1315,23 +1329,29 @@ primitiveDataPatternMatch (PDDivPat patNum patDen) ref = do
 primitiveDataPatternMatch (PDPlusPat patTerms) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (PolyExprData (Plus terms)) -> do
-      -- Pattern variable の場合は [TermExpr] -> [CASData] に変換
+    Value (CASPolyData terms) -> do
+      -- Pattern variable: convert [CASTerm] -> [CASData]; otherwise use CASTermData
       let termsCol = if isPatternVar patTerms
-                     then Value $ Collection $ Sq.fromList $ map (CASData . scalarDataToCASValue . termExprToScalarData) terms
-                     else Value $ Collection $ Sq.fromList $ map TermExprData terms
+                     then Value $ Collection $ Sq.fromList $
+                          map (\t@(CAS.CASTerm coeff mono) ->
+                                if null mono
+                                then CASData coeff
+                                else CASData (CAS.CASPoly [t])) terms
+                     else Value $ Collection $ Sq.fromList $ map CASTermData terms
       termsRef <- lift $ newEvaluatedObjectRef termsCol
       primitiveDataPatternMatch patTerms termsRef
     _ -> matchFail
 primitiveDataPatternMatch (PDTermPat patCoeff patMonomials) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (TermExprData (Term coeff monomials)) -> do
-      coeffRef <- lift $ newEvaluatedObjectRef (Value (toEgison coeff))
-      -- Pattern variable の場合は [(SymbolExpr, Integer)] -> [(CASData, Integer)] に変換
+    Value (CASTermData (CAS.CASTerm coeff monomials)) -> do
+      coeffRef <- lift $ newEvaluatedObjectRef (Value (CASData coeff))
+      -- Pattern variable: convert [(CAS.SymbolExpr, Integer)] -> [(CASData, Integer)]
       let monomialsCol = if isPatternVar patMonomials
-                         then Value $ Collection $ Sq.fromList $ map (\(sym, expo) -> Tuple [CASData (scalarDataToCASValue (symbolExprToScalarData sym)), toEgison expo]) monomials
-                         else Value $ Collection $ Sq.fromList $ map (\(sym, expo) -> Tuple [SymbolExprData sym, toEgison expo]) monomials
+                         then Value $ Collection $ Sq.fromList $
+                              map (\(sym, expo) -> Tuple [CASData (symbolToCASValue sym), toEgison expo]) monomials
+                         else Value $ Collection $ Sq.fromList $
+                              map (\(sym, expo) -> Tuple [CASSymbolData sym, toEgison expo]) monomials
       monomialsRef <- lift $ newEvaluatedObjectRef monomialsCol
       (++) <$> primitiveDataPatternMatch patCoeff coeffRef
            <*> primitiveDataPatternMatch patMonomials monomialsRef
@@ -1339,10 +1359,10 @@ primitiveDataPatternMatch (PDTermPat patCoeff patMonomials) ref = do
 primitiveDataPatternMatch (PDSymbolPat patName patIndices) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Symbol _ name indices)) -> do
+    Value (CASSymbolData (CAS.Symbol _ name indices)) -> do
       nameRef <- lift $ newEvaluatedObjectRef (Value (String (T.pack name)))
-      -- [Index ScalarData]をCollectionに変換
-      let indicesCol = Value $ Collection $ Sq.fromList $ map IndexExprData indices
+      -- [Index CASValue] -> Collection of CASIndexData
+      let indicesCol = Value $ Collection $ Sq.fromList $ map CASIndexData indices
       indicesRef <- lift $ newEvaluatedObjectRef indicesCol
       (++) <$> primitiveDataPatternMatch patName nameRef
            <*> primitiveDataPatternMatch patIndices indicesRef
@@ -1350,19 +1370,19 @@ primitiveDataPatternMatch (PDSymbolPat patName patIndices) ref = do
 primitiveDataPatternMatch (PDApply1Pat patFn patArg) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Apply1 fn arg)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      argRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg)))
+    Value (CASSymbolData (CAS.Apply1 fn arg)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObjectCAS fn)
+      argRef <- lift $ newEvaluatedObjectRef (Value (CASData arg))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> primitiveDataPatternMatch patArg argRef
     _ -> matchFail
 primitiveDataPatternMatch (PDApply2Pat patFn patArg1 patArg2) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Apply2 fn arg1 arg2)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg1)))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg2)))
+    Value (CASSymbolData (CAS.Apply2 fn arg1 arg2)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObjectCAS fn)
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg2))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> primitiveDataPatternMatch patArg2 arg2Ref)
@@ -1370,11 +1390,11 @@ primitiveDataPatternMatch (PDApply2Pat patFn patArg1 patArg2) ref = do
 primitiveDataPatternMatch (PDApply3Pat patFn patArg1 patArg2 patArg3) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Apply3 fn arg1 arg2 arg3)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg1)))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg2)))
-      arg3Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg3)))
+    Value (CASSymbolData (CAS.Apply3 fn arg1 arg2 arg3)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObjectCAS fn)
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg3))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
@@ -1383,12 +1403,12 @@ primitiveDataPatternMatch (PDApply3Pat patFn patArg1 patArg2 patArg3) ref = do
 primitiveDataPatternMatch (PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Apply4 fn arg1 arg2 arg3 arg4)) -> do
-      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg1)))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg2)))
-      arg3Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg3)))
-      arg4Ref <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue arg4)))
+    Value (CASSymbolData (CAS.Apply4 fn arg1 arg2 arg3 arg4)) -> do
+      fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObjectCAS fn)
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg3))
+      arg4Ref <- lift $ newEvaluatedObjectRef (Value (CASData arg4))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
@@ -1398,16 +1418,16 @@ primitiveDataPatternMatch (PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4) re
 primitiveDataPatternMatch (PDQuotePat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (Quote expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue expr)))
+    Value (CASSymbolData (CAS.Quote expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDFunctionPat patName patArgs) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (SymbolExprData (FunctionData name args)) -> do
-      nameRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue name)))
-      let argsCol = Value $ Collection $ Sq.fromList $ map (CASData . scalarDataToCASValue) args
+    Value (CASSymbolData (CAS.FunctionData name args)) -> do
+      nameRef <- lift $ newEvaluatedObjectRef (Value (CASData name))
+      let argsCol = Value $ Collection $ Sq.fromList $ map CASData args
       argsRef <- lift $ newEvaluatedObjectRef argsCol
       (++) <$> primitiveDataPatternMatch patName nameRef
            <*> primitiveDataPatternMatch patArgs argsRef
@@ -1415,22 +1435,22 @@ primitiveDataPatternMatch (PDFunctionPat patName patArgs) ref = do
 primitiveDataPatternMatch (PDSubPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (IndexExprData (Sub expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue expr)))
+    Value (CASIndexData (Sub expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDSupPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (IndexExprData (Sup expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue expr)))
+    Value (CASIndexData (Sup expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDUserPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (IndexExprData (User expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData (scalarDataToCASValue expr)))
+    Value (CASIndexData (User expr)) -> do
+      exprRef <- lift $ newEvaluatedObjectRef (Value (CASData expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 

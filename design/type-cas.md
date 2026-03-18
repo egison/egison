@@ -970,8 +970,11 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `casNormalizeDiv` の改善 - ネスト除算 `a/(b/c)`, `(a/b)/c` の処理、負の分母の正規化、`Poly/Integer` の簡約
 
 **残りの作業:**
-- [ ] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行（19箇所）
-  - `SingleTerm`, `SingleSymbol` パターンシノニムを `CASPoly [CASTerm ...]` パターンに置換
+- [x] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行（完了）
+  - `ScalarData` の参照を全て削除
+  - `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を `CASPolyData`/`CASTermData`/`CASSymbolData`/`CASIndexData` に置換
+  - `casValueToScalarData` / `scalarDataToCASValue` 変換を排除し、`CASValue` を直接使用
+- [x] `Data.hs` から旧中間型 `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を削除
 - [ ] `Math/Arith.hs` を `CASValue` ベースに書き換え（21箇所）
 - [ ] `Math/Normalize.hs` を `CASValue` ベースに書き換え（8箇所）
 - [ ] `Math/Rewrite.hs` を `CASValue` ベースに書き換え（21箇所）
