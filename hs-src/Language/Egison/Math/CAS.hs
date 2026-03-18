@@ -1,5 +1,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
+{-# LANGUAGE QuasiQuotes           #-}
 
 {- |
 Module      : Language.Egison.Math.CAS
@@ -45,6 +47,39 @@ module Language.Egison.Math.CAS
     -- * GCD operations
     , casGcd
     , casTermsGcd
+    -- * Pattern synonyms for CASValue
+    , pattern CASZero
+    , pattern CASSingleSymbol
+    , pattern CASSingleTerm
+    -- * Pattern matching (control-egison)
+    , CASM (..)
+    , CASTermM (..)
+    , CASSymbolM (..)
+    , casTerm'
+    , casTermM
+    , casSymbol
+    , casSymbolM
+    , casFunc
+    , casFuncM
+    , casApply1
+    , casApply1M
+    , casApply2
+    , casApply2M
+    , casApply3
+    , casApply3M
+    , casApply4
+    , casApply4M
+    , casQuote
+    , casNegQuote
+    , casNegQuoteM
+    , casQuoteFunction
+    , casQuoteFunctionM
+    , casEqualMonomial
+    , casEqualMonomialM
+    , casZero
+    , casZeroM
+    , casSingleTerm
+    , casSingleTermM
     -- * Conversion from/to ScalarData (for migration)
     , scalarDataToCASValue
     , casValueToScalarData
@@ -57,6 +92,9 @@ module Language.Egison.Math.CAS
 import           Data.List (sortBy, groupBy)
 import           Data.Ord (comparing)
 import           Data.Function (on)
+
+import           Control.Egison
+import           Control.Monad (MonadPlus (..))
 
 import           Language.Egison.IExpr (Index (..))
 import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
@@ -580,3 +618,165 @@ casTermToTermExpr :: CASTerm -> TermExpr
 casTermToTermExpr (CASTerm (CASInteger coeff) mono) = Term coeff (newMonomialToOld mono)
 casTermToTermExpr (CASTerm _ _) =
   error "casTermToTermExpr: non-integer coefficient (nested polynomials not supported in ScalarData)"
+
+--------------------------------------------------------------------------------
+-- Pattern Synonyms for CASValue
+--------------------------------------------------------------------------------
+
+-- | Pattern for zero value
+pattern CASZero :: CASValue
+pattern CASZero = CASInteger 0
+
+-- | Pattern for a single symbol: sym → 1 * sym^1
+pattern CASSingleSymbol :: SymbolExpr -> CASValue
+pattern CASSingleSymbol sym = CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
+
+-- | Pattern for a single term: coeff * mono
+pattern CASSingleTerm :: Integer -> Monomial -> CASValue
+pattern CASSingleTerm coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
+
+--------------------------------------------------------------------------------
+-- Pattern Matching (control-egison matchers)
+--------------------------------------------------------------------------------
+
+-- | Matcher for CASValue
+data CASM = CASM
+instance Matcher CASM CASValue
+
+-- | Matcher for CASTerm
+data CASTermM = CASTermM
+instance Matcher CASTermM CASTerm
+
+-- | Matcher for SymbolExpr (CAS version)
+data CASSymbolM = CASSymbolM
+instance Matcher CASSymbolM SymbolExpr
+
+-- | Match a term and extract its coefficient and monomial
+casTerm' :: Pattern (PP CASValue, PP Monomial) CASTermM CASTerm (CASValue, Monomial)
+casTerm' _ _ (CASTerm coeff mono) = pure (coeff, mono)
+casTermM :: CASTermM -> CASTerm -> (CASM, Multiset (CASSymbolM, Eql))
+casTermM CASTermM _ = (CASM, Multiset (CASSymbolM, Eql))
+
+-- | Match a symbol and extract its name
+casSymbol :: Pattern (PP String) CASSymbolM SymbolExpr String
+casSymbol _ _ (Symbol _ name []) = pure name
+casSymbol _ _ _                  = mzero
+casSymbolM :: CASSymbolM -> p -> Eql
+casSymbolM CASSymbolM _ = Eql
+
+-- | Match a function and extract its name and arguments
+casFunc :: Pattern (PP CASValue, PP [CASValue])
+                CASSymbolM SymbolExpr (CASValue, [CASValue])
+casFunc _ _ (FunctionData name args) = pure (name, args)
+casFunc _ _ _                        = mzero
+casFuncM :: CASSymbolM -> SymbolExpr -> (CASM, List CASM)
+casFuncM CASSymbolM _ = (CASM, List CASM)
+
+-- | Match Apply1 and extract function name, WHNF, and argument
+casApply1 :: Pattern (PP String, PP WHNFData, PP CASValue) CASSymbolM SymbolExpr (String, WHNFData, CASValue)
+casApply1 _ _ (Apply1 (CASSingleSymbol (QuoteFunction fnWhnf)) a1) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1)
+    Nothing -> mzero
+casApply1 _ _ _ = mzero
+casApply1M :: CASSymbolM -> p -> (Eql, Something, CASM)
+casApply1M CASSymbolM _ = (Eql, Something, CASM)
+
+-- | Match Apply2 and extract function name, WHNF, and arguments
+casApply2 :: Pattern (PP String, PP WHNFData, PP CASValue, PP CASValue) CASSymbolM SymbolExpr (String, WHNFData, CASValue, CASValue)
+casApply2 _ _ (Apply2 (CASSingleSymbol (QuoteFunction fnWhnf)) a1 a2) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2)
+    Nothing -> mzero
+casApply2 _ _ _ = mzero
+casApply2M :: CASSymbolM -> p -> (Eql, Something, CASM, CASM)
+casApply2M CASSymbolM _ = (Eql, Something, CASM, CASM)
+
+-- | Match Apply3 and extract function name, WHNF, and arguments
+casApply3 :: Pattern (PP String, PP WHNFData, PP CASValue, PP CASValue, PP CASValue) CASSymbolM SymbolExpr (String, WHNFData, CASValue, CASValue, CASValue)
+casApply3 _ _ (Apply3 (CASSingleSymbol (QuoteFunction fnWhnf)) a1 a2 a3) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2, a3)
+    Nothing -> mzero
+casApply3 _ _ _ = mzero
+casApply3M :: CASSymbolM -> p -> (Eql, Something, CASM, CASM, CASM)
+casApply3M CASSymbolM _ = (Eql, Something, CASM, CASM, CASM)
+
+-- | Match Apply4 and extract function name, WHNF, and arguments
+casApply4 :: Pattern (PP String, PP WHNFData, PP CASValue, PP CASValue, PP CASValue, PP CASValue) CASSymbolM SymbolExpr (String, WHNFData, CASValue, CASValue, CASValue, CASValue)
+casApply4 _ _ (Apply4 (CASSingleSymbol (QuoteFunction fnWhnf)) a1 a2 a3 a4) =
+  case prettyFunctionName fnWhnf of
+    Just fn -> pure (fn, fnWhnf, a1, a2, a3, a4)
+    Nothing -> mzero
+casApply4 _ _ _ = mzero
+casApply4M :: CASSymbolM -> p -> (Eql, Something, CASM, CASM, CASM, CASM)
+casApply4M CASSymbolM _ = (Eql, Something, CASM, CASM, CASM, CASM)
+
+-- | Match Quote and extract the inner CASValue
+casQuote :: Pattern (PP CASValue) CASSymbolM SymbolExpr CASValue
+casQuote _ _ (Quote m) = pure m
+casQuote _ _ _         = mzero
+
+-- | Match Quote and extract the negated inner CASValue
+casNegQuote :: Pattern (PP CASValue) CASSymbolM SymbolExpr CASValue
+casNegQuote _ _ (Quote m) = pure (casNegate m)
+casNegQuote _ _ _         = mzero
+casNegQuoteM :: CASSymbolM -> p -> CASM
+casNegQuoteM CASSymbolM _ = CASM
+
+-- | Match QuoteFunction and extract function name and WHNF
+casQuoteFunction :: Pattern (PP String, PP WHNFData) CASSymbolM SymbolExpr (String, WHNFData)
+casQuoteFunction _ _ (QuoteFunction whnf) = case prettyFunctionName whnf of
+  Just name -> pure (name, whnf)
+  Nothing   -> mzero
+casQuoteFunction _ _ _ = mzero
+casQuoteFunctionM :: CASSymbolM -> p -> Eql
+casQuoteFunctionM CASSymbolM _ = Eql
+
+-- | Match equal monomial (checks if two monomials are equal, handling sign)
+casEqualMonomial :: Pattern (PP Integer, PP Monomial) (Multiset (CASSymbolM, Eql)) Monomial (Integer, Monomial)
+casEqualMonomial (_, VP xs) _ ys = case casIsEqualMonomial xs ys of
+                                  Just sgn -> pure (sgn, xs)
+                                  Nothing  -> mzero
+casEqualMonomial _ _ _ = mzero
+casEqualMonomialM :: Multiset (CASSymbolM, Eql) -> p -> (Eql, Multiset (CASSymbolM, Eql))
+casEqualMonomialM (Multiset (CASSymbolM, Eql)) _ = (Eql, Multiset (CASSymbolM, Eql))
+
+-- | Check if two monomials are equal, returning sign if so
+casIsEqualMonomial :: Monomial -> Monomial -> Maybe Integer
+casIsEqualMonomial xs ys =
+  match dfs (xs, ys) (Multiset (CASSymbolM, Eql), Multiset (CASSymbolM, Eql))
+    [ [mc| ((casQuote $s, $n) : $xss, (casNegQuote #s, #n) : $yss) ->
+             case casIsEqualMonomial xss yss of
+               Nothing -> Nothing
+               Just sgn -> return (if even n then sgn else - sgn) |]
+    , [mc| (($x, $n) : $xss, (#x, #n) : $yss) -> casIsEqualMonomial xss yss |]
+    , [mc| ([], []) -> return 1 |]
+    , [mc| _ -> Nothing |]
+    ]
+
+-- | Match zero CASValue
+casZero :: Pattern () CASM CASValue ()
+casZero _ _ CASZero    = pure ()
+casZero _ _ (CASPoly []) = pure ()  -- Empty polynomial is also zero
+casZero _ _ _          = mzero
+casZeroM :: CASM -> p -> ()
+casZeroM CASM _ = ()
+
+-- | Match a single term in CASValue and extract coefficient, denominator coefficient, and monomial
+casSingleTerm :: Pattern (PP Integer, PP Integer, PP Monomial) CASM CASValue (Integer, Integer, Monomial)
+casSingleTerm _ _ (CASDiv (CASPoly [CASTerm (CASInteger c) mono]) (CASPoly [CASTerm (CASInteger c2) []])) = pure (c, c2, mono)
+casSingleTerm _ _ (CASDiv (CASSingleTerm c mono) (CASInteger c2)) = pure (c, c2, mono)
+casSingleTerm _ _ (CASPoly [CASTerm (CASInteger c) mono]) = pure (c, 1, mono)
+casSingleTerm _ _ (CASInteger n) = pure (n, 1, [])  -- Integer is a single term with empty monomial
+casSingleTerm _ _ _ = mzero
+casSingleTermM :: CASM -> p -> (Eql, Eql, Multiset (CASSymbolM, Eql))
+casSingleTermM CASM _ = (Eql, Eql, Multiset (CASSymbolM, Eql))
+
+-- | ValuePattern instance for CASM
+instance ValuePattern CASM CASValue where
+  value e () CASM v = if e == v then pure () else mzero
+
+-- | ValuePattern instance for CASSymbolM
+instance ValuePattern CASSymbolM SymbolExpr where
+  value e () CASSymbolM v = if e == v then pure () else mzero

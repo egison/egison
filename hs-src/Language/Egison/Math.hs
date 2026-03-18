@@ -23,7 +23,40 @@ module Language.Egison.Math
   , casDenominator
   , casNegate
   , casIsZero
-    -- * Internal types (for pattern matching in Core.hs etc.)
+    -- ** CAS Pattern Synonyms
+  , pattern CASZero
+  , pattern CASSingleSymbol
+  , pattern CASSingleTerm
+    -- ** CAS Pattern Matching (control-egison)
+  , CASM (..)
+  , CASTermM (..)
+  , CASSymbolM (..)
+  , casTerm'
+  , casTermM
+  , casSymbol
+  , casSymbolM
+  , casFunc
+  , casFuncM
+  , casApply1
+  , casApply1M
+  , casApply2
+  , casApply2M
+  , casApply3
+  , casApply3M
+  , casApply4
+  , casApply4M
+  , casQuote
+  , casNegQuote
+  , casNegQuoteM
+  , casQuoteFunction
+  , casQuoteFunctionM
+  , casEqualMonomial
+  , casEqualMonomialM
+  , casZero
+  , casZeroM
+  , casSingleTerm
+  , casSingleTermM
+    -- * Internal types (for backward compatibility)
     -- These are exposed for backward compatibility but should be migrated to CAS types
   , ScalarData (..)
   , PolyExpr (..)
