@@ -30,6 +30,7 @@ import           Language.Egison.Data
 import           Language.Egison.Data.Collection   (makeICollection)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
 import           Language.Egison.Math
+import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
 import           Language.Egison.Primitives.String
@@ -121,33 +122,44 @@ dfOrder' = lazyOneArg dfOrder''
 
 addSubscript :: String -> PrimitiveFunc
 addSubscript = twoArgs $ \fn sub ->
-  case (fromScalarVal fn, fromScalarVal sub) of
-    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleSymbol (Symbol _ _ []))) ->
-      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sub s]))))
-    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleTerm _ [])) ->
-      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sub s]))))
+  case (fn, sub) of
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ _ [], 1)]])) ->
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sub s]), 1)]]
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASPoly [CASTerm (CASInteger _) []])) ->
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sub s]), 1)]]
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASInteger _)) ->
+      let s' = CASPoly [CASTerm s []]
+      in return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sub s']), 1)]]
     _ -> throwErrorWithTrace (TypeMismatch "symbol or integer" (Value fn))
 
 addSuperscript :: String -> PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub ->
-  case (fromScalarVal fn, fromScalarVal sub) of
-    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleSymbol (Symbol _ _ []))) ->
-      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sup s]))))
-    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleTerm _ [])) ->
-      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sup s]))))
+  case (fn, sub) of
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ _ [], 1)]])) ->
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sup s]), 1)]]
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASPoly [CASTerm (CASInteger _) []])) ->
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sup s]), 1)]]
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]),
+     CASData s@(CASInteger _)) ->
+      let s' = CASPoly [CASTerm s []]
+      in return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ [Sup s']), 1)]]
     _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value fn))
 
 updateFunctionArgs :: String -> PrimitiveFunc
 updateFunctionArgs = twoArgs' $ \funcVal newArgsColl ->
-  case (fromScalarVal funcVal, newArgsColl) of
-    (Just (SingleTerm 1 [(FunctionData name _, 1)]), Collection argsSeq) -> do
-      args' <- mapM extractScalar (toList argsSeq)
-      return $ toScalarVal (SingleTerm 1 [(FunctionData name args', 1)])
+  case (funcVal, newArgsColl) of
+    (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData name _, 1)]]), Collection argsSeq) -> do
+      args' <- mapM extractCAS (toList argsSeq)
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData name args', 1)]]
     _ -> throwErrorWithTrace (TypeMismatch "function value and collection of scalars" (Value funcVal))
  where
-  extractScalar val = case fromScalarVal val of
-    Just s -> return s
-    Nothing -> throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+  extractCAS (CASData cv) = return cv
+  extractCAS val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
@@ -185,9 +197,9 @@ sortWithSign = oneArg' $ \val -> do
   extractIntList x = (:[]) <$> extractInt x
   
   extractInt :: EgisonValue -> EvalM Integer
-  extractInt val = case fromScalarVal val of
-    Just _ -> fromEgison val
-    Nothing -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
+  extractInt val = case val of
+    CASData _ -> fromEgison val
+    _         -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
   
   -- Sort lists lexicographically and calculate permutation sign using bubble sort
   sortWithPermSign :: [[Integer]] -> (Integer, [[Integer]])

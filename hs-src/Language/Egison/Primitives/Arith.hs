@@ -176,9 +176,12 @@ floatCompare cmp = twoArgs' $ \val1 val2 ->
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
-  numberUnaryOp' v = case fromScalarVal v of
-    Just (Div (Plus []) _)                           -> return $ toEgison (0 :: Integer)
-    Just (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ toEgison (quot x y)
-    Nothing -> case v of
-      Float x -> return $ toEgison (truncate x :: Integer)
-      _       -> throwErrorWithTrace (TypeMismatch "rational or float" (Value v))
+  numberUnaryOp' v = case v of
+    CASData (CASInteger 0) -> return $ toEgison (0 :: Integer)
+    CASData (CASPoly []) -> return $ toEgison (0 :: Integer)
+    CASData (CASInteger x) -> return $ toEgison x
+    CASData (CASPoly [CASTerm (CASInteger x) []]) -> return $ toEgison x
+    CASData (CASDiv (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) ->
+      return $ toEgison (quot x y)
+    Float x -> return $ toEgison (truncate x :: Integer)
+    _ -> throwErrorWithTrace (TypeMismatch "rational or float" (Value v))

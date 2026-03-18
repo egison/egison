@@ -14,7 +14,6 @@ import           Data.Char                        (chr, ord)
 import           Data.Ratio                       ((%))
 
 import           Language.Egison.Data
-import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
 
 primitiveTypeFunctions :: [(String, EgisonValue)]
@@ -47,17 +46,19 @@ lazyPrimitives =
 --
 
 isInteger :: WHNFData -> EvalM WHNFData
-isInteger (Value val) = case fromScalarVal val of
-  Just (Div (Plus []) (Plus [Term 1 []]))          -> return . Value $ Bool True
-  Just (Div (Plus [Term _ []]) (Plus [Term 1 []])) -> return . Value $ Bool True
-  _                                                -> return . Value $ Bool False
+isInteger (Value val) = case val of
+  CASData (CASInteger _) -> return . Value $ Bool True
+  CASData (CASPoly [CASTerm (CASInteger _) []]) -> return . Value $ Bool True
+  _ -> return . Value $ Bool False
 isInteger _ = return . Value $ Bool False
 
 isRational :: WHNFData -> EvalM WHNFData
-isRational (Value val) = case fromScalarVal val of
-  Just (Div (Plus []) (Plus [Term _ []]))          -> return . Value $ Bool True
-  Just (Div (Plus [Term _ []]) (Plus [Term _ []])) -> return . Value $ Bool True
-  _                                                -> return . Value $ Bool False
+isRational (Value val) = case val of
+  CASData (CASInteger _) -> return . Value $ Bool True
+  CASData (CASPoly [CASTerm (CASInteger _) []]) -> return . Value $ Bool True
+  CASData (CASDiv (CASPoly [CASTerm (CASInteger _) []]) (CASPoly [CASTerm (CASInteger _) []])) ->
+    return . Value $ Bool True
+  _ -> return . Value $ Bool False
 isRational _ = return . Value $ Bool False
 
 --
@@ -68,10 +69,14 @@ integerToFloat = rationalToFloat
 
 rationalToFloat :: String -> PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
-  case fromScalarVal val of
-    Just (Div (Plus []) _)                           -> return $ Float 0
-    Just (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ Float (fromRational (x % y))
-    _                                                -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
+  case val of
+    CASData (CASInteger 0) -> return $ Float 0
+    CASData (CASPoly []) -> return $ Float 0
+    CASData (CASInteger x) -> return $ Float (fromInteger x)
+    CASData (CASPoly [CASTerm (CASInteger x) []]) -> return $ Float (fromInteger x)
+    CASData (CASDiv (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) ->
+      return $ Float (fromRational (x % y))
+    _ -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
 
 charToInteger :: String -> PrimitiveFunc
 charToInteger = unaryOp ctoi
