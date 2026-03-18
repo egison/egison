@@ -14,6 +14,9 @@ module Language.Egison.Primitives.Arith
 
 import           Language.Egison.Data
 import           Language.Egison.Math
+import           Language.Egison.Math.CAS (casPlus, casMinus, casMult, casDivide,
+                                           casNumerator, casDenominator, scalarDataToCASValue,
+                                           casValueToScalarData)
 import           Language.Egison.Primitives.Utils
 
 primitiveArithFunctions :: [(String, EgisonValue)]
@@ -98,68 +101,55 @@ floatToIntegerOp = unaryOp
 --
 -- Arith
 --
-scalarBinaryOp :: (ScalarData -> ScalarData -> ScalarData) -> String -> PrimitiveFunc
-scalarBinaryOp mOp = twoArgs scalarBinaryOp'
+
+-- | Binary operation on CASValue (direct, no ScalarData conversion)
+casBinaryOp :: (CASValue -> CASValue -> CASValue) -> String -> PrimitiveFunc
+casBinaryOp op = twoArgs casBinaryOp'
  where
-  scalarBinaryOp' (ScalarData m1) (ScalarData m2) = (return . ScalarData) (mOp m1 m2)
-  -- Handle CASData by converting to ScalarData, operating, and returning as CASData
-  scalarBinaryOp' (CASData c1) (CASData c2) =
-    let s1 = casValueToScalarData c1
-        s2 = casValueToScalarData c2
-    in (return . ScalarData) (mOp s1 s2)
-  scalarBinaryOp' (ScalarData m1) (CASData c2) =
-    let s2 = casValueToScalarData c2
-    in (return . ScalarData) (mOp m1 s2)
-  scalarBinaryOp' (CASData c1) (ScalarData m2) =
-    let s1 = casValueToScalarData c1
-    in (return . ScalarData) (mOp s1 m2)
-  scalarBinaryOp' (ScalarData _)  val             = throwErrorWithTrace (TypeMismatch "number" (Value val))
-  scalarBinaryOp' (CASData _)     val             = throwErrorWithTrace (TypeMismatch "number" (Value val))
-  scalarBinaryOp' val             _               = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  casBinaryOp' (CASData c1) (CASData c2) = return $ CASData (op c1 c2)
+  casBinaryOp' (CASData _)  val          = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  casBinaryOp' val          _            = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 plus :: String -> PrimitiveFunc
-plus = scalarBinaryOp mathPlus
+plus = casBinaryOp casPlus
 
 minus :: String -> PrimitiveFunc
-minus = scalarBinaryOp (\m1 m2 -> mathPlus m1 (mathNegate m2))
+minus = casBinaryOp casMinus
 
 multiply :: String -> PrimitiveFunc
-multiply = scalarBinaryOp mathMult
+multiply = casBinaryOp casMult
 
 divide :: String -> PrimitiveFunc
-divide = scalarBinaryOp mathDiv
+divide = casBinaryOp casDivide
 
 numerator' :: String -> PrimitiveFunc
 numerator' = oneArg numerator''
  where
-  numerator'' (ScalarData m) = return $ ScalarData (mathNumerator m)
-  numerator'' (CASData c)    = return $ ScalarData (mathNumerator (casValueToScalarData c))
-  numerator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
+  numerator'' (CASData c) = return $ CASData (casNumerator c)
+  numerator'' val         = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 denominator' :: String -> PrimitiveFunc
 denominator' = oneArg denominator''
  where
-  denominator'' (ScalarData m) = return $ ScalarData (mathDenominator m)
-  denominator'' (CASData c)    = return $ ScalarData (mathDenominator (casValueToScalarData c))
-  denominator'' val            = throwErrorWithTrace (TypeMismatch "rational" (Value val))
+  denominator'' (CASData c) = return $ CASData (casDenominator c)
+  denominator'' val         = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 fromScalarData :: String -> PrimitiveFunc
 fromScalarData = oneArg fromScalarData'
  where
-  fromScalarData' (ScalarData m) = return $ mathExprToEgison m
-  fromScalarData' (CASData c)    = return $ mathExprToEgison (casValueToScalarData c)
-  fromScalarData' val            = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  fromScalarData' (CASData c) = return $ mathExprToEgison (casValueToScalarData c)
+  fromScalarData' val         = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 toScalarData :: String -> PrimitiveFunc
-toScalarData = oneArg $ \val ->
-  ScalarData . mathNormalize' <$> egisonToScalarData val
+toScalarData = oneArg $ \val -> do
+  s <- egisonToScalarData val
+  return $ CASData (scalarDataToCASValue (mathNormalize' s))
 
 symbolNormalize :: String -> PrimitiveFunc
 symbolNormalize = oneArg $ \val ->
   case val of
-    ScalarData s -> return $ ScalarData (rewriteSymbol s)
-    CASData c    -> return $ ScalarData (rewriteSymbol (casValueToScalarData c))
-    _            -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+    CASData c -> return $ CASData (scalarDataToCASValue (rewriteSymbol (casValueToScalarData c)))
+    _         -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 --
 -- Pred
@@ -171,30 +161,13 @@ eq = twoArgs' $ \val val' ->
 integerCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
 integerCompare cmp = twoArgs' $ \val1 val2 ->
   case (val1, val2) of
-    (ScalarData _, ScalarData _) -> do
+    (CASData _, CASData _) -> do
+      -- ScalarData pattern synonym handles the conversion
       r1 <- fromEgison val1 :: EvalM Rational
       r2 <- fromEgison val2 :: EvalM Rational
       return $ Bool (cmp r1 r2)
-    -- Handle CASData by converting to ScalarData
-    (CASData c1, CASData c2) -> do
-      let s1 = ScalarData (casValueToScalarData c1)
-          s2 = ScalarData (casValueToScalarData c2)
-      r1 <- fromEgison s1 :: EvalM Rational
-      r2 <- fromEgison s2 :: EvalM Rational
-      return $ Bool (cmp r1 r2)
-    (ScalarData _, CASData c2) -> do
-      let s2 = ScalarData (casValueToScalarData c2)
-      r1 <- fromEgison val1 :: EvalM Rational
-      r2 <- fromEgison s2 :: EvalM Rational
-      return $ Bool (cmp r1 r2)
-    (CASData c1, ScalarData _) -> do
-      let s1 = ScalarData (casValueToScalarData c1)
-      r1 <- fromEgison s1 :: EvalM Rational
-      r2 <- fromEgison val2 :: EvalM Rational
-      return $ Bool (cmp r1 r2)
-    (ScalarData _, _) -> throwErrorWithTrace (TypeMismatch "integer" (Value val2))
-    (CASData _, _)    -> throwErrorWithTrace (TypeMismatch "integer" (Value val2))
-    _                 -> throwErrorWithTrace (TypeMismatch "integer" (Value val1))
+    (CASData _, _) -> throwErrorWithTrace (TypeMismatch "integer" (Value val2))
+    _              -> throwErrorWithTrace (TypeMismatch "integer" (Value val1))
 
 floatCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
 floatCompare cmp = twoArgs' $ \val1 val2 ->
@@ -206,9 +179,8 @@ floatCompare cmp = twoArgs' $ \val1 val2 ->
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
+  -- Use ScalarData pattern synonym for CASData values
   numberUnaryOp' (ScalarData (Div (Plus []) _))                           = return $ toEgison (0 :: Integer)
   numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
-  -- Handle CASData by converting to ScalarData
-  numberUnaryOp' (CASData c) = numberUnaryOp' (ScalarData (casValueToScalarData c))
   numberUnaryOp' (Float x)                                                = return $ toEgison (truncate x :: Integer)
   numberUnaryOp' val                                                      = throwErrorWithTrace (TypeMismatch "rational or float" (Value val))

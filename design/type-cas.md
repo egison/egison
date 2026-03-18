@@ -929,38 +929,47 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 
 この段階では `CASInteger`, `CASFactor` を単体で使わず、常に `CASDiv (CASPoly ...) (CASPoly ...)` 形式を維持する。型の精緻化（`Integer` を `CASInteger` で表現など）は Phase 2.5 以降で行う。
 
-#### Step 1: EgisonValue の置換
+#### Step 1: EgisonValue の置換（完了）
 
-- [ ] `Data.hs` の `ScalarData ScalarData` を `CASData CASValue` に置換
-- [ ] `scalarDataToCASValue` を使って全生成箇所を変換
-  - 既存の変換関数がそのまま使える
-- [ ] `extractScalar` → `extractCAS` にリネーム
+**実装方式**: パターンシノニムを使用した後方互換性のある置換
 
-#### Step 2: 参照箇所の機械的置換
+- [x] `Data.hs` の `ScalarData ScalarData` コンストラクタを削除
+- [x] `CASData CASValue` コンストラクタのみ残す
+- [x] パターンシノニム `ScalarData` を追加（自動変換）
+  ```haskell
+  pattern ScalarData :: ScalarData -> EgisonValue
+  pattern ScalarData s <- CASData (casValueToScalarData -> s)
+    where ScalarData s = CASData (scalarDataToCASValue s)
+  ```
+- [x] `EgisonValue (.., ScalarData)` でエクスポート
+- [x] `Show`, `Eq`, `isAtomic` インスタンスを簡略化
 
-以下のパターンで一括置換:
-- `ScalarData s` → `CASData (scalarDataToCASValue s)` （生成時）
-- `ScalarData s` → `CASData cv` + `casValueToScalarData cv` （パターンマッチ時、一時的）
+**結果**: 既存のコードは変更不要で動作。`ScalarData` パターンは内部的に `CASData` を使用。
 
-対象ファイル:
-- [ ] `Math/Arith.hs`
-- [ ] `Math/Rewrite.hs`
-- [ ] `Math/Normalize.hs`
-- [ ] `Primitives/Arith.hs`
-- [ ] `Core.hs`（パターンマッチ）
-- [ ] `Parser/NonS.hs`（リテラル）
+#### Step 2: 参照箇所の置換（不要）
 
-#### Step 3: 変換関数の削除
+パターンシノニムにより、以下のファイルは変更なしで動作:
+- [x] `Math/Arith.hs` - パターンシノニム経由で動作
+- [x] `Math/Rewrite.hs` - パターンシノニム経由で動作
+- [x] `Math/Normalize.hs` - パターンシノニム経由で動作
+- [x] `Primitives/Arith.hs` - パターンシノニム経由で動作
+- [x] `Core.hs`（パターンマッチ）- パターンシノニム経由で動作
+- [x] `Parser/NonS.hs`（リテラル）- パターンシノニム経由で動作
 
-全箇所が `CASValue` 直接操作になったら:
+#### Step 3: 変換関数と旧型の削除（将来の作業）
+
+パターンシノニムが不要になったら:
 - [ ] `scalarDataToCASValue`, `casValueToScalarData` を削除
 - [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
 - [ ] 旧 `SymbolExpr` と変換関数を削除
+- [ ] パターンシノニム `ScalarData` を削除し、直接 `CASData` を使用
 
-#### Step 4: テスト
+**注**: 現時点ではパターンシノニムにより後方互換性を維持。完全削除は他のモジュールが `CASValue` を直接使うようになってから。
 
-- [ ] 既存テストがすべて通過することを確認
-- [ ] `mini-test/` に CASValue 固有のテストを追加
+#### Step 4: テスト（完了）
+
+- [x] 既存テストがすべて通過することを確認（21/21 パス）
+- [x] `mini-test/40-casvalue-basic.egi` に CASValue 固有のテストを追加
 
 ### Phase 2.5: Embed 型クラスと Coercive Subtyping
 

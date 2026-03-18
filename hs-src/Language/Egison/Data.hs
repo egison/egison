@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE UndecidableInstances  #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 {- |
 Module      : Language.Egison.Data
@@ -12,7 +14,7 @@ This module contains definitions for Egison internal data.
 module Language.Egison.Data
     (
     -- * Egison values
-      EgisonValue (..)
+      EgisonValue (.., ScalarData)
     , Matcher
     , PrimitiveFunc
     , LazyPrimitiveFunc
@@ -88,7 +90,7 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.IExpr
 import           Language.Egison.Math
-import           Language.Egison.Math.CAS (CASValue(..), casValueToScalarData)
+import           Language.Egison.Math.CAS (CASValue(..), casValueToScalarData, scalarDataToCASValue)
 import           Language.Egison.RState
 
 --
@@ -100,8 +102,7 @@ data EgisonValue
   | Char Char
   | String Text
   | Bool Bool
-  | ScalarData ScalarData
-  | CASData CASValue  -- New CAS type (will eventually replace ScalarData)
+  | CASData CASValue  -- CAS type (replaces old ScalarData)
   | TensorData (Tensor EgisonValue)
   | Float Double
   | InductiveData String [EgisonValue]
@@ -131,6 +132,13 @@ data EgisonValue
   | TermExprData TermExpr
   | SymbolExprData SymbolExpr
   | IndexExprData (Index ScalarData)
+
+-- | Pattern synonym for backward compatibility with ScalarData.
+-- ScalarData values are now stored as CASData internally.
+-- This pattern automatically converts between ScalarData and CASValue.
+pattern ScalarData :: ScalarData -> EgisonValue
+pattern ScalarData s <- CASData (casValueToScalarData -> s)
+  where ScalarData s = CASData (scalarDataToCASValue s)
 
 type Matcher = EgisonValue
 
@@ -317,8 +325,7 @@ instance Show EgisonValue where
   show (String str) = ushow str
   show (Bool True) = "True"
   show (Bool False) = "False"
-  show (ScalarData mExpr) = show mExpr
-  show (CASData casVal) = show (casValueToScalarData casVal)  -- Convert for display
+  show (ScalarData mExpr) = show mExpr  -- Uses pattern synonym, converts CASData to ScalarData
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
   show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
@@ -362,8 +369,7 @@ instance Show EgisonValue where
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
-isAtomic (ScalarData m)       = isAtom m
-isAtomic (CASData casVal)     = isAtom (casValueToScalarData casVal)
+isAtomic (ScalarData m)       = isAtom m  -- Uses pattern synonym
 isAtomic (PolyExprData _)     = False
 isAtomic (TermExprData _)     = False
 isAtomic (SymbolExprData _)   = False
@@ -374,10 +380,7 @@ instance Eq EgisonValue where
   (Char c) == (Char c')                                            = c == c'
   (String str) == (String str')                                    = str == str'
   (Bool b) == (Bool b')                                            = b == b'
-  (ScalarData x) == (ScalarData y)                                 = x == y
-  (CASData x) == (CASData y)                                       = x == y
-  (ScalarData x) == (CASData y)                                    = x == casValueToScalarData y
-  (CASData x) == (ScalarData y)                                    = casValueToScalarData x == y
+  (CASData x) == (CASData y)                                       = x == y  -- Direct CASValue comparison
   (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = js == js' && xs == xs'
   (Float x) == (Float x')                                          = x == x'
   (InductiveData name vals) == (InductiveData name' vals')         = name == name' && vals == vals'
