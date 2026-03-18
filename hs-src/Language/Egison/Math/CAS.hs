@@ -56,6 +56,7 @@ module Language.Egison.Math.CAS
     , CASTermM (..)
     , CASSymbolM (..)
     , casTerm'
+    , casTerm'M
     , casTermM
     , casSymbol
     , casSymbolM
@@ -685,6 +686,9 @@ instance Matcher CASSymbolM SymbolExpr
 -- | Match a term and extract its coefficient and monomial
 casTerm' :: Pattern (PP CASValue, PP Monomial) CASTermM CASTerm (CASValue, Monomial)
 casTerm' _ _ (CASTerm coeff mono) = pure (coeff, mono)
+-- | Matcher decomposition for casTerm' pattern
+casTerm'M :: CASTermM -> CASTerm -> (CASM, Multiset (CASSymbolM, Eql))
+casTerm'M CASTermM _ = (CASM, Multiset (CASSymbolM, Eql))
 casTermM :: CASTermM -> CASTerm -> (CASM, Multiset (CASSymbolM, Eql))
 casTermM CASTermM _ = (CASM, Multiset (CASSymbolM, Eql))
 

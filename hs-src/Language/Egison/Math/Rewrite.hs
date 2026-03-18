@@ -5,271 +5,290 @@ Module      : Language.Egison.Math.Rewrite
 Licence     : MIT
 
 This module implements rewrite rules for common mathematical functions.
+Uses CASValue as the primary representation.
 -}
 
 module Language.Egison.Math.Rewrite
-  ( -- * ScalarData rewrite (backward compatible)
-    rewriteSymbol
-  -- * CASValue rewrite (using conversion)
-  , casRewriteSymbol
+  ( -- * CASValue rewrite (primary API)
+    casRewriteSymbol
+  -- * ScalarData rewrite (backward compatible, deprecated)
+  , rewriteSymbol
   ) where
 
 import           Control.Egison
 
-import           Language.Egison.Math.Arith
-import           Language.Egison.Math.Expr
-import           Language.Egison.Math.Normalize
-import           Language.Egison.Math.CAS (CASValue, scalarDataToCASValue, casValueToScalarData)
+import           Language.Egison.Math.CAS
+import           Language.Egison.Math.Expr (ScalarData)
+import           Language.Egison.Math.Normalize (casDivideTerm)
 import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
--- | Apply rewrite rules to a CASValue (via conversion)
+
+-- | Apply rewrite rules to a CASValue
 casRewriteSymbol :: CASValue -> CASValue
-casRewriteSymbol = scalarDataToCASValue . rewriteSymbol . casValueToScalarData
-
-
-rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol =
+casRewriteSymbol =
   foldl1 (\acc f -> f . acc)
-    [ rewriteI
-    , rewriteW
-    , rewriteLog
---    , rewriteSinCos
-    , rewriteExp
-    , rewritePower
-    , rewriteSqrt
-    , rewriteRt
-    , rewriteRtu
-    , rewriteDd
+    [ casRewriteI
+    , casRewriteW
+    , casRewriteLog
+--    , casRewriteSinCos
+    , casRewriteExp
+    , casRewritePower
+    , casRewriteSqrt
+    , casRewriteRt
+    , casRewriteRtu
+    , casRewriteDd
     ]
 
-mapTerms :: (TermExpr -> TermExpr) -> ScalarData -> ScalarData
-mapTerms f (Div (Plus ts1) (Plus ts2)) =
-  Div (Plus (map f ts1)) (Plus (map f ts2))
+-- | Apply rewrite rules to ScalarData (via conversion, deprecated)
+rewriteSymbol :: ScalarData -> ScalarData
+rewriteSymbol = casValueToScalarData . casRewriteSymbol . scalarDataToCASValue
 
-mapTerms' :: (TermExpr -> ScalarData) -> ScalarData -> ScalarData
-mapTerms' f (Div (Plus ts1) (Plus ts2)) =
-  mathDiv (foldl mathPlus (Div (Plus []) (Plus [Term 1 []])) (map f ts1)) (foldl mathPlus (Div (Plus []) (Plus [Term 1 []])) (map f ts2))
 
-mapPolys :: (PolyExpr -> PolyExpr) -> ScalarData -> ScalarData
-mapPolys f (Div p1 p2) = Div (f p1) (f p2)
+-- | Helper: Map a function over all terms in a CASValue
+mapCASTerms :: (CASTerm -> CASTerm) -> CASValue -> CASValue
+mapCASTerms f (CASPoly ts) = casNormalizePoly (map f ts)
+mapCASTerms f (CASDiv num denom) = casNormalize (CASDiv (mapCASTerms f num) (mapCASTerms f denom))
+mapCASTerms _ v = v
 
-rewriteI :: ScalarData -> ScalarData
-rewriteI = mapTerms f
+-- | Helper: Map a function over all terms, returning CASValue
+mapCASTerms' :: (CASTerm -> CASValue) -> CASValue -> CASValue
+mapCASTerms' f (CASPoly ts) = foldr casPlus (CASInteger 0) (map f ts)
+mapCASTerms' f (CASDiv num denom) = casNormalize (CASDiv (mapCASTerms' f num) (mapCASTerms' f denom))
+mapCASTerms' _ v = v
+
+-- | Helper: Map over both polys in a CASDiv (or single poly)
+mapCASPolys :: ([CASTerm] -> [CASTerm]) -> CASValue -> CASValue
+mapCASPolys f (CASPoly ts) = casNormalizePoly (f ts)
+mapCASPolys f (CASDiv num denom) = casNormalize (CASDiv (mapCASPolys f num) (mapCASPolys f denom))
+mapCASPolys _ v = v
+
+-- | Helper: Create an Apply symbol from WHNF and CASValue arguments
+cassMakeApply :: WHNFData -> [CASValue] -> SymbolExpr
+cassMakeApply whnf args =
+  makeApplyExpr (CASPoly [CASTerm (CASInteger 1) [(QuoteFunction whnf, 1)]]) args
+
+-- | Helper: Create a single term CASValue
+casSingleTermVal :: Integer -> Monomial -> CASValue
+casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
+
+
+--------------------------------------------------------------------------------
+-- Rewrite Rules
+--------------------------------------------------------------------------------
+
+-- | Rewrite i (imaginary unit): i^2 = -1
+casRewriteI :: CASValue -> CASValue
+casRewriteI = mapCASTerms f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (symbol #"i", $k) : $xss ->
-              if even k
-                then Term (a * (-1) ^ (quot k 2)) xss
-                else Term (a * (-1) ^ (quot k 2)) ((Symbol "" "i" [], 1) : xss) |]
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casSymbol #"i", $k) : $xss ->
+              case coeff of
+                CASInteger a ->
+                  if even k
+                    then CASTerm (CASInteger (a * (-1) ^ (quot k 2))) xss
+                    else CASTerm (CASInteger (a * (-1) ^ (quot k 2))) ((Symbol "" "i" [], 1) : xss)
+                _ -> term |]
       , [mc| _ -> term |]
       ]
 
-rewriteW :: ScalarData -> ScalarData
-rewriteW = mapPolys g . mapTerms f
+-- | Rewrite w (cube root of unity): w^3 = 1
+casRewriteW :: CASValue -> CASValue
+casRewriteW = mapCASPolys g . mapCASTerms f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (symbol #"w", $k & ?(>= 3)) : $xss ->
-               Term a ((Symbol "" "w" [], k `mod` 3) : xss) |]
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casSymbol #"w", $k & ?(>= 3)) : $xss ->
+               CASTerm coeff ((Symbol "" "w" [], k `mod` 3) : xss) |]
       , [mc| _ -> term |]
       ]
-  g poly@(Plus ts) =
-    match dfs ts (Multiset TermM)
-      [ [mc| term $a ((symbol #"w", #2) : $mr) :
-             term $b ((symbol #"w", #1) : #mr) : $pr ->
-               g (Plus (Term (-a) mr :
-                        Term (b - a) ((Symbol "" "w" [], 1) : mr) : pr)) |]
+  g ts@(poly) =
+    match dfs poly (Multiset CASTermM)
+      [ [mc| casTerm' $a ((casSymbol #"w", #2) : $mr) :
+             casTerm' $b ((casSymbol #"w", #1) : #mr) : $pr ->
+               g (CASTerm (casNegate a) mr :
+                  CASTerm (casMinus b a) ((Symbol "" "w" [], 1) : mr) : pr) |]
       , [mc| _ -> poly |]
       ]
 
-rewriteLog :: ScalarData -> ScalarData
-rewriteLog = mapTerms f
+-- | Rewrite log: log(1) = 0, log(e^n) = n
+casRewriteLog :: CASValue -> CASValue
+casRewriteLog = mapCASTerms f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"log" _ zero, _) : _ -> Term 0 [] |]
-      , [mc| (apply1 #"log" _ (singleTerm _ #1 [(symbol #"e", $n)]), _) : $xss ->
-              Term (n * a) xss |]
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"log" _ casZero, _) : _ -> CASTerm (CASInteger 0) [] |]
+      , [mc| (casApply1 #"log" _ (casSingleTerm _ #1 [(casSymbol #"e", $n)]), _) : $xss ->
+              CASTerm (casMult (CASInteger n) coeff) xss |]
       , [mc| _ -> term |]
       ]
 
-makeApply :: WHNFData -> [ScalarData] -> SymbolExpr
-makeApply f args =
-  makeApplyExpr (SingleSymbol (QuoteFunction f)) args
-
-rewriteExp :: ScalarData -> ScalarData
-rewriteExp = mapTerms f
+-- | Rewrite exp: exp(0) = 1, exp(1) = e, exp(n*i*pi) = (-1)^n
+casRewriteExp :: CASValue -> CASValue
+casRewriteExp = mapCASTerms f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"exp" _ zero, _) : $xss ->
-               f (Term a xss) |]
-      , [mc| (apply1 #"exp" _ (singleTerm #1 #1 []), _) : $xss ->
-               f (Term a ((Symbol "" "e" [], 1) : xss)) |]
-      , [mc| (apply1 #"exp" _ (singleTerm $n #1 [(symbol #"i", #1), (symbol #"π", #1)]), _) : $xss ->
-               f (Term ((-1) ^ n * a) xss) |]
-      , [mc| (apply1 #"exp" $expWhnf $x, $n & ?(>= 2)) : $xss ->
-               f (Term a ((makeApply expWhnf [mathScalarMult n x], 1) : xss)) |]
-      , [mc| (apply1 #"exp" $expWhnf $x, #1) : (apply1 #"exp" _ $y, #1) : $xss ->
-               f (Term a ((makeApply expWhnf [mathPlus x y], 1) : xss)) |]
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"exp" _ casZero, _) : $xss ->
+               f (CASTerm coeff xss) |]
+      , [mc| (casApply1 #"exp" _ (casSingleTerm #1 #1 []), _) : $xss ->
+               f (CASTerm coeff ((Symbol "" "e" [], 1) : xss)) |]
+      , [mc| (casApply1 #"exp" _ (casSingleTerm $n #1 [(casSymbol #"i", #1), (casSymbol #"π", #1)]), _) : $xss ->
+               f (CASTerm (casMult coeff (CASInteger ((-1) ^ n))) xss) |]
+      , [mc| (casApply1 #"exp" $expWhnf $x, $n & ?(>= 2)) : $xss ->
+               f (CASTerm coeff ((cassMakeApply expWhnf [casMult (CASInteger n) x], 1) : xss)) |]
+      , [mc| (casApply1 #"exp" $expWhnf $x, #1) : (casApply1 #"exp" _ $y, #1) : $xss ->
+               f (CASTerm coeff ((cassMakeApply expWhnf [casPlus x y], 1) : xss)) |]
       , [mc| _ -> term |]
       ]
 
-rewritePower :: ScalarData -> ScalarData
-rewritePower = mapTerms f
+-- | Rewrite power: x^0 = 1, x^n * x^m = x^(n+m)
+casRewritePower :: CASValue -> CASValue
+casRewritePower = mapCASTerms f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"^" _ (singleTerm #1 #1 []), _) : $xss -> f (Term a xss) |]
-      , [mc| (apply2 #"^" $powerWhnf $x $y, $n & ?(>= 2)) : $xss ->
-               f (Term a ((makeApply powerWhnf [x, mathScalarMult n y], 1) : xss)) |]
-      , [mc| (apply2 #"^" $powerWhnf $x $y, #1) : (apply2 #"^" _ #x $z, #1) : $xss ->
-               f (Term a ((makeApply powerWhnf [x, mathPlus y z], 1) : xss)) |]
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"^" _ (casSingleTerm #1 #1 []), _) : $xss -> f (CASTerm coeff xss) |]
+      , [mc| (casApply2 #"^" $powerWhnf $x $y, $n & ?(>= 2)) : $xss ->
+               f (CASTerm coeff ((cassMakeApply powerWhnf [x, casMult (CASInteger n) y], 1) : xss)) |]
+      , [mc| (casApply2 #"^" $powerWhnf $x $y, #1) : (casApply2 #"^" _ #x $z, #1) : $xss ->
+               f (CASTerm coeff ((cassMakeApply powerWhnf [x, casPlus y z], 1) : xss)) |]
       , [mc| _ -> term |]
       ]
 
-rewriteSinCos :: ScalarData -> ScalarData
-rewriteSinCos = h . mapTerms (g . f)
- where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"sin" _ zero, _) : _ -> Term 0 [] |]
-      , [mc| (apply1 #"sin" _ (singleTerm _ #1 [(symbol #"π", #1)]), _) : _ ->
-               Term 0 [] |]
-      , [mc| (apply1 #"sin" _ (singleTerm $n #2 [(symbol #"π", #1)]), $m) : $xss ->
-              Term (a * (-1) ^ (div (abs n - 1) 2) * m) xss |]
-      , [mc| _ -> term |]
-      ]
-  g term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"cos" _ zero, _) : $xss -> Term a xss |]
-      , [mc| (apply1 #"cos" _ (singleTerm _ #2 [(symbol #"π", #1)]), _) : _ ->
-              Term 0 [] |]
-      , [mc| (apply1 #"cos" _ (singleTerm $n #1 [(symbol #"π", #1)]), $m) : $xss ->
-               Term (a * (-1) ^ (abs n * m)) xss |]
-      , [mc| _ -> term |]
-      ]
-  h (Div poly1@(Plus ts1) poly2@(Plus ts2)) =
-    match dfs (ts1, ts2) (Multiset TermM, Multiset TermM)
-      [ [mc| ((term $a ((apply1 #"cos" $cosWhnf $x, #2) : $mr)) : (term $b ((apply1 #"sin" $sinWhnf #x, #2) : #mr)) : $pr, _) ->
-              h (Div (Plus (Term a mr : Term (b - a) ((makeApply sinWhnf [x], 2) : mr) : pr)) poly2) |]
-      , [mc| ((term $a ((apply1 #"cos" $cosWhnf $x, #2) : $mr)) : $pr1, (term _ ((apply1 #"sin" $sinWhnf #x, #2) : #mr)) : _) ->
-              h (Div (Plus (Term a mr : Term (- a) ((makeApply sinWhnf [x], 2) : mr) : pr1)) poly2) |]
-      , [mc| _ -> Div poly1 poly2 |]
-      ]
-
--- Determine if a ScalarData is definitely negative
+-- | Determine if a CASValue is definitely negative
 -- Returns Just True if negative, Just False if non-negative, Nothing if unknown
-isNegativeScalar :: ScalarData -> Maybe Bool
-isNegativeScalar (Div (Plus terms) (Plus [Term d []]))
-  | d > 0 = analyzeTerms terms
-  | d < 0 = fmap not (analyzeTerms terms)
+casIsNegative :: CASValue -> Maybe Bool
+casIsNegative (CASInteger n)
+  | n < 0     = Just True
+  | otherwise = Just False
+casIsNegative (CASPoly terms)
+  | all isNegTerm terms = Just True
+  | all isPosTerm terms = Just False
  where
-  analyzeTerms ts
-    | all (\(Term a _) -> a < 0) ts = Just True
-    | all (\(Term a _) -> a > 0) ts = Just False
-    | otherwise =
-      -- Two-term case: a + b*sqrt(n), compare a^2 with b^2*n
-      match dfs ts (Multiset TermM)
-        [ [mc| term $a [] :
-               term $b ((apply1 #"sqrt" _ (singleTerm $n #1 []), #1) : []) :
-               [] ->
-                 if n > 0
-                 then let lhs = a * a; rhs = b * b * n
-                      in if lhs > rhs then Just (a < 0)
-                         else if lhs < rhs then Just (b < 0)
-                         else Just False
-                 else Nothing |]
-        , [mc| _ -> Nothing |]
-        ]
-isNegativeScalar _ = Nothing
+  isNegTerm (CASTerm (CASInteger c) _) = c < 0
+  isNegTerm _ = False
+  isPosTerm (CASTerm (CASInteger c) _) = c > 0
+  isPosTerm _ = False
+casIsNegative (CASDiv num (CASInteger d))
+  | d > 0     = casIsNegative num
+  | d < 0     = fmap not (casIsNegative num)
+casIsNegative (CASDiv num (CASPoly [CASTerm (CASInteger d) []]))
+  | d > 0     = casIsNegative num
+  | d < 0     = fmap not (casIsNegative num)
+casIsNegative _ = Nothing
 
--- Find a pair of sqrts in a monomial whose product simplifies to a single term.
--- Uses matchAll to enumerate all sqrt pairs, avoiding DFS ordering issues.
--- We apply rewriteSqrt to the product because mathMult alone does not simplify
--- sqrt(x)^2 to x, which is needed for products like (-5-2√5)*(-5+2√5).
-findSqrtPairToMerge :: Monomial -> Maybe (WHNFData, ScalarData, Monomial, Integer)
-findSqrtPairToMerge xs =
+-- | Find a pair of sqrts in a monomial whose product simplifies to a single term.
+casFindSqrtPairToMerge :: Monomial -> Maybe (WHNFData, CASValue, Monomial, Integer)
+casFindSqrtPairToMerge xs =
   case results of
     (r:_) -> Just r
     []    -> Nothing
  where
   results =
     [ (whnf, simplified, xss, sign)
-    | (whnf, x, y, xss) <- matchAll dfs xs (Multiset (SymbolM, Eql))
-        [ [mc| (apply1 #"sqrt" $whnf $x, #1) :
-               (apply1 #"sqrt" _ $y, #1) : $xss ->
+    | (whnf, x, y, xss) <- matchAll dfs xs (Multiset (CASSymbolM, Eql))
+        [ [mc| (casApply1 #"sqrt" $whnf $x, #1) :
+               (casApply1 #"sqrt" _ $y, #1) : $xss ->
                  (whnf, x, y, xss) |] ]
-    , let simplified = rewriteSqrt (mathMult x y)
-    , isSingleTermScalar simplified
-    , let sign = case (isNegativeScalar x, isNegativeScalar y) of
+    , let simplified = casRewriteSqrt (casMult x y)
+    , isSingleTermCAS simplified
+    , let sign = case (casIsNegative x, casIsNegative y) of
                    (Just True, Just True) -> -1
                    _                      -> 1
     ]
-  isSingleTermScalar (Div (Plus [_]) (Plus [_])) = True
-  isSingleTermScalar _ = False
+  isSingleTermCAS (CASInteger _) = True
+  isSingleTermCAS (CASPoly [_])  = True
+  isSingleTermCAS _              = False
 
-rewriteSqrt :: ScalarData -> ScalarData
-rewriteSqrt = mapTerms' f
+-- | Rewrite sqrt: sqrt(x)^2 = x, sqrt(x) * sqrt(y) = sqrt(x*y)
+casRewriteSqrt :: CASValue -> CASValue
+casRewriteSqrt = mapCASTerms' f
  where
-  f (Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"sqrt" $sqrtWhnf $x, ?(> 1) & $k) : $xss ->
-               rewriteSqrt
-                 (mathMult (SingleTerm a ((makeApply sqrtWhnf [x], k `mod` 2) : xss))
-                           (mathPower x (div k 2))) |]
-      , [mc| (apply1 #"sqrt" $sqrtWhnf (singleTerm $n #1 $x), #1) :
-               (apply1 #"sqrt" _ (singleTerm $m #1 $y), #1) : $xss ->
-             let d@(Term c z) = termsGcd [Term n x, Term m y]
-                 Term n' x' = mathDivideTerm (Term n x) d
-                 Term m' y' = mathDivideTerm (Term m y) d
-                 in case (n' * m', Term n' x', Term m' y') of
-                      (1, Term _ [], Term _ []) -> mathMult (SingleTerm c z) (SingleTerm a xss)
-                      (_, _, _) -> mathMult (SingleTerm c z) (SingleTerm a ((makeApply sqrtWhnf [SingleTerm (n' * m') (x' ++ y')], 1) : xss)) |]
-      , [mc| _ -> case findSqrtPairToMerge xs of
+  f (CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"sqrt" $sqrtWhnf $x, ?(> 1) & $k) : $xss ->
+               casRewriteSqrt
+                 (casMult (casSingleTermVal 1 ((cassMakeApply sqrtWhnf [x], k `mod` 2) : xss))
+                          (casMult (casCoeffToVal coeff) (casPower x (div k 2)))) |]
+      , [mc| (casApply1 #"sqrt" $sqrtWhnf (casSingleTerm $n #1 $x), #1) :
+               (casApply1 #"sqrt" _ (casSingleTerm $m #1 $y), #1) : $xss ->
+             let gcdTerm = casTermsGcd [CASTerm (CASInteger n) x, CASTerm (CASInteger m) y]
+                 (_, CASTerm (CASInteger n') x') = casDivideTerm (CASTerm (CASInteger n) x) gcdTerm
+                 (_, CASTerm (CASInteger m') y') = casDivideTerm (CASTerm (CASInteger m) y) gcdTerm
+                 (CASInteger c) = casTermCoeff gcdTerm
+                 z = casTermMono gcdTerm
+                 in case (n' * m', n', m', x', y') of
+                      (1, _, _, [], []) -> casMult (casSingleTermVal c z) (casCoeffToVal coeff)
+                      (_, _, _, _, _) -> casMult (casSingleTermVal c z)
+                                                 (casMult (casCoeffToVal coeff)
+                                                          (casSingleTermVal 1 ((cassMakeApply sqrtWhnf [casSingleTermVal (n' * m') (x' ++ y')], 1) : xss))) |]
+      , [mc| _ -> case casFindSqrtPairToMerge xs of
                     Just (whnf, product, remaining, sign) ->
-                      rewriteSqrt (SingleTerm (sign * a) ((makeApply whnf [product], 1) : remaining))
-                    Nothing -> SingleTerm a xs |]
+                      casRewriteSqrt (casMult (casCoeffToVal coeff)
+                                              (casSingleTermVal sign ((cassMakeApply whnf [product], 1) : remaining)))
+                    Nothing -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
       ]
 
-rewriteRt :: ScalarData -> ScalarData
-rewriteRt = mapTerms' f
- where
-  f (Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply2 #"rt" _ (singleTerm $n #1 []) $x & $rtnx, ?(>= n) & $k) : $xss ->
-               mathMult (SingleTerm a ((rtnx, k `mod` n) : xss))
-                        (mathPower x (div k n)) |]
-      , [mc| _ -> SingleTerm a xs |]
-      ]
+  -- Helper to extract coefficient from a term
+  casTermCoeff (CASTerm c _) = c
+  -- Helper to extract monomial from a term
+  casTermMono (CASTerm _ m) = m
+  -- Helper to convert CASValue coefficient to CASValue
+  casCoeffToVal c = c
 
-rewriteRtu :: ScalarData -> ScalarData
-rewriteRtu = mapTerms' g . mapTerms f
+-- | Rewrite rt (nth root): rt(n,x)^n = x
+casRewriteRt :: CASValue -> CASValue
+casRewriteRt = mapCASTerms' f
  where
-  f term@(Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"rtu" _ (singleTerm $n #1 []) & $rtun, ?(>= n) & $k) : $r ->
-               Term a ((rtun, k `mod` n) : r) |]
+  f (CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply2 #"rt" _ (casSingleTerm $n #1 []) $x & $rtnx, ?(>= n) & $k) : $xss ->
+               casMult (casMult (casCoeffToVal coeff) (casSingleTermVal 1 ((rtnx, k `mod` n) : xss)))
+                       (casPower x (div k n)) |]
+      , [mc| _ -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
+      ]
+   where
+    casCoeffToVal c = c
+
+-- | Rewrite rtu (nth root of unity)
+casRewriteRtu :: CASValue -> CASValue
+casRewriteRtu = mapCASTerms' g . mapCASTerms f
+ where
+  f term@(CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"rtu" _ (casSingleTerm $n #1 []) & $rtun, ?(>= n) & $k) : $r ->
+               CASTerm coeff ((rtun, k `mod` n) : r) |]
       , [mc| _ -> term |]
       ]
-  g (Term a xs) =
-    match dfs xs (Multiset (SymbolM, Eql))
-      [ [mc| (apply1 #"rtu" _ (singleTerm $n #1 []) & $rtun, ?(== n - 1)) : $mr ->
-               mathMult
-                 (foldl mathMinus (SingleTerm (-1) []) (map (\k -> SingleTerm 1 [(rtun, k)]) [1..(n-2)]))
-                 (g (Term a mr)) |]
-      , [mc| _ -> SingleTerm a xs |]
+  g (CASTerm coeff xs) =
+    match dfs xs (Multiset (CASSymbolM, Eql))
+      [ [mc| (casApply1 #"rtu" _ (casSingleTerm $n #1 []) & $rtun, ?(== n - 1)) : $mr ->
+               casMult
+                 (foldr casMinus (casSingleTermVal (-1) []) (map (\k -> casSingleTermVal 1 [(rtun, k)]) [1..(n-2)]))
+                 (g (CASTerm coeff mr)) |]
+      , [mc| _ -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
       ]
+   where
+    casCoeffToVal c = c
 
-rewriteDd :: ScalarData -> ScalarData
-rewriteDd (Div (Plus p1) (Plus p2)) =
-  Div (Plus (rewriteDdPoly p1)) (Plus (rewriteDdPoly p2))
+-- | Rewrite dd (differential)
+casRewriteDd :: CASValue -> CASValue
+casRewriteDd (CASDiv num denom) =
+  CASDiv (casNormalizePoly (rewriteDdPoly (extractTerms num)))
+         (casNormalizePoly (rewriteDdPoly (extractTerms denom)))
  where
-  rewriteDdPoly poly =
-    match dfs poly (Multiset TermM)
-      [ [mc| term $a (($f & func $g $args, $n) : $mr) :
-               term $b ((func #g #args, #n) : #mr) : $pr ->
-                 rewriteDdPoly (Term (a + b) ((f, n) : mr) : pr) |]
-      , [mc| _ -> poly |]
-      ]
+  extractTerms (CASPoly ts) = ts
+  extractTerms (CASInteger n) = [CASTerm (CASInteger n) []]
+  extractTerms _ = []
+casRewriteDd (CASPoly ts) = casNormalizePoly (rewriteDdPoly ts)
+casRewriteDd v = v
+
+rewriteDdPoly :: [CASTerm] -> [CASTerm]
+rewriteDdPoly poly =
+  match dfs poly (Multiset CASTermM)
+    [ [mc| casTerm' $a (($f & casFunc $g $args, $n) : $mr) :
+           casTerm' $b ((casFunc #g #args, #n) : #mr) : $pr ->
+             rewriteDdPoly (CASTerm (casPlus a b) ((f, n) : mr) : pr) |]
+    , [mc| _ -> poly |]
+    ]

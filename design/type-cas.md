@@ -979,18 +979,27 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `Math.hs` から非推奨関数のエクスポートを削除
 
 **ScalarData の現在の役割:**
-ScalarData は内部実装の詳細として維持される。主な用途:
-1. InductiveData（Egison構文: `Div`, `Plus`, `Term`, etc.）と CASValue 間の変換
-2. `Math/Normalize.hs` と `Math/Rewrite.hs` での control-egison パターンマッチング
-3. プリミティブ関数 `fromMathExpr` / `toMathExpr'` の実装
+ScalarData は後方互換性のため維持される。主な用途:
+1. `Math/Normalize.hs` と `Math/Rewrite.hs` での旧関数（後方互換用）
+2. プリミティブ関数 `fromMathExpr` の出力形式
+3. 一部の型定義（`Math/Expr.hs`）
 
-公開 API は CASValue ベースに統一済み。内部では ScalarData を control-egison パターンマッチングに使用。
+**CASValue への完全移行:**
+- 公開 API は CASValue ベースに統一済み
+- `Math/Normalize.hs` - CASValue 版の `casDivideTerm` を追加
+- `Math/Rewrite.hs` - `casRewriteSymbol` が CASValue を直接操作
+- `Data.hs` - `egisonToCASValue` で InductiveData から直接変換
 
 **将来の最適化（オプション）:**
-- [ ] `Math/Normalize.hs` を CASValue パターンマッチングに書き換え
-- [ ] `Math/Rewrite.hs` を CASValue パターンマッチングに書き換え
-- [ ] InductiveData を直接 CASValue に変換（ScalarData を経由しない）
-- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
+- [x] `Math/Normalize.hs` を CASValue パターンマッチングに書き換え
+  - `casDivideTerm` 関数を追加（CASValue 版の除算）
+  - 旧 ScalarData 版の関数は後方互換性のため維持
+- [x] `Math/Rewrite.hs` を CASValue パターンマッチングに書き換え
+  - `casRewriteSymbol` が CASValue を直接操作（変換なし）
+  - 旧 `rewriteSymbol` は変換経由で維持
+- [x] InductiveData を直接 CASValue に変換（ScalarData を経由しない）
+  - `egisonToCASValue` 関数を Data.hs に追加
+- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除（後方互換性のため保留）
 
 #### Step 5: テスト（完了）
 

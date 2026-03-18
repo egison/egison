@@ -10,20 +10,57 @@ in Rewrite.hs.
 -}
 
 module Language.Egison.Math.Normalize
-  ( -- * ScalarData normalization (backward compatible)
-    mathNormalize'
+  ( -- * CASValue normalization (primary API)
+    casNormalize
+  , casNormalizePoly
+  , casTermsGcd
+  , casDivideTerm
+  -- * ScalarData normalization (backward compatible, deprecated)
+  , mathNormalize'
   , termsGcd
   , mathDivideTerm
-  -- * CASValue normalization (re-exported from CAS)
-  , casNormalize
-  , casNormalizePoly
   ) where
 
 import           Control.Egison
 
-import           Language.Egison.Math.Expr
-import           Language.Egison.Math.CAS (casNormalize, casNormalizePoly)
+import qualified Language.Egison.Math.Expr as OldExpr
+import           Language.Egison.Math.Expr (ScalarData(..), PolyExpr(..), TermExpr(..), SymbolM(..), TermM(..), term, termM, quote, negQuote, negQuoteM, equalMonomial, equalMonomialM, mathNegate)
+import           Language.Egison.Math.CAS
 
+
+-- | Divide a CASTerm by another CASTerm (for GCD reduction)
+-- Returns (sign, resulting_term) where sign accounts for negQuote handling
+casDivideTerm :: CASTerm -> CASTerm -> (Integer, CASTerm)
+casDivideTerm (CASTerm c1 xs) (CASTerm c2 ys) =
+  let c' = casDivideCoeff c1 c2
+      (sgn, zs) = divMonomial xs ys
+  in (sgn, CASTerm c' zs)
+ where
+  divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
+  divMonomial m [] = (1, m)
+  divMonomial m ((y, n):rest) =
+    match dfs (y, m) (CASSymbolM, Multiset (CASSymbolM, Eql))
+      -- Handle negQuote case: (-x)^n / (-x)^m where we match negated quotes
+      [ [mc| (casQuote $s, (casNegQuote #s, $k) : $mss) ->
+               let (sgn, m') = divMonomial mss rest in
+               let sgn' = if even n then 1 else -1 in
+               if k == n then (sgn * sgn', m')
+                         else (sgn * sgn', (y, k - n) : m') |]
+      , [mc| (_, (#y, $k) : $mss) ->
+               let (sgn, m') = divMonomial mss rest in
+               if k == n then (sgn, m') else (sgn, (y, k - n) : m') |]
+      , [mc| _ -> divMonomial m rest |]
+      ]
+
+  -- Divide two CASValue coefficients
+  casDivideCoeff :: CASValue -> CASValue -> CASValue
+  casDivideCoeff (CASInteger a) (CASInteger b) = CASInteger (a `div` b)
+  casDivideCoeff a b = casDivide a b
+
+
+--------------------------------------------------------------------------------
+-- ScalarData normalization (backward compatible, deprecated)
+--------------------------------------------------------------------------------
 
 mathNormalize' :: ScalarData -> ScalarData
 mathNormalize' = mathDivide . mathRemoveZero . mathFold . mathRemoveZeroSymbol
@@ -32,19 +69,19 @@ termsGcd :: [TermExpr] -> TermExpr
 termsGcd ts@(_:_) =
   foldl1 (\(Term a xs) (Term b ys) -> Term (gcd a b) (monoGcd xs ys)) ts
  where
-  monoGcd :: Monomial -> Monomial -> Monomial
+  monoGcd :: OldExpr.Monomial -> OldExpr.Monomial -> OldExpr.Monomial
   monoGcd [] _ = []
   monoGcd ((x, n):xs) ys =
     case f (x, n) ys of
       (_, 0) -> monoGcd xs ys
       (z, m) -> (z, m) : monoGcd xs ys
 
-  f :: (SymbolExpr, Integer) -> Monomial -> (SymbolExpr, Integer)
+  f :: (OldExpr.SymbolExpr, Integer) -> OldExpr.Monomial -> (OldExpr.SymbolExpr, Integer)
   f (x, _) [] = (x, 0)
-  f (Quote x, n) ((Quote y, m):ys)
-    | x == y            = (Quote x, min n m)
-    | x == mathNegate y = (Quote x, min n m)
-    | otherwise         = f (Quote x, n) ys
+  f (OldExpr.Quote x, n) ((OldExpr.Quote y, m):ys)
+    | x == y            = (OldExpr.Quote x, min n m)
+    | x == mathNegate y = (OldExpr.Quote x, min n m)
+    | otherwise         = f (OldExpr.Quote x, n) ys
   f (x, n) ((y, m):ys)
     | x == y    = (x, min n m)
     | otherwise = f (x, n) ys
@@ -65,7 +102,7 @@ mathDivideTerm (Term a xs) (Term b ys) =
   let (sgn, zs) = divMonomial xs ys in
   Term (sgn * div a b) zs
  where
-  divMonomial :: Monomial -> Monomial -> (Integer, Monomial)
+  divMonomial :: OldExpr.Monomial -> OldExpr.Monomial -> (Integer, OldExpr.Monomial)
   divMonomial xs [] = (1, xs)
   divMonomial xs ((y, m):ys) =
     match dfs (y, xs) (SymbolM, Multiset (SymbolM, Eql))
@@ -108,7 +145,7 @@ mathSymbolFold (Div (Plus ts1) (Plus ts2)) = Div (Plus (map f ts1)) (Plus (map f
   f :: TermExpr -> TermExpr
   f (Term a xs) =
     let (sgn, ys) = g xs in Term (sgn * a) ys
-  g :: Monomial -> (Integer, Monomial)
+  g :: OldExpr.Monomial -> (Integer, OldExpr.Monomial)
   g [] = (1, [])
   g ((x, m):xs) =
     match dfs (x, xs) (SymbolM, Multiset (SymbolM, Eql))

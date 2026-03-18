@@ -32,6 +32,7 @@ module Language.Egison.Math
   , CASTermM (..)
   , CASSymbolM (..)
   , casTerm'
+  , casTerm'M
   , casTermM
   , casSymbol
   , casSymbolM

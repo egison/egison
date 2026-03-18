@@ -141,8 +141,8 @@ fromScalarData = oneArg fromScalarData'
 
 toScalarData :: String -> PrimitiveFunc
 toScalarData = oneArg $ \val -> do
-  s <- egisonToScalarData val
-  return $ CASData (casNormalize (scalarDataToCASValue s))
+  cv <- egisonToCASValue val
+  return $ CASData (casNormalize cv)
 
 symbolNormalize :: String -> PrimitiveFunc
 symbolNormalize = oneArg $ \val ->
