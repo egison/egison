@@ -919,6 +919,152 @@ Egison の設計は以下の点で異なる。
   - `SymbolSetOpen` を `SymbolSetVar` に変換し、各出現ごとにフレッシュな型変数を生成
   - `unifySymbolSets` でサブセットチェックを実装（`[x] ⊆ [x, y]` の判定）
 
+### Phase 2.1: ScalarData の CASValue 置換（機械的移行）
+
+**重要な洞察**: `ScalarData = Div PolyExpr PolyExpr` は `CASDiv (CASPoly [..]) (CASPoly [..])` と1対1対応する。この対応を利用して機械的に置換できる。
+
+```
+ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...])
+```
+
+この段階では `CASInteger`, `CASFactor` を単体で使わず、常に `CASDiv (CASPoly ...) (CASPoly ...)` 形式を維持する。型の精緻化（`Integer` を `CASInteger` で表現など）は Phase 2.5 以降で行う。
+
+#### Step 1: EgisonValue の置換
+
+- [ ] `Data.hs` の `ScalarData ScalarData` を `CASData CASValue` に置換
+- [ ] `scalarDataToCASValue` を使って全生成箇所を変換
+  - 既存の変換関数がそのまま使える
+- [ ] `extractScalar` → `extractCAS` にリネーム
+
+#### Step 2: 参照箇所の機械的置換
+
+以下のパターンで一括置換:
+- `ScalarData s` → `CASData (scalarDataToCASValue s)` （生成時）
+- `ScalarData s` → `CASData cv` + `casValueToScalarData cv` （パターンマッチ時、一時的）
+
+対象ファイル:
+- [ ] `Math/Arith.hs`
+- [ ] `Math/Rewrite.hs`
+- [ ] `Math/Normalize.hs`
+- [ ] `Primitives/Arith.hs`
+- [ ] `Core.hs`（パターンマッチ）
+- [ ] `Parser/NonS.hs`（リテラル）
+
+#### Step 3: 変換関数の削除
+
+全箇所が `CASValue` 直接操作になったら:
+- [ ] `scalarDataToCASValue`, `casValueToScalarData` を削除
+- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
+- [ ] 旧 `SymbolExpr` と変換関数を削除
+
+#### Step 4: テスト
+
+- [ ] 既存テストがすべて通過することを確認
+- [ ] `mini-test/` に CASValue 固有のテストを追加
+
+### Phase 2.5: Embed 型クラスと Coercive Subtyping
+
+CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。
+
+#### 概要
+
+型の包含関係（例: `Integer ⊂ Poly Integer [x]`）がある場合に、型チェッカーが自動的に `embed` 関数の呼び出しを挿入する（elaboration）。これにより、ユーザーは明示的な型変換を書かずに、自然な数式表記で計算できる。
+
+```egison
+-- ユーザーが書くコード
+x + 1    -- x : Poly Integer [x], 1 : Integer
+
+-- 型チェッカーが変換後（elaborated）
+x + embed 1  -- embed 1 : Poly Integer [x]
+```
+
+#### Step 1: Embed 型クラスの定義
+
+- [ ] `Embed` 型クラスを `lib/core/cas.egi` に定義
+  ```egison
+  class Embed a b where
+    embed :: a -> b
+  ```
+- [ ] 基本インスタンスの実装
+  - `Embed Integer (Poly Integer [..])`
+  - `Embed Integer (Div Integer)`
+  - `Embed Factor (Poly Integer [..])`
+  - `Embed (Poly a [..]) (Poly b [..])` where `Embed a b`
+  - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
+
+#### Step 2: 型チェッカーでの包含関係グラフの構築
+
+- [ ] `Type/Subtype.hs` を新規作成
+  - 包含関係のグラフ構造を定義
+  - `Embed` インスタンス宣言時にグラフにエッジを追加
+  - 推移閉包の計算（深さ制限付きBFSで探索）
+- [ ] `isSubtype` 関数（`Join.hs` に既存）と連携
+  - 包含関係の判定に使用
+  - `symbolSetSubset` でシンボル集合の包含も判定
+
+#### Step 3: 型推論での embed 自動挿入
+
+- [ ] `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
+  - 型 `τ₁` と `τ₂` が不一致の場合:
+    1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
+    2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
+    3. どちらでもなければ型エラー
+- [ ] 推移的な変換（`embed . embed`）の合成
+  - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
+  - グラフ上の最短経路で `embed` を連鎖
+- [ ] `Embed` 制約の解決と辞書渡し
+  - 型クラス解決機構と連携
+
+#### Step 4: 二項演算での join と embed の連携
+
+- [ ] 二項演算 `a + b` での処理フロー
+  1. `a : τ₁`, `b : τ₂` を推論
+  2. `joinTypes τ₁ τ₂` で最小上界 `τ` を計算（`Join.hs`）
+  3. `τ₁ ≠ τ` なら `embed` で `τ₁ → τ`
+  4. `τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
+  5. 結果の型は `τ`
+- [ ] 条件式 `if c then a else b` でも同様の join を実行
+- [ ] リストリテラル `[a, b, c]` での要素型の join
+
+#### Step 5: 内部表現変換関数の実装
+
+- [ ] `Math/CAS.hs` に変換関数を追加
+  ```haskell
+  -- Integer → Poly Integer [..]
+  embedIntToPoly :: CASValue -> CASValue
+  embedIntToPoly (CASInteger n) = CASPoly [CASTerm (CASInteger n) []]
+
+  -- Integer → Div Integer
+  embedIntToDiv :: CASValue -> CASValue
+  embedIntToDiv (CASInteger n) = CASDiv (CASInteger n) (CASInteger 1)
+
+  -- Factor → Poly Integer [..]
+  embedFactorToPoly :: CASValue -> CASValue
+  embedFactorToPoly (CASFactor sym) = CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
+
+  -- Poly a [S₁] → Poly a [S₂] (S₁ ⊆ S₂): 内部表現は変わらない
+  -- Poly a [..] → Poly b [..] (Embed a b): 各項の係数を再帰的に embed
+  embedPolyCoeff :: (CASValue -> CASValue) -> CASValue -> CASValue
+  ```
+
+#### Step 6: テストと検証
+
+- [ ] 自動 embed 挿入のテストケース
+  - `x + 1` → `x + embed 1`
+  - `f p` where `f : Poly Integer [x, y] -> ...`, `p : Poly Integer [x]`
+- [ ] 推移的な embed のテスト
+  - `Integer → Div Integer → Poly (Div Integer) [x]`
+- [ ] join との連携テスト
+  - `(1/2) * x` → `Poly (Div Integer) [x]`
+- [ ] エラーケースのテスト
+  - 互換性のない型の演算（例: `String + Integer`）で適切なエラーメッセージ
+
+#### 設計上の考慮点
+
+- **Coherence（一貫性）**: CAS型の包含関係は数学的に明確な半順序であり、どの経路で embed しても同じ数学的な値になる
+- **パフォーマンス**: embed は実行時に内部表現を変換するため、頻繁な変換はコストがかかる。型推論時に最適な変換経路を選択することで最小化
+- **エラーメッセージ**: 包含関係がない場合の型エラーで、利用可能な embed 候補を提示
+
 ### Phase 3: パターンマッチ
 
 - [ ] `poly` マッチャーの実装 — `poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs)`。`:+` パターン（順序不問の項分解）、モノミアルの `multiset (factor, integer)` によるマッチを提供
