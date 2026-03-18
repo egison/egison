@@ -54,12 +54,18 @@ isInteger _ = return . Value $ Bool False
 
 isRational :: WHNFData -> EvalM WHNFData
 isRational (Value val) = case val of
-  CASData (CASInteger _) -> return . Value $ Bool True
-  CASData (CASPoly [CASTerm (CASInteger _) []]) -> return . Value $ Bool True
-  CASData (CASDiv (CASPoly [CASTerm (CASInteger _) []]) (CASPoly [CASTerm (CASInteger _) []])) ->
-    return . Value $ Bool True
+  CASData cv | isRationalCAS cv -> return . Value $ Bool True
   _ -> return . Value $ Bool False
 isRational _ = return . Value $ Bool False
+
+-- | Check if a CASValue represents a rational number (integer or fraction of integers)
+isRationalCAS :: CASValue -> Bool
+isRationalCAS cv = case cv of
+  CASInteger _ -> True
+  CASPoly [] -> True  -- zero
+  CASPoly [CASTerm coef []] -> isRationalCAS coef
+  CASDiv num den -> isRationalCAS num && isRationalCAS den
+  _ -> False
 
 --
 -- Transform
@@ -70,13 +76,28 @@ integerToFloat = rationalToFloat
 rationalToFloat :: String -> PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
   case val of
-    CASData (CASInteger 0) -> return $ Float 0
-    CASData (CASPoly []) -> return $ Float 0
-    CASData (CASInteger x) -> return $ Float (fromInteger x)
-    CASData (CASPoly [CASTerm (CASInteger x) []]) -> return $ Float (fromInteger x)
-    CASData (CASDiv (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) ->
-      return $ Float (fromRational (x % y))
+    CASData cv | Just r <- extractRational cv -> return $ Float (fromRational r)
     _ -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
+
+-- | Extract a Rational from a CASValue if it represents a rational number
+extractRational :: CASValue -> Maybe Rational
+extractRational cv = case cv of
+  CASInteger n -> Just (n % 1)
+  CASPoly [] -> Just 0
+  CASPoly [CASTerm coef []] -> extractRational coef
+  CASDiv num den -> do
+    n <- extractInteger num
+    d <- extractInteger den
+    if d == 0 then Nothing else Just (n % d)
+  _ -> Nothing
+
+-- | Extract an Integer from a CASValue if it represents an integer
+extractInteger :: CASValue -> Maybe Integer
+extractInteger cv = case cv of
+  CASInteger n -> Just n
+  CASPoly [] -> Just 0
+  CASPoly [CASTerm coef []] -> extractInteger coef
+  _ -> Nothing
 
 charToInteger :: String -> PrimitiveFunc
 charToInteger = unaryOp ctoi

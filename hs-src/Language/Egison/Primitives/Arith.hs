@@ -12,6 +12,8 @@ module Language.Egison.Primitives.Arith
   ( primitiveArithFunctions
   ) where
 
+import           Data.Ratio                       ((%))
+
 import           Language.Egison.Data
 import           Language.Egison.Math
 import           Language.Egison.Primitives.Utils
@@ -177,11 +179,26 @@ truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
   numberUnaryOp' v = case v of
-    CASData (CASInteger 0) -> return $ toEgison (0 :: Integer)
-    CASData (CASPoly []) -> return $ toEgison (0 :: Integer)
-    CASData (CASInteger x) -> return $ toEgison x
-    CASData (CASPoly [CASTerm (CASInteger x) []]) -> return $ toEgison x
-    CASData (CASDiv (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) ->
-      return $ toEgison (quot x y)
+    CASData cv | Just r <- extractRationalCAS cv -> return $ toEgison (truncate r :: Integer)
     Float x -> return $ toEgison (truncate x :: Integer)
     _ -> throwErrorWithTrace (TypeMismatch "rational or float" (Value v))
+
+  -- Extract a Rational from a CASValue if it represents a rational number
+  extractRationalCAS :: CASValue -> Maybe Rational
+  extractRationalCAS cv = case cv of
+    CASInteger n -> Just (n % 1)
+    CASPoly [] -> Just 0
+    CASPoly [CASTerm coef []] -> extractRationalCAS coef
+    CASDiv num den -> do
+      n <- extractIntegerCAS num
+      d <- extractIntegerCAS den
+      if d == 0 then Nothing else Just (n % d)
+    _ -> Nothing
+
+  -- Extract an Integer from a CASValue
+  extractIntegerCAS :: CASValue -> Maybe Integer
+  extractIntegerCAS cv = case cv of
+    CASInteger n -> Just n
+    CASPoly [] -> Just 0
+    CASPoly [CASTerm coef []] -> extractIntegerCAS coef
+    _ -> Nothing

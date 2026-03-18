@@ -417,7 +417,7 @@ instance Eq EgisonValue where
   (Char c) == (Char c')                                            = c == c'
   (String str) == (String str')                                    = str == str'
   (Bool b) == (Bool b')                                            = b == b'
-  (CASData x) == (CASData y)                                       = x == y  -- Direct CASValue comparison
+  (CASData x) == (CASData y)                                       = CAS.casNormalize x == CAS.casNormalize y  -- Normalize before comparing
   (TensorData (Tensor js xs _)) == (TensorData (Tensor js' xs' _)) = js == js' && xs == xs'
   (Float x) == (Float x')                                          = x == x'
   (InductiveData name vals) == (InductiveData name' vals')         = name == name' && vals == vals'
@@ -461,10 +461,22 @@ instance EgisonData Integer where
   toEgison 0 = CASData (CASInteger 0)
   toEgison i = CASData (CASInteger i)
   fromEgison val = case val of
-    CASData (CASInteger x)                  -> return x
-    CASData (CASPoly [CASTerm (CASInteger x) []]) -> return x
-    CASData (CASPoly [])                    -> return 0
-    _                                       -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
+    CASData cv -> case extractCASInteger cv of
+      Just n  -> return n
+      Nothing -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
+    _ -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
+
+-- | Extract an Integer from a CASValue, handling divisions that simplify to integers
+extractCASInteger :: CASValue -> Maybe Integer
+extractCASInteger cv = case cv of
+  CASInteger n -> Just n
+  CASPoly [] -> Just 0
+  CASPoly [CASTerm coef []] -> extractCASInteger coef
+  CASDiv num den -> do
+    n <- extractCASInteger num
+    d <- extractCASInteger den
+    if d /= 0 && n `mod` d == 0 then Just (n `div` d) else Nothing
+  _ -> Nothing
 
 instance EgisonData Rational where
   toEgison r = CASData $ casNormalize' (CASDiv (CASInteger (numerator r)) (CASInteger (denominator r)))

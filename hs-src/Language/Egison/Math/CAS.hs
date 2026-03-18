@@ -461,6 +461,7 @@ sortTermsDescending = sortBy (flip (comparing termDegree) <> flip (comparing ter
 -- 1. If denominator is 1, return numerator
 -- 2. If numerator is 0, return 0
 -- 3. Simplify using GCD
+-- 4. Ensure positive denominator
 casNormalizeDiv :: CASValue -> CASValue -> CASValue
 casNormalizeDiv num denom =
   let num' = casNormalize num
@@ -470,22 +471,52 @@ casNormalizeDiv num denom =
        (n, _) | casIsZero n -> CASInteger 0
        -- Denominator is 1
        (n, d) | casIsOne d -> n
-       -- Integer / Integer: reduce by GCD
+       -- Denominator is -1: negate numerator
+       (n, CASInteger (-1)) -> casNegate n
+       -- Integer / Integer: reduce by GCD and normalize sign
        (CASInteger n, CASInteger d) ->
          let g = gcd n d
-             n' = n `div` g
-             d' = d `div` g
+             -- Normalize sign: ensure positive denominator
+             sign = if d < 0 then -1 else 1
+             n' = sign * (n `div` g)
+             d' = abs (d `div` g)
          in if d' == 1
             then CASInteger n'
             else CASDiv (CASInteger n') (CASInteger d')
+       -- Poly / Integer: divide each coefficient by the integer
+       (CASPoly ts1, CASInteger d) ->
+         let g = casTermsGcdCoeff ts1 d
+             sign = if d < 0 then -1 else 1
+             d' = abs (d `div` g)
+             ts1' = map (\(CASTerm c m) -> CASTerm (divCoeffBy c g sign) m) ts1
+         in if d' == 1
+            then casNormalizePoly ts1'
+            else CASDiv (casNormalizePoly ts1') (CASInteger d')
        -- Poly / Poly: try to reduce by monomial GCD
        (CASPoly ts1, CASPoly ts2) ->
          let (ts1', ts2') = simplifyPolyDiv ts1 ts2
          in case (ts1', ts2') of
               (ts1'', [CASTerm (CASInteger 1) []]) -> casNormalizePoly ts1''
               _ -> CASDiv (casNormalizePoly ts1') (casNormalizePoly ts2')
+       -- a / (b / c) = (a * c) / b
+       (n, CASDiv b c) -> casNormalizeDiv (casMult n c) b
+       -- (a / b) / c = a / (b * c)
+       (CASDiv a b, c) -> casNormalizeDiv a (casMult b c)
        -- Default: no simplification
        _ -> CASDiv num' denom'
+
+-- | Compute GCD of polynomial coefficients with an integer
+casTermsGcdCoeff :: [CASTerm] -> Integer -> Integer
+casTermsGcdCoeff [] d = abs d
+casTermsGcdCoeff terms d = foldl gcdWithTerm (abs d) terms
+  where
+    gcdWithTerm acc (CASTerm (CASInteger c) _) = gcd acc (abs c)
+    gcdWithTerm acc _ = acc  -- Non-integer coefficient: GCD = 1 effectively
+
+-- | Divide a coefficient by integer, applying sign
+divCoeffBy :: CASValue -> Integer -> Integer -> CASValue
+divCoeffBy (CASInteger c) g sign = CASInteger (sign * (c `div` g))
+divCoeffBy c _ _ = c  -- Fallback: keep as-is for non-integer
 
 -- | Simplify polynomial division by extracting common monomial GCD
 simplifyPolyDiv :: [CASTerm] -> [CASTerm] -> ([CASTerm], [CASTerm])
