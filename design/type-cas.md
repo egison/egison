@@ -955,27 +955,38 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `Primitives/Arith.hs` を CAS API を使用するよう更新
 - [x] `Data.hs` の `EgisonData Rational` インスタンスを CAS API を使用するよう更新
 
-#### Step 4: 変換関数と旧型の削除（将来の作業）
+#### Step 4: 変換関数と旧型の削除（進行中）
 
-現時点では `ScalarData` 型と変換関数を維持。`Math/` 内部モジュールは引き続き `ScalarData` を使用:
-- `Math/Expr.hs` - `ScalarData`, `PolyExpr`, `TermExpr`, Egison マッチャー定義
-- `Math/Arith.hs`, `Math/Normalize.hs`, `Math/Rewrite.hs` - 内部実装
+**現状（2024年）:**
+- `CASData` と `ScalarData` が並存
+- 外部 API は `CASValue` ベースに移行済み
+- `Math/` 内部モジュールは引き続き `ScalarData` を使用
 
-残りの外部モジュールでの `ScalarData` 使用（主に `Core.hs`）:
-- `SingleTerm`, `SingleSymbol` などのパターンシノニムを使用
-- 完全な移行には CAS ベースのパターンシノニムまたはヘルパー関数の作成が必要
+**完了した作業:**
+- [x] `Primitives/Arith.hs` - `CASData` パターンで直接マッチング
+- [x] `Primitives/Types.hs` - `CASData` パターンで直接マッチング（`isRationalCAS`, `extractRational` ヘルパー追加）
+- [x] `Data.hs` の `EgisonData Integer` - `CASData (CASInteger n)` を直接使用
+- [x] `Data.hs` の `Eq EgisonValue` - 正規化してから比較
+- [x] `casNormalizeDiv` の改善 - ネスト除算 `a/(b/c)`, `(a/b)/c` の処理、負の分母の正規化、`Poly/Integer` の簡約
 
-今後の精緻化作業:
-- [ ] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行
-- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除（全モジュールが `CASValue` のみ使用するようになってから）
-- [ ] 旧 `SymbolExpr` と変換関数を削除
-- [ ] `toScalarVal`, `fromScalarVal` を直接 `CASData` コンストラクタに置換
+**残りの作業:**
+- [ ] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行（19箇所）
+  - `SingleTerm`, `SingleSymbol` パターンシノニムを `CASPoly [CASTerm ...]` パターンに置換
+- [ ] `Math/Arith.hs` を `CASValue` ベースに書き換え（21箇所）
+- [ ] `Math/Normalize.hs` を `CASValue` ベースに書き換え（8箇所）
+- [ ] `Math/Rewrite.hs` を `CASValue` ベースに書き換え（21箇所）
+- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
+- [ ] 旧 `SymbolExpr`（`Math/Expr.hs`）と変換関数を削除
+- [ ] `toScalarVal`, `fromScalarVal` を削除（現在は後方互換性のため維持）
 
-#### Step 4: テスト（完了）
+#### Step 5: テスト（完了）
 
 - [x] 既存テストがすべて通過することを確認
 - [x] `mini-test/40-casvalue-basic.egi` に CASValue 固有のテストを追加
 - [x] `casNormalizePoly` で空多項式を `CASInteger 0` に正規化（等価性比較の問題を修正）
+- [x] `cabal test` の全21テストがエラーなしでパス
+- [x] ネスト除算 `1/(5/2) = 2/5` の正規化が正しく動作
+- [x] 連分数テスト（`regularContinuedFractionOfSqrt`）がすべてパス
 
 ### Phase 2.5: Embed 型クラスと Coercive Subtyping
 
