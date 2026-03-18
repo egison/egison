@@ -121,32 +121,33 @@ dfOrder' = lazyOneArg dfOrder''
 
 addSubscript :: String -> PrimitiveFunc
 addSubscript = twoArgs $ \fn sub ->
-  case (fn, sub) of
-    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
-    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sub s]))))
+  case (fromScalarVal fn, fromScalarVal sub) of
+    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleSymbol (Symbol _ _ []))) ->
+      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sub s]))))
+    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleTerm _ [])) ->
+      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sub s]))))
     _ -> throwErrorWithTrace (TypeMismatch "symbol or integer" (Value fn))
 
 addSuperscript :: String -> PrimitiveFunc
 addSuperscript = twoArgs $ \fn sub ->
-  case (fn, sub) of
-    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleSymbol (Symbol _ _ []))) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
-    (ScalarData (SingleSymbol (Symbol id name is)), ScalarData s@(SingleTerm _ [])) ->
-      return (ScalarData (SingleSymbol (Symbol id name (is ++ [Sup s]))))
+  case (fromScalarVal fn, fromScalarVal sub) of
+    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleSymbol (Symbol _ _ []))) ->
+      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sup s]))))
+    (Just (SingleSymbol (Symbol id name is)), Just s@(SingleTerm _ [])) ->
+      return (toScalarVal (SingleSymbol (Symbol id name (is ++ [Sup s]))))
     _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value fn))
 
 updateFunctionArgs :: String -> PrimitiveFunc
 updateFunctionArgs = twoArgs' $ \funcVal newArgsColl ->
-  case (funcVal, newArgsColl) of
-    (ScalarData (SingleTerm 1 [(FunctionData name _, 1)]), Collection argsSeq) -> do
+  case (fromScalarVal funcVal, newArgsColl) of
+    (Just (SingleTerm 1 [(FunctionData name _, 1)]), Collection argsSeq) -> do
       args' <- mapM extractScalar (toList argsSeq)
-      return $ ScalarData (SingleTerm 1 [(FunctionData name args', 1)])
+      return $ toScalarVal (SingleTerm 1 [(FunctionData name args', 1)])
     _ -> throwErrorWithTrace (TypeMismatch "function value and collection of scalars" (Value funcVal))
  where
-  extractScalar (ScalarData s) = return s
-  extractScalar val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+  extractScalar val = case fromScalarVal val of
+    Just s -> return s
+    Nothing -> throwErrorWithTrace (TypeMismatch "scalar" (Value val))
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
@@ -184,8 +185,9 @@ sortWithSign = oneArg' $ \val -> do
   extractIntList x = (:[]) <$> extractInt x
   
   extractInt :: EgisonValue -> EvalM Integer
-  extractInt (ScalarData s) = fromEgison (ScalarData s)
-  extractInt val = throwErrorWithTrace (TypeMismatch "integer" (Value val))
+  extractInt val = case fromScalarVal val of
+    Just _ -> fromEgison val
+    Nothing -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
   
   -- Sort lists lexicographically and calculate permutation sign using bubble sort
   sortWithPermSign :: [[Integer]] -> (Integer, [[Integer]])

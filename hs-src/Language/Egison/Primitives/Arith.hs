@@ -14,9 +14,6 @@ module Language.Egison.Primitives.Arith
 
 import           Language.Egison.Data
 import           Language.Egison.Math
-import           Language.Egison.Math.CAS (casPlus, casMinus, casMult, casDivide,
-                                           casNumerator, casDenominator, scalarDataToCASValue,
-                                           casValueToScalarData)
 import           Language.Egison.Primitives.Utils
 
 primitiveArithFunctions :: [(String, EgisonValue)]
@@ -143,12 +140,12 @@ fromScalarData = oneArg fromScalarData'
 toScalarData :: String -> PrimitiveFunc
 toScalarData = oneArg $ \val -> do
   s <- egisonToScalarData val
-  return $ CASData (scalarDataToCASValue (mathNormalize' s))
+  return $ CASData (casNormalize' (scalarDataToCASValue s))
 
 symbolNormalize :: String -> PrimitiveFunc
 symbolNormalize = oneArg $ \val ->
   case val of
-    CASData c -> return $ CASData (scalarDataToCASValue (rewriteSymbol (casValueToScalarData c)))
+    CASData c -> return $ CASData (casRewriteSymbol c)
     _         -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 --
@@ -179,8 +176,9 @@ floatCompare cmp = twoArgs' $ \val1 val2 ->
 truncate' :: String -> PrimitiveFunc
 truncate' = oneArg $ \val -> numberUnaryOp' val
  where
-  -- Use ScalarData pattern synonym for CASData values
-  numberUnaryOp' (ScalarData (Div (Plus []) _))                           = return $ toEgison (0 :: Integer)
-  numberUnaryOp' (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return $ toEgison (quot x y)
-  numberUnaryOp' (Float x)                                                = return $ toEgison (truncate x :: Integer)
-  numberUnaryOp' val                                                      = throwErrorWithTrace (TypeMismatch "rational or float" (Value val))
+  numberUnaryOp' v = case fromScalarVal v of
+    Just (Div (Plus []) _)                           -> return $ toEgison (0 :: Integer)
+    Just (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ toEgison (quot x y)
+    Nothing -> case v of
+      Float x -> return $ toEgison (truncate x :: Integer)
+      _       -> throwErrorWithTrace (TypeMismatch "rational or float" (Value v))

@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PatternSynonyms       #-}
 {-# LANGUAGE UndecidableInstances  #-}
-{-# LANGUAGE ViewPatterns          #-}
 
 {- |
 Module      : Language.Egison.Data
@@ -14,7 +12,7 @@ This module contains definitions for Egison internal data.
 module Language.Egison.Data
     (
     -- * Egison values
-      EgisonValue (.., ScalarData)
+      EgisonValue (..)
     , Matcher
     , PrimitiveFunc
     , LazyPrimitiveFunc
@@ -23,6 +21,8 @@ module Language.Egison.Data
     , Tensor (..)
     , Shape
     -- * Scalar
+    , toScalarVal
+    , fromScalarVal
     , symbolScalarData
     , symbolScalarData'
     , getSymId
@@ -90,7 +90,6 @@ import           Language.Egison.CmdOptions
 import           Language.Egison.EvalState
 import           Language.Egison.IExpr
 import           Language.Egison.Math
-import           Language.Egison.Math.CAS (CASValue(..), casValueToScalarData, scalarDataToCASValue)
 import           Language.Egison.RState
 
 --
@@ -133,13 +132,6 @@ data EgisonValue
   | SymbolExprData SymbolExpr
   | IndexExprData (Index ScalarData)
 
--- | Pattern synonym for backward compatibility with ScalarData.
--- ScalarData values are now stored as CASData internally.
--- This pattern automatically converts between ScalarData and CASValue.
-pattern ScalarData :: ScalarData -> EgisonValue
-pattern ScalarData s <- CASData (casValueToScalarData -> s)
-  where ScalarData s = CASData (scalarDataToCASValue s)
-
 type Matcher = EgisonValue
 
 type PrimitiveFunc = [EgisonValue] -> EvalM EgisonValue
@@ -165,17 +157,30 @@ type Shape = [Integer]
 -- Scalars
 --
 
+-- | Convert ScalarData to EgisonValue (CASData wrapper)
+toScalarVal :: ScalarData -> EgisonValue
+toScalarVal = CASData . scalarDataToCASValue
+
+-- | Extract ScalarData from EgisonValue (CASData unwrapper)
+fromScalarVal :: EgisonValue -> Maybe ScalarData
+fromScalarVal (CASData cv) = Just (casValueToScalarData cv)
+fromScalarVal _            = Nothing
+
 symbolScalarData :: String -> String -> EgisonValue
-symbolScalarData id name = ScalarData (SingleTerm 1 [(Symbol id name [], 1)])
+symbolScalarData id name = toScalarVal (SingleTerm 1 [(Symbol id name [], 1)])
 
 symbolScalarData' :: String -> ScalarData
 symbolScalarData' name = SingleTerm 1 [(Symbol "" name [], 1)]
 
 getSymId :: EgisonValue -> String
-getSymId (ScalarData (SingleTerm 1 [(Symbol id _ _, _)])) = id
+getSymId val = case fromScalarVal val of
+  Just (SingleTerm 1 [(Symbol id _ _, _)]) -> id
+  _ -> error "getSymId: not a symbol"
 
 getSymName :: EgisonValue -> String
-getSymName (ScalarData (SingleTerm 1 [(Symbol _ name [], 1)])) = name
+getSymName val = case fromScalarVal val of
+  Just (SingleTerm 1 [(Symbol _ name [], 1)]) -> name
+  _ -> error "getSymName: not a symbol"
 
 mathExprToEgison :: ScalarData -> EgisonValue
 mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
@@ -190,20 +195,20 @@ symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
 symbolExprToEgison (Symbol id x js, n) = Tuple [InductiveData "Symbol" [symbolScalarData id x, f js], toEgison n]
  where
   f js = Collection (Sq.fromList (map scalarIndexToEgison js))
-symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply1" [ScalarData fn, ScalarData a1], toEgison n]
-symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply2" [ScalarData fn, ScalarData a1, ScalarData a2], toEgison n]
-symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply3" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3], toEgison n]
-symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [ScalarData fn, ScalarData a1, ScalarData a2, ScalarData a3, ScalarData a4], toEgison n]
+symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply1" [toScalarVal fn, toScalarVal a1], toEgison n]
+symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply2" [toScalarVal fn, toScalarVal a1, toScalarVal a2], toEgison n]
+symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply3" [toScalarVal fn, toScalarVal a1, toScalarVal a2, toScalarVal a3], toEgison n]
+symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [toScalarVal fn, toScalarVal a1, toScalarVal a2, toScalarVal a3, toScalarVal a4], toEgison n]
 symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
 symbolExprToEgison (QuoteFunction (Value funcVal), n) = Tuple [InductiveData "QuoteFunction" [funcVal], toEgison n]
 symbolExprToEgison (QuoteFunction whnf, n) = error $ "symbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
 symbolExprToEgison (FunctionData name args, n) =
-  Tuple [InductiveData "Function" [ScalarData name, Collection (Sq.fromList (map ScalarData args))], toEgison n]
+  Tuple [InductiveData "Function" [toScalarVal name, Collection (Sq.fromList (map toScalarVal args))], toEgison n]
 
 scalarIndexToEgison :: Index ScalarData -> EgisonValue
-scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [ScalarData k]
-scalarIndexToEgison (Sub k)  = InductiveData "Sub"  [ScalarData k]
-scalarIndexToEgison (User k) = InductiveData "User" [ScalarData k]
+scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [toScalarVal k]
+scalarIndexToEgison (Sub k)  = InductiveData "Sub"  [toScalarVal k]
+scalarIndexToEgison (User k) = InductiveData "User" [toScalarVal k]
 
 -- Direct index conversion for primitive pattern matching
 indexToEgison :: Index ScalarData -> EgisonValue
@@ -240,7 +245,7 @@ egisonToScalarData s1@(InductiveData "QuoteFunction" _) = do
 egisonToScalarData s1@(InductiveData "Function" _) = do
   s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
   return $ SingleTerm 1 [s1']
-egisonToScalarData (ScalarData s) = return s
+egisonToScalarData (CASData cv) = return (casValueToScalarData cv)
 egisonToScalarData val = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 egisonToPolyExpr :: EgisonValue -> EvalM PolyExpr
@@ -256,9 +261,10 @@ egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
   let js = toList seq
   js' <- mapM egisonToScalarIndex js
   n' <- fromEgison n
-  case x of
-    (ScalarData (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []]))) ->
+  case fromScalarVal x of
+    Just (Div (Plus [Term 1 [(Symbol id name [], 1)]]) (Plus [Term 1 []])) ->
       return (Symbol id name js', n')
+    _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value x))
 egisonToSymbolExpr (Tuple [InductiveData "Apply1" [fn, a1], n]) = do
   fn' <- extractScalar fn
   a1' <- egisonToScalarData a1
@@ -301,18 +307,18 @@ egisonToSymbolExpr val = throwErrorWithTrace (TypeMismatch "math symbol expressi
 
 egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)
 egisonToScalarIndex j = case j of
-  InductiveData "Sup"  [ScalarData k] -> return (Sup k)
-  InductiveData "Sub"  [ScalarData k] -> return (Sub k)
-  InductiveData "User" [ScalarData k] -> return (User k)
-  _                                   -> throwErrorWithTrace (TypeMismatch "math symbol expression" (Value j))
+  InductiveData "Sup"  [CASData cv] -> return (Sup (casValueToScalarData cv))
+  InductiveData "Sub"  [CASData cv] -> return (Sub (casValueToScalarData cv))
+  InductiveData "User" [CASData cv] -> return (User (casValueToScalarData cv))
+  _                                 -> throwErrorWithTrace (TypeMismatch "math symbol expression" (Value j))
 
 --
 -- ExtractScalar
 --
 
 extractScalar :: EgisonValue -> EvalM ScalarData
-extractScalar (ScalarData mExpr) = return mExpr
-extractScalar val                = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+extractScalar (CASData cv) = return (casValueToScalarData cv)
+extractScalar val          = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
 extractString :: EgisonValue -> EvalM String
 extractString (String t) = return (unpack t)
@@ -325,7 +331,7 @@ instance Show EgisonValue where
   show (String str) = ushow str
   show (Bool True) = "True"
   show (Bool False) = "False"
-  show (ScalarData mExpr) = show mExpr  -- Uses pattern synonym, converts CASData to ScalarData
+  show (CASData cv) = show (casValueToScalarData cv)
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
   show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
@@ -369,7 +375,7 @@ instance Show EgisonValue where
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
-isAtomic (ScalarData m)       = isAtom m  -- Uses pattern synonym
+isAtomic (CASData cv)         = isAtom (casValueToScalarData cv)
 isAtomic (PolyExprData _)     = False
 isAtomic (TermExprData _)     = False
 isAtomic (SymbolExprData _)   = False
@@ -421,17 +427,19 @@ instance EgisonData Bool where
   fromEgison val      = throwErrorWithTrace (TypeMismatch "bool" (Value val))
 
 instance EgisonData Integer where
-  toEgison 0 = ScalarData (Div (Plus []) (Plus [Term 1 []]))
-  toEgison i = ScalarData (SingleTerm i [])
-  fromEgison (ScalarData (Div (Plus []) (Plus [Term 1 []]))) = return 0
-  fromEgison (ScalarData (SingleTerm x []))                  = return x
-  fromEgison val                                             = throwErrorWithTrace (TypeMismatch "integer" (Value val))
+  toEgison 0 = toScalarVal (Div (Plus []) (Plus [Term 1 []]))
+  toEgison i = toScalarVal (SingleTerm i [])
+  fromEgison val = case fromScalarVal val of
+    Just (Div (Plus []) (Plus [Term 1 []])) -> return 0
+    Just (SingleTerm x [])                  -> return x
+    _                                       -> throwErrorWithTrace (TypeMismatch "integer" (Value val))
 
 instance EgisonData Rational where
-  toEgison r = ScalarData $ mathNormalize' (Div (Plus [Term (numerator r) []]) (Plus [Term (denominator r) []]))
-  fromEgison (ScalarData (Div (Plus []) _))                           = return 0
-  fromEgison (ScalarData (Div (Plus [Term x []]) (Plus [Term y []]))) = return (x % y)
-  fromEgison val                                                      = throwErrorWithTrace (TypeMismatch "rational" (Value val))
+  toEgison r = CASData $ casNormalize' (CASDiv (CASInteger (numerator r)) (CASInteger (denominator r)))
+  fromEgison val = case fromScalarVal val of
+    Just (Div (Plus []) _)                           -> return 0
+    Just (Div (Plus [Term x []]) (Plus [Term y []])) -> return (x % y)
+    _                                                -> throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 instance EgisonData Double where
   toEgison f = Float f
@@ -551,16 +559,16 @@ data Env = Env [EnvLayer] (Maybe (String, [Index (Maybe ScalarData)])) PatFuncEn
 type Binding = (Var, ObjectRef)
 
 instance {-# OVERLAPPING #-} Show (Index EgisonValue) where
-  show (Sup i) = case i of
-    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "~[" ++ show i ++ "]"
-    _                                                 -> "~" ++ show i
-  show (Sub i) = case i of
-    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
-    _                                                 -> "_" ++ show i
+  show (Sup i) = case fromScalarVal i of
+    Just (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "~[" ++ show i ++ "]"
+    _                                           -> "~" ++ show i
+  show (Sub i) = case fromScalarVal i of
+    Just (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
+    _                                           -> "_" ++ show i
   show (SupSub i) = "~_" ++ show i
-  show (User i) = case i of
-    ScalarData (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
-    _                                                 -> "|" ++ show i
+  show (User i) = case fromScalarVal i of
+    Just (SingleTerm 1 [(Symbol _ _ (_:_), 1)]) -> "_[" ++ show i ++ "]"
+    _                                           -> "|" ++ show i
   show (DF i j) = "_df-" ++ show i ++ "-" ++ show j
 
 nullEnv :: Env

@@ -47,14 +47,18 @@ lazyPrimitives =
 --
 
 isInteger :: WHNFData -> EvalM WHNFData
-isInteger (Value (ScalarData (Div (Plus []) (Plus [Term 1 []]))))          = return . Value $ Bool True
-isInteger (Value (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []])))) = return . Value $ Bool True
-isInteger _                                                                = return . Value $ Bool False
+isInteger (Value val) = case fromScalarVal val of
+  Just (Div (Plus []) (Plus [Term 1 []]))          -> return . Value $ Bool True
+  Just (Div (Plus [Term _ []]) (Plus [Term 1 []])) -> return . Value $ Bool True
+  _                                                -> return . Value $ Bool False
+isInteger _ = return . Value $ Bool False
 
 isRational :: WHNFData -> EvalM WHNFData
-isRational (Value (ScalarData (Div (Plus []) (Plus [Term _ []]))))          = return . Value $ Bool True
-isRational (Value (ScalarData (Div (Plus [Term _ []]) (Plus [Term _ []])))) = return . Value $ Bool True
-isRational _                                                                = return . Value $ Bool False
+isRational (Value val) = case fromScalarVal val of
+  Just (Div (Plus []) (Plus [Term _ []]))          -> return . Value $ Bool True
+  Just (Div (Plus [Term _ []]) (Plus [Term _ []])) -> return . Value $ Bool True
+  _                                                -> return . Value $ Bool False
+isRational _ = return . Value $ Bool False
 
 --
 -- Transform
@@ -64,10 +68,10 @@ integerToFloat = rationalToFloat
 
 rationalToFloat :: String -> PrimitiveFunc
 rationalToFloat = oneArg $ \val ->
-  case val of
-    ScalarData (Div (Plus []) _)                           -> return $ Float 0
-    ScalarData (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ Float (fromRational (x % y))
-    _                                                      -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
+  case fromScalarVal val of
+    Just (Div (Plus []) _)                           -> return $ Float 0
+    Just (Div (Plus [Term x []]) (Plus [Term y []])) -> return $ Float (fromRational (x % y))
+    _                                                -> throwErrorWithTrace (TypeMismatch "integer or rational number" (Value val))
 
 charToInteger :: String -> PrimitiveFunc
 charToInteger = unaryOp ctoi

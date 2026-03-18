@@ -49,7 +49,7 @@ class ToMathExpr a where
   toMathExpr :: a -> MathExpr
 
 instance ToMathExpr E.EgisonValue where
-  toMathExpr (E.ScalarData s)  = toMathExpr s
+  toMathExpr (E.CASData cv)    = toMathExpr (E.casValueToScalarData cv)
   toMathExpr (E.Tuple es)      = Tuple (map toMathExpr es)
   toMathExpr (E.Collection es) = Collection (map toMathExpr (toList es))
   toMathExpr (E.TensorData t)  = toMathExpr t

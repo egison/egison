@@ -362,7 +362,7 @@ casNormalizePoly terms =
       -- Sort in descending order (standard polynomial order)
       terms4 = sortTermsDescending terms3
   in case terms4 of
-       []  -> CASPoly []
+       []  -> CASInteger 0  -- Empty polynomial is zero
        [CASTerm coeff []] | isIntegerCoeff coeff -> extractInteger coeff
        ts  -> CASPoly ts
   where

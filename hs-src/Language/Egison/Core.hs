@@ -80,9 +80,7 @@ import           Language.Egison.Type.Types      (Type(..))
 -- Used for type class method dispatch
 valueToType :: EgisonValue -> Type
 valueToType (Bool _)         = TBool
-valueToType (ScalarData (Div (Plus []) (Plus [Term 1 []])))          = TInt
-valueToType (ScalarData (Div (Plus [Term _ []]) (Plus [Term 1 []]))) = TInt
-valueToType (ScalarData _)   = TInt  -- MathExpr = TInt in Egison
+valueToType val | Just _ <- fromScalarVal val = TInt  -- MathExpr = TInt in Egison
 valueToType (Float _)        = TFloat
 valueToType (Char _)         = TChar
 valueToType (String _)       = TString
@@ -126,8 +124,8 @@ evalExprShallow _ (IConstantExpr c) = return $ Value (evalConstant c)
 evalExprShallow env (IQuoteExpr expr) = do
   whnf <- evalExprShallow env expr
   case whnf of
-    Value (ScalarData s) -> return . Value . ScalarData $ SingleTerm 1 [(Quote s, 1)]
-    _                    -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
+    Value val | Just s <- fromScalarVal val -> return . Value . toScalarVal $ SingleTerm 1 [(Quote s, 1)]
+    _                                       -> throwErrorWithTrace (TypeMismatch "scalar in quote" whnf)
 
 evalExprShallow env (IQuoteSymbolExpr expr) =
   case expr of
@@ -137,20 +135,20 @@ evalExprShallow env (IQuoteSymbolExpr expr) =
         Just ref -> do
           val <- evalRef ref
           case val of
-            Value func@(Func _ _ _ _) -> 
+            Value func@(Func _ _ _ _) ->
               -- Quote the function object itself
-              return . Value . ScalarData $ SingleTerm 1 [(QuoteFunction val, 1)]
-            Value func@(MemoizedFunc _ _ _ _) -> 
+              return . Value . toScalarVal $ SingleTerm 1 [(QuoteFunction val, 1)]
+            Value func@(MemoizedFunc _ _ _ _) ->
               -- Quote the memoized function object itself
-              return . Value . ScalarData $ SingleTerm 1 [(QuoteFunction val, 1)]
-            Value (ScalarData _) -> return val
-            _ -> return . Value $ symbolScalarData "" name
-        Nothing -> return . Value $ symbolScalarData "" name
+              return . Value . toScalarVal $ SingleTerm 1 [(QuoteFunction val, 1)]
+            Value v | Just _ <- fromScalarVal v -> return val
+            _ -> return $ Value (symbolScalarData "" name)
+        Nothing -> return $ Value (symbolScalarData "" name)
     _ -> do
       whnf <- evalExprShallow env expr
       case whnf of
-        Value (ScalarData _) -> return whnf
-        _                    -> throwErrorWithTrace (TypeMismatch "scalar or symbol in quote-symbol" whnf)
+        Value v | Just _ <- fromScalarVal v -> return whnf
+        _                                   -> throwErrorWithTrace (TypeMismatch "scalar or symbol in quote-symbol" whnf)
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
@@ -224,10 +222,10 @@ evalExprShallow env (IHashExpr assocs) = do
   makeHashKey :: WHNFData -> EvalM EgisonHashKey
   makeHashKey (Value val) =
     case val of
-      ScalarData _ -> IntKey <$> fromEgison val
-      Char c       -> return (CharKey c)
-      String str   -> return (StrKey str)
-      _            -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
+      CASData _ -> IntKey <$> fromEgison val
+      Char c    -> return (CharKey c)
+      String str-> return (StrKey str)
+      _         -> throwErrorWithTrace (TypeMismatch "integer or string" (Value val))
   makeHashKey whnf = throwErrorWithTrace (TypeMismatch "integer or string" whnf)
 
 evalExprShallow env@(Env _fs _ _) (IIndexedExpr override expr indices) = do
@@ -240,9 +238,9 @@ evalExprShallow env@(Env _fs _ _) (IIndexedExpr override expr indices) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case whnf of
-    Value (ScalarData (SingleTerm 1 [(Symbol id name js', 1)])) -> do
+    Value val | Just (SingleTerm 1 [(Symbol id name js', 1)]) <- fromScalarVal val -> do
       js2 <- mapM evalIndexToScalar indices
-      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
+      return $ Value (toScalarVal (SingleTerm 1 [(Symbol id name (js' ++ js2), 1)]))
     Value (Func v@(Just (Var _fnName is)) env args body) -> do
       js <- mapM evalIndex indices
       liftIO $ putStrLn $ "[DEBUG pmIndices] is: " ++ show is ++ ", js: " ++ show js
@@ -276,15 +274,16 @@ evalExprShallow env (ISubrefsExpr override expr jsExpr) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case tensor of
-    Value (ScalarData _)          -> return tensor
-    Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
-    ITensor t@Tensor{}            -> refTensorWithOverride override js t
+    Value v | Just _ <- fromScalarVal v -> return tensor
+    Value (TensorData t@Tensor{})       -> Value <$> refTensorWithOverride override js t
+    ITensor t@Tensor{}                  -> refTensorWithOverride override js t
     _ -> do
       val <- evalWHNF tensor
-      case val of
-        ScalarData _          -> return $ Value val
-        TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
-        _                     -> throwErrorWithTrace (NotImplemented ("subrefs for " ++ show val))
+      case fromScalarVal val of
+        Just _  -> return $ Value val
+        Nothing -> case val of
+          TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
+          _                     -> throwErrorWithTrace (NotImplemented ("subrefs for " ++ show val))
 
 evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
   js <- map Sup <$> (evalExprDeep env jsExpr >>= collectionToList)
@@ -296,27 +295,28 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
                   Nothing     -> evalExprShallow env expr
               _ -> evalExprShallow env expr
   case tensor of
-    Value (ScalarData _)          -> return tensor
-    Value (TensorData t@Tensor{}) -> Value <$> refTensorWithOverride override js t
-    ITensor t@Tensor{}            -> refTensorWithOverride override js t
+    Value v | Just _ <- fromScalarVal v -> return tensor
+    Value (TensorData t@Tensor{})       -> Value <$> refTensorWithOverride override js t
+    ITensor t@Tensor{}                  -> refTensorWithOverride override js t
     _ -> do
       val <- evalWHNF tensor
-      case val of
-        ScalarData _          -> return $ Value val
-        TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
-        _                     -> throwErrorWithTrace (NotImplemented ("suprefs for " ++ show val))
+      case fromScalarVal val of
+        Just _  -> return $ Value val
+        Nothing -> case val of
+          TensorData t@Tensor{} -> Value <$> refTensorWithOverride override js t
+          _                     -> throwErrorWithTrace (NotImplemented ("suprefs for " ++ show val))
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
   js <- map User <$> (evalExprDeep env jsExpr >>= collectionToList >>= mapM extractScalar)
-  case val of
-    ScalarData (SingleTerm 1 [(Symbol id name is, 1)]) ->
-      return $ Value (ScalarData (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
-    ScalarData (SingleTerm 1 [(FunctionData sym args, 1)]) ->
+  case fromScalarVal val of
+    Just (SingleTerm 1 [(Symbol id name is, 1)]) ->
+      return $ Value (toScalarVal (SingleTerm 1 [(Symbol id name (is ++ js), 1)]))
+    Just (SingleTerm 1 [(FunctionData sym args, 1)]) ->
       case sym of
         SingleTerm 1 [(Symbol id name is, 1)] -> do
           let sym' = SingleTerm 1 [(Symbol id name (is ++ js), 1)]
-          return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym' args, 1)]))
+          return $ Value (toScalarVal (SingleTerm 1 [(FunctionData sym' args, 1)]))
         _ -> throwErrorWithTrace (NotImplemented "user-refs")
     _ -> throwErrorWithTrace (NotImplemented "user-refs")
 
@@ -334,7 +334,7 @@ evalExprShallow (Env _ Nothing _) (IFunctionExpr _) = throwError $ Default "func
 evalExprShallow env@(Env _ (Just (name, is)) _) (IFunctionExpr args) = do
   args' <- mapM (evalExprDeep env . IVarExpr) args >>= mapM extractScalar
   is' <- mapM unwrapMaybeFromIndex is
-  return . Value $ ScalarData (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args', 1)])
+  return . Value $ toScalarVal (SingleTerm 1 [(FunctionData (SingleTerm 1 [(Symbol "" name is', 1)]) args', 1)])
  where
   unwrapMaybeFromIndex :: Index (Maybe ScalarData) -> EvalM (Index ScalarData) -- Maybe we can refactor this function
 --  unwrapMaybeFromIndex = return . (fmap fromJust)
@@ -497,7 +497,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   evalWithIndex env@(Env frame maybe_vwi pfEnv) ms = do
     let env' = maybe env (\(name, indices) -> Env frame (Just (name, zipWith changeIndex indices ms)) pfEnv) maybe_vwi
     fn <- evalExprShallow env' fnExpr
-    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map ScalarData ms))))]
+    newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map toScalarVal ms))))]
   changeIndex :: Index (Maybe a) -> a -> Index (Maybe a) -- Maybe we can refactor this function
   changeIndex (Sup Nothing) m = Sup (Just m)
   changeIndex (Sub Nothing) m = Sub (Just m)
@@ -705,30 +705,30 @@ applyRef _ (Value (IOFunc m)) refs = do
   case args of
     [Value World] -> m
     arg : _       -> throwErrorWithTrace (TypeMismatch "world" arg)
-applyRef _ (Value (ScalarData (SingleTerm 1 [(FunctionData sym args, 1)]))) refs = do
+applyRef _ (Value val) refs | Just (SingleTerm 1 [(FunctionData sym args, 1)]) <- fromScalarVal val = do
   newArgs <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
-  newScalars <- mapM (\arg -> case arg of
-    ScalarData s -> return s
-    _ -> throwErrorWithTrace (TypeMismatch "scalar" (Value arg))) newArgs
+  newScalars <- mapM (\arg -> case fromScalarVal arg of
+    Just s -> return s
+    _      -> throwErrorWithTrace (TypeMismatch "scalar" (Value arg))) newArgs
   when (length newScalars /= length args) $
     throwError (Default ("function applied to wrong number of arguments: expected "
       ++ show (length args) ++ ", got " ++ show (length newScalars)))
-  return $ Value (ScalarData (SingleTerm 1 [(FunctionData sym newScalars, 1)]))
-applyRef _ (Value (ScalarData fn@(SingleTerm 1 [(Symbol _ symName _, 1)]))) refs = do
+  return $ Value (toScalarVal (SingleTerm 1 [(FunctionData sym newScalars, 1)]))
+applyRef _ (Value val) refs | Just fn@(SingleTerm 1 [(Symbol _ symName _, 1)]) <- fromScalarVal val = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
-  mExprs <- mapM (\arg -> case arg of
-                            ScalarData _ -> extractScalar arg
-                            _            -> throwErrorWithTrace (EgisonBug $ "to use undefined function '" ++ symName ++ "', you have to use ScalarData args")) args
-  return (Value (ScalarData (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
+  mExprs <- mapM (\arg -> case fromScalarVal arg of
+                            Just _ -> extractScalar arg
+                            _      -> throwErrorWithTrace (EgisonBug $ "to use undefined function '" ++ symName ++ "', you have to use CASData args")) args
+  return (Value (toScalarVal (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
 -- QuoteFunction pattern: ('fact 3) should create Apply1 fact 3
 -- The quoted function object is stored in QuoteFunction
-applyRef env (Value (ScalarData fn@(SingleTerm 1 [(QuoteFunction funcWHNF, 1)]))) refs = do
+applyRef env (Value val) refs | Just fn@(SingleTerm 1 [(QuoteFunction funcWHNF, 1)]) <- fromScalarVal val = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
-  mExprs <- mapM (\arg -> case arg of
-                            ScalarData scalar -> return scalar
-                            _                 -> throwErrorWithTrace (EgisonBug $ "to use quoted function, you have to use ScalarData args")) args
+  mExprs <- mapM (\arg -> case fromScalarVal arg of
+                            Just scalar -> return scalar
+                            _           -> throwErrorWithTrace (EgisonBug $ "to use quoted function, you have to use CASData args")) args
   -- Create Apply1/Apply2/etc with the function object
-  return (Value (ScalarData (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
+  return (Value (toScalarVal (SingleTerm 1 [(makeApplyExpr fn mExprs, 1)])))
 -- Type class method dispatch: look up implementation based on first argument's type
 -- Uses Type from Types.hs for dispatch (not String-based typeName)
 applyRef env (Value (ClassMethodRef clsName methName)) refs = do
@@ -1061,7 +1061,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
       startNumRef <- newEvaluatedObjectRef $ Value $ toEgison (startNum - 1)
       ends'       <- evalExprShallow env' ends
       case ends' of
-        Value (ScalarData _) -> do -- the case when the end numbers are an integer
+        Value val | Just _ <- fromScalarVal val -> do -- the case when the end numbers are an integer
           endsRef  <- newEvaluatedObjectRef ends'
           inners   <- liftIO . newIORef $ Sq.fromList [IElement endsRef]
           endsRef' <- liftIO $ newIORef (WHNF (ICollection inners))
@@ -1241,7 +1241,7 @@ isPatternVar _            = False
 -- Helper: Extract function object from ScalarData if it contains QuoteFunction
 extractFunctionObject :: ScalarData -> WHNFData
 extractFunctionObject (SingleTerm 1 [(QuoteFunction funcWHNF, 1)]) = funcWHNF
-extractFunctionObject scalarData = Value (ScalarData scalarData)
+extractFunctionObject scalarData = Value (toScalarVal scalarData)
 
 primitiveDataPatternMatch :: IPrimitiveDataPattern -> ObjectRef -> MatchM [Binding]
 primitiveDataPatternMatch PDWildCard _        = return []
@@ -1287,13 +1287,13 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
 primitiveDataPatternMatch (PDDivPat patNum patDen) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
-    Value (ScalarData (Div num den)) -> do
+    Value val | Just (Div num den) <- fromScalarVal val -> do
       -- Pattern variable の場合は PolyExpr -> ScalarData に変換
-      let numVal = if isPatternVar patNum 
-                   then Value (ScalarData (polyExprToScalarData num))
+      let numVal = if isPatternVar patNum
+                   then Value (toScalarVal (polyExprToScalarData num))
                    else Value (PolyExprData num)
       let denVal = if isPatternVar patDen
-                   then Value (ScalarData (polyExprToScalarData den))
+                   then Value (toScalarVal (polyExprToScalarData den))
                    else Value (PolyExprData den)
       numRef <- lift $ newEvaluatedObjectRef numVal
       denRef <- lift $ newEvaluatedObjectRef denVal
@@ -1306,7 +1306,7 @@ primitiveDataPatternMatch (PDPlusPat patTerms) ref = do
     Value (PolyExprData (Plus terms)) -> do
       -- Pattern variable の場合は [TermExpr] -> [ScalarData] に変換
       let termsCol = if isPatternVar patTerms
-                     then Value $ Collection $ Sq.fromList $ map (ScalarData . termExprToScalarData) terms
+                     then Value $ Collection $ Sq.fromList $ map (toScalarVal . termExprToScalarData) terms
                      else Value $ Collection $ Sq.fromList $ map TermExprData terms
       termsRef <- lift $ newEvaluatedObjectRef termsCol
       primitiveDataPatternMatch patTerms termsRef
@@ -1318,7 +1318,7 @@ primitiveDataPatternMatch (PDTermPat patCoeff patMonomials) ref = do
       coeffRef <- lift $ newEvaluatedObjectRef (Value (toEgison coeff))
       -- Pattern variable の場合は [(SymbolExpr, Integer)] -> [(ScalarData, Integer)] に変換
       let monomialsCol = if isPatternVar patMonomials
-                         then Value $ Collection $ Sq.fromList $ map (\(sym, exp) -> Tuple [ScalarData (symbolExprToScalarData sym), toEgison exp]) monomials
+                         then Value $ Collection $ Sq.fromList $ map (\(sym, exp) -> Tuple [toScalarVal (symbolExprToScalarData sym), toEgison exp]) monomials
                          else Value $ Collection $ Sq.fromList $ map (\(sym, exp) -> Tuple [SymbolExprData sym, toEgison exp]) monomials
       monomialsRef <- lift $ newEvaluatedObjectRef monomialsCol
       (++) <$> primitiveDataPatternMatch patCoeff coeffRef
@@ -1340,7 +1340,7 @@ primitiveDataPatternMatch (PDApply1Pat patFn patArg) ref = do
   case whnf of
     Value (SymbolExprData (Apply1 fn arg)) -> do
       fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      argRef <- lift $ newEvaluatedObjectRef (Value (ScalarData arg))
+      argRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> primitiveDataPatternMatch patArg argRef
     _ -> matchFail
@@ -1349,8 +1349,8 @@ primitiveDataPatternMatch (PDApply2Pat patFn patArg1 patArg2) ref = do
   case whnf of
     Value (SymbolExprData (Apply2 fn arg1 arg2)) -> do
       fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg2))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> primitiveDataPatternMatch patArg2 arg2Ref)
@@ -1360,9 +1360,9 @@ primitiveDataPatternMatch (PDApply3Pat patFn patArg1 patArg2 patArg3) ref = do
   case whnf of
     Value (SymbolExprData (Apply3 fn arg1 arg2 arg3)) -> do
       fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
-      arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg3))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
@@ -1373,10 +1373,10 @@ primitiveDataPatternMatch (PDApply4Pat patFn patArg1 patArg2 patArg3 patArg4) re
   case whnf of
     Value (SymbolExprData (Apply4 fn arg1 arg2 arg3 arg4)) -> do
       fnRef <- lift $ newEvaluatedObjectRef (extractFunctionObject fn)
-      arg1Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg1))
-      arg2Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg2))
-      arg3Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg3))
-      arg4Ref <- lift $ newEvaluatedObjectRef (Value (ScalarData arg4))
+      arg1Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg1))
+      arg2Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg2))
+      arg3Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg3))
+      arg4Ref <- lift $ newEvaluatedObjectRef (Value (toScalarVal arg4))
       (++) <$> primitiveDataPatternMatch patFn fnRef
            <*> ((++) <$> primitiveDataPatternMatch patArg1 arg1Ref
                      <*> ((++) <$> primitiveDataPatternMatch patArg2 arg2Ref
@@ -1387,15 +1387,15 @@ primitiveDataPatternMatch (PDQuotePat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (Quote expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      exprRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDFunctionPat patName patArgs) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (SymbolExprData (FunctionData name args)) -> do
-      nameRef <- lift $ newEvaluatedObjectRef (Value (ScalarData name))
-      let argsCol = Value $ Collection $ Sq.fromList $ map ScalarData args
+      nameRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal name))
+      let argsCol = Value $ Collection $ Sq.fromList $ map toScalarVal args
       argsRef <- lift $ newEvaluatedObjectRef argsCol
       (++) <$> primitiveDataPatternMatch patName nameRef
            <*> primitiveDataPatternMatch patArgs argsRef
@@ -1404,21 +1404,21 @@ primitiveDataPatternMatch (PDSubPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (IndexExprData (Sub expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      exprRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDSupPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (IndexExprData (Sup expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      exprRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 primitiveDataPatternMatch (PDUserPat patExpr) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (IndexExprData (User expr)) -> do
-      exprRef <- lift $ newEvaluatedObjectRef (Value (ScalarData expr))
+      exprRef <- lift $ newEvaluatedObjectRef (Value (toScalarVal expr))
       primitiveDataPatternMatch patExpr exprRef
     _ -> matchFail
 

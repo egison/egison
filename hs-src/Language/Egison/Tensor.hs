@@ -133,12 +133,15 @@ tref [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tref [] t = return t
-tref (s@(SupOrSubIndex (ScalarData (SingleSymbol _))):ms) (Tensor (_:ns) xs js) = do
-  let yss = split (product ns) xs
-  ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
-  tConcat s ts
-tref (SupOrSubIndex (ScalarData (SingleTerm m [])):ms) t = tIntRef' m t >>= tref ms
-tref (SupOrSubIndex (ScalarData ZeroExpr):_) _ = throwError $ Default "tensor index out of bounds: 0"
+tref (s@(SupOrSubIndex val):ms) (Tensor (_:ns) xs js)
+  | Just (SingleSymbol _) <- fromScalarVal val = do
+      let yss = split (product ns) xs
+      ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
+      tConcat s ts
+tref (SupOrSubIndex val:ms) t
+  | Just (SingleTerm m []) <- fromScalarVal val = tIntRef' m t >>= tref ms
+tref (SupOrSubIndex val:_) _
+  | Just ZeroExpr <- fromScalarVal val = throwError $ Default "tensor index out of bounds: 0"
 tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
@@ -366,8 +369,8 @@ tContract' t@(Tensor ns _ js) =
   match dfs js (List M.Something)
     [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
              let m = fromIntegral (length hjs)
-             xs' <- mapM (\i -> tref (hjs ++ (Sub (ScalarData (SingleTerm i [])) : mjs)
-                                          ++ (Sub (ScalarData (SingleTerm i [])) : tjs)) t)
+             xs' <- mapM (\i -> tref (hjs ++ (Sub (toScalarVal (SingleTerm i [])) : mjs)
+                                          ++ (Sub (toScalarVal (SingleTerm i [])) : tjs)) t)
                          [1..(ns !! m)]
              tConcat a xs' >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
     , [mc| _ -> return t |]

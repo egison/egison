@@ -931,45 +931,51 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 
 #### Step 1: EgisonValue の置換（完了）
 
-**実装方式**: パターンシノニムを使用した後方互換性のある置換
-
 - [x] `Data.hs` の `ScalarData ScalarData` コンストラクタを削除
 - [x] `CASData CASValue` コンストラクタのみ残す
-- [x] パターンシノニム `ScalarData` を追加（自動変換）
-  ```haskell
-  pattern ScalarData :: ScalarData -> EgisonValue
-  pattern ScalarData s <- CASData (casValueToScalarData -> s)
-    where ScalarData s = CASData (scalarDataToCASValue s)
-  ```
-- [x] `EgisonValue (.., ScalarData)` でエクスポート
-- [x] `Show`, `Eq`, `isAtomic` インスタンスを簡略化
+- [x] ヘルパー関数 `toScalarVal`, `fromScalarVal` を追加（`CASValue` と `ScalarData` 間の変換）
+- [x] `Show`, `Eq`, `isAtomic` インスタンスを `CASData` ベースに更新
 
-**結果**: 既存のコードは変更不要で動作。`ScalarData` パターンは内部的に `CASData` を使用。
+#### Step 2: 参照箇所の置換（完了）
 
-#### Step 2: 参照箇所の置換（不要）
+以下のファイルを `CASData` / `toScalarVal` / `fromScalarVal` を使用するよう更新:
+- [x] `Primitives/Arith.hs` - `CASValue` を直接使用（`casPlus`, `casMinus`, `casMult`, `casDivide`）
+- [x] `Primitives/Types.hs` - `fromScalarVal` でパターンマッチ
+- [x] `PrettyMath/AST.hs` - `CASData` と `casValueToScalarData` を使用
+- [x] `Tensor.hs` - `fromScalarVal` / `toScalarVal` を使用
+- [x] `Core.hs` - `fromScalarVal` / `toScalarVal` を使用（パターンマッチ、構築の両方）
+- [x] `Primitives.hs` - `fromScalarVal` / `toScalarVal` を使用
 
-パターンシノニムにより、以下のファイルは変更なしで動作:
-- [x] `Math/Arith.hs` - パターンシノニム経由で動作
-- [x] `Math/Rewrite.hs` - パターンシノニム経由で動作
-- [x] `Math/Normalize.hs` - パターンシノニム経由で動作
-- [x] `Primitives/Arith.hs` - パターンシノニム経由で動作
-- [x] `Core.hs`（パターンマッチ）- パターンシノニム経由で動作
-- [x] `Parser/NonS.hs`（リテラル）- パターンシノニム経由で動作
+#### Step 3: CAS ベース API の公開（完了）
 
-#### Step 3: 変換関数と旧型の削除（将来の作業）
+`Math.hs` を更新して CAS ベースの公開 API を提供:
+- [x] `casNormalize'` - `mathNormalize'` の CAS 版
+- [x] `casRewriteSymbol` - `rewriteSymbol` の CAS 版
+- [x] `casPlus`, `casMinus`, `casMult`, `casDivide`, `casPower` をエクスポート
+- [x] `Primitives/Arith.hs` を CAS API を使用するよう更新
+- [x] `Data.hs` の `EgisonData Rational` インスタンスを CAS API を使用するよう更新
 
-パターンシノニムが不要になったら:
-- [ ] `scalarDataToCASValue`, `casValueToScalarData` を削除
-- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
+#### Step 4: 変換関数と旧型の削除（将来の作業）
+
+現時点では `ScalarData` 型と変換関数を維持。`Math/` 内部モジュールは引き続き `ScalarData` を使用:
+- `Math/Expr.hs` - `ScalarData`, `PolyExpr`, `TermExpr`, Egison マッチャー定義
+- `Math/Arith.hs`, `Math/Normalize.hs`, `Math/Rewrite.hs` - 内部実装
+
+残りの外部モジュールでの `ScalarData` 使用（主に `Core.hs`）:
+- `SingleTerm`, `SingleSymbol` などのパターンシノニムを使用
+- 完全な移行には CAS ベースのパターンシノニムまたはヘルパー関数の作成が必要
+
+今後の精緻化作業:
+- [ ] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行
+- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除（全モジュールが `CASValue` のみ使用するようになってから）
 - [ ] 旧 `SymbolExpr` と変換関数を削除
-- [ ] パターンシノニム `ScalarData` を削除し、直接 `CASData` を使用
-
-**注**: 現時点ではパターンシノニムにより後方互換性を維持。完全削除は他のモジュールが `CASValue` を直接使うようになってから。
+- [ ] `toScalarVal`, `fromScalarVal` を直接 `CASData` コンストラクタに置換
 
 #### Step 4: テスト（完了）
 
-- [x] 既存テストがすべて通過することを確認（21/21 パス）
+- [x] 既存テストがすべて通過することを確認
 - [x] `mini-test/40-casvalue-basic.egi` に CASValue 固有のテストを追加
+- [x] `casNormalizePoly` で空多項式を `CASInteger 0` に正規化（等価性比較の問題を修正）
 
 ### Phase 2.5: Embed 型クラスと Coercive Subtyping
 
