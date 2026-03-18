@@ -969,18 +969,28 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `Data.hs` の `Eq EgisonValue` - 正規化してから比較
 - [x] `casNormalizeDiv` の改善 - ネスト除算 `a/(b/c)`, `(a/b)/c` の処理、負の分母の正規化、`Poly/Integer` の簡約
 
-**残りの作業:**
+**完了した作業:**
 - [x] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行（完了）
   - `ScalarData` の参照を全て削除
   - `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を `CASPolyData`/`CASTermData`/`CASSymbolData`/`CASIndexData` に置換
   - `casValueToScalarData` / `scalarDataToCASValue` 変換を排除し、`CASValue` を直接使用
 - [x] `Data.hs` から旧中間型 `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を削除
-- [ ] `Math/Arith.hs` を `CASValue` ベースに書き換え（21箇所）
-- [ ] `Math/Normalize.hs` を `CASValue` ベースに書き換え（8箇所）
-- [ ] `Math/Rewrite.hs` を `CASValue` ベースに書き換え（21箇所）
+- [x] `casNormalize'` を削除し、`casNormalize` に統一
+- [x] `Math.hs` から非推奨関数のエクスポートを削除
+
+**ScalarData の現在の役割:**
+ScalarData は内部実装の詳細として維持される。主な用途:
+1. InductiveData（Egison構文: `Div`, `Plus`, `Term`, etc.）と CASValue 間の変換
+2. `Math/Normalize.hs` と `Math/Rewrite.hs` での control-egison パターンマッチング
+3. プリミティブ関数 `fromMathExpr` / `toMathExpr'` の実装
+
+公開 API は CASValue ベースに統一済み。内部では ScalarData を control-egison パターンマッチングに使用。
+
+**将来の最適化（オプション）:**
+- [ ] `Math/Normalize.hs` を CASValue パターンマッチングに書き換え
+- [ ] `Math/Rewrite.hs` を CASValue パターンマッチングに書き換え
+- [ ] InductiveData を直接 CASValue に変換（ScalarData を経由しない）
 - [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除
-- [ ] 旧 `SymbolExpr`（`Math/Expr.hs`）と変換関数を削除
-- [ ] `toScalarVal`, `fromScalarVal` を削除（現在は後方互換性のため維持）
 
 #### Step 5: テスト（完了）
 

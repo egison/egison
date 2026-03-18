@@ -9,10 +9,10 @@ The public API is based on CASValue. ScalarData is an internal implementation de
 -}
 
 module Language.Egison.Math
-  ( -- * CAS Public API (preferred)
+  ( -- * CAS Public API
     CASValue (..)
   , CASTerm (..)
-  , casNormalize'
+  , casNormalize
   , casRewriteSymbol
   , casPlus
   , casMinus
@@ -56,8 +56,7 @@ module Language.Egison.Math
   , casZeroM
   , casSingleTerm
   , casSingleTermM
-    -- * Internal types (for backward compatibility)
-    -- These are exposed for backward compatibility but should be migrated to CAS types
+    -- * Internal types (needed for InductiveData conversion)
   , ScalarData (..)
   , PolyExpr (..)
   , TermExpr (..)
@@ -67,32 +66,15 @@ module Language.Egison.Math
   , pattern ZeroExpr
   , pattern SingleSymbol
   , pattern SingleTerm
-    -- * Conversion functions (for migration)
+    -- * Conversion functions
   , scalarDataToCASValue
   , casValueToScalarData
-    -- * Deprecated ScalarData operations (use CAS versions instead)
-  , mathNormalize'
-  , rewriteSymbol
-  , mathPlus
-  , mathMult
-  , mathDiv
-  , mathNumerator
-  , mathDenominator
-  , E.mathNegate
-  , E.makeApplyExpr
   ) where
 
-import           Language.Egison.Math.Arith
 import           Language.Egison.Math.CAS hiding (SymbolExpr(..), Monomial, makeApplyExpr)
 import qualified Language.Egison.Math.Expr as E
 import           Language.Egison.Math.Expr (ScalarData(..), PolyExpr(..), TermExpr(..), pattern ZeroExpr, pattern SingleSymbol, pattern SingleTerm)
-import           Language.Egison.Math.Normalize
-import           Language.Egison.Math.Rewrite hiding (casRewriteSymbol)
 import qualified Language.Egison.Math.Rewrite as R
-
--- | Normalize a CASValue (CAS version of mathNormalize')
-casNormalize' :: CASValue -> CASValue
-casNormalize' = scalarDataToCASValue . mathNormalize' . casValueToScalarData
 
 -- | Apply rewrite rules to a CASValue (CAS version of rewriteSymbol)
 casRewriteSymbol :: CASValue -> CASValue

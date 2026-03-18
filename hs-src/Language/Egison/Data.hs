@@ -480,7 +480,7 @@ extractCASInteger cv = case cv of
   _ -> Nothing
 
 instance EgisonData Rational where
-  toEgison r = CASData $ casNormalize' (CASDiv (CASInteger (numerator r)) (CASInteger (denominator r)))
+  toEgison r = CASData $ CAS.casNormalize (CAS.CASDiv (CAS.CASInteger (numerator r)) (CAS.CASInteger (denominator r)))
   fromEgison val = case val of
     CASData (CASInteger 0)                  -> return 0
     CASData (CASPoly [])                    -> return 0
