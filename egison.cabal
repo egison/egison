@@ -100,7 +100,6 @@ Library
                   Language.Egison.Eval
                    Language.Egison.IExpr
                    Language.Egison.Match
-                   Language.Egison.Math.Arith
                    Language.Egison.Math.CAS
                    Language.Egison.Math.Expr
                    Language.Egison.Math.Normalize

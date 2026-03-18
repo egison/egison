@@ -18,7 +18,7 @@ import           Text.ParserCombinators.Parsec hiding (spaces)
 
 import qualified Language.Egison.Data          as E
 import qualified Language.Egison.IExpr         as E
-import qualified Language.Egison.Math.Expr     as E
+import qualified Language.Egison.Math.CAS      as CAS
 
 data MathExpr
   = Atom String [MathIndex]
@@ -49,7 +49,7 @@ class ToMathExpr a where
   toMathExpr :: a -> MathExpr
 
 instance ToMathExpr E.EgisonValue where
-  toMathExpr (E.CASData cv)    = toMathExpr (E.casValueToScalarData cv)
+  toMathExpr (E.CASData cv)    = toMathExpr cv
   toMathExpr (E.Tuple es)      = Tuple (map toMathExpr es)
   toMathExpr (E.Collection es) = Collection (map toMathExpr (toList es))
   toMathExpr (E.TensorData t)  = toMathExpr t
@@ -64,32 +64,34 @@ instance ToMathExpr a => ToMathExpr (E.Tensor a) where
       f n xs = Tensor (take n xs) [] : f n (drop n xs)
   toMathExpr (E.Tensor _ _ _) = undefined
 
-instance ToMathExpr E.ScalarData where
-  toMathExpr (E.Div p (E.Plus [E.Term 1 []])) = toMathExpr p
-  toMathExpr (E.Div p1 p2)                    = Div (toMathExpr p1) (toMathExpr p2)
+-- CASValue instances
+instance ToMathExpr CAS.CASValue where
+  toMathExpr (CAS.CASInteger n) = toMathExpr n
+  toMathExpr (CAS.CASFactor sym) = toMathExpr sym
+  toMathExpr (CAS.CASPoly []) = Atom "0" []
+  toMathExpr (CAS.CASPoly [t]) = toMathExpr t
+  toMathExpr (CAS.CASPoly ts) = Plus (map toMathExpr ts)
+  toMathExpr (CAS.CASDiv num (CAS.CASInteger 1)) = toMathExpr num
+  toMathExpr (CAS.CASDiv num (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) []])) = toMathExpr num
+  toMathExpr (CAS.CASDiv num denom) = Div (toMathExpr num) (toMathExpr denom)
 
-instance ToMathExpr E.PolyExpr where
-  toMathExpr (E.Plus [])  = Atom "0" []
-  toMathExpr (E.Plus [x]) = toMathExpr x
-  toMathExpr (E.Plus xs)  = Plus (map toMathExpr xs)
-
-instance ToMathExpr E.TermExpr where
-  toMathExpr (E.Term n [])  = toMathExpr n
-  toMathExpr (E.Term 1 [x]) = toMathExpr x
-  toMathExpr (E.Term 1 xs)  = Multiply (map toMathExpr xs)
-  toMathExpr (E.Term n xs)  = Multiply (toMathExpr n : map toMathExpr xs)
+instance ToMathExpr CAS.CASTerm where
+  toMathExpr (CAS.CASTerm coeff []) = toMathExpr coeff
+  toMathExpr (CAS.CASTerm (CAS.CASInteger 1) [x]) = toMathExpr x
+  toMathExpr (CAS.CASTerm (CAS.CASInteger 1) xs) = Multiply (map toMathExpr xs)
+  toMathExpr (CAS.CASTerm coeff xs) = Multiply (toMathExpr coeff : map toMathExpr xs)
 
 instance ToMathExpr Integer where
   toMathExpr n | n < 0 = NegativeAtom (show (-n))
   toMathExpr n         = Atom (show n) []
 
-instance {-# OVERLAPPING #-} ToMathExpr (E.SymbolExpr, Integer) where
+instance {-# OVERLAPPING #-} ToMathExpr (CAS.SymbolExpr, Integer) where
   toMathExpr (x, 1) = toMathExpr x
   toMathExpr (x, n) = Power (toMathExpr x) (toMathExpr n)
 
-instance ToMathExpr E.SymbolExpr where
-  toMathExpr (E.Symbol _ (':':':':':':_) []) = Atom "#" []
-  toMathExpr (E.Symbol _ s js) = toMathExpr' js (Atom s [])
+instance ToMathExpr CAS.SymbolExpr where
+  toMathExpr (CAS.Symbol _ (':':':':':':_) []) = Atom "#" []
+  toMathExpr (CAS.Symbol _ s js) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
       toMathExpr' (E.User x:js) (Partial e ps) =
@@ -100,24 +102,24 @@ instance ToMathExpr E.SymbolExpr where
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
       toMathExpr' _ _ = undefined -- TODO
 
-  toMathExpr (E.Apply1 fn a1) =
+  toMathExpr (CAS.Apply1 fn a1) =
     case toMathExpr fn of
       Atom "^" [] -> Power (toMathExpr fn) (toMathExpr a1)
       _           -> Func (toMathExpr fn) [toMathExpr a1]
-  toMathExpr (E.Apply2 fn a1 a2) =
+  toMathExpr (CAS.Apply2 fn a1 a2) =
     case toMathExpr fn of
       Atom "^" [] -> Power (toMathExpr a1) (toMathExpr a2)
       _           -> Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2]
-  toMathExpr (E.Apply3 fn a1 a2 a3) =
+  toMathExpr (CAS.Apply3 fn a1 a2 a3) =
     Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2, toMathExpr a3]
-  toMathExpr (E.Apply4 fn a1 a2 a3 a4) =
+  toMathExpr (CAS.Apply4 fn a1 a2 a3 a4) =
     Func (toMathExpr fn) [toMathExpr a1, toMathExpr a2, toMathExpr a3, toMathExpr a4]
-  toMathExpr (E.Quote mExpr) = Quote (toMathExpr mExpr)
-  toMathExpr (E.QuoteFunction whnf) =
+  toMathExpr (CAS.Quote mExpr) = Quote (toMathExpr mExpr)
+  toMathExpr (CAS.QuoteFunction whnf) =
     case E.prettyFunctionName whnf of
       Just name -> Atom name []
       Nothing   -> Atom "f" []
-  toMathExpr (E.FunctionData (E.SingleTerm 1 [(E.Symbol _ s js, 1)]) _) = toMathExpr' js (Atom s [])
+  toMathExpr (CAS.FunctionData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(CAS.Symbol _ s js, 1)]]) _) = toMathExpr' js (Atom s [])
     where
       toMathExpr' [] acc = acc
       toMathExpr' (E.User x:js) (Partial e ps) =
@@ -127,7 +129,7 @@ instance ToMathExpr E.SymbolExpr where
       toMathExpr' (j:js) (Atom e is) =
         toMathExpr' js (Atom e (is ++ [toMathIndex j]))
       toMathExpr' _ _ = undefined -- TODO
-  toMathExpr (E.FunctionData name _) = toMathExpr name
+  toMathExpr (CAS.FunctionData name _) = toMathExpr name
 
 toMathIndex :: ToMathExpr a => E.Index a -> MathIndex
 toMathIndex (E.Sub x) = Sub (toMathExpr x)

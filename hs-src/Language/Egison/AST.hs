@@ -328,8 +328,8 @@ data PDPatternBase var
   | PDConsPat (PDPatternBase var) (PDPatternBase var)
   | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
-  -- ScalarData (MathExpr) primitive patterns
-  | PDDivPat (PDPatternBase var) (PDPatternBase var)        -- Div: ScalarData -> PolyExpr, PolyExpr
+  -- MathExpr primitive patterns
+  | PDDivPat (PDPatternBase var) (PDPatternBase var)        -- Div: MathExpr -> PolyExpr, PolyExpr
   | PDPlusPat (PDPatternBase var)                           -- Plus: PolyExpr -> [TermExpr]
   | PDTermPat (PDPatternBase var) (PDPatternBase var)       -- Term: TermExpr -> Integer, [(SymbolExpr, Integer)]
   | PDSymbolPat (PDPatternBase var) (PDPatternBase var)     -- Symbol: SymbolExpr -> String, [IndexExpr]

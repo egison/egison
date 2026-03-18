@@ -101,7 +101,7 @@ floatToIntegerOp = unaryOp
 -- Arith
 --
 
--- | Binary operation on CASValue (direct, no ScalarData conversion)
+-- | Binary operation on CASValue
 casBinaryOp :: (CASValue -> CASValue -> CASValue) -> String -> PrimitiveFunc
 casBinaryOp op = twoArgs casBinaryOp'
  where
@@ -136,7 +136,7 @@ denominator' = oneArg denominator''
 fromScalarData :: String -> PrimitiveFunc
 fromScalarData = oneArg fromScalarData'
  where
-  fromScalarData' (CASData c) = return $ mathExprToEgison (casValueToScalarData c)
+  fromScalarData' (CASData c) = return $ casValueToEgison c
   fromScalarData' val         = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
 toScalarData :: String -> PrimitiveFunc
@@ -161,7 +161,7 @@ integerCompare :: (forall a. Ord a => a -> a -> Bool) -> String -> PrimitiveFunc
 integerCompare cmp = twoArgs' $ \val1 val2 ->
   case (val1, val2) of
     (CASData _, CASData _) -> do
-      -- ScalarData pattern synonym handles the conversion
+      -- EgisonData instance handles the conversion
       r1 <- fromEgison val1 :: EvalM Rational
       r2 <- fromEgison val2 :: EvalM Rational
       return $ Bool (cmp r1 r2)

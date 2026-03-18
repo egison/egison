@@ -20,28 +20,19 @@ module Language.Egison.Data
     , EgisonData (..)
     , Tensor (..)
     , Shape
-    -- * Scalar (deprecated, use CAS versions)
-    , toScalarVal
-    , fromScalarVal
-    , symbolScalarData
-    , symbolScalarData'
+    -- * Symbol helpers
     , getSymId
-    , getSymName
-    , mathExprToEgison
-    , egisonToScalarData
-    , extractScalar
-    -- * CAS types and helpers (preferred)
+    -- * CAS types and helpers
     , CASValue(..)
     , CASTerm(..)
     , egisonToCASValue
     , extractCASValue
+    , casValueToEgison
     , symbolCASData
     , quoteCASData
     , quoteFunctionCASData
     , functionCASData
     , applyCASData
-    -- * Conversion (for backward compatibility)
-    , casValueToScalarData
     -- * Internal data
     , Object (..)
     , ObjectRef
@@ -111,7 +102,7 @@ data EgisonValue
   | Char Char
   | String Text
   | Bool Bool
-  | CASData CASValue  -- CAS type (replaces old ScalarData)
+  | CASData CASValue  -- Computer algebra system type (CAS)
   | TensorData (Tensor EgisonValue)
   | Float Double
   | InductiveData String [EgisonValue]
@@ -164,24 +155,10 @@ data Tensor a
 type Shape = [Integer]
 
 --
--- Scalars
+-- CAS Value Helpers
 --
 
--- | Convert ScalarData to EgisonValue (CASData wrapper)
-toScalarVal :: ScalarData -> EgisonValue
-toScalarVal = CASData . scalarDataToCASValue
-
--- | Extract ScalarData from EgisonValue (CASData unwrapper)
-fromScalarVal :: EgisonValue -> Maybe ScalarData
-fromScalarVal (CASData cv) = Just (casValueToScalarData cv)
-fromScalarVal _            = Nothing
-
-symbolScalarData :: String -> String -> EgisonValue
-symbolScalarData symId name = symbolCASData symId name
-
-symbolScalarData' :: String -> ScalarData
-symbolScalarData' name = SingleTerm 1 [(Symbol "" name [], 1)]
-
+-- | Extract symbol ID from a CAS symbol value
 getSymId :: EgisonValue -> String
 getSymId val = case val of
   CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId _ _, _)]]) -> symId
@@ -192,7 +169,7 @@ getSymName val = case val of
   CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ name [], 1)]]) -> name
   _ -> error "getSymName: not a symbol"
 
--- | Create a symbol CASValue directly (preferred over symbolScalarData)
+-- | Create a symbol CASValue
 symbolCASData :: String -> String -> EgisonValue
 symbolCASData symId name = CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name [], 1)]]
 
@@ -212,142 +189,67 @@ functionCASData sym args = CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Funct
 applyCASData :: CASValue -> [CASValue] -> EgisonValue
 applyCASData fn args = CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.makeApplyExpr fn args, 1)]]
 
-mathExprToEgison :: ScalarData -> EgisonValue
-mathExprToEgison (Div p1 p2) = InductiveData "Div" [polyExprToEgison p1, polyExprToEgison p2]
-
-polyExprToEgison :: PolyExpr -> EgisonValue
-polyExprToEgison (Plus ts) = InductiveData "Plus" [Collection (Sq.fromList (map termExprToEgison ts))]
-
-termExprToEgison :: TermExpr -> EgisonValue
-termExprToEgison (Term a xs) = InductiveData "Term" [toEgison a, Collection (Sq.fromList (map symbolExprToEgison xs))]
-
-symbolExprToEgison :: (SymbolExpr, Integer) -> EgisonValue
-symbolExprToEgison (Symbol symId x js, n) = Tuple [InductiveData "Symbol" [symbolCASData symId x, f js], toEgison n]
+-- | Convert CASValue to InductiveData representation (Div, Plus, Term, etc.)
+-- This is used by the `fromMathExpr` primitive for pattern matching
+casValueToEgison :: CASValue -> EgisonValue
+casValueToEgison cv = casValueToEgison' (CAS.casNormalize cv)
  where
-  f js' = Collection (Sq.fromList (map scalarIndexToEgison js'))
-symbolExprToEgison (Apply1 fn a1, n) = Tuple [InductiveData "Apply1" [scalarToCAS fn, scalarToCAS a1], toEgison n]
-symbolExprToEgison (Apply2 fn a1 a2, n) = Tuple [InductiveData "Apply2" [scalarToCAS fn, scalarToCAS a1, scalarToCAS a2], toEgison n]
-symbolExprToEgison (Apply3 fn a1 a2 a3, n) = Tuple [InductiveData "Apply3" [scalarToCAS fn, scalarToCAS a1, scalarToCAS a2, scalarToCAS a3], toEgison n]
-symbolExprToEgison (Apply4 fn a1 a2 a3 a4, n) = Tuple [InductiveData "Apply4" [scalarToCAS fn, scalarToCAS a1, scalarToCAS a2, scalarToCAS a3, scalarToCAS a4], toEgison n]
-symbolExprToEgison (Quote mExpr, n) = Tuple [InductiveData "Quote" [mathExprToEgison mExpr], toEgison n]
-symbolExprToEgison (QuoteFunction (Value funcVal), n) = Tuple [InductiveData "QuoteFunction" [funcVal], toEgison n]
-symbolExprToEgison (QuoteFunction whnf, n) = error $ "symbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
-symbolExprToEgison (FunctionData name args, n) =
-  Tuple [InductiveData "Function" [scalarToCAS name, Collection (Sq.fromList (map scalarToCAS args))], toEgison n]
+  casValueToEgison' (CAS.CASInteger n) =
+    InductiveData "Div"
+      [InductiveData "Plus" [Collection (Sq.fromList [InductiveData "Term" [toEgison n, Collection Sq.empty]])],
+       InductiveData "Plus" [Collection (Sq.fromList [InductiveData "Term" [toEgison (1::Integer), Collection Sq.empty]])]]
+  casValueToEgison' (CAS.CASFactor sym) =
+    InductiveData "Div"
+      [casPolyToEgison [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]],
+       InductiveData "Plus" [Collection (Sq.fromList [InductiveData "Term" [toEgison (1::Integer), Collection Sq.empty]])]]
+  casValueToEgison' (CAS.CASPoly ts) =
+    InductiveData "Div"
+      [casPolyToEgison ts,
+       InductiveData "Plus" [Collection (Sq.fromList [InductiveData "Term" [toEgison (1::Integer), Collection Sq.empty]])]]
+  casValueToEgison' (CAS.CASDiv num denom) =
+    InductiveData "Div" [casToPolyEgison num, casToPolyEgison denom]
 
--- | Helper: Convert ScalarData to CASData EgisonValue
-scalarToCAS :: ScalarData -> EgisonValue
-scalarToCAS = CASData . scalarDataToCASValue
+  casToPolyEgison (CAS.CASPoly ts) = casPolyToEgison ts
+  casToPolyEgison (CAS.CASInteger n) = casPolyToEgison [CAS.CASTerm (CAS.CASInteger n) []]
+  casToPolyEgison (CAS.CASFactor sym) = casPolyToEgison [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
+  casToPolyEgison (CAS.CASDiv _ _) = error "casToPolyEgison: unexpected CASDiv"
 
-scalarIndexToEgison :: Index ScalarData -> EgisonValue
-scalarIndexToEgison (Sup k)  = InductiveData "Sup"  [scalarToCAS k]
-scalarIndexToEgison (Sub k)  = InductiveData "Sub"  [scalarToCAS k]
-scalarIndexToEgison (User k) = InductiveData "User" [scalarToCAS k]
+  casPolyToEgison ts = InductiveData "Plus" [Collection (Sq.fromList (map casTermToEgison ts))]
 
--- Direct index conversion for primitive pattern matching
-indexToEgison :: Index CASValue -> EgisonValue
-indexToEgison = CASIndexData
+  casTermToEgison (CAS.CASTerm coeff mono) =
+    InductiveData "Term" [casCoeffToEgison coeff, Collection (Sq.fromList (map casSymbolToEgison mono))]
 
--- Implementation of 'toMathExpr' (Primitive function)
-egisonToScalarData :: EgisonValue -> EvalM ScalarData
-egisonToScalarData (InductiveData "Div" [p1, p2]) = Div <$> egisonToPolyExpr p1 <*> egisonToPolyExpr p2
-egisonToScalarData p1@(InductiveData "Plus" _) = Div <$> egisonToPolyExpr p1 <*> return (Plus [Term 1 []])
-egisonToScalarData t1@(InductiveData "Term" _) = do
-  t1' <- egisonToTermExpr t1
-  return $ Div (Plus [t1']) (Plus [Term 1 []])
-egisonToScalarData s1@(InductiveData "Symbol" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 ::Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Apply1" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Apply2" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Apply3" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Apply4" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Quote" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "QuoteFunction" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData s1@(InductiveData "Function" _) = do
-  s1' <- egisonToSymbolExpr (Tuple [s1, toEgison (1 :: Integer)])
-  return $ SingleTerm 1 [s1']
-egisonToScalarData (CASData cv) = return (casValueToScalarData cv)
-egisonToScalarData val = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+  casCoeffToEgison (CAS.CASInteger n) = toEgison n
+  casCoeffToEgison _ = error "casCoeffToEgison: non-integer coefficient"
 
-egisonToPolyExpr :: EgisonValue -> EvalM PolyExpr
-egisonToPolyExpr (InductiveData "Plus" [Collection ts]) = Plus <$> mapM egisonToTermExpr (toList ts)
-egisonToPolyExpr val                                    = throwErrorWithTrace (TypeMismatch "math poly expression" (Value val))
+  casSymbolToEgison (sym, n) = Tuple [casSymbolExprToEgison sym, toEgison n]
 
-egisonToTermExpr :: EgisonValue -> EvalM TermExpr
-egisonToTermExpr (InductiveData "Term" [n, Collection ts]) = Term <$> fromEgison n <*> mapM egisonToSymbolExpr (toList ts)
-egisonToTermExpr val                                       = throwErrorWithTrace (TypeMismatch "math term expression" (Value val))
+  casSymbolExprToEgison (CAS.Symbol symId name js) =
+    InductiveData "Symbol" [symbolCASData symId name, Collection (Sq.fromList (map casIndexToEgison js))]
+  casSymbolExprToEgison (CAS.Apply1 fn a1) =
+    InductiveData "Apply1" [CASData fn, CASData a1]
+  casSymbolExprToEgison (CAS.Apply2 fn a1 a2) =
+    InductiveData "Apply2" [CASData fn, CASData a1, CASData a2]
+  casSymbolExprToEgison (CAS.Apply3 fn a1 a2 a3) =
+    InductiveData "Apply3" [CASData fn, CASData a1, CASData a2, CASData a3]
+  casSymbolExprToEgison (CAS.Apply4 fn a1 a2 a3 a4) =
+    InductiveData "Apply4" [CASData fn, CASData a1, CASData a2, CASData a3, CASData a4]
+  casSymbolExprToEgison (CAS.Quote mExpr) =
+    InductiveData "Quote" [CASData mExpr]
+  casSymbolExprToEgison (CAS.QuoteFunction (Value funcVal)) =
+    InductiveData "QuoteFunction" [funcVal]
+  casSymbolExprToEgison (CAS.QuoteFunction whnf) =
+    error $ "casSymbolExprToEgison: QuoteFunction with non-Value WHNF: " ++ show whnf
+  casSymbolExprToEgison (CAS.FunctionData name args) =
+    InductiveData "Function" [CASData name, Collection (Sq.fromList (map (CASData) args))]
 
-egisonToSymbolExpr :: EgisonValue -> EvalM (SymbolExpr, Integer)
-egisonToSymbolExpr (Tuple [InductiveData "Symbol" [x, Collection seq], n]) = do
-  let js = toList seq
-  js' <- mapM egisonToScalarIndex js
-  n' <- fromEgison n
-  case x of
-    CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name [], 1)]]) ->
-      return (Symbol symId name js', n')
-    _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value x))
-egisonToSymbolExpr (Tuple [InductiveData "Apply1" [fn, a1], n]) = do
-  fn' <- extractScalar fn
-  a1' <- egisonToScalarData a1
-  n' <- fromEgison n
-  return (Apply1 fn' a1', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply2" [fn, a1, a2], n]) = do
-  fn' <- extractScalar fn
-  a1' <- egisonToScalarData a1
-  a2' <- egisonToScalarData a2
-  n' <- fromEgison n
-  return (Apply2 fn' a1' a2', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply3" [fn, a1, a2, a3], n]) = do
-  fn' <- extractScalar fn
-  a1' <- egisonToScalarData a1
-  a2' <- egisonToScalarData a2
-  a3' <- egisonToScalarData a3
-  n' <- fromEgison n
-  return (Apply3 fn' a1' a2' a3', n')
-egisonToSymbolExpr (Tuple [InductiveData "Apply4" [fn, a1, a2, a3, a4], n]) = do
-  fn' <- extractScalar fn
-  a1' <- egisonToScalarData a1
-  a2' <- egisonToScalarData a2
-  a3' <- egisonToScalarData a3
-  a4' <- egisonToScalarData a4
-  n' <- fromEgison n
-  return (Apply4 fn' a1' a2' a3' a4', n')
-egisonToSymbolExpr (Tuple [InductiveData "Quote" [mExpr], n]) = do
-  mExpr' <- egisonToScalarData mExpr
-  n' <- fromEgison n
-  return (Quote mExpr', n')
-egisonToSymbolExpr (Tuple [InductiveData "QuoteFunction" [funcVal], n]) = do
-  n' <- fromEgison n
-  return (QuoteFunction (Value funcVal), n')
-egisonToSymbolExpr (Tuple [InductiveData "Function" [name, Collection args], n]) = do
-  name' <- extractScalar name
-  args' <- mapM extractScalar (toList args)
-  n' <- fromEgison n
-  return (FunctionData name' args', n')
-egisonToSymbolExpr val = throwErrorWithTrace (TypeMismatch "math symbol expression" (Value val))
-
-egisonToScalarIndex :: EgisonValue -> EvalM (Index ScalarData)
-egisonToScalarIndex j = case j of
-  InductiveData "Sup"  [CASData cv] -> return (Sup (casValueToScalarData cv))
-  InductiveData "Sub"  [CASData cv] -> return (Sub (casValueToScalarData cv))
-  InductiveData "User" [CASData cv] -> return (User (casValueToScalarData cv))
-  _                                 -> throwErrorWithTrace (TypeMismatch "math symbol expression" (Value j))
+  casIndexToEgison (Sup k) = InductiveData "Sup" [CASData k]
+  casIndexToEgison (Sub k) = InductiveData "Sub" [CASData k]
+  casIndexToEgison (User k) = InductiveData "User" [CASData k]
+  casIndexToEgison _ = error "casIndexToEgison: unsupported index type"
 
 --
--- CASValue Conversion (InductiveData -> CASValue directly)
+-- CASValue Conversion (InductiveData <-> CASValue)
 --
 
 -- | Convert EgisonValue (InductiveData) to CASValue directly
@@ -465,14 +367,6 @@ extractCASValue :: EgisonValue -> EvalM CASValue
 extractCASValue (CASData cv) = return cv
 extractCASValue val          = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
 
---
--- Legacy ScalarData Conversion (for backward compatibility)
---
-
-extractScalar :: EgisonValue -> EvalM ScalarData
-extractScalar (CASData cv) = return (casValueToScalarData cv)
-extractScalar val          = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
-
 extractString :: EgisonValue -> EvalM String
 extractString (String t) = return (unpack t)
 extractString val        = throwErrorWithTrace (TypeMismatch "string" (Value val))
@@ -484,7 +378,7 @@ instance Show EgisonValue where
   show (String str) = ushow str
   show (Bool True) = "True"
   show (Bool False) = "False"
-  show (CASData cv) = show (casValueToScalarData cv)
+  show (CASData cv) = prettyCAS cv
   show (TensorData (Tensor [_] xs js)) = "[| " ++ intercalate ", " (map show (V.toList xs)) ++ " |]" ++ concatMap show js
   show (TensorData (Tensor [0, 0] _ js)) = "[| [|  |] |]" ++ concatMap show js
   show (TensorData (Tensor [_, j] xs js)) = "[| " ++ intercalate ", " (f (fromIntegral j) (V.toList xs)) ++ " |]" ++ concatMap show js
@@ -528,7 +422,7 @@ instance Show EgisonValue where
 isAtomic :: EgisonValue -> Bool
 isAtomic (InductiveData _ []) = True
 isAtomic (InductiveData _ _)  = False
-isAtomic (CASData cv)         = isAtom (casValueToScalarData cv)
+isAtomic (CASData cv)         = casIsAtom cv
 -- CAS internal types
 isAtomic (CASPolyData _)      = False
 isAtomic (CASTermData _)      = False

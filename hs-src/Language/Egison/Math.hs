@@ -5,7 +5,7 @@ Module      : Language.Egison.Math
 Licence     : MIT
 
 This module provides the interface of Egison's computer algebra system.
-The public API is based on CASValue. ScalarData is an internal implementation detail.
+This module provides the public API for Egison's computer algebra system based on CASValue.
 -}
 
 module Language.Egison.Math
@@ -23,6 +23,9 @@ module Language.Egison.Math
   , casDenominator
   , casNegate
   , casIsZero
+  , casIsAtom
+    -- ** Pretty printing
+  , prettyCAS
     -- ** CAS Pattern Synonyms
   , pattern CASZero
   , pattern CASSingleSymbol
@@ -57,24 +60,9 @@ module Language.Egison.Math
   , casZeroM
   , casSingleTerm
   , casSingleTermM
-    -- * Internal types (needed for InductiveData conversion)
-  , ScalarData (..)
-  , PolyExpr (..)
-  , TermExpr (..)
-  , E.Monomial
-  , E.SymbolExpr (..)
-  , E.Printable (..)
-  , pattern ZeroExpr
-  , pattern SingleSymbol
-  , pattern SingleTerm
-    -- * Conversion functions
-  , scalarDataToCASValue
-  , casValueToScalarData
   ) where
 
 import           Language.Egison.Math.CAS hiding (SymbolExpr(..), Monomial, makeApplyExpr)
-import qualified Language.Egison.Math.Expr as E
-import           Language.Egison.Math.Expr (ScalarData(..), PolyExpr(..), TermExpr(..), pattern ZeroExpr, pattern SingleSymbol, pattern SingleTerm)
 import qualified Language.Egison.Math.Rewrite as R
 
 -- | Apply rewrite rules to a CASValue (CAS version of rewriteSymbol)

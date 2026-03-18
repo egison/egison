@@ -9,16 +9,12 @@ Uses CASValue as the primary representation.
 -}
 
 module Language.Egison.Math.Rewrite
-  ( -- * CASValue rewrite (primary API)
-    casRewriteSymbol
-  -- * ScalarData rewrite (backward compatible, deprecated)
-  , rewriteSymbol
+  ( casRewriteSymbol
   ) where
 
 import           Control.Egison
 
 import           Language.Egison.Math.CAS
-import           Language.Egison.Math.Expr (ScalarData)
 import           Language.Egison.Math.Normalize (casDivideTerm)
 import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
@@ -38,10 +34,6 @@ casRewriteSymbol =
     , casRewriteRtu
     , casRewriteDd
     ]
-
--- | Apply rewrite rules to ScalarData (via conversion, deprecated)
-rewriteSymbol :: ScalarData -> ScalarData
-rewriteSymbol = casValueToScalarData . casRewriteSymbol . scalarDataToCASValue
 
 
 -- | Helper: Map a function over all terms in a CASValue

@@ -1603,7 +1603,7 @@ inferIExprWithContext expr ctx = case expr of
               resultType'' <- applySubstWithConstraintsM s resultType'
               return (resultType'', allBindings, s)
         
-        -- ScalarData (MathExpr) primitive patterns
+        -- MathExpr primitive patterns
         PDDivPat patNum patDen -> do
           -- Div: MathExpr -> PolyExpr, PolyExpr
           -- However, if pattern is a pattern variable, it gets MathExpr (auto-conversion)
@@ -2828,7 +2828,7 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDConstantPat c) = do
       ty <- inferConstant c
       return (ty, emptySubst)
-    -- ScalarData primitive patterns
+    -- MathExpr primitive patterns
     inferPatternType (PDDivPat _ _) = return (TMathExpr, emptySubst)
     inferPatternType (PDPlusPat _) = return (TPolyExpr, emptySubst)
     inferPatternType (PDTermPat _ _) = return (TTermExpr, emptySubst)
@@ -2916,7 +2916,7 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
     inferPatternType (PDConstantPat c) = do
       ty <- inferConstant c
       return (ty, emptySubst)
-    -- ScalarData primitive patterns
+    -- MathExpr primitive patterns
     inferPatternType (PDDivPat _ _) = return (TMathExpr, emptySubst)
     inferPatternType (PDPlusPat _) = return (TPolyExpr, emptySubst)
     inferPatternType (PDTermPat _ _) = return (TTermExpr, emptySubst)
@@ -3040,7 +3040,7 @@ extractIBindingsFromPattern pat ty = case pat of
     case ty of
       TCollection elemTy -> extractIBindingsFromPattern p1 ty ++ extractIBindingsFromPattern p2 elemTy
       _ -> []
-  -- ScalarData primitive patterns
+  -- MathExpr primitive patterns
   PDDivPat p1 p2 ->
     let polyExprTy = TPolyExpr
         mathExprTy = TMathExpr

@@ -44,6 +44,9 @@ module Language.Egison.Math.CAS
     , casNormalizePoly
     -- * Predicates
     , casIsZero
+    , casIsAtom
+    -- * Pretty printing
+    , prettyCAS
     -- * GCD operations
     , casGcd
     , casTermsGcd
@@ -81,13 +84,6 @@ module Language.Egison.Math.CAS
     , casZeroM
     , casSingleTerm
     , casSingleTermM
-    -- * Conversion from/to ScalarData (for migration)
-    , scalarDataToCASValue
-    , casValueToScalarData
-    , oldSymbolExprToNew
-    , newSymbolExprToOld
-    , oldMonomialToNew
-    , newMonomialToOld
     ) where
 
 import           Data.List (sortBy, groupBy)
@@ -99,8 +95,6 @@ import           Control.Monad (MonadPlus (..))
 
 import           Language.Egison.IExpr (Index (..))
 import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
-import qualified Language.Egison.Math.Expr as OldExpr
-import           Language.Egison.Math.Expr (ScalarData(..), PolyExpr(..), TermExpr(..))
 
 -- | CASValue represents mathematical values in the CAS.
 -- The structure is compositional: each constructor has a well-defined semantics.
@@ -131,7 +125,7 @@ type Monomial = [(SymbolExpr, Integer)]
 type Id = String
 
 -- | SymbolExpr represents atomic symbolic expressions in the CAS.
--- NOTE: This uses CASValue instead of ScalarData for full integration with the new CAS system.
+-- NOTE: SymbolExpr uses CASValue for function arguments (Apply1-4, Quote, FunctionData).
 data SymbolExpr
   = Symbol Id String [Index CASValue]
   | Apply1 CASValue CASValue
@@ -257,6 +251,17 @@ casIsOne :: CASValue -> Bool
 casIsOne (CASInteger 1)                     = True
 casIsOne (CASPoly [CASTerm (CASInteger 1) []]) = True
 casIsOne _                                  = False
+
+-- | Check if a CASValue is atomic (no parentheses needed for display)
+-- Returns True for atomic values that don't need parentheses for display
+casIsAtom :: CASValue -> Bool
+casIsAtom (CASInteger _) = True
+casIsAtom (CASFactor _)  = True
+casIsAtom (CASPoly [])   = True   -- Zero
+casIsAtom (CASPoly [CASTerm _ []])  = True   -- Integer only
+casIsAtom (CASPoly [CASTerm (CASInteger 1) [_]]) = True  -- Single symbol with coeff 1
+casIsAtom (CASDiv num (CASPoly [CASTerm (CASInteger 1) []])) = casIsAtom num  -- n/1 = n
+casIsAtom _ = False
 
 --------------------------------------------------------------------------------
 -- Arithmetic Operations
@@ -566,90 +571,6 @@ divideTermBy (CASTerm coeff1 mono1) (CASTerm coeff2 mono2) =
     divMono m ((sym, expo):rest) =
       let m' = map (\(s, e) -> if s == sym then (s, e - expo) else (s, e)) m
       in divMono m' rest
-
---------------------------------------------------------------------------------
--- Conversion Functions (for migration from ScalarData)
---------------------------------------------------------------------------------
-
--- | Convert old SymbolExpr (with ScalarData) to new SymbolExpr (with CASValue)
-oldSymbolExprToNew :: OldExpr.SymbolExpr -> SymbolExpr
-oldSymbolExprToNew (OldExpr.Symbol id name indices) =
-  Symbol id name (map (fmap scalarDataToCASValue) indices)
-oldSymbolExprToNew (OldExpr.Apply1 f a) =
-  Apply1 (scalarDataToCASValue f) (scalarDataToCASValue a)
-oldSymbolExprToNew (OldExpr.Apply2 f a b) =
-  Apply2 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b)
-oldSymbolExprToNew (OldExpr.Apply3 f a b c) =
-  Apply3 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b) (scalarDataToCASValue c)
-oldSymbolExprToNew (OldExpr.Apply4 f a b c d) =
-  Apply4 (scalarDataToCASValue f) (scalarDataToCASValue a) (scalarDataToCASValue b) (scalarDataToCASValue c) (scalarDataToCASValue d)
-oldSymbolExprToNew (OldExpr.Quote s) = Quote (scalarDataToCASValue s)
-oldSymbolExprToNew (OldExpr.QuoteFunction whnf) = QuoteFunction whnf
-oldSymbolExprToNew (OldExpr.FunctionData f args) =
-  FunctionData (scalarDataToCASValue f) (map scalarDataToCASValue args)
-
--- | Convert new SymbolExpr (with CASValue) to old SymbolExpr (with ScalarData)
-newSymbolExprToOld :: SymbolExpr -> OldExpr.SymbolExpr
-newSymbolExprToOld (Symbol id name indices) =
-  OldExpr.Symbol id name (map (fmap casValueToScalarData) indices)
-newSymbolExprToOld (Apply1 f a) =
-  OldExpr.Apply1 (casValueToScalarData f) (casValueToScalarData a)
-newSymbolExprToOld (Apply2 f a b) =
-  OldExpr.Apply2 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b)
-newSymbolExprToOld (Apply3 f a b c) =
-  OldExpr.Apply3 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b) (casValueToScalarData c)
-newSymbolExprToOld (Apply4 f a b c d) =
-  OldExpr.Apply4 (casValueToScalarData f) (casValueToScalarData a) (casValueToScalarData b) (casValueToScalarData c) (casValueToScalarData d)
-newSymbolExprToOld (Quote s) = OldExpr.Quote (casValueToScalarData s)
-newSymbolExprToOld (QuoteFunction whnf) = OldExpr.QuoteFunction whnf
-newSymbolExprToOld (FunctionData f args) =
-  OldExpr.FunctionData (casValueToScalarData f) (map casValueToScalarData args)
-
--- | Convert old Monomial to new Monomial
-oldMonomialToNew :: OldExpr.Monomial -> Monomial
-oldMonomialToNew = map (\(sym, exp) -> (oldSymbolExprToNew sym, exp))
-
--- | Convert new Monomial to old Monomial
-newMonomialToOld :: Monomial -> OldExpr.Monomial
-newMonomialToOld = map (\(sym, exp) -> (newSymbolExprToOld sym, exp))
-
--- | Convert ScalarData to CASValue
--- This is used during the migration period to convert existing code
-scalarDataToCASValue :: ScalarData -> CASValue
-scalarDataToCASValue (Div num denom) =
-  casNormalize $ CASDiv (polyExprToCASValue num) (polyExprToCASValue denom)
-
--- | Convert PolyExpr to CASValue (as a polynomial)
-polyExprToCASValue :: PolyExpr -> CASValue
-polyExprToCASValue (Plus []) = CASPoly []
-polyExprToCASValue (Plus terms) = CASPoly (map termExprToCAS terms)
-
--- | Convert TermExpr to CASTerm
-termExprToCAS :: TermExpr -> CASTerm
-termExprToCAS (Term coeff mono) = CASTerm (CASInteger coeff) (oldMonomialToNew mono)
-
--- | Convert CASValue back to ScalarData
--- This is needed for compatibility with code that still uses ScalarData
-casValueToScalarData :: CASValue -> ScalarData
-casValueToScalarData (CASInteger n) =
-  if n == 0
-    then Div (Plus []) (Plus [Term 1 []])
-    else Div (Plus [Term n []]) (Plus [Term 1 []])
-casValueToScalarData (CASFactor sym) =
-  Div (Plus [Term 1 [(newSymbolExprToOld sym, 1)]]) (Plus [Term 1 []])
-casValueToScalarData (CASPoly terms) =
-  Div (Plus (map casTermToTermExpr terms)) (Plus [Term 1 []])
-casValueToScalarData (CASDiv num denom) =
-  let Div numPoly _ = casValueToScalarData num
-      Div denomPoly _ = casValueToScalarData denom
-  in Div numPoly denomPoly
-
--- | Convert CASTerm to TermExpr
--- Note: This only works for terms with CASInteger coefficients
-casTermToTermExpr :: CASTerm -> TermExpr
-casTermToTermExpr (CASTerm (CASInteger coeff) mono) = Term coeff (newMonomialToOld mono)
-casTermToTermExpr (CASTerm _ _) =
-  error "casTermToTermExpr: non-integer coefficient (nested polynomials not supported in ScalarData)"
 
 --------------------------------------------------------------------------------
 -- Pattern Synonyms for CASValue
