@@ -34,8 +34,8 @@ strictPrimitives =
   , ("f./", floatBinaryOp (/))
   , ("numerator",       numerator')
   , ("denominator",     denominator')
-  , ("fromMathExpr",    fromScalarData)
-  , ("toMathExpr'",     toScalarData)
+  , ("fromMathExpr",    fromMathExpr)
+  , ("toMathExpr'",     toMathExpr)
   , ("symbolNormalize", symbolNormalize)
 
   , ("i.modulo",   integerBinaryOp mod)
@@ -133,14 +133,14 @@ denominator' = oneArg denominator''
   denominator'' (CASData c) = return $ CASData (casDenominator c)
   denominator'' val         = throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
-fromScalarData :: String -> PrimitiveFunc
-fromScalarData = oneArg fromScalarData'
+fromMathExpr :: String -> PrimitiveFunc
+fromMathExpr = oneArg fromMathExpr'
  where
-  fromScalarData' (CASData c) = return $ casValueToEgison c
-  fromScalarData' val         = throwErrorWithTrace (TypeMismatch "number" (Value val))
+  fromMathExpr' (CASData c) = return $ casValueToEgison c
+  fromMathExpr' val         = throwErrorWithTrace (TypeMismatch "number" (Value val))
 
-toScalarData :: String -> PrimitiveFunc
-toScalarData = oneArg $ \val -> do
+toMathExpr :: String -> PrimitiveFunc
+toMathExpr = oneArg $ \val -> do
   cv <- egisonToCASValue val
   return $ CASData (casNormalize cv)
 
