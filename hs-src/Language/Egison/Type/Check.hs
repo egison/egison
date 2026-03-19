@@ -97,8 +97,6 @@ builtinTypes = concat
       , ("numerator", unaryOp TInt TInt)
       , ("denominator", unaryOp TInt TInt)
       -- MathExpr operations
-      , ("fromMathExpr", unaryOp TInt (TInductive "MathExpr'" []))
-      , ("toMathExpr'", unaryOp (TInductive "MathExpr'" []) TInt)
       , ("symbolNormalize", unaryOp TInt TInt)
       -- Integer operations
       , ("i.modulo", binOp TInt TInt TInt)

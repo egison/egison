@@ -1027,111 +1027,82 @@ ScalarData は完全に削除された。
 
 この変換オーバーヘッドを排除し、`CASData` に直接マッチできるプリミティブパターンを実装する。
 
-#### Step 1: 基盤整備（Core.hs の拡張）
+#### Step 1: 基盤整備（Core.hs の拡張）**完了**
 
-- [ ] `PDDivPat` の改善 — 抽出した分子・分母を `CASData CASValue` として返す
+- [x] `PDDivPat` の改善 — 抽出した分子・分母を `CASData CASValue` として返す
   - 現状: `CASPolyData` や `CASTermData` などの中間型を使用
   - 目標: すべてのコンポーネントを `CASData` として統一
-- [ ] `PDPlusPat` の改善 — `CASData (CASPoly terms)` から直接項リストを抽出
+- [x] `PDPlusPat` の改善 — `CASData (CASPoly terms)` から直接項リストを抽出
   - 抽出された各項も `CASData (CASPoly [term])` として返す
-- [ ] `PDTermPat` の改善 — `CASData` から直接係数とモノミアルを抽出
+- [x] `PDTermPat` の改善 — `CASData` から直接係数とモノミアルを抽出
   - 係数: `CASData coeff`
   - モノミアル: `[(CASData symbol, Integer)]` のリスト
-- [ ] `PDSymbolPat`, `PDApply1Pat` 等の改善 — シンボル情報を `CASData` として抽出
-- [ ] 中間型 `CASPolyData`, `CASTermData`, `CASSymbolData`, `CASIndexData` の削除
+- [x] `PDSymbolPat`, `PDApply1Pat` 等の改善 — シンボル情報を `CASData` として抽出
+- [x] 中間型 `CASPolyData`, `CASTermData`, `CASSymbolData` の削除（`CASIndexData` は PDSubPat/PDSupPat/PDUserPat で継続使用）
   - すべて `CASData CASValue` に統一
 
-#### Step 2: マッチャー定義の更新（lib/math/expression.egi）
+#### Step 2: マッチャー定義の更新（lib/math/expression.egi）**完了（変更不要）**
 
-- [ ] `mathExpr` マッチャーを `CASData` 直接マッチに更新
-  ```egison
-  def mathExpr : Matcher MathExpr :=
-    matcher
-      | div $ $ as (mathExpr, mathExpr) with
-          -- CASData に直接マッチ（InductiveData への変換不要）
-          | $tgt -> [(numerator tgt, denominator tgt)]
-      | poly $ as (multiset mathExpr) with
-          | $tgt -> [terms tgt]
-      | term $ $ as (integer, assocMultiset mathExpr) with
-          | $tgt -> [(coefficient tgt, monomials tgt)]
-      | symbol $ $ as (something, list indexExpr) with
-          | $tgt -> [(symbolName tgt, indices tgt)]
-      -- ...
-  ```
-- [ ] `indexExpr` マッチャーを `CASData` 直接マッチに更新
-- [ ] `inductive pattern MathExpr` 宣言の見直し
-  - プリミティブパターンで処理するため、InductiveData 宣言が不要になる可能性
+- [x] `mathExpr` マッチャーは既に `CASData` 直接マッチで動作
+  - `inductive pattern MathExpr` 宣言がパターン構文を定義
+  - Core.hs のプリミティブパターン（`PDDivPat` 等）が `CASData` を直接処理
+  - マッチ結果は `CASData` として返される（変換不要）
+- [x] `indexExpr` マッチャーは既に `CASData` で動作（変更不要）
+- [x] `inductive pattern MathExpr` 宣言 — プリミティブパターンの構文定義として必要（保持）
 
-#### Step 3: プリミティブ関数の削除・簡略化
+#### Step 3: プリミティブ関数の削除・簡略化 **完了**
 
-- [ ] `fromMathExpr` プリミティブの削除
+- [x] `fromMathExpr` プリミティブの削除（`Primitives/Arith.hs`）
   - プリミティブパターンで直接マッチできるため不要
-- [ ] `toMathExpr` プリミティブの削除
+- [x] `toMathExpr'` プリミティブの削除（`Primitives/Arith.hs`）
   - パターンマッチ結果が `CASData` で返されるため不要
-- [ ] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を内部用に限定
-  - 外部 API としてはエクスポートしない
+- [x] `toMathExpr` 関数の削除（`lib/math/common/arithmetic.egi`）
+- [x] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を完全削除
+  - プリミティブパターンで直接マッチするため不要になった
 
-#### Step 4: 基本テストと検証
+#### Step 4: 基本テストと検証 **完了**
 
-- [ ] `mini-test/` に primitive pattern テストを追加
-  ```egison
-  -- 直接マッチのテスト
-  match (x + 1) as mathExpr with
-    | poly ($t :: _) -> t  -- CASData として取得
-
-  -- 変換なしで演算可能
-  match (x^2 + 2*x + 1) as mathExpr with
-    | poly ($t1 :: $t2 :: $t3 :: []) -> t1 + t2 + t3
-  ```
-- [ ] 既存テスト（`cabal test`）が引き続き動作することを確認
+- [x] `mini-test/50-primitive-pattern.egi` にプリミティブパターンテストを追加
+  - `div` パターン、`poly` パターン、`term` パターン、`symbol` パターン
+  - `apply1` パターン、ネストしたパターン、演算テスト
+- [x] 既存テスト（`cabal test`）が引き続き動作することを確認（21テスト全てパス）
 - [ ] パフォーマンス比較（変換あり vs 直接マッチ）
 
-#### Step 5: ライブラリコードの移行（lib/math/*.egi）
+#### Step 5: ライブラリコードの移行（lib/math/*.egi）**完了（移行不要）**
 
-- [ ] `lib/math/expression.egi` の関数を新しいパターンマッチに移行
-  - `mapPolys`, `fromPoly`, `mapPoly`, `mapTerms`, `mapSymbols`
-  - `scanAllTerms`, `containSymbol`, `containFunction1` 等
-  - `substitute`, `substitute'`, `rewriteSymbol`
-  - `expandAll`, `expandAll'`
-  - `coefficients`, `coefficient`, `coefficient'`
-- [ ] `lib/math/algebra/*.egi` の移行
-  - 代数演算関連の関数
-- [ ] `lib/math/analysis/*.egi` の移行
-  - 微分積分関連の関数
-- [ ] `lib/math/geometry/*.egi` の移行
-  - 幾何学関連の関数
-- [ ] 各ファイルで `fromMathExpr`/`toMathExpr` の呼び出しを削除
+- [x] 確認: `fromMathExpr`/`toMathExpr` はライブラリコードで使用されていない
+  - マッチャー定義は既にプリミティブパターンを使用している
+  - 明示的な変換呼び出しは不要
+- [x] 全テスト（`cabal test`）がパスすることを確認
 
-#### Step 6: サンプルコードの移行（sample/*.egi）
+#### Step 6: サンプルコードの移行（sample/*.egi）**完了（移行不要）**
 
-- [ ] `sample/math/algebra/*.egi` の移行
-- [ ] `sample/math/analysis/*.egi` の移行
-- [ ] `sample/math/geometry/*.egi` の移行
-- [ ] `sample/math/number/*.egi` の移行
-- [ ] `sample/physics/*.egi` の移行
-- [ ] 移行後のサンプルが正しく動作することを確認
+- [x] 確認: `fromMathExpr`/`toMathExpr` はサンプルコードで使用されていない
+- [x] 全サンプル（数学関連）が正しく動作することを確認（Riemann tensor等）
 
-#### Step 7: レガシーコードの完全削除
+#### Step 7: レガシーコードの完全削除 **完了**
 
-- [ ] `Primitives/Arith.hs` から `fromMathExpr`, `toMathExpr` を削除
-- [ ] `Data.hs` から以下を削除または非公開化
-  - `casValueToEgison` — 削除（外部から呼び出されなくなる）
-  - `egisonToCASValue` — 削除（外部から呼び出されなくなる）
-  - `CASPolyData`, `CASTermData`, `CASSymbolData`, `CASIndexData` — 削除
-- [ ] `Core.hs` から中間型関連のパターンマッチコードを削除
-- [ ] `AST.hs` の `PDPatternBase` から不要なコンストラクタを整理（必要に応じて）
-- [ ] `lib/math/expression.egi` から `inductive pattern MathExpr` 宣言を削除
-  - プリミティブパターンで完全に置き換わるため不要
-- [ ] `lib/math/expression.egi` から `inductive pattern IndexExpr` 宣言を削除
+- [x] `Primitives/Arith.hs` から `fromMathExpr`, `toMathExpr'` を削除
+- [x] `Type/Check.hs` から対応する型シグネチャを削除
+- [x] `Data.hs` から `CASPolyData`, `CASTermData`, `CASSymbolData` を削除（`CASIndexData` は継続使用）
+- [x] `Core.hs` から中間型関連のパターンマッチコード（後方互換性コード）を削除
+- [x] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を完全削除
+- **保持するもの**:
+  - `inductive pattern MathExpr` 宣言 — パターン構文の定義に必要（削除不可）
+  - `inductive pattern IndexExpr` 宣言 — インデックスパターンの定義に必要（削除不可）
+  - `CASIndexData` — `PDSubPat`/`PDSupPat`/`PDUserPat` で継続使用
 
-#### Step 8: 最終検証とドキュメント
+#### Step 8: 最終検証とドキュメント **完了**
 
-- [ ] 全テストスイート（`cabal test`）がパスすることを確認
-- [ ] `mini-test/` の全テストがパスすることを確認
-- [ ] `sample/` の全サンプルが正しく動作することを確認
-- [ ] `design/type-cas.md` の関連セクションを更新
-  - 「EgisonValue との統合」セクションの内容を現状に合わせる
-  - 「CASValue のパターンマッチ」セクションの内容を更新
+- [x] 全テストスイート（`cabal test`）がパスすることを確認（21テスト全てパス）
+- [x] `mini-test/50-primitive-pattern.egi` がパスすることを確認
+- [x] `sample/` の数学関連サンプルが正しく動作することを確認
+  - `riemann-curvature-tensor-of-S2.egi`
+  - `riemann-curvature-tensor-of-T2.egi`
+  - `curvature-form.egi`
+  - `hodge-laplacian-polar.egi`
+  - `17th-root-of-unity.egi`
+- [x] `design/type-cas.md` の関連セクションを更新（本ファイル）
 
 #### 設計上の考慮点
 

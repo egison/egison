@@ -5,8 +5,6 @@
 --
 declare symbol i, w, e, π: MathExpr
 
-def toMathExpr {a} (arg: a) : MathExpr := mathNormalize (toMathExpr' arg)
-
 def (+') : MathExpr -> MathExpr -> MathExpr := i.+
 def (-') : MathExpr -> MathExpr -> MathExpr := i.-
 def (*') : MathExpr -> MathExpr -> MathExpr := i.*
