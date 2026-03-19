@@ -1071,7 +1071,7 @@ ScalarData は完全に削除された。
 - [ ] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を内部用に限定
   - 外部 API としてはエクスポートしない
 
-#### Step 4: テストと検証
+#### Step 4: 基本テストと検証
 
 - [ ] `mini-test/` に primitive pattern テストを追加
   ```egison
@@ -1083,8 +1083,55 @@ ScalarData は完全に削除された。
   match (x^2 + 2*x + 1) as mathExpr with
     | poly ($t1 :: $t2 :: $t3 :: []) -> t1 + t2 + t3
   ```
-- [ ] 既存テスト（`lib/math/` 系）が引き続き動作することを確認
+- [ ] 既存テスト（`cabal test`）が引き続き動作することを確認
 - [ ] パフォーマンス比較（変換あり vs 直接マッチ）
+
+#### Step 5: ライブラリコードの移行（lib/math/*.egi）
+
+- [ ] `lib/math/expression.egi` の関数を新しいパターンマッチに移行
+  - `mapPolys`, `fromPoly`, `mapPoly`, `mapTerms`, `mapSymbols`
+  - `scanAllTerms`, `containSymbol`, `containFunction1` 等
+  - `substitute`, `substitute'`, `rewriteSymbol`
+  - `expandAll`, `expandAll'`
+  - `coefficients`, `coefficient`, `coefficient'`
+- [ ] `lib/math/algebra/*.egi` の移行
+  - 代数演算関連の関数
+- [ ] `lib/math/analysis/*.egi` の移行
+  - 微分積分関連の関数
+- [ ] `lib/math/geometry/*.egi` の移行
+  - 幾何学関連の関数
+- [ ] 各ファイルで `fromMathExpr`/`toMathExpr` の呼び出しを削除
+
+#### Step 6: サンプルコードの移行（sample/*.egi）
+
+- [ ] `sample/math/algebra/*.egi` の移行
+- [ ] `sample/math/analysis/*.egi` の移行
+- [ ] `sample/math/geometry/*.egi` の移行
+- [ ] `sample/math/number/*.egi` の移行
+- [ ] `sample/physics/*.egi` の移行
+- [ ] 移行後のサンプルが正しく動作することを確認
+
+#### Step 7: レガシーコードの完全削除
+
+- [ ] `Primitives/Arith.hs` から `fromMathExpr`, `toMathExpr` を削除
+- [ ] `Data.hs` から以下を削除または非公開化
+  - `casValueToEgison` — 削除（外部から呼び出されなくなる）
+  - `egisonToCASValue` — 削除（外部から呼び出されなくなる）
+  - `CASPolyData`, `CASTermData`, `CASSymbolData`, `CASIndexData` — 削除
+- [ ] `Core.hs` から中間型関連のパターンマッチコードを削除
+- [ ] `AST.hs` の `PDPatternBase` から不要なコンストラクタを整理（必要に応じて）
+- [ ] `lib/math/expression.egi` から `inductive pattern MathExpr` 宣言を削除
+  - プリミティブパターンで完全に置き換わるため不要
+- [ ] `lib/math/expression.egi` から `inductive pattern IndexExpr` 宣言を削除
+
+#### Step 8: 最終検証とドキュメント
+
+- [ ] 全テストスイート（`cabal test`）がパスすることを確認
+- [ ] `mini-test/` の全テストがパスすることを確認
+- [ ] `sample/` の全サンプルが正しく動作することを確認
+- [ ] `design/type-cas.md` の関連セクションを更新
+  - 「EgisonValue との統合」セクションの内容を現状に合わせる
+  - 「CASValue のパターンマッチ」セクションの内容を更新
 
 #### 設計上の考慮点
 
@@ -1093,9 +1140,10 @@ ScalarData は完全に削除された。
 - 型安全性の向上（`CASData` のまま操作）
 - コードの簡潔化（`fromMathExpr`/`toMathExpr` の呼び出し不要）
 
-**後方互換性**:
-- 既存の `InductiveData` ベースのコードは引き続き動作させる
-- 段階的な移行パスを提供
+**移行戦略**:
+- Step 1-4: 新しいプリミティブパターンを実装し、既存コードと並行して動作確認
+- Step 5-6: ライブラリとサンプルコードを段階的に移行
+- Step 7-8: レガシーコードを完全削除し、移行を完了
 
 **パターンの種類**:
 | パターン | 対象 | 抽出内容 |
