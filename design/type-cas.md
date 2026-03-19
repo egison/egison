@@ -955,12 +955,12 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `Primitives/Arith.hs` を CAS API を使用するよう更新
 - [x] `Data.hs` の `EgisonData Rational` インスタンスを CAS API を使用するよう更新
 
-#### Step 4: 変換関数と旧型の削除（進行中）
+#### Step 4: 変換関数と旧型の削除（完了）
 
-**現状（2024年）:**
-- `CASData` と `ScalarData` が並存
-- 外部 API は `CASValue` ベースに移行済み
-- `Math/` 内部モジュールは引き続き `ScalarData` を使用
+**現状:**
+- `ScalarData` を完全に削除し、`CASData CASValue` に統一
+- 外部 API および内部モジュールすべてが `CASValue` ベースに移行完了
+- `Math/Expr.hs` を削除し、旧型定義を完全に除去
 
 **完了した作業:**
 - [x] `Primitives/Arith.hs` - `CASData` パターンで直接マッチング
@@ -978,19 +978,21 @@ ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...]
 - [x] `casNormalize'` を削除し、`casNormalize` に統一
 - [x] `Math.hs` から非推奨関数のエクスポートを削除
 
-**ScalarData の現在の役割:**
-ScalarData は後方互換性のため維持される。主な用途:
-1. `Math/Normalize.hs` と `Math/Rewrite.hs` での旧関数（後方互換用）
-2. プリミティブ関数 `fromMathExpr` の出力形式
-3. 一部の型定義（`Math/Expr.hs`）
+**ScalarData の削除完了:**
+ScalarData は完全に削除された。
+- `Math/Expr.hs` を削除し、旧 `ScalarData`, `PolyExpr`, `TermExpr`, `SymbolExpr` 型を完全に除去
+- プリミティブ関数名を `fromScalarData` → `fromMathExpr`, `toScalarData` → `toMathExpr` に変更
+- 変換関数 `scalarDataToCASValue`, `casValueToScalarData` 等を削除
+- 全参照箇所を `CASValue` ベースに移行完了
 
-**CASValue への完全移行:**
-- 公開 API は CASValue ベースに統一済み
+**CASValue への完全移行（完了）:**
+- 公開 API は CASValue ベースに統一
 - `Math/Normalize.hs` - CASValue 版の `casDivideTerm` を追加
 - `Math/Rewrite.hs` - `casRewriteSymbol` が CASValue を直接操作
 - `Data.hs` - `egisonToCASValue` で InductiveData から直接変換
+- `Math/Expr.hs` - 削除済み（旧 ScalarData, PolyExpr, TermExpr を完全に除去）
 
-**将来の最適化（オプション）:**
+**完了した最適化:**
 - [x] `Math/Normalize.hs` を CASValue パターンマッチングに書き換え
   - `casDivideTerm` 関数を追加（CASValue 版の除算）
   - 旧 ScalarData 版の関数は後方互換性のため維持
@@ -999,7 +1001,9 @@ ScalarData は後方互換性のため維持される。主な用途:
   - 旧 `rewriteSymbol` は変換経由で維持
 - [x] InductiveData を直接 CASValue に変換（ScalarData を経由しない）
   - `egisonToCASValue` 関数を Data.hs に追加
-- [ ] `Math/Expr.hs` から `ScalarData`, `PolyExpr`, `TermExpr` を削除（後方互換性のため保留）
+- [x] `Math/Expr.hs` を削除（`ScalarData`, `PolyExpr`, `TermExpr`, 旧 `SymbolExpr` を完全に除去）
+  - `egison.cabal` から `Language.Egison.Math.Expr` モジュールを削除
+  - 全21テストがパス
 
 #### Step 5: テスト（完了）
 
