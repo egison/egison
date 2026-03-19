@@ -913,13 +913,13 @@ Egison の設計は以下の点で異なる。
   - `hs-src/Language/Egison/Type/Join.hs` を新規作成
   - `joinTypes`, `isSubtype`, `symbolSetSubset` 関数を実装
 - [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
-  - 基盤は整備済み。型チェッカーへの統合は Phase 2.5 として後続実装予定
+  - 基盤は整備済み。型チェッカーへの統合は Phase 6 として後続実装予定
 - [x] 開いた `[..]` のフレッシュ型変数への脱糖
   - `hs-src/Language/Egison/Type/Infer.hs` に `freshenOpenSymbolSets` 関数を追加
   - `SymbolSetOpen` を `SymbolSetVar` に変換し、各出現ごとにフレッシュな型変数を生成
   - `unifySymbolSets` でサブセットチェックを実装（`[x] ⊆ [x, y]` の判定）
 
-### Phase 2.1: ScalarData の CASValue 置換（機械的移行）
+### Phase 3: ScalarData の CASValue 置換（完了）
 
 **重要な洞察**: `ScalarData = Div PolyExpr PolyExpr` は `CASDiv (CASPoly [..]) (CASPoly [..])` と1対1対応する。この対応を利用して機械的に置換できる。
 
@@ -1014,9 +1014,113 @@ ScalarData は完全に削除された。
 - [x] ネスト除算 `1/(5/2) = 2/5` の正規化が正しく動作
 - [x] 連分数テスト（`regularContinuedFractionOfSqrt`）がすべてパス
 
-### Phase 2.5: Embed 型クラスと Coercive Subtyping
+### Phase 4: CASValue のプリミティブパターンマッチ
+
+**目標**: `CASData CASValue` を直接パターンマッチできるようにし、`fromMathExpr`/`toMathExpr` 変換関数を不要にする。
+
+#### 現状の問題
+
+現在、`CASData CASValue` をパターンマッチするには：
+1. `fromMathExpr` で `InductiveData`（`Div`, `Plus`, `Term` 等）に変換
+2. `mathExpr` マッチャーで `InductiveData` にマッチ
+3. 操作後、`toMathExpr` で `CASData` に戻す
+
+この変換オーバーヘッドを排除し、`CASData` に直接マッチできるプリミティブパターンを実装する。
+
+#### Step 1: 基盤整備（Core.hs の拡張）
+
+- [ ] `PDDivPat` の改善 — 抽出した分子・分母を `CASData CASValue` として返す
+  - 現状: `CASPolyData` や `CASTermData` などの中間型を使用
+  - 目標: すべてのコンポーネントを `CASData` として統一
+- [ ] `PDPlusPat` の改善 — `CASData (CASPoly terms)` から直接項リストを抽出
+  - 抽出された各項も `CASData (CASPoly [term])` として返す
+- [ ] `PDTermPat` の改善 — `CASData` から直接係数とモノミアルを抽出
+  - 係数: `CASData coeff`
+  - モノミアル: `[(CASData symbol, Integer)]` のリスト
+- [ ] `PDSymbolPat`, `PDApply1Pat` 等の改善 — シンボル情報を `CASData` として抽出
+- [ ] 中間型 `CASPolyData`, `CASTermData`, `CASSymbolData`, `CASIndexData` の削除
+  - すべて `CASData CASValue` に統一
+
+#### Step 2: マッチャー定義の更新（lib/math/expression.egi）
+
+- [ ] `mathExpr` マッチャーを `CASData` 直接マッチに更新
+  ```egison
+  def mathExpr : Matcher MathExpr :=
+    matcher
+      | div $ $ as (mathExpr, mathExpr) with
+          -- CASData に直接マッチ（InductiveData への変換不要）
+          | $tgt -> [(numerator tgt, denominator tgt)]
+      | poly $ as (multiset mathExpr) with
+          | $tgt -> [terms tgt]
+      | term $ $ as (integer, assocMultiset mathExpr) with
+          | $tgt -> [(coefficient tgt, monomials tgt)]
+      | symbol $ $ as (something, list indexExpr) with
+          | $tgt -> [(symbolName tgt, indices tgt)]
+      -- ...
+  ```
+- [ ] `indexExpr` マッチャーを `CASData` 直接マッチに更新
+- [ ] `inductive pattern MathExpr` 宣言の見直し
+  - プリミティブパターンで処理するため、InductiveData 宣言が不要になる可能性
+
+#### Step 3: プリミティブ関数の削除・簡略化
+
+- [ ] `fromMathExpr` プリミティブの削除
+  - プリミティブパターンで直接マッチできるため不要
+- [ ] `toMathExpr` プリミティブの削除
+  - パターンマッチ結果が `CASData` で返されるため不要
+- [ ] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を内部用に限定
+  - 外部 API としてはエクスポートしない
+
+#### Step 4: テストと検証
+
+- [ ] `mini-test/` に primitive pattern テストを追加
+  ```egison
+  -- 直接マッチのテスト
+  match (x + 1) as mathExpr with
+    | poly ($t :: _) -> t  -- CASData として取得
+
+  -- 変換なしで演算可能
+  match (x^2 + 2*x + 1) as mathExpr with
+    | poly ($t1 :: $t2 :: $t3 :: []) -> t1 + t2 + t3
+  ```
+- [ ] 既存テスト（`lib/math/` 系）が引き続き動作することを確認
+- [ ] パフォーマンス比較（変換あり vs 直接マッチ）
+
+#### 設計上の考慮点
+
+**プリミティブパターンの利点**:
+- 変換オーバーヘッドの排除
+- 型安全性の向上（`CASData` のまま操作）
+- コードの簡潔化（`fromMathExpr`/`toMathExpr` の呼び出し不要）
+
+**後方互換性**:
+- 既存の `InductiveData` ベースのコードは引き続き動作させる
+- 段階的な移行パスを提供
+
+**パターンの種類**:
+| パターン | 対象 | 抽出内容 |
+|---------|------|---------|
+| `div $ $` | `CASDiv num den` | 分子、分母（各 `CASData`） |
+| `poly $` | `CASPoly terms` | 項リスト（各 `CASData`） |
+| `term $ $` | `CASTerm coeff mono` | 係数（`CASData`）、モノミアル |
+| `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト |
+| `apply1 $ $` | `Apply1 fn arg` | 関数、引数（各 `CASData`） |
+| `quote $` | `Quote expr` | 引用式（`CASData`） |
+
+### Phase 5: 簡約規則
+
+- [ ] `declare rule` のパーサー実装（`declare rule auto ...` / `declare rule name ...`）
+  - パターン変数 `$x` と非線形パターン `#x` のサポート
+    - Egisonプログラムに変換したい
+- [ ] 規則環境（`ReductionEnv`）の構築（プログラムロード時に収集）
+- [ ] `casNormalize` での自動規則の適用
+- [ ] `simplify expr using rule_name` の実装
+
+### Phase 6: Embed 型クラスと Coercive Subtyping
 
 CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。
+
+**注**: Phase 4（プリミティブパターンマッチ）と Phase 5（簡約規則）の完了後に着手する。パターンマッチと簡約規則が安定してから型システムへの深い統合を行うことで、変更の影響範囲を制御しやすくなる。
 
 #### 概要
 
@@ -1116,106 +1220,4 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 - **Coherence（一貫性）**: CAS型の包含関係は数学的に明確な半順序であり、どの経路で embed しても同じ数学的な値になる
 - **パフォーマンス**: embed は実行時に内部表現を変換するため、頻繁な変換はコストがかかる。型推論時に最適な変換経路を選択することで最小化
 - **エラーメッセージ**: 包含関係がない場合の型エラーで、利用可能な embed 候補を提示
-
-### Phase 3: CASValue のプリミティブパターンマッチ
-
-**目標**: `CASData CASValue` を直接パターンマッチできるようにし、`fromMathExpr`/`toMathExpr` 変換関数を不要にする。
-
-#### 現状の問題
-
-現在、`CASData CASValue` をパターンマッチするには：
-1. `fromMathExpr` で `InductiveData`（`Div`, `Plus`, `Term` 等）に変換
-2. `mathExpr` マッチャーで `InductiveData` にマッチ
-3. 操作後、`toMathExpr` で `CASData` に戻す
-
-この変換オーバーヘッドを排除し、`CASData` に直接マッチできるプリミティブパターンを実装する。
-
-#### Step 1: 基盤整備（Core.hs の拡張）
-
-- [ ] `PDDivPat` の改善 — 抽出した分子・分母を `CASData CASValue` として返す
-  - 現状: `CASPolyData` や `CASTermData` などの中間型を使用
-  - 目標: すべてのコンポーネントを `CASData` として統一
-- [ ] `PDPlusPat` の改善 — `CASData (CASPoly terms)` から直接項リストを抽出
-  - 抽出された各項も `CASData (CASPoly [term])` として返す
-- [ ] `PDTermPat` の改善 — `CASData` から直接係数とモノミアルを抽出
-  - 係数: `CASData coeff`
-  - モノミアル: `[(CASData symbol, Integer)]` のリスト
-- [ ] `PDSymbolPat`, `PDApply1Pat` 等の改善 — シンボル情報を `CASData` として抽出
-- [ ] 中間型 `CASPolyData`, `CASTermData`, `CASSymbolData`, `CASIndexData` の削除
-  - すべて `CASData CASValue` に統一
-
-#### Step 2: マッチャー定義の更新（lib/math/expression.egi）
-
-- [ ] `mathExpr` マッチャーを `CASData` 直接マッチに更新
-  ```egison
-  def mathExpr : Matcher MathExpr :=
-    matcher
-      | div $ $ as (mathExpr, mathExpr) with
-          -- CASData に直接マッチ（InductiveData への変換不要）
-          | $tgt -> [(numerator tgt, denominator tgt)]
-      | poly $ as (multiset mathExpr) with
-          | $tgt -> [terms tgt]
-      | term $ $ as (integer, assocMultiset mathExpr) with
-          | $tgt -> [(coefficient tgt, monomials tgt)]
-      | symbol $ $ as (something, list indexExpr) with
-          | $tgt -> [(symbolName tgt, indices tgt)]
-      -- ...
-  ```
-- [ ] `indexExpr` マッチャーを `CASData` 直接マッチに更新
-- [ ] `inductive pattern MathExpr` 宣言の見直し
-  - プリミティブパターンで処理するため、InductiveData 宣言が不要になる可能性
-
-#### Step 3: プリミティブ関数の削除・簡略化
-
-- [ ] `fromMathExpr` プリミティブの削除
-  - プリミティブパターンで直接マッチできるため不要
-- [ ] `toMathExpr` プリミティブの削除
-  - パターンマッチ結果が `CASData` で返されるため不要
-- [ ] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を内部用に限定
-  - 外部 API としてはエクスポートしない
-
-#### Step 4: テストと検証
-
-- [ ] `mini-test/` に primitive pattern テストを追加
-  ```egison
-  -- 直接マッチのテスト
-  match (x + 1) as mathExpr with
-    | poly ($t :: _) -> t  -- CASData として取得
-
-  -- 変換なしで演算可能
-  match (x^2 + 2*x + 1) as mathExpr with
-    | poly ($t1 :: $t2 :: $t3 :: []) -> t1 + t2 + t3
-  ```
-- [ ] 既存テスト（`lib/math/` 系）が引き続き動作することを確認
-- [ ] パフォーマンス比較（変換あり vs 直接マッチ）
-
-#### 設計上の考慮点
-
-**プリミティブパターンの利点**:
-- 変換オーバーヘッドの排除
-- 型安全性の向上（`CASData` のまま操作）
-- コードの簡潔化（`fromMathExpr`/`toMathExpr` の呼び出し不要）
-
-**後方互換性**:
-- 既存の `InductiveData` ベースのコードは引き続き動作させる
-- 段階的な移行パスを提供
-
-**パターンの種類**:
-| パターン | 対象 | 抽出内容 |
-|---------|------|---------|
-| `div $ $` | `CASDiv num den` | 分子、分母（各 `CASData`） |
-| `poly $` | `CASPoly terms` | 項リスト（各 `CASData`） |
-| `term $ $` | `CASTerm coeff mono` | 係数（`CASData`）、モノミアル |
-| `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト |
-| `apply1 $ $` | `Apply1 fn arg` | 関数、引数（各 `CASData`） |
-| `quote $` | `Quote expr` | 引用式（`CASData`） |
-
-### Phase 4: 簡約規則（設計確定済み、着手可能）
-
-- [ ] `declare rule` のパーサー実装（`declare rule auto ...` / `declare rule name ...`）
-  - パターン変数 `$x` と非線形パターン `#x` のサポート
-    - Egisonプログラムに変換したい
-- [ ] 規則環境（`ReductionEnv`）の構築（プログラムロード時に収集）
-- [ ] `casNormalize` での自動規則の適用
-- [ ] `simplify expr using rule_name` の実装
 
