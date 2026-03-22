@@ -35,7 +35,8 @@ module Language.Egison.Type.Env
   , patternEnvToList
   ) where
 
-import           Data.List                  (sortOn)
+import           Data.List                  (sortBy, sortOn)
+import           Data.Ord                   (Down(..))
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
@@ -130,8 +131,10 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
       length stored < length target &&
       stored == take (length stored) target
     
+    -- Sort by descending index length, preserving insertion order for equal lengths
+    -- so that local bindings (added later via extendEnv) come before global ones
     sortByIndexLengthDesc :: [VarEntry TypeScheme] -> [VarEntry TypeScheme]
-    sortByIndexLengthDesc = reverse . sortOn (length . veIndices)
+    sortByIndexLengthDesc = sortBy (\a b -> compare (Down (length (veIndices a))) (Down (length (veIndices b))))
     
     -- Check if target is a prefix of candidate (for prefix matching)
     -- Example: [a] is prefix of [i, j]
