@@ -1,4 +1,4 @@
-# Egison CAS 型システム設計
+# １Egison CAS 型システム設計
 
 ## 概要
 
@@ -13,14 +13,16 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 
 ### 組み込み型
 
-| 型 | 意味 |
-|---|---|
-| `Integer` | 基本型。整数 |
-| `Factor` | クォート演算子 `'` で生成される原子的な数式要素 |
-| `Div a` | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要 |
-| `Poly a [s1, s2, ...]` | `a` を係数とするローラン多項式環（閉じた多項式型）。冪指数は負も許可 |
-| `Poly a [..]` | `a` を係数とし、シンボル集合を固定しないローラン多項式型（開いた多項式型） |
-| `Tensor a` | `a` を成分とするテンソル |
+
+| 型                      | 意味                                      |
+| ---------------------- | --------------------------------------- |
+| `Integer`              | 基本型。整数                                  |
+| `Factor`               | クォート演算子 `'` で生成される原子的な数式要素              |
+| `Div a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
+| `Poly a [s1, s2, ...]` | `a` を係数とするローラン多項式環（閉じた多項式型）。冪指数は負も許可    |
+| `Poly a [..]`          | `a` を係数とし、シンボル集合を固定しないローラン多項式型（開いた多項式型） |
+| `Tensor a`             | `a` を成分とするテンソル                          |
+
 
 ### Poly はローラン多項式環
 
@@ -142,7 +144,7 @@ Poly (Poly Integer [x]) [y]     -- Z[x, x⁻¹][y, y⁻¹]: y について整理
 Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に扱う
 ```
 
-数学的に同型だが、正規形が異なる。型システムの設計上、両者は異なる型・異なる内部表現・異なるマッチャー（`poly (poly integer ['x]) ['y]` vs `poly integer ['x, 'y]`）として自然に区別される。ユーザーが型注釈で選択する。入れ子の場合の具体的な内部表現は「構成的な内部表現 > 表現の対応」の `Poly (Poly Integer [x]) [y]` の例を参照。
+数学的に同型だが、正規形が異なる。型システムの設計上、両者は異なる型・異なる内部表現・異なるマッチャー（`poly (poly integer [x]) [y]` vs `poly integer [x, y]`）として自然に区別される。ユーザーが型注釈で選択する。入れ子の場合の具体的な内部表現は「構成的な内部表現 > 表現の対応」の `Poly (Poly Integer [x]) [y]` の例を参照。
 
 ---
 
@@ -292,11 +294,13 @@ declare symbol 'sin x, 'cos x, 'sqrt 2
 
 ### 違い
 
-| | 不定元 | シンボル |
-|---|---|---|
-| 簡約規則 | なし（ただし `declare rule` で付与可能） | `declare rule` で付与可能 |
-| 正規形の次数 | 規則がなければ無制限 | 規則がなければ無制限 |
-| 例 | `x^2` はそのまま | `i^2` は `declare rule auto i^2 = -1` があれば `-1` に簡約 |
+
+|        | 不定元                          | シンボル                                               |
+| ------ | ---------------------------- | -------------------------------------------------- |
+| 簡約規則   | なし（ただし `declare rule` で付与可能） | `declare rule` で付与可能                               |
+| 正規形の次数 | 規則がなければ無制限                   | 規則がなければ無制限                                         |
+| 例      | `x^2` はそのまま                  | `i^2` は `declare rule auto i^2 = -1` があれば `-1` に簡約 |
+
 
 どちらも `Poly a [...]` の第2引数として同じ構文で使用される。
 
@@ -417,7 +421,7 @@ def q : Poly Integer [i] := n + i    -- Integer → Poly Integer [i] に自動 e
 
 `Embed` 型クラスと型チェッカーによる AST 変換の組み合わせで実装する。
 
-**`Embed` 型クラス**で変換規則を宣言的に定義する：
+`**Embed` 型クラス**で変換規則を宣言的に定義する：
 
 ```egison
 class Embed a b where
@@ -539,10 +543,12 @@ join(Poly Integer [x], Poly Integer [..]) = Poly Integer [..]
 
 これにより型レベルのシンボル集合操作は以下の2つだけで済む。
 
-| 操作 | 用途 |
-|---|---|
-| `S₁ = S₂` | 同型の演算判定 |
+
+| 操作        | 用途                 |
+| --------- | ------------------ |
+| `S₁ = S₂` | 同型の演算判定            |
 | `S₁ ⊆ S₂` | embed 判定 / join 判定 |
+
 
 型レベルの集合和 `S₁ ∪ S₂` は不要。
 
@@ -735,6 +741,7 @@ simplify expr using trig_pythagorean
 ### 設計の根拠
 
 自動/手動の区別が必要な理由:
+
 - `i^2 = -1` は常に適用しても正規形が一意に定まる（次数を下げる方向に収束する）
 - `sin(x)^2 + cos(x)^2 = 1` を常に自動適用すると、`sin(x)^2` を見るたびに `1 - cos(x)^2` に置換するか `cos(x)^2` を `1 - sin(x)^2` に置換するかの選択が生じ、正規形が一意に定まらない
 - Mathematica も同様の問題に対して「ユーザーが `TrigReduce` 等を明示的に呼ぶ」方針を取っている
@@ -774,11 +781,29 @@ casNormalizePoly :: ReductionEnv -> [CASTerm] -> CASValue
 ### マッチャーの定義
 
 ```egison
--- poly: 係数マッチャーとファクターのリストを受け取り、多項式のマッチャーを返す
+-- poly: 係数マッチャーとシンボルリストを受け取り、多項式のマッチャーを返す
 poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs)
 
--- div: 被除数のマッチャーを受け取り、分数のマッチャーを返す
+-- term: 係数マッチャーとシンボルリストを受け取り、項のマッチャーを返す
+term {a} (m : Matcher a) (fs : [Factor]) : Matcher (Term a fs)
+
+-- div: 内部のマッチャーを受け取り、分数のマッチャーを返す
 div {a} (m : Matcher a) : Matcher (Div a)
+```
+
+### `:+` パターンの意味論
+
+`poly m fs` の `:+` パターンは、多項式を**項**と**残りの多項式**に分解する。項は `Term a fs` 型であり、係数（型 `a`）とモノミアル（`[(Factor, Integer)]`）の組である。`multiset m` の `::` と同じ意味論（順序不問の分解）。
+
+```
+poly m fs    の  $a :+ $rest  →  a : Term a fs,       rest : Poly a fs
+multiset m   の  $a :: $rest  →  a : a,               rest : [a]
+```
+
+項をさらに分解するには `term m fs` マッチャーを使う:
+
+```
+term m fs    の  ($c, $mono)  →  c : a,               mono : [(Factor, Integer)]
 ```
 
 ### 利用例
@@ -787,33 +812,44 @@ div {a} (m : Matcher a) : Matcher (Div a)
 declare symbol x, y
 
 -- Poly Integer [x] のパターンマッチ
+-- :+ は項（Term Integer [x]）と残り（Poly Integer [x]）に分解
 match expr as poly integer [x] with
-  | $a :+ $rest -> ...   -- a : Integer, rest : Poly Integer [x]
+  | $a :+ $rest -> ...   -- a : Term Integer [x], rest : Poly Integer [x]
+
+-- 項をさらに係数とモノミアルに分解
+match expr as poly integer [x] with
+  | $a :+ _ ->
+    match a as term integer [x] with
+      | ($c, $mono) -> ...  -- c : Integer, mono : [(Factor, Integer)]
 
 -- Poly (Poly Integer [x]) [y] のパターンマッチ（入れ子）
+-- 各項の係数は Poly Integer [x] 型
 match expr as poly (poly integer [x]) [y] with
-  | $a :+ $rest -> ...   -- a : Poly Integer [x]
+  | $a :+ $rest ->
+    match a as term (poly integer [x]) [y] with
+      | ($c, $mono) -> ...  -- c : Poly Integer [x], mono : [(Factor, Integer)]
 
 -- Poly Integer [x, y] のパターンマッチ（多変数）
 match expr as poly integer [x, y] with
-  | $a :+ $rest -> ...   -- a : Integer
+  | $a :+ $rest -> ...   -- a : Term Integer [x, y], rest : Poly Integer [x, y]
 
 -- Div (Poly Integer [x]) のパターンマッチ
 match expr as div (poly integer [x]) with
   | $n / $d -> ...       -- n, d : Poly Integer [x]
 ```
 
-### シンボル集合への multiset factor によるマッチ
+### モノミアルの分解
 
-`poly` の第2引数は `[Factor]` であり、`multiset factor` でマッチできる。これにより、シンボル集合自体にもパターンマッチが使える。
+`term` マッチャーで取り出したモノミアル（`[(Factor, Integer)]`）は `assocMultiset factor` でさらに分解できる：
 
 ```egison
--- 項の分解時、モノミアル部分も multiset でマッチ
--- モノミアルは [(Factor, Integer)] なので：
-match term as termOf (poly integer [x, y]) with
-  | ($coeff, $mono) ->
-    match mono as multiset (factor, integer) with
-      | (x, $n) :: (y, $m) :: [] -> ...  -- x^n * y^m
+-- 項のモノミアル部分を multiset でマッチ
+match expr as poly integer [x, y] with
+  | $a :+ _ ->
+    match a as term integer [x, y] with
+      | ($coeff, $mono) ->
+        match mono as assocMultiset factor with
+          | (x, $n) :: (y, $m) :: [] -> ...  -- coeff * x^n * y^m
 ```
 
 ### 安全なダウンキャスト
@@ -828,9 +864,9 @@ match expr as div (poly integer [x]) with
 
 ### 設計の利点
 
-- **`multiset` と同じ仕組み**: `poly m fs` の `:+` パターンは `multiset m` の `::` パターンと同じ意味論（順序不問の分解）
-- **`Factor` は CAS の既存概念**: 新しい型を導入せず、`multiset factor` でシンボル集合をマッチ
-- **合成が統一的**: `poly`, `div`, `multiset`, `factor` がすべて同じマッチャー合成の仕組みで組み合わさる
+- `**multiset` と同じ仕組み**: `poly m fs` の `:+` は `multiset m` の `::` と同じ意味論（順序不問の分解）
+- `**term` による段階的分解**: 項の構造（係数 + モノミアル）を `term m fs` で明示的に分解。係数マッチャー `m` がここで活きる
+- **合成が統一的**: `poly`, `div`, `term`, `multiset`, `assocMultiset`, `factor` がすべて同じマッチャー合成の仕組みで組み合わさる
 
 ---
 
@@ -839,16 +875,18 @@ match expr as div (poly integer [x]) with
 Axiom は「ドメインタワー」（例: `Polynomial(Fraction(Integer))`）で同様の正規形制御を実現している。
 Egison の設計は以下の点で異なる。
 
-| | Axiom | Egison |
-|---|---|---|
-| 型システム | 独自（SPAD言語） | HM型推論 + type class |
-| 正規形の制御 | ドメインタワー | 型注釈による `Poly`, `Div` の組み合わせ |
-| 多項式の表現 | 標準多項式 | ローラン多項式（負の冪を許可） |
-| 型変換 | `::` 演算子で明示的 | embed の自動挿入 |
-| 内部表現 | ドメインごとに固定 | 型構造から構成的に決定 |
-| シンボル集合の制御 | なし（全シンボル対等） | 閉じた `[s1, ...]` / 開いた `[..]` を選択可能 |
-| テンソルとの統合 | なし | tensorMap の自動挿入（論文で証明済み） |
-| 新しい数の導入 | ドメイン定義（SPAD） | Factor + クォート演算子 `'` |
+
+|           | Axiom        | Egison                             |
+| --------- | ------------ | ---------------------------------- |
+| 型システム     | 独自（SPAD言語）   | HM型推論 + type class                 |
+| 正規形の制御    | ドメインタワー      | 型注釈による `Poly`, `Div` の組み合わせ        |
+| 多項式の表現    | 標準多項式        | ローラン多項式（負の冪を許可）                    |
+| 型変換       | `::` 演算子で明示的 | embed の自動挿入                        |
+| 内部表現      | ドメインごとに固定    | 型構造から構成的に決定                        |
+| シンボル集合の制御 | なし（全シンボル対等）  | 閉じた `[s1, ...]` / 開いた `[..]` を選択可能 |
+| テンソルとの統合  | なし           | tensorMap の自動挿入（論文で証明済み）           |
+| 新しい数の導入   | ドメイン定義（SPAD） | Factor + クォート演算子 `'`               |
+
 
 特に tensorMap 挿入と embed 挿入が単一の型推論パスで統一的に処理される点が新しい。
 
@@ -856,316 +894,77 @@ Egison の設計は以下の点で異なる。
 
 ## 実装 TODO
 
-### Phase 1: CASValue の基盤実装（設計確定済み、着手可能）
+### Phase 1: CASValue の基盤実装（完了）
 
-#### Step 1-2: 新モジュールの作成（既存コードを壊さずに進行）
+`CASValue` データ型（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）を `Math/CAS.hs` に定義し、演算関数（`casPlus`, `casMult`）とローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）を実装した。`SymbolExpr` も `CASValue` を参照するよう移行済み。
 
-- [x] `CASValue` データ型を新ファイル `Math/CAS.hs` に定義（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）
-  - 不正な入れ子構造を防ぐためスマートコンストラクタも用意する
-- [x] `casPlus`, `casMult` の実装（`CASInteger`, `CASPoly`, `CASDiv` の3ケース + `CASFactor` のlift分岐）
-  - Phase 2 の型チェッカーによる自動 embed が完成するまでは、ランタイムに `CASFactor` が演算に渡される可能性がある。`CASFactor sym` を `CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]` にliftして処理する防御的な分岐を入れる。Phase 2 完成後も害はない
-- [x] ローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）
-  - 再帰的 `casGcd` は初期実装では `CASInteger` のみ対応し、他の係数型は GCD = 1 にフォールバック
-- [x] `Math/CAS.hs` の単体テスト（`casPlus`, `casMult`, `casNormalize` が正しく動作することを確認）
+### Phase 2: 型システムへの統合（完了）
 
-#### Step 3: `ScalarData` → `CASData` の一括置換
-
-- [x] `Data.hs` で `ScalarData` を `CASData CASValue` に置換（ここでコンパイルエラーが大量発生する）
-  - まず機械的に `ScalarData (Div p q)` → `CASData (CASDiv (CASPoly ...) (CASPoly ...))` に変換してコンパイルを通す
-  - その後、整数リテラル等の明らかな箇所を `CASData (CASInteger n)` に段階的に精密化
-  - **実装メモ**: 一括置換ではなく、`CASData` を `ScalarData` と並存させる形で追加。変換関数で橋渡し。
-
-#### Step 4-7: 既存モジュールの移行（Step 3 のコンパイルエラー修正と合わせて進行）
-
-- [x] `Math/Arith.hs` を `CASValue` ベースに書き換え
-- [x] `Math/Normalize.hs` の正規化ロジックを `CASValue` に移植
-- [x] `Math/Rewrite.hs` のrewrite ruleを `CASValue` に移植
-- [x] `Primitives/Arith.hs` のプリミティブ関数を書き換え
-
-#### Step 8: 残りの参照箇所の修正
-
-- [x] その他の `ScalarData` 参照箇所を修正しコンパイルを通す
-  - **現状**: `CASData` と `ScalarData` が並存。変換関数で相互運用可能。完全な置換は Phase 2 以降で段階的に実施予定。
-
-#### Step 9: SymbolExpr の CASValue 参照への移行（完了）
-
-- [x] `SymbolExpr` を `CASValue` 参照に移行
-  - `hs-src/Language/Egison/Math/CAS.hs` に新しい `SymbolExpr` を定義（`CASValue` を参照）
-  - `hs-src/Language/Egison/Math/Expr.hs` には旧 `SymbolExpr`（`ScalarData` を参照）を維持
-  - 変換関数を追加:
-    - `oldSymbolExprToNew`: 旧 `SymbolExpr` → 新 `SymbolExpr`
-    - `newSymbolExprToOld`: 新 `SymbolExpr` → 旧 `SymbolExpr`
-    - `oldMonomialToNew`, `newMonomialToOld`: `Monomial` の変換
-  - `{-# SOURCE #-}` インポートで `WHNFData` の循環依存を解決
-  - 既存コードとの互換性を維持しながら、新しい CAS システムでは `CASValue` ベースの `SymbolExpr` を使用可能
-
-### Phase 2: 型システムへの統合（基盤実装完了）
-
-- [x] `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor` を追加
-  - `hs-src/Language/Egison/Type/Types.hs` に追加
-- [x] `SymbolSet` の定義（`SymbolSetClosed [String]` / `SymbolSetOpen` / `SymbolSetVar TyVar`）
-  - `hs-src/Language/Egison/Type/Types.hs` に追加
-- [x] パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Div a` / `Factor` をパース
-  - `hs-src/Language/Egison/Parser/NonS.hs` に `factorTypeExpr`, `divTypeExpr`, `polyTypeExpr`, `symbolSetExpr` を追加
-  - `hs-src/Language/Egison/AST.hs` に `TEFactor`, `TEDiv`, `TEPoly`, `SymbolSetExpr` を追加
-- [x] 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
-  - `hs-src/Language/Egison/Type/Unify.hs` に `TFactor`, `TDiv`, `TPoly` の単一化規則を追加
-  - `unifySymbolSets` 関数でシンボル集合の統合を実装
-- [x] `join` の実装（二項演算時の最小上界計算）
-  - `hs-src/Language/Egison/Type/Join.hs` を新規作成
-  - `joinTypes`, `isSubtype`, `symbolSetSubset` 関数を実装
-- [ ] `Embed` 型クラスと coercive subtyping（型チェッカーでの `embed` 自動挿入）
-  - 基盤は整備済み。型チェッカーへの統合は Phase 6 として後続実装予定
-- [x] 開いた `[..]` のフレッシュ型変数への脱糖
-  - `hs-src/Language/Egison/Type/Infer.hs` に `freshenOpenSymbolSets` 関数を追加
-  - `SymbolSetOpen` を `SymbolSetVar` に変換し、各出現ごとにフレッシュな型変数を生成
-  - `unifySymbolSets` でサブセットチェックを実装（`[x] ⊆ [x, y]` の判定）
+- `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor` を追加（`Types.hs`）
+- `SymbolSet` の定義（`SymbolSetClosed [String]` / `SymbolSetOpen` / `SymbolSetVar TyVar`）
+- パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Div a` / `Factor` をパース
+- 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
+- `join` の実装（`Join.hs`: `joinTypes`, `isSubtype`, `symbolSetSubset`）
+- 開いた `[..]` のフレッシュ型変数への脱糖（`freshenOpenSymbolSets`）
+- `Embed` 型クラスと coercive subtyping は Phase 7 として後続実装予定
 
 ### Phase 3: ScalarData の CASValue 置換（完了）
 
-**重要な洞察**: `ScalarData = Div PolyExpr PolyExpr` は `CASDiv (CASPoly [..]) (CASPoly [..])` と1対1対応する。この対応を利用して機械的に置換できる。
+`ScalarData` を完全に削除し、`CASData CASValue` に統一した。`Math/Expr.hs`（旧 `ScalarData`, `PolyExpr`, `TermExpr`, 旧 `SymbolExpr`）を削除し、全モジュール（`Primitives/Arith.hs`, `Core.hs`, `Data.hs`, `Tensor.hs` 等）を `CASValue` ベースに移行完了。`cabal test` 全21テストパス。
 
-```
-ScalarData (Div p q)  ≡  CASDiv (CASPoly [CASTerm ...]) (CASPoly [CASTerm ...])
-```
+### Phase 4: CASValue のプリミティブパターンマッチ（完了）
 
-この段階では `CASInteger`, `CASFactor` を単体で使わず、常に `CASDiv (CASPoly ...) (CASPoly ...)` 形式を維持する。型の精緻化（`Integer` を `CASInteger` で表現など）は Phase 2.5 以降で行う。
+`CASData CASValue` を直接パターンマッチできるプリミティブパターンを実装し、`fromMathExpr`/`toMathExpr` 変換関数を不要にした。
 
-#### Step 1: EgisonValue の置換（完了）
+**実装したプリミティブパターン**:
 
-- [x] `Data.hs` の `ScalarData ScalarData` コンストラクタを削除
-- [x] `CASData CASValue` コンストラクタのみ残す
-- [x] ヘルパー関数 `toScalarVal`, `fromScalarVal` を追加（`CASValue` と `ScalarData` 間の変換）
-- [x] `Show`, `Eq`, `isAtomic` インスタンスを `CASData` ベースに更新
 
-#### Step 2: 参照箇所の置換（完了）
+| パターン         | 対象                    | 抽出内容                |
+| ------------ | --------------------- | ------------------- |
+| `div $ $`    | `CASDiv num den`      | 分子、分母（各 `CASData`）  |
+| `poly $`     | `CASPoly terms`       | 項リスト（各 `CASData`）   |
+| `term $ $`   | `CASTerm coeff mono`  | 係数（`CASData`）、モノミアル |
+| `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト        |
+| `apply1 $ $` | `Apply1 fn arg`       | 関数、引数（各 `CASData`）  |
+| `quote $`    | `Quote expr`          | 引用式（`CASData`）      |
 
-以下のファイルを `CASData` / `toScalarVal` / `fromScalarVal` を使用するよう更新:
-- [x] `Primitives/Arith.hs` - `CASValue` を直接使用（`casPlus`, `casMinus`, `casMult`, `casDivide`）
-- [x] `Primitives/Types.hs` - `fromScalarVal` でパターンマッチ
-- [x] `PrettyMath/AST.hs` - `CASData` と `casValueToScalarData` を使用
-- [x] `Tensor.hs` - `fromScalarVal` / `toScalarVal` を使用
-- [x] `Core.hs` - `fromScalarVal` / `toScalarVal` を使用（パターンマッチ、構築の両方）
-- [x] `Primitives.hs` - `fromScalarVal` / `toScalarVal` を使用
 
-#### Step 3: CAS ベース API の公開（完了）
+**現状の制約**: これらのプリミティブパターンは `mathExpr` マッチャー内でのみ使われ、係数やシンボル集合を型に応じて区別できない。次の Phase 5 でパラメトリックマッチャーに拡張する。
 
-`Math.hs` を更新して CAS ベースの公開 API を提供:
-- [x] `casNormalize'` - `mathNormalize'` の CAS 版
-- [x] `casRewriteSymbol` - `rewriteSymbol` の CAS 版
-- [x] `casPlus`, `casMinus`, `casMult`, `casDivide`, `casPower` をエクスポート
-- [x] `Primitives/Arith.hs` を CAS API を使用するよう更新
-- [x] `Data.hs` の `EgisonData Rational` インスタンスを CAS API を使用するよう更新
-
-#### Step 4: 変換関数と旧型の削除（完了）
-
-**現状:**
-- `ScalarData` を完全に削除し、`CASData CASValue` に統一
-- 外部 API および内部モジュールすべてが `CASValue` ベースに移行完了
-- `Math/Expr.hs` を削除し、旧型定義を完全に除去
-
-**完了した作業:**
-- [x] `Primitives/Arith.hs` - `CASData` パターンで直接マッチング
-- [x] `Primitives/Types.hs` - `CASData` パターンで直接マッチング（`isRationalCAS`, `extractRational` ヘルパー追加）
-- [x] `Data.hs` の `EgisonData Integer` - `CASData (CASInteger n)` を直接使用
-- [x] `Data.hs` の `Eq EgisonValue` - 正規化してから比較
-- [x] `casNormalizeDiv` の改善 - ネスト除算 `a/(b/c)`, `(a/b)/c` の処理、負の分母の正規化、`Poly/Integer` の簡約
-
-**完了した作業:**
-- [x] `Core.hs` の `ScalarData` パターン使用を CAS ベースに移行（完了）
-  - `ScalarData` の参照を全て削除
-  - `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を `CASPolyData`/`CASTermData`/`CASSymbolData`/`CASIndexData` に置換
-  - `casValueToScalarData` / `scalarDataToCASValue` 変換を排除し、`CASValue` を直接使用
-- [x] `Data.hs` から旧中間型 `PolyExprData`/`TermExprData`/`SymbolExprData`/`IndexExprData` を削除
-- [x] `casNormalize'` を削除し、`casNormalize` に統一
-- [x] `Math.hs` から非推奨関数のエクスポートを削除
-
-**ScalarData の削除完了:**
-ScalarData は完全に削除された。
-- `Math/Expr.hs` を削除し、旧 `ScalarData`, `PolyExpr`, `TermExpr`, `SymbolExpr` 型を完全に除去
-- プリミティブ関数名を `fromScalarData` → `fromMathExpr`, `toScalarData` → `toMathExpr` に変更
-- 変換関数 `scalarDataToCASValue`, `casValueToScalarData` 等を削除
-- 全参照箇所を `CASValue` ベースに移行完了
-
-**CASValue への完全移行（完了）:**
-- 公開 API は CASValue ベースに統一
-- `Math/Normalize.hs` - CASValue 版の `casDivideTerm` を追加
-- `Math/Rewrite.hs` - `casRewriteSymbol` が CASValue を直接操作
-- `Data.hs` - `egisonToCASValue` で InductiveData から直接変換
-- `Math/Expr.hs` - 削除済み（旧 ScalarData, PolyExpr, TermExpr を完全に除去）
-
-**完了した最適化:**
-- [x] `Math/Normalize.hs` を CASValue パターンマッチングに書き換え
-  - `casDivideTerm` 関数を追加（CASValue 版の除算）
-  - 旧 ScalarData 版の関数は後方互換性のため維持
-- [x] `Math/Rewrite.hs` を CASValue パターンマッチングに書き換え
-  - `casRewriteSymbol` が CASValue を直接操作（変換なし）
-  - 旧 `rewriteSymbol` は変換経由で維持
-- [x] InductiveData を直接 CASValue に変換（ScalarData を経由しない）
-  - `egisonToCASValue` 関数を Data.hs に追加
-- [x] `Math/Expr.hs` を削除（`ScalarData`, `PolyExpr`, `TermExpr`, 旧 `SymbolExpr` を完全に除去）
-  - `egison.cabal` から `Language.Egison.Math.Expr` モジュールを削除
-  - 全21テストがパス
-
-#### Step 5: テスト（完了）
-
-- [x] 既存テストがすべて通過することを確認
-- [x] `mini-test/40-casvalue-basic.egi` に CASValue 固有のテストを追加
-- [x] `casNormalizePoly` で空多項式を `CASInteger 0` に正規化（等価性比較の問題を修正）
-- [x] `cabal test` の全21テストがエラーなしでパス
-- [x] ネスト除算 `1/(5/2) = 2/5` の正規化が正しく動作
-- [x] 連分数テスト（`regularContinuedFractionOfSqrt`）がすべてパス
-
-### Phase 4: CASValue のプリミティブパターンマッチ
-
-**目標**: `CASData CASValue` を直接パターンマッチできるようにし、`fromMathExpr`/`toMathExpr` 変換関数を不要にする。
-
-#### 現状の問題
-
-現在、`CASData CASValue` をパターンマッチするには：
-1. `fromMathExpr` で `InductiveData`（`Div`, `Plus`, `Term` 等）に変換
-2. `mathExpr` マッチャーで `InductiveData` にマッチ
-3. 操作後、`toMathExpr` で `CASData` に戻す
-
-この変換オーバーヘッドを排除し、`CASData` に直接マッチできるプリミティブパターンを実装する。
-
-#### Step 1: 基盤整備（Core.hs の拡張）**完了**
-
-- [x] `PDDivPat` の改善 — 抽出した分子・分母を `CASData CASValue` として返す
-  - 現状: `CASPolyData` や `CASTermData` などの中間型を使用
-  - 目標: すべてのコンポーネントを `CASData` として統一
-- [x] `PDPlusPat` の改善 — `CASData (CASPoly terms)` から直接項リストを抽出
-  - 抽出された各項も `CASData (CASPoly [term])` として返す
-- [x] `PDTermPat` の改善 — `CASData` から直接係数とモノミアルを抽出
-  - 係数: `CASData coeff`
-  - モノミアル: `[(CASData symbol, Integer)]` のリスト
-- [x] `PDSymbolPat`, `PDApply1Pat` 等の改善 — シンボル情報を `CASData` として抽出
-- [x] 中間型 `CASPolyData`, `CASTermData`, `CASSymbolData` の削除（`CASIndexData` は PDSubPat/PDSupPat/PDUserPat で継続使用）
-  - すべて `CASData CASValue` に統一
-
-#### Step 2: マッチャー定義の更新（lib/math/expression.egi）**完了（変更不要）**
-
-- [x] `mathExpr` マッチャーは既に `CASData` 直接マッチで動作
-  - `inductive pattern MathExpr` 宣言がパターン構文を定義
-  - Core.hs のプリミティブパターン（`PDDivPat` 等）が `CASData` を直接処理
-  - マッチ結果は `CASData` として返される（変換不要）
-- [x] `indexExpr` マッチャーは既に `CASData` で動作（変更不要）
-- [x] `inductive pattern MathExpr` 宣言 — プリミティブパターンの構文定義として必要（保持）
-
-#### Step 3: プリミティブ関数の削除・簡略化 **完了**
-
-- [x] `fromMathExpr` プリミティブの削除（`Primitives/Arith.hs`）
-  - プリミティブパターンで直接マッチできるため不要
-- [x] `toMathExpr'` プリミティブの削除（`Primitives/Arith.hs`）
-  - パターンマッチ結果が `CASData` で返されるため不要
-- [x] `toMathExpr` 関数の削除（`lib/math/common/arithmetic.egi`）
-- [x] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を完全削除
-  - プリミティブパターンで直接マッチするため不要になった
-
-#### Step 4: 基本テストと検証 **完了**
-
-- [x] `mini-test/50-primitive-pattern.egi` にプリミティブパターンテストを追加
-  - `div` パターン、`poly` パターン、`term` パターン、`symbol` パターン
-  - `apply1` パターン、ネストしたパターン、演算テスト
-- [x] 既存テスト（`cabal test`）が引き続き動作することを確認（21テスト全てパス）
-- [ ] パフォーマンス比較（変換あり vs 直接マッチ）
-
-#### Step 5: ライブラリコードの移行（lib/math/*.egi）**完了（移行不要）**
-
-- [x] 確認: `fromMathExpr`/`toMathExpr` はライブラリコードで使用されていない
-  - マッチャー定義は既にプリミティブパターンを使用している
-  - 明示的な変換呼び出しは不要
-- [x] 全テスト（`cabal test`）がパスすることを確認
-
-#### Step 6: サンプルコードの移行（sample/*.egi）**完了（移行不要）**
-
-- [x] 確認: `fromMathExpr`/`toMathExpr` はサンプルコードで使用されていない
-- [x] 全サンプル（数学関連）が正しく動作することを確認（Riemann tensor等）
-
-#### Step 7: レガシーコードの完全削除 **完了**
-
-- [x] `Primitives/Arith.hs` から `fromMathExpr`, `toMathExpr'` を削除
-- [x] `Type/Check.hs` から対応する型シグネチャを削除
-- [x] `Data.hs` から `CASPolyData`, `CASTermData`, `CASSymbolData` を削除（`CASIndexData` は継続使用）
-- [x] `Core.hs` から中間型関連のパターンマッチコード（後方互換性コード）を削除
-- [x] `Data.hs` から `casValueToEgison`, `egisonToCASValue` を完全削除
-- **保持するもの**:
-  - `inductive pattern MathExpr` 宣言 — パターン構文の定義に必要（削除不可）
-  - `inductive pattern IndexExpr` 宣言 — インデックスパターンの定義に必要（削除不可）
-  - `CASIndexData` — `PDSubPat`/`PDSupPat`/`PDUserPat` で継続使用
-
-#### Step 8: 最終検証とドキュメント **完了**
-
-- [x] 全テストスイート（`cabal test`）がパスすることを確認（21テスト全てパス）
-- [x] `mini-test/50-primitive-pattern.egi` がパスすることを確認
-- [x] `sample/` の数学関連サンプルが正しく動作することを確認
-  - `riemann-curvature-tensor-of-S2.egi`
-  - `riemann-curvature-tensor-of-T2.egi`
-  - `curvature-form.egi`
-  - `hodge-laplacian-polar.egi`
-  - `17th-root-of-unity.egi`
-- [x] `design/type-cas.md` の関連セクションを更新（本ファイル）
-
-#### 設計上の考慮点
-
-**プリミティブパターンの利点**:
-- 変換オーバーヘッドの排除
-- 型安全性の向上（`CASData` のまま操作）
-- コードの簡潔化（`fromMathExpr`/`toMathExpr` の呼び出し不要）
-
-**移行戦略**:
-- Step 1-4: 新しいプリミティブパターンを実装し、既存コードと並行して動作確認
-- Step 5-6: ライブラリとサンプルコードを段階的に移行
-- Step 7-8: レガシーコードを完全削除し、移行を完了
-
-**パターンの種類**:
-| パターン | 対象 | 抽出内容 |
-|---------|------|---------|
-| `div $ $` | `CASDiv num den` | 分子、分母（各 `CASData`） |
-| `poly $` | `CASPoly terms` | 項リスト（各 `CASData`） |
-| `term $ $` | `CASTerm coeff mono` | 係数（`CASData`）、モノミアル |
-| `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト |
-| `apply1 $ $` | `Apply1 fn arg` | 関数、引数（各 `CASData`） |
-| `quote $` | `Quote expr` | 引用式（`CASData`） |
+**保持するもの**: `inductive pattern MathExpr` / `IndexExpr` 宣言、`CASIndexData`。
 
 ### Phase 5: パラメトリックマッチャー（poly, div, term）
 
-**目標**: 現在の固定的な `mathExpr` マッチャーを、`list` や `multiset` と同様のパラメトリックなマッチャー `poly m fs`, `div m`, `term m fs` に拡張する。これにより、型の入れ子構造に対応したマッチャーをユーザーが自由に合成できるようにする。
+**目標**: 現在の固定的な `mathExpr` マッチャーを、`list` や `multiset` と同様のパラメトリックなマッチャーに拡張する。型の入れ子構造に対応したマッチャーをユーザーが自由に合成できるようにする。
 
-#### 現状の問題
+#### 背景
 
-現在の `mathExpr` マッチャーは固定的なモノリシック構造:
-- `match expr as mathExpr with | div $p $q -> ...` のように、常に `mathExpr` をマッチャーとして使う
-- 内部の係数やシンボル集合を型に応じて区別できない
-- `Poly (Div Integer) [x]` と `Poly Integer [x]` で異なるマッチャーを使い分けられない
-- 入れ子構造（`Poly (Poly Integer [x]) [y]`）の各層に適切なマッチャーを指定できない
+`mathExpr` マッチャーは固定的なモノリシック構造で、以下ができない:
 
-目標は `list m` / `multiset m` と同じパラダイムで:
-```egison
-declare symbol x, y
+- `Poly (Div Integer) [x]` と `Poly Integer [x]` で異なるマッチャーを使い分ける
+- 入れ子構造（`Poly (Poly Integer [x]) [y]`）の各層に適切なマッチャーを指定する
 
--- 係数マッチャーを指定してマッチ
-match expr as poly integer [x] with
-  | $a :+ $rest -> ...   -- a : Integer
+目標は型とマッチャーの構造を一致させること:
 
--- 入れ子: 係数マッチャー自体が poly
-match expr as poly (poly integer [x]) [y] with
-  | $a :+ $rest -> ...   -- a : Poly Integer [x]
-
--- div の中身のマッチャーを指定
-match expr as div (poly integer [x]) with
-  | $n / $d -> ...       -- n, d : Poly Integer [x]
-
--- 全体の合成
-match expr as div (poly (div integer) [x]) with
-  | $n / $d ->
-    match n as poly (div integer) [x] with
-      | $a :+ $rest -> ...   -- a : Div Integer
 ```
+型                                   マッチャー
+Integer                              integer
+Div Integer                          div integer
+Poly Integer [x]                     poly integer [x]
+Term Integer [x]                     term integer [x]
+Poly (Div Integer) [x]              poly (div integer) [x]
+Div (Poly Integer [x])              div (poly integer [x])
+Poly (Poly Integer [x]) [y]         poly (poly integer [x]) [y]
+Tensor (Poly (Div Integer) [x])     tensor (poly (div integer) [x])
+```
+
+#### 実装方針
+
+`poly`, `div`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみとする。既存の `PDPlusPat`, `PDDivPat`, `PDTermPat` への変更は最小限で済む。
 
 #### Step 5.1: `poly` パラメトリックマッチャーの実装
 
-`poly` は `multiset` と同様に、係数マッチャーとシンボルリストを受け取るマッチャー関数。
+`:+` パターンは多項式を**項**と**残りの多項式**に分解する。項は `Term a fs` 型（係数 + モノミアルの組）。
 
 ```egison
 def poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs) :=
@@ -1173,28 +972,21 @@ def poly {a} (m : Matcher a) (fs : [Factor]) : Matcher (Poly a fs) :=
     | [] as () with
       | #0 -> [()]
       | _  -> []
-    | $ :+ $ as (m, poly m fs) with
+    | $ :+ $ as (term m fs, poly m fs) with
       | $tgt -> matchAll (casToTerms tgt) as multiset something with
-                  | $t :: $rest -> (termCoeff t, casFromTerms rest)
+                  | $t :: $rest -> (t, casFromTerms rest)
     | #$val as () with
       | $tgt -> if tgt == val then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 ```
 
-- `:+` パターンは多項式を項に分解し、先頭項の**係数**を `m` でマッチ、残りを再帰的に `poly m fs` でマッチ
-- 係数の抽出は `termCoeff` で行い、モノミアル部分は `fs` に基づいて処理
+- `:+` の左側は `term m fs` マッチャーでマッチ（項の構造を分解可能にする）
+- `:+` の右側は `poly m fs` で再帰
 - `casToTerms` / `casFromTerms` はプリミティブ関数として提供
-
-**実装の詳細**:
-- `PDPlusPat` を拡張し、マッチャー引数を受け取れるようにする
-- `:+` パターンで項を分解する際、係数部分を指定されたマッチャー `m` でマッチ
-- モノミアル部分はシンボルリスト `fs` に基づいてフィルタリング
-
-- [ ] `poly` マッチャー関数を `lib/math/expression.egi` に定義
-- [ ] `Core.hs` の `PDPlusPat` を拡張（マッチャー引数の伝搬）
-- [ ] `casToTerms`, `casFromTerms`, `termCoeff` のプリミティブ関数追加
-- [ ] mini-test: `poly integer [x]` での基本的なマッチ
+- `poly` マッチャー関数を `lib/math/expression.egi` に定義
+- `casToTerms`, `casFromTerms` のプリミティブ関数追加
+- mini-test: `poly integer [x]` での基本的なマッチ
 
 #### Step 5.2: `div` パラメトリックマッチャーの実装
 
@@ -1209,17 +1001,13 @@ def div {a} (m : Matcher a) : Matcher (Div a) :=
       | $tgt -> [tgt]
 ```
 
-- `$ / $` パターンで分子・分母を抽出し、両方を `m` でマッチ
-- `getCASNumerator` / `getCASenominator` は既存のプリミティブ
-
-- [ ] `div` マッチャー関数を `lib/math/expression.egi` に定義
-- [ ] `Core.hs` の `PDDivPat` を拡張（マッチャー引数の伝搬）
-- [ ] mini-test: `div (poly integer [x])` でのマッチ
+- `div` マッチャー関数を `lib/math/expression.egi` に定義
+- mini-test: `div (poly integer [x])` でのマッチ
 
 #### Step 5.3: `term` パラメトリックマッチャーの実装
 
 ```egison
-def term {a} (m : Matcher a) (fs : [Factor]) : Matcher (CASTerm a fs) :=
+def term {a} (m : Matcher a) (fs : [Factor]) : Matcher (Term a fs) :=
   matcher
     | ($, $) as (m, assocMultiset factor) with
       | $tgt -> [(termCoeff tgt, termMonomial tgt)]
@@ -1229,66 +1017,35 @@ def term {a} (m : Matcher a) (fs : [Factor]) : Matcher (CASTerm a fs) :=
 
 - 項を（係数, モノミアル）のペアに分解
 - 係数は `m` でマッチ、モノミアルは `assocMultiset factor` でマッチ
-
-- [ ] `term` マッチャー関数を `lib/math/expression.egi` に定義
-- [ ] `Core.hs` の `PDTermPat` を拡張（マッチャー引数の伝搬）
-- [ ] mini-test: `term integer [x]` でのマッチ
+- `termCoeff` / `termMonomial` はプリミティブ関数として提供
+- `term` マッチャー関数を `lib/math/expression.egi` に定義
+- `termCoeff`, `termMonomial` のプリミティブ関数追加
+- mini-test: `term integer [x]` でのマッチ
 
 #### Step 5.4: `mathExpr` マッチャーとの互換性
 
-既存の `mathExpr` マッチャーは後方互換性のために維持するが、内部的に `poly`, `div`, `term` を使うように書き換える。
+既存の `mathExpr` マッチャーは後方互換性のために維持する。
 
-```egison
--- mathExpr は poly something [..] + div something + symbol 等の統合マッチャー
--- 既存コードが壊れないよう維持
-def mathExpr : Matcher MathExpr :=
-  matcher
-    | div $p $q as (mathExpr, mathExpr) with ...   -- 後方互換
-    | poly $ts as (multiset mathExpr) with ...      -- 後方互換
-    | term $c $ms as (mathExpr, assocMultiset mathExpr) with ...  -- 後方互換
-    | symbol $name $indices as (string, list indexExpr) with ...
-    | apply1 $f $a as (something, mathExpr) with ...
-    | ...
-```
-
-- [ ] `mathExpr` を `poly`, `div`, `term` の合成として再定義
-- [ ] 既存テスト（`cabal test`）が通ることを確認
-- [ ] `mini-test/50-primitive-pattern.egi` が通ることを確認
+- `mathExpr` を `poly`, `div`, `term` の合成として再定義
+- 既存テスト（`cabal test`）と `mini-test/50-primitive-pattern.egi` が通ることを確認
 
 #### Step 5.5: 型推論との統合
 
-パラメトリックマッチャーの型推論を実装する。
-
-- [ ] `Type/Infer.hs` でマッチャー式 `poly m fs` の型推論
+- `Type/Infer.hs` でマッチャー式 `poly m fs` の型推論
   - `m : Matcher a` のとき `poly m fs : Matcher (Poly a fs)`
   - `div m : Matcher (Div a)`
-  - `term m fs : Matcher (CASTerm a fs)`
-- [ ] マッチャー引数の型からパターン変数の型を推論
-  - `match expr as poly integer [x] with | $a :+ _ -> ...` で `a : Integer` を推論
-  - `match expr as poly (poly integer [x]) [y] with | $a :+ _ -> ...` で `a : Poly Integer [x]` を推論
+  - `term m fs : Matcher (Term a fs)`
+- マッチャー引数の型からパターン変数の型を推論
+  - `match expr as poly integer [x] with | $a :+ _ -> ...` で `a : Term Integer [x]` を推論
+  - `match a as term integer [x] with | ($c, $mono) -> ...` で `c : Integer` を推論
 
 #### Step 5.6: テストと検証
 
-- [ ] 基本テスト: `poly integer [x]`, `div integer`, `term integer [x]`
-- [ ] 入れ子テスト: `poly (poly integer [x]) [y]`, `div (poly integer [x])`
-- [ ] 複合テスト: `div (poly (div integer) [x])`
-- [ ] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
-- [ ] sample/ の数学サンプルが正しく動作すること
-
-#### 設計上の考慮点
-
-**`list`/`multiset` との類似性**:
-- `list m` は `Matcher a → Matcher [a]`
-- `multiset m` は `Matcher a → Matcher [a]`（順序不問）
-- `poly m fs` は `Matcher a → [Factor] → Matcher (Poly a fs)`
-- `div m` は `Matcher a → Matcher (Div a)`
-
-**PDパターンの拡張方針**:
-現在の `PDPlusPat`, `PDDivPat`, `PDTermPat` はマッチャー引数を持たない。拡張には2つの方針がある:
-1. **Egison レベルで完結**: `poly`, `div`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみ
-2. **PDパターンを拡張**: `PDPlusPat` 等にマッチャー引数を追加し、Haskell レベルで係数マッチャーを伝搬
-
-方針1の方がシンプルで、Egison の既存マッチャー合成の仕組みをそのまま活用できる。プリミティブパターンへの変更が最小限で済む。方針1を採用する。
+- 基本テスト: `poly integer [x]`, `div integer`, `term integer [x]`
+- 入れ子テスト: `poly (poly integer [x]) [y]`, `div (poly integer [x])`
+- 複合テスト: `div (poly (div integer) [x])`
+- 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
+- sample/ の数学サンプルが正しく動作すること
 
 ### Phase 6: 簡約規則
 
@@ -1314,6 +1071,7 @@ def mathExpr : Matcher MathExpr :=
 ```
 
 問題点:
+
 - 簡約規則が Haskell (Layer 2) と Egison (Layer 3) に分散
 - ユーザーが新しいシンボルの簡約規則を追加できない
 - `mathNormalize` は `--no-normalize` フラグに依存しており、ロード時に切り替わる設計
@@ -1331,6 +1089,7 @@ def mathExpr : Matcher MathExpr :=
 
 `declare rule auto` で登録されたルールは `casNormalize` の中で適用される。
 これにより:
+
 - `casRewriteSymbol` (Rewrite.hs) のハードコードルール → `declare rule auto` に移行
 - `mathNormalize` (normalize.egi) の Egison レベルルール → `declare rule auto` または `declare rule <name>` に移行
 - `--no-normalize` オプション → `declare rule` を読み込まないモードとして再実装するか廃止
@@ -1369,6 +1128,7 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 ```
 
 ルールは CASValue ツリーを**再帰的に走査**して、マッチする全ノードに適用する。入れ子構造のどの深さにあってもルールが適用される:
+
 - `Poly (Poly Integer [x]) [y]` では、外側の CASPoly にも内側の CASPoly（係数）にも和パターンルールが適用される
 - `Poly (Div Integer) [x]` では、係数の CASDiv に商パターンルールが適用される
 - ユーザーは入れ子の深さを意識する必要がない
@@ -1389,24 +1149,26 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 
 現状:
 
-| ルール | 実装場所 | 適用方法 |
-|-------|---------|---------|
-| `rewriteRuleForSinAndCos` | `normalize.egi` (Egison) | `mapPolys` + Egison matchAll |
-| `rewriteRuleForRtu` | `normalize.egi` (Egison) | `mapPolys` + Egison matchAll (loop パターン) |
-| `casRewriteRtu` | `Rewrite.hs` (Haskell) | `mapCASTerms` のみ（積パターン） |
+
+| ルール                       | 実装場所                     | 適用方法                                     |
+| ------------------------- | ------------------------ | ---------------------------------------- |
+| `rewriteRuleForSinAndCos` | `normalize.egi` (Egison) | `mapPolys` + Egison matchAll             |
+| `rewriteRuleForRtu`       | `normalize.egi` (Egison) | `mapPolys` + Egison matchAll (loop パターン) |
+| `casRewriteRtu`           | `Rewrite.hs` (Haskell)   | `mapCASTerms` のみ（積パターン）                  |
+
 
 `casRewriteRtu` は積パターン（`rtu(n)^k` で `k >= n` なら `k mod n` に縮小）だけで、`normalize.egi` の `rewriteRuleForRtu` は和パターン（`rtu(n)^1 + rtu(n)^2 + ... + rtu(n)^(n-1) = -1`）も行っている。
 
-- [ ] `casRewriteSinCos` を `Rewrite.hs` に新規実装
+- `casRewriteSinCos` を `Rewrite.hs` に新規実装
   - `mapCASPolys` で項リストを multiset マッチ
   - ルール1: `a*mr + (-a)*cos(x)^2*mr + pr → a*sin(x)^2*mr + pr`
   - ルール2: `a*cos(x)^2*mr + b*sin(x)^2*mr + pr → a*mr + (b-a)*sin(x)^2*mr + pr`
   - `casRewriteW` の `g` 関数と同じパターンで実装
-- [ ] `casRewriteRtu` に和パターン部分を追加
+- `casRewriteRtu` に和パターン部分を追加
   - 現在の積パターン（`mapCASTerms`）に加え、`mapCASPolys` で和パターンを追加
   - `rtu(n)^(n-1)` を `-(1 + rtu(n) + ... + rtu(n)^(n-2))` に展開
-- [ ] `casRewriteSymbol` のパイプラインに `casRewriteSinCos` を追加
-- [ ] mini-test: sin/cos, rtu の簡約テスト
+- `casRewriteSymbol` のパイプラインに `casRewriteSinCos` を追加
+- mini-test: sin/cos, rtu の簡約テスト
 
 備考: `normalize.egi` の `containFunction1` による条件分岐（sin/cos が含まれるときだけルール適用）は、パフォーマンス最適化であり、正しさには影響しない。移植段階では省略してよい。
 
@@ -1414,7 +1176,7 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 
 `casNormalize` が規則環境を参照できるようにし、既存の `casRewriteSymbol` を `casNormalize` の中に統合する。
 
-- [ ] 規則の内部表現を定義 (`Math/CAS.hs` または新規 `Math/Rule.hs`)
+- 規則の内部表現を定義 (`Math/CAS.hs` または新規 `Math/Rule.hs`)
   ```haskell
   data ReductionRule = ReductionRule
     { ruleName :: Maybe String  -- auto 規則は Nothing
@@ -1422,15 +1184,15 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
     }
   type ReductionEnv = [ReductionRule]
   ```
-- [ ] `casNormalize` のシグネチャ拡張
+- `casNormalize` のシグネチャ拡張
   - 現在: `casNormalize :: CASValue -> CASValue`
   - 変更後: `casNormalizeWithRules :: ReductionEnv -> CASValue -> CASValue`
   - `casNormalize` は `casNormalizeWithRules []` のラッパーとして残す（後方互換性）
-- [ ] 既存 `casRewriteSymbol` を `casNormalizeWithRules` に統合
+- 既存 `casRewriteSymbol` を `casNormalizeWithRules` に統合
   - `Rewrite.hs` の各ルールを `ReductionRule` として表現
   - `casNormalizeWithRules` = 構造的正規化 + 規則適用を収束まで繰り返し（ツリー走査）
-- [ ] `symbolNormalize` プリミティブを `casNormalizeWithRules` 経由に変更
-- [ ] mini-test: 既存テストが通ることを確認
+- `symbolNormalize` プリミティブを `casNormalizeWithRules` 経由に変更
+- mini-test: 既存テストが通ることを確認
 
 備考: 規則環境の渡し方は要検討。`casPlus`/`casMult` 等の算術関数からも `casNormalize` が呼ばれるため、(a) グローバル `IORef`、(b) `Reader` モナド、(c) `casPlus` 等には空ルールの `casNormalize` を使い最終段で `casNormalizeWithRules` を適用、のいずれかを選ぶ。
 
@@ -1438,30 +1200,30 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 
 Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRewriteSymbol` が `casNormalizeWithRules` に統合されたことにより、`mathNormalize` は不要になる。
 
-- [ ] `arithmetic.egi` の簡略化（`mathNormalize` 呼び出しを `symbolNormalize` に置換）
-- [ ] `expression.egi` の `substitute` 関数の修正
-- [ ] `normalize.egi` / `no-normalize.egi` の削除
-- [ ] `--no-normalize` オプションの処理変更
-- [ ] `egison.hs` の mathLib ロード処理の除去
-- [ ] mini-test / sample の回帰テスト
+- `arithmetic.egi` の簡略化（`mathNormalize` 呼び出しを `symbolNormalize` に置換）
+- `expression.egi` の `substitute` 関数の修正
+- `normalize.egi` / `no-normalize.egi` の削除
+- `--no-normalize` オプションの処理変更
+- `egison.hs` の mathLib ロード処理の除去
+- mini-test / sample の回帰テスト
 
 #### Step 6.4: AST とパーサー — `declare rule` 構文の追加
 
 ユーザーが Egison レベルで簡約規則を定義できるようにする。
 
-- [ ] `TopExpr` に `DeclareRule (Maybe String) Expr Expr` コンストラクタを追加
-- [ ] `declare rule auto <lhs> = <rhs>` / `declare rule <name> <lhs> = <rhs>` のパーサー追加
-- [ ] mini-test: パースだけのテスト（実行はまだしない）
+- `TopExpr` に `DeclareRule (Maybe String) Expr Expr` コンストラクタを追加
+- `declare rule auto <lhs> = <rhs>` / `declare rule <name> <lhs> = <rhs>` のパーサー追加
+- mini-test: パースだけのテスト（実行はまだしない）
 
 #### Step 6.5: 自動規則のデシュガーと実行
 
 `declare rule auto` をパースし、`ReductionEnv` に登録し、`casNormalizeWithRules` で適用する。
 
-- [ ] LHS パターンの解析（和/積/商パターンの自動判定）
-- [ ] 書き換え関数の生成（LHS → RHS の `CASValue -> CASValue` 関数を動的に生成）
-- [ ] `EnvBuilder.hs`: `DeclareRule Nothing` を規則環境に追加
-- [ ] `EvalState` への規則環境の追加と伝搬
-- [ ] mini-test: 自動規則の動作テスト
+- LHS パターンの解析（和/積/商パターンの自動判定）
+- 書き換え関数の生成（LHS → RHS の `CASValue -> CASValue` 関数を動的に生成）
+- `EnvBuilder.hs`: `DeclareRule Nothing` を規則環境に追加
+- `EvalState` への規則環境の追加と伝搬
+- mini-test: 自動規則の動作テスト
   ```egison
   declare symbol j
   declare rule auto j^2 = -1
@@ -1473,10 +1235,10 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
 
 名前付きの手動規則を登録し、ユーザーが明示的に適用できるようにする。
 
-- [ ] 手動規則の環境登録（`Map String ReductionRule`）
-- [ ] `simplify <expr> using <rule_name>` のパーサー・AST・評価
-- [ ] 規則適用エンジン（非線形パターン `#x` サポート）
-- [ ] mini-test
+- 手動規則の環境登録（`Map String ReductionRule`）
+- `simplify <expr> using <rule_name>` のパーサー・AST・評価
+- 規則適用エンジン（非線形パターン `#x` サポート）
+- mini-test
   ```egison
   declare symbol x
   declare rule trig_pythagorean ('sin $x)^2 + ('cos #x)^2 = 1
@@ -1488,11 +1250,11 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
 
 `Rewrite.hs` の全ハードコードルールを `declare rule auto` に移行し、`Rewrite.hs` を削除する。
 
-- [ ] 単純な積パターンルールの移行（`i^2=-1`, `('sqrt $x)^2=x` 等）
-- [ ] 関数引数内パターンを含むルールの移行（`log`, `exp`, `power` 等）
-- [ ] 和パターンルールの移行（`w^2+w+1=0`, sin/cos, rtu 等）
-- [ ] 回帰テスト: sample/ 以下の数学サンプルの出力が一致すること
-- [ ] `Rewrite.hs` の削除
+- 単純な積パターンルールの移行（`i^2=-1`, `('sqrt $x)^2=x` 等）
+- 関数引数内パターンを含むルールの移行（`log`, `exp`, `power` 等）
+- 和パターンルールの移行（`w^2+w+1=0`, sin/cos, rtu 等）
+- 回帰テスト: sample/ 以下の数学サンプルの出力が一致すること
+- `Rewrite.hs` の削除
 
 #### 依存関係
 
@@ -1536,12 +1298,12 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 
 #### Step 1: Embed 型クラスの定義
 
-- [ ] `Embed` 型クラスを `lib/core/cas.egi` に定義
+- `Embed` 型クラスを `lib/core/cas.egi` に定義
   ```egison
   class Embed a b where
     embed :: a -> b
   ```
-- [ ] 基本インスタンスの実装
+- 基本インスタンスの実装
   - `Embed Integer (Poly Integer [..])`
   - `Embed Integer (Div Integer)`
   - `Embed Factor (Poly Integer [..])`
@@ -1550,41 +1312,41 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 
 #### Step 2: 型チェッカーでの包含関係グラフの構築
 
-- [ ] `Type/Subtype.hs` を新規作成
+- `Type/Subtype.hs` を新規作成
   - 包含関係のグラフ構造を定義
   - `Embed` インスタンス宣言時にグラフにエッジを追加
   - 推移閉包の計算（深さ制限付きBFSで探索）
-- [ ] `isSubtype` 関数（`Join.hs` に既存）と連携
+- `isSubtype` 関数（`Join.hs` に既存）と連携
   - 包含関係の判定に使用
   - `symbolSetSubset` でシンボル集合の包含も判定
 
 #### Step 3: 型推論での embed 自動挿入
 
-- [ ] `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
+- `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
   - 型 `τ₁` と `τ₂` が不一致の場合:
     1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
     2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
     3. どちらでもなければ型エラー
-- [ ] 推移的な変換（`embed . embed`）の合成
+- 推移的な変換（`embed . embed`）の合成
   - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
   - グラフ上の最短経路で `embed` を連鎖
-- [ ] `Embed` 制約の解決と辞書渡し
+- `Embed` 制約の解決と辞書渡し
   - 型クラス解決機構と連携
 
 #### Step 4: 二項演算での join と embed の連携
 
-- [ ] 二項演算 `a + b` での処理フロー
+- 二項演算 `a + b` での処理フロー
   1. `a : τ₁`, `b : τ₂` を推論
   2. `joinTypes τ₁ τ₂` で最小上界 `τ` を計算（`Join.hs`）
   3. `τ₁ ≠ τ` なら `embed` で `τ₁ → τ`
   4. `τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
   5. 結果の型は `τ`
-- [ ] 条件式 `if c then a else b` でも同様の join を実行
-- [ ] リストリテラル `[a, b, c]` での要素型の join
+- 条件式 `if c then a else b` でも同様の join を実行
+- リストリテラル `[a, b, c]` での要素型の join
 
 #### Step 5: 内部表現変換関数の実装
 
-- [ ] `Math/CAS.hs` に変換関数を追加
+- `Math/CAS.hs` に変換関数を追加
   ```haskell
   -- Integer → Poly Integer [..]
   embedIntToPoly :: CASValue -> CASValue
@@ -1605,14 +1367,14 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 
 #### Step 6: テストと検証
 
-- [ ] 自動 embed 挿入のテストケース
+- 自動 embed 挿入のテストケース
   - `x + 1` → `x + embed 1`
   - `f p` where `f : Poly Integer [x, y] -> ...`, `p : Poly Integer [x]`
-- [ ] 推移的な embed のテスト
+- 推移的な embed のテスト
   - `Integer → Div Integer → Poly (Div Integer) [x]`
-- [ ] join との連携テスト
+- join との連携テスト
   - `(1/2) * x` → `Poly (Div Integer) [x]`
-- [ ] エラーケースのテスト
+- エラーケースのテスト
   - 互換性のない型の演算（例: `String + Integer`）で適切なエラーメッセージ
 
 #### 設計上の考慮点
