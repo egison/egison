@@ -137,8 +137,6 @@ def poly m :=
         | Div (Plus ($t :: $rest)) (Plus [Term 1 []]) -> [(t, sum' rest)]
         | Plus ($t :: $rest) -> [(t, sum' rest)]
         | _ -> []
-    | [] as () with
-        | $tgt -> if tgt = 0 then [()] else []
     | $ as (term m) with
         | $tgt -> [tgt]
 

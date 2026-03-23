@@ -1181,14 +1181,33 @@ inferIExprWithContext expr ctx = case expr of
           -- Wildcard pattern: no pattern holes, no bindings
           matchedTy <- freshVar "matched"
           return (matchedTy, [], [], emptySubst)
-        
+
         PPPatVar -> do
           -- Pattern variable ($): one pattern hole, no binding
           -- Returns the matched type as the pattern hole type
           -- The caller will wrap it with TMatcher when unifying with next matcher type
           matchedTy <- freshVar "matched"
           return (matchedTy, [matchedTy], [], emptySubst)
-        
+
+        PPDiscard -> do
+          -- Discard pattern (~): matches any user pattern, no pattern holes, no bindings
+          matchedTy <- freshVar "matched"
+          return (matchedTy, [], [], emptySubst)
+
+        PPAndPat p1 p2 -> do
+          -- And pattern (p1 & p2): both must match same type, combine pattern holes and bindings
+          (ty1, phs1, bs1, s1) <- inferPrimitivePatPattern p1 ctx
+          (ty2, phs2, bs2, s2) <- inferPrimitivePatPattern p2 ctx
+          let s12 = composeSubst s2 s1
+          ty1' <- applySubstWithConstraintsM s12 ty1
+          ty2' <- applySubstWithConstraintsM s12 ty2
+          s3 <- unifyTypesWithContext ty1' ty2' ctx
+          let sAll = composeSubst s3 s12
+          phs1' <- mapM (applySubstWithConstraintsM sAll) phs1
+          phs2' <- mapM (applySubstWithConstraintsM sAll) phs2
+          matchedTy <- applySubstWithConstraintsM sAll ty1'
+          return (matchedTy, phs1' ++ phs2', bs1 ++ bs2, sAll)
+
         PPValuePat var -> do
           -- Value pattern (#$val): no pattern holes, binds variable to matched type
           matchedTy <- freshVar "matched"

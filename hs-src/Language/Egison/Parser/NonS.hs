@@ -1305,11 +1305,17 @@ atomPattern' = WildCard <$  symbol "_"
            <?> "atomic pattern"
 
 ppPattern :: Parser PrimitivePatPattern
-ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
-        <|> do ops <- gets patternOps
-               makeExprParser ppAtom (makeTable ops)
+ppPattern = do
+    p <- ppSingle
+    -- Parse optional & continuation (right-associative)
+    (PPAndPat p <$> (symbol "&" *> ppPattern)) <|> return p
         <?> "primitive pattern pattern"
   where
+    ppSingle :: Parser PrimitivePatPattern
+    ppSingle = PPInductivePat <$> lowerId <*> many ppAtom
+           <|> do ops <- gets patternOps
+                  makeExprParser ppAtom (makeTable ops)
+
     makeTable :: [Op] -> [[Operator Parser PrimitivePatPattern]]
     makeTable ops =
       reverse $ map (map toOperator) $ groupBy (\x y -> priority x == priority y) $
@@ -1323,6 +1329,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
          <|> PPPatVar   <$ symbol "$"
+         <|> PPDiscard  <$ symbol "~"
          <|> PPValuePat <$> (string "#$" >> lowerId)
          <|> PPInductivePat "[]" [] <$ (symbol "[" >> symbol "]")
          <|> makeTupleOrParen ppPattern PPTuplePat

@@ -330,9 +330,11 @@ instance {-# OVERLAPPING #-} Pretty LoopRange where
 instance Pretty PrimitivePatPattern where
   pretty PPWildCard                = pretty "_"
   pretty PPPatVar                  = pretty "$"
+  pretty PPDiscard                 = pretty "~"
   pretty (PPValuePat x)          = pretty ('#' : '$' : x)
   pretty (PPInductivePat x pppats) = hsep (pretty x : map pretty pppats)
   pretty (PPTuplePat pppats)       = tupled (map pretty pppats)
+  pretty (PPAndPat p1 p2)         = pretty p1 <+> pretty "&" <+> pretty p2
 
 instance Pretty PrimitiveDataPattern where
   pretty PDWildCard                = pretty "_"

@@ -810,10 +810,21 @@ def frac m :=
 
 def poly m :=
   matcher
-    | poly $ as (multiset (term m)) with ...
-    | $ + $ as (term m, poly m) with ...
-    | [] as () with ...
-    | $ as (term m) with                     -- term m に委譲
+    | poly $ as (multiset (term m)) with
+        | Div (Plus $ts) (Plus [Term 1 []]) -> [ts]
+        | Plus $ts -> [ts]
+        | _ -> []
+    | $ + $ as (term m, poly m) with
+        | Div (Plus ($t :: $rest)) (Plus [Term 1 []]) -> [(t, sum' rest)]
+        | Plus ($t :: $rest) -> [(t, sum' rest)]
+        | _ -> []
+    | [] as () with
+        | $tgt -> if tgt = 0 then [()] else []
+    | term ~ ~ & $ as (m) with              -- term パターンを認識し、m に委譲
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | $ as (term m) with                     -- その他の全パターンを term m に委譲
         | $tgt -> [tgt]
 
 def term m :=
@@ -828,7 +839,49 @@ def term m :=
         | $tgt -> [termCoeff tgt]
 ```
 
-`$ as (m) with | $tgt -> [f tgt]` は、ワイルドカードパターン `$` が任意のパターンにマッチし、値に変換関数 `f` を適用してからマッチャー `m` に渡す。
+`$ as (m) with | $tgt -> [f tgt]` は、パターン変数 `$` が任意のパターンにマッチし、値に変換関数 `f` を適用してからマッチャー `m` に渡す。
+
+#### primitive pattern pattern の拡張（discard と and パターン）（完了）
+
+マッチャーの委譲を実現するために、primitive pattern pattern（PPP）に discard パターンと and パターンを追加した。
+
+**discard `~` の追加**: PPP 中の `~` は、ユーザーが書いた**任意のサブパターン**にマッチし、それを捨てる。既存の `_`（`PPWildCard`）はユーザーが文字通り `_` を書いた場合のみにマッチし、`$x` 等には一致しない。`~`（`PPDiscard`）は `$x`, `_`, `#y` 等あらゆるパターンにマッチする。`_` のセマンティクスは既存マッチャー（`list`, `multiset` 等）との互換性のため変更しない。
+
+**and パターン `&` の追加**: PPP に `&` 演算子を追加し、`p1 & p2` で「両方にマッチ」を表す。バインディング（キャプチャされたパターンとスコープ束縛）は両側から合成される。
+
+```haskell
+-- AST.hs: PrimitivePatPattern
+data PrimitivePatPattern
+  = PPWildCard                                          -- _ : ユーザーの _ のみにマッチ
+  | PPPatVar                                            -- $ : 任意パターンにマッチしキャプチャ
+  | PPDiscard                                           -- ~ : 任意パターンにマッチし捨てる
+  | PPValuePat String
+  | PPInductivePat String [PrimitivePatPattern]
+  | PPTuplePat [PrimitivePatPattern]
+  | PPAndPat PrimitivePatPattern PrimitivePatPattern    -- & : 両方にマッチ
+
+-- Core.hs: primitivePatPatternMatch
+primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])  -- 変更なし
+primitivePatPatternMatch _ PPDiscard _ = return ([], [])           -- NEW: 任意パターンを捨てる
+primitivePatPatternMatch env (PPAndPat p1 p2) pattern = do        -- NEW: 合成
+  (pats1, binds1) <- primitivePatPatternMatch env p1 pattern
+  (pats2, binds2) <- primitivePatPatternMatch env p2 pattern
+  return (pats1 ++ pats2, binds1 ++ binds2)
+```
+
+**`term ~ ~ & $` の意味**: `term ~ ~` でユーザーのパターンが `term` パターンであることを確認し（サブパターンは `~` で全て無視）、`& $` でユーザーの元のパターン全体をキャプチャしてマッチャー `m` に渡す。`m` が変換後の値をユーザーの元のパターン（`term $c _` 等）で再解釈する。
+
+**具体例**: ユーザーが `match expr as (poly (term integer)) with | term $c _ -> ...` と書いた場合:
+
+1. `poly (term integer)` のマッチャー定義を上から順に試す
+2. `$ + $` は `term $c _` にマッチしない
+3. `term ~ ~ & $` が `term $c _` にマッチ:
+   - `term ~ ~` が `IInductivePat "term" [$c, _]` にマッチ: `~` が `$c` と `_` を無視
+   - `& $` が `IInductivePat "term" [$c, _]` 全体をキャプチャ → `m`（= `term integer`）に委譲
+4. データ分解で単一項を抽出
+5. `term integer` が変換後の値を `term $c _` パターンで再解釈 → `$c = 5`
+
+ここで重要なのは、`m` がユーザーパターンを解釈できるマッチャーである必要がある点。`poly (term integer)` のように `m = term integer` とすれば、`term $c _` パターンは `term integer` が処理できる。
 
 ### `mathExpr` の定義
 
@@ -1058,6 +1111,13 @@ def mathExpr := frac (poly integer)
 
 #### 今後の課題
 
+- [x] primitive pattern pattern の拡張（discard と and パターン）（完了）
+  - `PPDiscard`（`~`）の追加: 任意の `IPattern` にマッチし捨てる（`PPWildCard` は `IWildCard` 限定のまま維持）
+  - `PPAndPat`（`&`）の追加: PPP に `&` 演算子を追加
+  - パーサー (`Parser/NonS.hs`): `~` と `&` をパース
+  - プリティプリンター (`Pretty.hs`): `PPDiscard`, `PPAndPat` の表示
+  - 型推論 (`Type/Infer.hs`): `PPDiscard`, `PPAndPat` の推論
+  - テスト: `mini-test/68-ppp-and-discard.egi`
 - [ ] `Type/Infer.hs` でマッチャー式 `poly m` の型推論
   - `m : Matcher a` のとき `poly m : Matcher (Poly a ..)`
   - `frac m : Matcher (Div a)`

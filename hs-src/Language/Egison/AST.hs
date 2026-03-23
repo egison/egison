@@ -313,11 +313,13 @@ data LoopRange = LoopRange Expr Expr Pattern
   deriving Show
 
 data PrimitivePatPattern
-  = PPWildCard
-  | PPPatVar
-  | PPValuePat String  -- Variable name
+  = PPWildCard                                          -- Matches only user's _ (IWildCard)
+  | PPPatVar                                            -- Matches any pattern and captures it ($)
+  | PPDiscard                                           -- Matches any pattern and discards it (~)
+  | PPValuePat String                                   -- Variable name
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
+  | PPAndPat PrimitivePatPattern PrimitivePatPattern    -- And pattern (&)
   deriving Show
 
 data PDPatternBase var
