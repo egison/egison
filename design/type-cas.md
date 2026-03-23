@@ -782,8 +782,8 @@ casNormalizePoly :: ReductionEnv -> [CASTerm] -> CASValue
 
 ```egison
 -- 基本マッチャー（パラメータなし）
-integer : Matcher Integer
-factor  : Matcher Factor
+integer : Matcher Integer        -- something のエイリアス
+factor  : Matcher Factor         -- symbol, apply1, quote 等のパターンを持つ
 
 -- パラメトリックマッチャー（係数マッチャーを受け取る）
 poly {a} (m : Matcher a) : Matcher (Poly a ..)
@@ -793,7 +793,72 @@ div  {a} (m : Matcher a) : Matcher (Div a)
 
 `poly`, `term` のシンボルリストはランタイムのマッチャーには不要（CASValue の内部構造が型ごとに異なるため、マッチャーが区別する必要がない）。型レベルでのみ `Poly a [x]` / `Poly a [x, y]` を区別する。
 
-`factor` は `Factor` 型（クォート演算子 `'` で生成される原子的な数式要素）のマッチャーで、`symbol`, `apply1`, `quote` 等のパターンを持つ。`term m` のモノミアル分解で `assocMultiset factor` として使われる。
+`factor` は `Factor` 型（クォート演算子 `'` で生成される原子的な数式要素）のマッチャーで、`symbol`, `apply1`, `quote` 等のパターンを持つ。`term m` のモノミアル分解で `assocMultiset factor` として固定的に使われる。
+
+### マッチャー委譲（`...m` 構文）
+
+各マッチャーは自身のパターンにマッチしない場合、内部マッチャーにパターンを**委譲**できる。`...m with` 構文で、値を変換してから `m` のパターンに委譲する：
+
+```egison
+def div {a} (m : Matcher a) : Matcher (Div a) :=
+  matcher
+    | $ / $ as (div m, div m) with
+      | $tgt -> [(getCASNumerator tgt, getCASenominator tgt)]
+    | ...m with                              -- m のパターンに委譲
+      | $tgt -> [getCASNumerator tgt]        -- 分子として扱う
+
+def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
+  matcher
+    | $ :+ $ as (term m, poly m) with
+      | $tgt -> matchAll (casToTerms tgt) as multiset something with
+                  | $t :: $rest -> (t, casFromTerms rest)
+    | [] as () with
+      | #0 -> [()]
+      | _  -> []
+    | ...term m with                         -- term m のパターンに委譲
+      | $tgt -> [tgt]                        -- 1項の多項式として扱う
+
+def term {a} (m : Matcher a) : Matcher (Term a ..) :=
+  matcher
+    | ($, $) as (m, assocMultiset factor) with
+      | $tgt -> [(termCoeff tgt, termMonomial tgt)]
+    | ...m with                              -- m のパターンに委譲
+      | $tgt -> [termCoeff tgt]              -- 定数項の係数として扱う
+```
+
+これにより `mathExpr := div (poly integer)` と定義でき、委譲チェーンが成立する：
+
+```egison
+def mathExpr := div (poly integer)
+```
+
+```
+match expr as mathExpr with
+  | $n / $d      → div が処理
+  | $a :+ $rest  → div → poly に委譲（分子として扱う）
+  | ($c, $mono)  → div → poly → term に委譲（1項の多項式として）
+  | $x           → div → poly → term → integer に委譲（定数項の係数）
+```
+
+委譲チェーンの各段階で値がどう変換されるか：
+
+```
+div     : getCASNumerator        -- CASDiv を分子に変換（非 CASDiv はそのまま）
+poly    : identity               -- CASPoly を1項として扱う
+term    : termCoeff              -- CASTerm から係数を抽出（定数項なら値そのもの）
+integer : （終端）
+```
+
+### `factor` へのアクセス経路
+
+`symbol`, `apply1`, `quote` 等の `factor` パターンは、係数の委譲チェーン（div → poly → term → integer）ではなく、**モノミアルの分解経路**（`term m` の `assocMultiset factor`）を通じてアクセスする。
+
+```
+term m  →  ($coeff, $mono) as (m, assocMultiset factor)
+                                ↑              ↑
+                          係数経路          モノミアル経路
+                       div→poly→term→m      assocMultiset factor
+```
 
 ### `:+` パターンの意味論
 
@@ -815,41 +880,40 @@ term m       の  ($c, $mono)  →  c : a,               mono : [(Factor, Intege
 ```egison
 declare symbol x, y
 
--- Poly Integer [x] のパターンマッチ
--- :+ は項（Term Integer）と残り（Poly Integer [x]）に分解
-match expr as poly integer with
+def mathExpr := div (poly integer)
+
+-- Div パターン
+match expr as mathExpr with
+  | $n / $d -> ...       -- n, d : Poly Integer [x]（div が処理）
+
+-- Poly パターン（div から poly に委譲）
+match expr as mathExpr with
   | $a :+ $rest -> ...   -- a : Term Integer, rest : Poly Integer [x]
 
--- 項をさらに係数とモノミアルに分解
-match expr as poly integer with
-  | $a :+ _ ->
-    match a as term integer with
-      | ($c, $mono) -> ...  -- c : Integer, mono : [(Factor, Integer)]
+-- Term パターン（div → poly → term に委譲）
+match expr as mathExpr with
+  | ($c, $mono) -> ...   -- c : Integer, mono : [(Factor, Integer)]
 
--- Poly (Poly Integer [x]) [y] のパターンマッチ（入れ子）
--- 各項の係数は Poly Integer [x] 型
+-- 明示的なマッチャー指定も可能
+match expr as poly integer with
+  | $a :+ $rest -> ...   -- Poly Integer として直接マッチ
+
+match expr as div (poly integer) with
+  | $n / $d -> ...       -- mathExpr と同じ
+
+-- 入れ子の係数マッチャー
 match expr as poly (poly integer) with
   | $a :+ $rest ->
     match a as term (poly integer) with
       | ($c, $mono) -> ...  -- c : Poly Integer [x], mono : [(Factor, Integer)]
-
--- Poly Integer [x, y] のパターンマッチ（多変数）
-match expr as poly integer with
-  | $a :+ $rest -> ...   -- a : Term Integer, rest : Poly Integer [x, y]
-
--- Div (Poly Integer [x]) のパターンマッチ
-match expr as div (poly integer) with
-  | $n / $d -> ...       -- n, d : Poly Integer [x]
 ```
-
-### モノミアルの分解
 
 ### モノミアルと Factor の分解
 
 `term` マッチャーで取り出したモノミアル（`[(Factor, Integer)]`）は `assocMultiset factor` でさらに分解できる。`factor` マッチャーは `symbol`, `apply1`, `quote` 等のパターンを持ち、シンボルの内部構造を分解する。
 
 ```egison
--- モノミアルの各要素を factor マッチャーで分解
+-- 項をモノミアルまで分解
 match expr as poly integer with
   | $a :+ _ ->
     match a as term integer with
@@ -880,7 +944,8 @@ match expr as div (poly integer) with
 
 - **`multiset` と同じ仕組み**: `poly m` の `:+` は `multiset m` の `::` と同じ意味論（順序不問の分解）
 - **`term` による段階的分解**: 項の構造（係数 + モノミアル）を `term m` で明示的に分解。係数マッチャー `m` がここで活きる
-- **`factor` でシンボルの内部構造を分解**: `symbol`, `apply1`, `quote` 等のパターンでシンボルの種類に応じた分解が可能
+- **`factor` でシンボルの内部構造を分解**: モノミアル経由で `symbol`, `apply1`, `quote` 等のパターンにアクセス
+- **`...m` による委譲で合成可能**: `mathExpr := div (poly integer)` のように、マッチャーの合成で上位層のパターンから下位層のパターンまで一貫してアクセスできる
 - **合成が統一的**: `poly`, `div`, `term`, `factor`, `integer`, `multiset`, `assocMultiset` がすべて同じマッチャー合成の仕組みで組み合わさる
 
 ---
@@ -1014,91 +1079,88 @@ def factor : Matcher Factor :=
 - [ ] `factor` マッチャーを `lib/math/expression.egi` に定義
 - [ ] `extractSymbol`, `extractApply1`, `extractQuote` 等のプリミティブ関数追加（既存の `PDSymbolPat` 等の Haskell コードを公開）
 
-#### Step 5.1: `poly` パラメトリックマッチャーの実装
+#### Step 5.1: `...m` 委譲構文の実装
 
-`:+` パターンは多項式を**項**と**残りの多項式**に分解する。項は `Term a` 型（係数 + モノミアルの組）。
+`matcher` 式に `...m with` 構文を追加し、自身のパターンにマッチしない場合に内部マッチャーへ委譲できるようにする。
 
 ```egison
-def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
-  matcher
-    | [] as () with
-      | #0 -> [()]
-      | _  -> []
-    | $ :+ $ as (term m, poly m) with
-      | $tgt -> matchAll (casToTerms tgt) as multiset something with
-                  | $t :: $rest -> (t, casFromTerms rest)
-    | #$val as () with
-      | $tgt -> if tgt == val then [()] else []
-    | $ as (something) with
-      | $tgt -> [tgt]
+-- ...m with | $tgt -> [f tgt] は：
+-- このマッチャーのパターンにマッチしない場合、
+-- 値に f を適用してから m のパターンでマッチを試みる
 ```
 
-- `:+` の左側は `term m` マッチャーでマッチ（項の構造を分解可能にする）
-- `:+` の右側は `poly m` で再帰
-- `casToTerms` / `casFromTerms` はプリミティブ関数として提供
-- `poly` マッチャー関数を `lib/math/expression.egi` に定義
-- `casToTerms`, `casFromTerms` のプリミティブ関数追加
-- mini-test: `poly integer` での基本的なマッチ
+- [ ] `AST.hs` の `MatcherBody` に委譲節（`DelegateTo Matcher Expr`）を追加
+- [ ] パーサーで `...m with` 構文をパース
+- [ ] `Core.hs` のマッチャー評価で委譲を実装（パターン不一致時に内部マッチャーに転送）
+- [ ] mini-test: 基本的な委譲の動作確認
 
-#### Step 5.2: `div` パラメトリックマッチャーの実装
+#### Step 5.2: `poly`, `div`, `term` パラメトリックマッチャーの実装
 
 ```egison
 def div {a} (m : Matcher a) : Matcher (Div a) :=
   matcher
-    | $ / $ as (m, m) with
+    | $ / $ as (div m, div m) with
       | $tgt -> [(getCASNumerator tgt, getCASenominator tgt)]
-    | #$val as () with
-      | $tgt -> if tgt == val then [()] else []
-    | $ as (something) with
+    | ...m with
+      | $tgt -> [getCASNumerator tgt]
+
+def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
+  matcher
+    | $ :+ $ as (term m, poly m) with
+      | $tgt -> matchAll (casToTerms tgt) as multiset something with
+                  | $t :: $rest -> (t, casFromTerms rest)
+    | [] as () with
+      | #0 -> [()]
+      | _  -> []
+    | ...term m with
       | $tgt -> [tgt]
-```
 
-- `div` マッチャー関数を `lib/math/expression.egi` に定義
-- mini-test: `div (poly integer)` でのマッチ
-
-#### Step 5.3: `term` パラメトリックマッチャーの実装
-
-```egison
 def term {a} (m : Matcher a) : Matcher (Term a ..) :=
   matcher
     | ($, $) as (m, assocMultiset factor) with
       | $tgt -> [(termCoeff tgt, termMonomial tgt)]
-    | $ as (something) with
-      | $tgt -> [tgt]
+    | ...m with
+      | $tgt -> [termCoeff tgt]
 ```
 
-- 項を（係数, モノミアル）のペアに分解
-- 係数は `m` でマッチ、モノミアルは `assocMultiset factor` でマッチ
-- `termCoeff` / `termMonomial` はプリミティブ関数として提供
-- `term` マッチャー関数を `lib/math/expression.egi` に定義
-- `termCoeff`, `termMonomial` のプリミティブ関数追加
-- mini-test: `term integer` でのマッチ
+- [ ] `poly` マッチャー関数を `lib/math/expression.egi` に定義
+- [ ] `div` マッチャー関数を `lib/math/expression.egi` に定義
+- [ ] `term` マッチャー関数を `lib/math/expression.egi` に定義
+- [ ] プリミティブ関数追加: `casToTerms`, `casFromTerms`, `termCoeff`, `termMonomial`, `getCASNumerator`, `getCASenominator`
+- [ ] mini-test: `poly integer`, `div integer`, `term integer` での基本的なマッチ
 
-#### Step 5.4: `mathExpr` マッチャーとの互換性
+#### Step 5.3: `mathExpr` の再定義
 
-既存の `mathExpr` マッチャーは後方互換性のために維持する。
+`mathExpr` を `div (poly integer)` として定義する。委譲チェーンにより、`$ / $`, `$ :+ $`, `($, $)` の全パターンが利用可能。
 
-- `mathExpr` を `poly`, `div`, `term` の合成として再定義
-- 既存テスト（`cabal test`）と `mini-test/50-primitive-pattern.egi` が通ることを確認
+```egison
+def mathExpr := div (poly integer)
+```
 
-#### Step 5.5: 型推論との統合
+- [ ] `mathExpr` を `div (poly integer)` として再定義
+- [ ] 既存テスト（`cabal test`）と `mini-test/50-primitive-pattern.egi` が通ることを確認
+- [ ] `symbol`, `apply1` 等は `factor` マッチャー経由（モノミアル分解）でアクセスできることを確認
 
-- `Type/Infer.hs` でマッチャー式 `poly m` の型推論
+#### Step 5.4: 型推論との統合
+
+- [ ] `Type/Infer.hs` でマッチャー式 `poly m` の型推論
   - `m : Matcher a` のとき `poly m : Matcher (Poly a ..)`
   - `div m : Matcher (Div a)`
   - `term m : Matcher (Term a ..)`
-- マッチャー引数の型からパターン変数の型を推論
+- [ ] マッチャー引数の型からパターン変数の型を推論
   - `match expr as poly integer with | $a :+ _ -> ...` で `a : Term Integer` を推論
   - `match a as term integer with | ($c, $mono) -> ...` で `c : Integer` を推論
+- [ ] `...m` 委譲構文の型推論（委譲先マッチャーの型と変換関数の型の整合性チェック）
 
-#### Step 5.6: テストと検証
+#### Step 5.5: テストと検証
 
 - [ ] 基本テスト: `integer`, `factor`, `poly integer`, `div integer`, `term integer`
 - [ ] factor テスト: `symbol`, `apply1`, `quote` パターン
+- [ ] 委譲テスト: `div (poly integer)` で `$ / $`, `$ :+ $`, `($, $)` が全て使えること
 - [ ] 入れ子テスト: `poly (poly integer)`, `div (poly integer)`
 - [ ] 複合テスト: `div (poly (div integer))`
 - [ ] モノミアル分解テスト: `term integer` + `assocMultiset factor`
-- [ ] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
+- [ ] `mathExpr := div (poly integer)` で既存コードが動作すること
 - [ ] sample/ の数学サンプルが正しく動作すること
 
 ### Phase 6: 簡約規則
