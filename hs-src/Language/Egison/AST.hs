@@ -22,6 +22,7 @@ module Language.Egison.AST
   , BindingExpr (..)
   , MatchClause
   , PatternDef (..)
+
   , LoopRange (..)
   , PrimitivePatPattern (..)
   , PDPatternBase (..)

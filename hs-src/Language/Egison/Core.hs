@@ -496,7 +496,8 @@ evalExprShallow env (IWedgeApplyExpr func args) = do
       evalMemoizedFunc hashRef env names body args >>= removeDF
     _ -> applyObj env func args' >>= removeDF
 
-evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
+evalExprShallow env (IMatcherExpr info) =
+  return $ Value $ UserMatcher env info
 
 evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
@@ -1185,7 +1186,7 @@ processMState' mstate@(MState env loops seqs bindings (MAtom pattern target matc
 inductiveMatch :: Env -> IPattern -> WHNFData -> Matcher ->
                   EvalM ([IPattern], MList EvalM ObjectRef, [Matcher])
 inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
-  foldr tryPPMatchClause failPPPatternMatch clauses
+  foldr tryPPMatchClause fallback clauses
  where
   tryPPMatchClause (pat, matchers, clauses) cont = do
     result <- runMaybeT $ primitivePatPatternMatch env pat pattern
@@ -1207,7 +1208,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
         let env = extendEnv matcherEnv $ bindings ++ bindings'
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont
-  failPPPatternMatch = throwError (Default "failed primitive pattern pattern match")
+  fallback = throwError (Default "failed primitive pattern pattern match")
   failPDPatternMatch = throwErrorWithTrace PrimitiveMatchFailure
 
 primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->

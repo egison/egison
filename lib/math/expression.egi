@@ -131,6 +131,116 @@ def multExpr : Matcher MathExpr :=
 
 def termExpr : Matcher MathExpr := mathExpr
 
+-- Parametric CAS matchers
+def integer := something
+
+def factor :=
+  matcher
+    | symbol $ $ as (something, list indexExpr) with
+        | Symbol $name $indices -> [(name, indices)]
+        | _ -> []
+    | apply1 $ $ as (something, something) with
+        | Apply1 $fn $arg -> [(fn, arg)]
+        | _ -> []
+    | apply2 $ $ $ as (something, something, something) with
+        | Apply2 $fn $a1 $a2 -> [(fn, a1, a2)]
+        | _ -> []
+    | apply3 $ $ $ $ as (something, something, something, something) with
+        | Apply3 $fn $a1 $a2 $a3 -> [(fn, a1, a2, a3)]
+        | _ -> []
+    | apply4 $ $ $ $ $ as (something, something, something, something, something) with
+        | Apply4 $fn $a1 $a2 $a3 $a4 -> [(fn, a1, a2, a3, a4)]
+        | _ -> []
+    | quote $ as (something) with
+        | Quote $e -> [e]
+        | _ -> []
+    | func $ $ as (something, list something) with
+        | Function $name $args -> [(name, args)]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
+
+def term m :=
+  matcher
+    | term $ $ as (m, assocMultiset factor) with
+        | Div (Plus [Term $c $ms]) (Plus [Term 1 []]) -> [(c, ms)]
+        | Term $c $ms -> [(c, ms)]
+        | _ -> []
+    | mult $ $ as (m, multExpr) with
+        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | $ * $ as (m, multExpr) with
+        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    -- Factor shortcuts: single factor with coefficient 1, power 1
+    | symbol $ $ as (something, list indexExpr) with
+        | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | Symbol $v $js -> [(v, js)]
+        | _ -> []
+    | apply1 $ $ as (something, something) with
+        | Div (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1)]
+        | Apply1 $v $a1 -> [(v, a1)]
+        | _ -> []
+    | apply2 $ $ $ as (something, something, something) with
+        | Div (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2)]
+        | Apply2 $v $a1 $a2 -> [(v, a1, a2)]
+        | _ -> []
+    | apply3 $ $ $ $ as (something, something, something, something) with
+        | Div (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3)]
+        | Apply3 $v $a1 $a2 $a3 -> [(v, a1, a2, a3)]
+        | _ -> []
+    | apply4 $ $ $ $ $ as (something, something, something, something, something) with
+        | Div (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3, a4)]
+        | Apply4 $v $a1 $a2 $a3 $a4 -> [(v, a1, a2, a3, a4)]
+        | _ -> []
+    | quote $ as (something) with
+        | Div (Plus [Term 1 [(Quote $e, 1)]]) (Plus [Term 1 []]) ->
+            [e]
+        | Quote $e -> [e]
+        | _ -> []
+    | func $ $ as (something, list something) with
+        | Div (Plus [Term 1 [(Function $name $args, 1)]]) (Plus [Term 1 []]) ->
+            [(name, args)]
+        | Function $name $args -> [(name, args)]
+        | _ -> []
+    | $ as (m) with
+        | $tgt -> [termCoeff tgt]
+
+def poly m :=
+  matcher
+    | poly $ as (multiset (term m)) with
+        | Div (Plus $ts) (Plus [Term 1 []]) -> [ts]
+        | Plus $ts -> [ts]
+        | _ -> []
+    | $ + $ as (term m, poly m) with
+        | Div (Plus ($t :: $rest)) (Plus [Term 1 []]) -> [(t, sum' rest)]
+        | Plus ($t :: $rest) -> [(t, sum' rest)]
+        | _ -> []
+    | [] as () with
+        | $tgt -> if tgt = 0 then [()] else []
+    | $ as (term m) with
+        | $tgt -> [tgt]
+
+def frac m :=
+  matcher
+    | $ / $ as (frac m, frac m) with
+        | Div $p $q -> [(p, q)]
+        | _ -> []
+    | $ as (m) with
+        | $tgt -> [numerator tgt]
+
+-- mathExpr is the standard matcher for CAS values, composed from parametric matchers
+def mathExpr := frac (poly integer)
+
 def isSymbol (mexpr: MathExpr) : Bool :=
   match mexpr as mathExpr with
     | symbol _ _ -> True

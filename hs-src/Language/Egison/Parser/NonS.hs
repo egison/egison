@@ -1001,9 +1001,7 @@ seqExpr = SeqExpr <$> (reserved "seq" >> atomExpr) <*> atomExpr
 matcherExpr :: Parser Expr
 matcherExpr = do
   reserved "matcher"
-  -- Assuming it is unlikely that users want to write matchers with only 1
-  -- pattern definition, the first '|' (bar) is made indispensable in matcher
-  -- expression.
+  -- The first '|' (bar) is made indispensable in matcher expression.
   MatcherExpr <$> alignSome (symbol "|" >> patternDef)
   where
     patternDef :: Parser PatternDef

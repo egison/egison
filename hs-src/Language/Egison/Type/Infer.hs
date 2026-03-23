@@ -625,7 +625,7 @@ applySubstToTIExprNode s node = case node of
   
   TIMatcherExpr patDefs ->
     TIMatcherExpr (map (\(pat, expr, bindings) -> (pat, applySubstToTIExpr s expr, bindings)) patDefs)
-  
+
   TIMatchExpr mode target matcher clauses ->
     TIMatchExpr mode 
                 (applySubstToTIExpr s target)
@@ -1087,12 +1087,12 @@ inferIExprWithContext expr ctx = case expr of
     -- Infer type of each pattern definition (matcher clause)
     -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
     results <- mapM (inferPatternDef exprCtx) patDefs
-    
+
     -- Collect TIPatternDefs and substitutions
     let tiPatDefs = map fst results
         substs = concatMap (snd . snd) results  -- Extract [Subst] from (TIPatternDef, (Type, [Subst]))
         finalSubst = foldr composeSubst emptySubst substs
-    
+
     -- All clauses should agree on the matched type
     -- Unify all matched types from each pattern definition
     matchedTypes <- mapM (\(_, (ty, _)) -> applySubstWithConstraintsM finalSubst ty) results
@@ -1110,7 +1110,7 @@ inferIExprWithContext expr ctx = case expr of
           ) emptySubst restTys
         resultTy <- applySubstWithConstraintsM s firstTy
         return (resultTy, s)
-    
+
     let allSubst = composeSubst s_matched finalSubst
     return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), allSubst)
     where

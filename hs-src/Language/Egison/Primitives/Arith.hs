@@ -13,9 +13,11 @@ module Language.Egison.Primitives.Arith
   ) where
 
 import           Data.Ratio                       ((%))
+import qualified Data.Sequence                    as Sq
 
 import           Language.Egison.Data
 import           Language.Egison.Math
+import qualified Language.Egison.Math.CAS         as CAS
 import           Language.Egison.Primitives.Utils
 
 primitiveArithFunctions :: [(String, EgisonValue)]
@@ -35,6 +37,12 @@ strictPrimitives =
   , ("numerator",       numerator')
   , ("denominator",     denominator')
   , ("symbolNormalize", symbolNormalize)
+
+  -- CAS matcher primitives
+  , ("casTerms",       casTerms)
+  , ("casFromTerms",   casFromTerms')
+  , ("termCoeff",      termCoeff)
+  , ("termMonomial",   termMonomial)
 
   , ("i.modulo",   integerBinaryOp mod)
   , ("i.quotient", integerBinaryOp quot)
@@ -136,6 +144,75 @@ symbolNormalize = oneArg $ \val ->
   case val of
     CASData c -> return $ CASData (casRewriteSymbol c)
     _         -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+
+-- CAS matcher primitives: decompose CASValue into terms, coefficients, monomials
+
+-- | Convert CASValue to a list of single-term CASValues
+casTerms :: String -> PrimitiveFunc
+casTerms = oneArg $ \val ->
+  case val of
+    CASData cv ->
+      let terms = casToTermsCAS cv
+          termVals = map (\t -> CASData (termToCASValueCAS t)) terms
+      in return $ Collection (Sq.fromList termVals)
+    _ -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+
+-- | Reconstruct CASValue from a list of single-term CASValues
+casFromTerms' :: String -> PrimitiveFunc
+casFromTerms' = oneArg $ \val ->
+  case val of
+    Collection seq ->
+      let extractTerm' (CASData (CAS.CASPoly [t])) = t
+          extractTerm' (CASData (CAS.CASInteger n)) = CAS.CASTerm (CAS.CASInteger n) []
+          extractTerm' (CASData (CAS.CASFactor sym)) = CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]
+          extractTerm' _ = CAS.CASTerm (CAS.CASInteger 0) []
+          terms = map extractTerm' (foldr (:) [] seq)
+      in return $ CASData (CAS.casNormalizePoly terms)
+    _ -> throwErrorWithTrace (TypeMismatch "collection" (Value val))
+
+-- | Extract coefficient from a single-term CASValue
+-- For multi-term polynomials or non-term values, returns the value as-is
+-- (used in delegation chain where the value may not be a single term)
+termCoeff :: String -> PrimitiveFunc
+termCoeff = oneArg $ \val ->
+  case val of
+    CASData cv -> case extractTermCAS cv of
+      Just (coeff, _) -> return $ CASData coeff
+      Nothing         -> return val
+    _ -> return val
+
+-- | Extract monomial from a single-term CASValue as [(Factor, Integer)]
+termMonomial :: String -> PrimitiveFunc
+termMonomial = oneArg $ \val ->
+  case val of
+    CASData cv -> case extractTermCAS cv of
+      Just (_, mono) ->
+        let monoPairs = map (\(sym, expo) ->
+              Tuple [CASData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]),
+                     CASData (CAS.CASInteger (fromIntegral expo))]) mono
+        in return $ Collection (Sq.fromList monoPairs)
+      Nothing -> throwErrorWithTrace (TypeMismatch "single term" (Value val))
+    _ -> throwErrorWithTrace (TypeMismatch "math expression" (Value val))
+
+-- Helper: Convert CASValue to list of CASTerms
+casToTermsCAS :: CASValue -> [CAS.CASTerm]
+casToTermsCAS (CAS.CASPoly terms) = terms
+casToTermsCAS (CAS.CASInteger 0) = []
+casToTermsCAS (CAS.CASInteger n) = [CAS.CASTerm (CAS.CASInteger n) []]
+casToTermsCAS (CAS.CASFactor sym) = [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
+casToTermsCAS cv = [CAS.CASTerm cv []]
+
+-- Helper: Convert CASTerm to CASValue (single-term polynomial or bare coefficient)
+termToCASValueCAS :: CAS.CASTerm -> CASValue
+termToCASValueCAS (CAS.CASTerm coeff []) = coeff
+termToCASValueCAS t = CAS.CASPoly [t]
+
+-- Helper: Extract coefficient and monomial from a single-term CASValue
+extractTermCAS :: CASValue -> Maybe (CASValue, CAS.Monomial)
+extractTermCAS (CAS.CASFactor sym) = Just (CAS.CASInteger 1, [(sym, 1)])
+extractTermCAS (CAS.CASPoly [CAS.CASTerm coeff mono]) = Just (coeff, mono)
+extractTermCAS (CAS.CASInteger n) = Just (CAS.CASInteger n, [])
+extractTermCAS _ = Nothing
 
 --
 -- Pred

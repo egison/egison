@@ -17,6 +17,7 @@ module Language.Egison.IExpr
   , IBindingExpr
   , IMatchClause
   , IPatternDef
+
   , IPrimitiveDataPattern
   -- Typed versions
   , TITopExpr (..)
@@ -376,7 +377,7 @@ stripType (TIExpr _ node) = case node of
     IMatchExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
   TIMatchAllExpr mode target matcher clauses -> 
     IMatchAllExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
-  TIMatcherExpr patDefs -> 
+  TIMatcherExpr patDefs ->
     IMatcherExpr [(pat, stripType expr, map stripTypeBinding bindings) | (pat, expr, bindings) <- patDefs]
   TIInductiveDataExpr name exprs -> IInductiveDataExpr name (map stripType exprs)
   TIQuoteExpr e -> IQuoteExpr (stripType e)
