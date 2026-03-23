@@ -395,8 +395,12 @@ expandTypeClassMethodsT tiExpr = do
 
       TIMatcherExpr patDefs -> do
         -- Expand expressions inside matcher definitions
+        -- patDefs is a list of (PrimitivePatPattern, TIExpr, [TIBindingExpr])
+        -- where TIBindingExpr is (IPrimitiveDataPattern, TIExpr)
         patDefs' <- mapM (\(pat, matcherExpr, bindings) -> do
+          -- Expand the next-matcher expression
           matcherExpr' <- expandTIExprWithConstraints classEnv' matcherExpr
+          -- Expand expressions in primitive-data-match clauses
           bindings' <- mapM (\(dp, expr) -> do
             expr' <- expandTIExprWithConstraints classEnv' expr
             return (dp, expr')) bindings
@@ -1128,7 +1132,9 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
       -- Matcher: recursively process expressions inside matcher definitions
       TIMatcherExpr patDefs -> do
         patDefs' <- mapM (\(pat, matcherExpr, bindings) -> do
+          -- Process the next-matcher expression
           matcherExpr' <- replaceMethodCallsWithDictAccessT env cs matcherExpr
+          -- Process expressions in primitive-data-match clauses
           bindings' <- mapM (\(dp, expr) -> do
             expr' <- replaceMethodCallsWithDictAccessT env cs expr
             return (dp, expr')) bindings
