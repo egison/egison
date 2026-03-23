@@ -43,94 +43,6 @@ def indexExpr : Matcher IndexExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
-def mathExpr : Matcher MathExpr :=
-  matcher
-    | div $ $ as (mathExpr, mathExpr) with
-        | Div $p1 $p2 -> [(p1, p2)]
-        | _ -> []
-    | $ / $ as (mathExpr, mathExpr) with
-        | Div $p1 $p2 -> [(p1, p2)]
-        | _ -> []
-    | poly $ as (multiset mathExpr) with
-        | Div (Plus $ts) (Plus [Term 1 []]) -> [ts]
-        | _ -> []
-    | plus $ as (multiset mathExpr) with
-        | Div (Plus $ts) (Plus [Term 1 []]) -> [ts]
-        | _ -> []
-    | $ + $ as (mathExpr, mathExpr) with
-        | Div (Plus $ts) (Plus [Term 1 []]) ->
-            matchAll ts as multiset something with
-              | $t :: $tss -> (t, sum' tss)
-        | _ -> []
-    | term $ $ as (integer, assocMultiset mathExpr) with
-        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-            [(n, xs)]
-        | _ -> []
-    | mult $ $ as (integer, multExpr) with
-        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-            [(n, product' (map (\(x, n) -> x ^' n) xs))]
-        | _ -> []
-    | $ * $ as (integer, multExpr) with
-        | Div (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
-            [(n, product' (map (\(x, n) -> x ^' n) xs))]
-        | _ -> []
-    | symbol $ $ as (something, list indexExpr) with
-        | Div (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
-            [(v, js)]
-        | _ -> []
-    | apply1 $ $ as (something, mathExpr) with
-        | Div (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
-            [(v, a1)]
-        | _ -> []
-    | apply2 $ $ $ as (something, mathExpr, mathExpr) with
-        | Div (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
-            [(v, a1, a2)]
-        | _ -> []
-    | apply3 $ $ $ $ as (something, mathExpr, mathExpr, mathExpr) with
-        | Div (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
-            [(v, a1, a2, a3)]
-        | _ -> []
-    | apply4 $ $ $ $ $ as (something, mathExpr, mathExpr, mathExpr, mathExpr) with
-        | Div (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
-            [(v, a1, a2, a3, a4)]
-        | _ -> []
-    | quote $ as (mathExpr) with
-        | Div (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
-            [mexpr]
-        | _ -> []
-    | func $ $ as (mathExpr, list mathExpr) with
-        | Div
-            (Plus [Term 1 [(Function $name $args, 1)]])
-            (Plus [Term 1 []]) ->
-            [(name, args)]
-        | _ -> []
-    | #$val as () with
-        | $tgt -> if val = tgt then [()] else []
-    | $ as something with
-        | $tgt -> [tgt]
-
-def multExpr : Matcher MathExpr :=
-  matcher
-    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
-        | $tgt ->
-            matchAll tgt as mathExpr with
-              | term _ (($x, $n) :: $rs) -> (x, n, product' (map (\(x, n) -> x ^' n) rs))
-    | $ ^ $ as (mathExpr, integer) with
-        | $tgt ->
-            match tgt as mathExpr with
-              | term _ (($x, $n) :: []) -> [(x, n)]
-              | _ -> []
-    | $ * $ as (mathExpr, multExpr) with
-        | $tgt ->
-            matchAll tgt as mathExpr with
-              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
-    | #$val as () with
-        | $tgt -> if val = tgt then [()] else []
-    | $ as something with
-        | $tgt -> [tgt]
-
-def termExpr : Matcher MathExpr := mathExpr
-
 -- Parametric CAS matchers
 def integer := something
 
@@ -240,6 +152,28 @@ def frac m :=
 
 -- mathExpr is the standard matcher for CAS values, composed from parametric matchers
 def mathExpr := frac (poly integer)
+
+def multExpr : Matcher MathExpr :=
+  matcher
+    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
+        | $tgt ->
+            matchAll tgt as mathExpr with
+              | term _ (($x, $n) :: $rs) -> (x, n, product' (map (\(x, n) -> x ^' n) rs))
+    | $ ^ $ as (mathExpr, integer) with
+        | $tgt ->
+            match tgt as mathExpr with
+              | term _ (($x, $n) :: []) -> [(x, n)]
+              | _ -> []
+    | $ * $ as (mathExpr, multExpr) with
+        | $tgt ->
+            matchAll tgt as mathExpr with
+              | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
+
+def termExpr : Matcher MathExpr := mathExpr
 
 def isSymbol (mexpr: MathExpr) : Bool :=
   match mexpr as mathExpr with
