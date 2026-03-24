@@ -137,6 +137,51 @@ def poly m :=
         | Div (Plus ($t :: $rest)) (Plus [Term 1 []]) -> [(t, sum' rest)]
         | Plus ($t :: $rest) -> [(t, sum' rest)]
         | _ -> []
+    | [] as () with
+        | $tgt -> if tgt = 0 then [()] else []
+    -- Delegation: recognize term/factor-level patterns and delegate to term m
+    -- Data decomposition extracts a single term value before delegation
+    | term ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | mult ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | ~ * ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | symbol ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | apply1 ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | apply2 ~ ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | apply3 ~ ~ ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | apply4 ~ ~ ~ ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | quote ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    | func ~ ~ & $ as (term m) with
+        | Div (Plus [$t]) (Plus [Term 1 []]) -> [t]
+        | Plus [$t] -> [t]
+        | _ -> []
+    -- Fallback: delegate to term m
     | $ as (term m) with
         | $tgt -> [tgt]
 
@@ -145,6 +190,35 @@ def frac m :=
     | $ / $ as (frac m, frac m) with
         | Div $p $q -> [(p, q)]
         | _ -> []
+    -- Delegation: recognize poly/term/factor-level patterns and delegate to m
+    -- Only when denominator is 1
+    | poly ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | ~ + ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | [] & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | term ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | mult ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | ~ * ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | symbol ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | apply1 ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | apply2 ~ ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | apply3 ~ ~ ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | apply4 ~ ~ ~ ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | quote ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    | func ~ ~ & $ as (m) with
+        | $tgt -> if denominator tgt = 1 then [numerator tgt] else []
+    -- Fallback: delegate to m
     | $ as (m) with
         | $tgt -> [numerator tgt]
 

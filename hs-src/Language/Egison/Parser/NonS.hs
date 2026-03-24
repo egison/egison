@@ -1318,8 +1318,9 @@ ppPattern = do
 
     makeTable :: [Op] -> [[Operator Parser PrimitivePatPattern]]
     makeTable ops =
+      -- Filter out & from pattern ops (handled by ppPattern as PPAndPat)
       reverse $ map (map toOperator) $ groupBy (\x y -> priority x == priority y) $
-        sortOn priority ops
+        sortOn priority (filter (\op -> repr op /= "&") ops)
 
     toOperator :: Op -> Operator Parser PrimitivePatPattern
     toOperator = infixToOperator inductive2
