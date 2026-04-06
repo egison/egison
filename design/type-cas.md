@@ -697,6 +697,50 @@ def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
 -- Poly (Div Integer) [x] で gcd を使うには Field (Div Integer) ✓ → OK
 ```
 
+### 微分演算子と Differentiable 型クラス
+
+偏微分演算子 `∂/∂` は `Poly`、`Div`、`Tensor` など複数の型構造に対して定義する必要があるため、型クラスとして定義する。
+
+```egison
+class Differentiable a where
+  ∂/∂ : a -> Factor -> a
+```
+
+#### インスタンス
+
+```egison
+instance {Ring a} Differentiable (Poly a [..]) where
+  ∂/∂ p s = ...  -- 各項のモノミアルから該当シンボルの冪を取り出し、冪を1下げて係数に掛ける
+
+instance {Differentiable a, GCDDomain a} Differentiable (Div a) where
+  ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
+```
+
+#### 利用例
+
+```egison
+declare symbol x, y
+
+def f : Poly Integer [x, y] := x^2 * y + 3 * x * y^2
+
+∂/∂ f x   -- => 2 * x * y + 3 * y^2 : Poly Integer [x, y]
+∂/∂ f y   -- => x^2 + 6 * x * y     : Poly Integer [x, y]
+```
+
+#### 微分演算子の合成
+
+`∂/∂` を組み合わせた高階の微分演算子は、`Differentiable` 制約を使った通常の関数として定義する。演算子ごとに新たな型クラスを用意する必要はない。
+
+```egison
+-- ラプラシアン（2次元）
+def laplacian2D {Differentiable a} (f : a) : a :=
+  ∂/∂ (∂/∂ f x) x + ∂/∂ (∂/∂ f y) y
+
+-- ラプラシアン（極座標）
+def laplacianPolar {Differentiable a} (f : a) : a :=
+  ∂/∂ (∂/∂ f r) r + ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2
+```
+
 ---
 
 ## 簡約規則の宣言 (`declare rule`)
@@ -1436,4 +1480,5 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 - **Coherence（一貫性）**: CAS型の包含関係は数学的に明確な半順序であり、どの経路で embed しても同じ数学的な値になる
 - **パフォーマンス**: embed は実行時に内部表現を変換するため、頻繁な変換はコストがかかる。型推論時に最適な変換経路を選択することで最小化
 - **エラーメッセージ**: 包含関係がない場合の型エラーで、利用可能な embed 候補を提示
+
 
