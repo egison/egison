@@ -741,6 +741,74 @@ def laplacianPolar {Differentiable a} (f : a) : a :=
   ∂/∂ (∂/∂ f r) r + ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2
 ```
 
+### 積分演算子と Integrable 型クラス
+
+不定積分 `Sd` も微分と同様に `Poly` と `Div` で異なるロジックが必要であるため、型クラスとして定義する。
+
+```egison
+class Integrable a where
+  Sd : Factor -> a -> a    -- ∫ f dx
+```
+
+#### インスタンス
+
+```egison
+instance {Ring a} Integrable (Poly a [..]) where
+  Sd x p = ...  -- 各項の冪を1上げて係数を割る
+
+instance {Integrable a, GCDDomain a} Integrable (Div a) where
+  Sd x (n/d) = ...  -- 部分分数分解等
+```
+
+注: 積分は微分と異なり、常に閉じた形で結果が得られるとは限らない。
+
+#### 利用例
+
+```egison
+declare symbol x
+
+def f : Poly Integer [x] := x^2 + 3 * x
+
+Sd x f   -- => (1/3) * x^3 + (3/2) * x^2 : Poly (Div Integer) [x]
+```
+
+### CASMap 型クラス
+
+`substitute`（代入）や `expandAll`（展開）のような操作は、`Poly` レベルの変換を `Div` の分子・分母に持ち上げるだけで済む。この共通パターンを `CASMap` 型クラスで抽象化する。`Tensor` への持ち上げは `tensorMap` の自動挿入で行われるため、`CASMap` は主に `Div` のためのものである。
+
+```egison
+class CASMap f where
+  casMap : (a -> b) -> f a -> f b
+
+instance {GCDDomain b} CASMap Div where
+  casMap f (n/d) = f n / f d
+```
+
+`substitute` と `expandAll` は `Poly` 上の関数として定義し、`Div` への適用は `casMap` で持ち上げる。
+
+```egison
+-- Poly 上の関数
+substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
+expandAll : Poly a [..] -> Poly a [..]
+
+-- Div への適用は casMap で持ち上げ
+-- casMap (substitute ls) : Div (Poly a [..]) -> Div (Poly a [..])
+-- casMap expandAll       : Div (Poly a [..]) -> Div (Poly a [..])
+```
+
+### type class が不要な演算子
+
+以下の演算子は既存の型クラス制約と関数合成で定義でき、新たな型クラスは不要。
+
+| 演算子 | 定義方法 |
+|--------|----------|
+| `∇` / `grad` / `nabla` | `Differentiable` 制約で `∂/∂` を合成 |
+| `div`（発散）, `rot`（回転） | `Differentiable` + `Ring` でテンソル演算と合成 |
+| `taylorExpansion` | `Differentiable` 制約で `∂/∂` を繰り返し適用 |
+| `wedge` (`∧`), `ι` | `Field` 制約でテンソル上の演算として定義 |
+| `dotProduct`, `crossProduct`, `trace` | `Ring` 制約で定義 |
+| `M.inverse`, `M.determinant` | `Field` / `Ring` 上のテンソル演算 |
+
 ---
 
 ## 簡約規則の宣言 (`declare rule`)
