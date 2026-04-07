@@ -1240,7 +1240,293 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 - [ ] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
 - [ ] sample/ の数学サンプルが正しく動作すること
 
-### Phase 6: 簡約規則
+### Phase 5.5: Embed 型クラスと Coercive Subtyping
+
+CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。Phase 5（パラメトリックマッチャー）の完了後、Phase 6（ライブラリ関数の再実装）の前に着手する。
+
+**Phase 6 の前に行う理由**: `∂/∂` を `Differentiable` 型クラスのメソッドとして、`expandAll` の `Div` への持ち上げを `CASMap` 型クラスで最初から実装するため。型クラスの基盤なしにライブラリ関数を実装すると、Phase 7 で二度手間のリファクタリングが必要になる。
+
+#### 概要
+
+型の包含関係（例: `Integer ⊂ Poly Integer [x]`）がある場合に、型チェッカーが自動的に `embed` 関数の呼び出しを挿入する（elaboration）。これにより、ユーザーは明示的な型変換を書かずに、自然な数式表記で計算できる。
+
+```egison
+-- ユーザーが書くコード
+x + 1    -- x : Poly Integer [x], 1 : Integer
+
+-- 型チェッカーが変換後（elaborated）
+x + embed 1  -- embed 1 : Poly Integer [x]
+```
+
+#### Step 5.5.1: Embed 型クラスの定義
+
+- `Embed` 型クラスを `lib/core/cas.egi` に定義
+  ```egison
+  class Embed a b where
+    embed :: a -> b
+  ```
+- 基本インスタンスの実装
+  - `Embed Integer (Poly Integer [..])`
+  - `Embed Integer (Div Integer)`
+  - `Embed Factor (Poly Integer [..])`
+  - `Embed (Poly a [..]) (Poly b [..])` where `Embed a b`
+  - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
+  - `Embed (Term a [..]) (Poly a [..])` — `CASTerm` → `CASPoly`（1要素リストで包む）
+
+#### Step 5.5.2: 型チェッカーでの包含関係グラフの構築
+
+- `Type/Subtype.hs` を新規作成
+  - 包含関係のグラフ構造を定義
+  - `Embed` インスタンス宣言時にグラフにエッジを追加
+  - 推移閉包の計算（深さ制限付きBFSで探索）
+- `isSubtype` 関数（`Join.hs` に既存）と連携
+  - 包含関係の判定に使用
+  - `symbolSetSubset` でシンボル集合の包含も判定
+
+#### Step 5.5.3: 型推論での embed 自動挿入
+
+- `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
+  - 型 `τ₁` と `τ₂` が不一致の場合:
+    1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
+    2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
+    3. どちらでもなければ型エラー
+- 推移的な変換（`embed . embed`）の合成
+  - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
+  - グラフ上の最短経路で `embed` を連鎖
+- `Embed` 制約の解決と辞書渡し
+  - 型クラス解決機構と連携
+
+#### Step 5.5.4: 二項演算での join と embed の連携
+
+- 二項演算 `a + b` での処理フロー
+  1. `a : τ₁`, `b : τ₂` を推論
+  2. `joinTypes τ₁ τ₂` で最小上界 `τ` を計算（`Join.hs`）
+  3. `τ₁ ≠ τ` なら `embed` で `τ₁ → τ`
+  4. `τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
+  5. 結果の型は `τ`
+- 条件式 `if c then a else b` でも同様の join を実行
+- リストリテラル `[a, b, c]` での要素型の join
+
+#### Step 5.5.5: 内部表現変換関数の実装
+
+- `Math/CAS.hs` に変換関数を追加
+  ```haskell
+  -- Integer → Poly Integer [..]
+  embedIntToPoly :: CASValue -> CASValue
+  embedIntToPoly (CASInteger n) = CASPoly [CASTerm (CASInteger n) []]
+
+  -- Integer → Div Integer
+  embedIntToDiv :: CASValue -> CASValue
+  embedIntToDiv (CASInteger n) = CASDiv (CASInteger n) (CASInteger 1)
+
+  -- Factor → Poly Integer [..]
+  embedFactorToPoly :: CASValue -> CASValue
+  embedFactorToPoly (CASFactor sym) = CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
+
+  -- Poly a [S₁] → Poly a [S₂] (S₁ ⊆ S₂): 内部表現は変わらない
+  -- Poly a [..] → Poly b [..] (Embed a b): 各項の係数を再帰的に embed
+  embedPolyCoeff :: (CASValue -> CASValue) -> CASValue -> CASValue
+  ```
+
+#### Step 5.5.6: CAS 用の代数的型クラスと演算子型クラスの定義
+
+Phase 6 でライブラリ関数を型クラスのメソッドとして実装するための基盤を定義する。
+
+- **代数的型クラス階層**の実装（`Ring`, `Field`, `GCDDomain` 等）
+  ```egison
+  class Ring a extends AddGroup a, MulMonoid a
+  instance Ring Integer
+  instance {Ring a} Ring (Poly a [..])
+  instance {GCDDomain a} Ring (Div a)
+  ```
+- **`Differentiable` 型クラス**の定義
+  ```egison
+  class Differentiable a where
+    ∂/∂ : a -> Factor -> a
+  ```
+- **`CASMap` 型クラス**の定義
+  ```egison
+  class CASMap f where
+    casMap : (a -> b) -> f a -> f b
+  instance {GCDDomain b} CASMap Div where
+    casMap f (n/d) = f n / f d
+  ```
+- **`Integrable` 型クラス**の定義
+  ```egison
+  class Integrable a where
+    Sd : Factor -> a -> a
+  ```
+
+#### Step 5.5.7: 基本テストの作成と検証
+
+Phase 5.5 の各ステップの動作確認のために、型クラスの基盤がなくてもテストできる基本的な式と、型クラス統合後にテストすべき式を段階的に作成する。
+
+**embed の基本テスト** (`mini-test/60-embed-basic.egi`):
+```egison
+-- Integer → Poly Integer [x] の自動 embed
+declare symbol x
+x + 1               -- => x + 1 : Poly Integer [x]（1 が自動 embed）
+x * 3               -- => 3 * x : Poly Integer [x]
+2 * x + 3           -- => 2 * x + 3 : Poly Integer [x]
+```
+
+**embed のシンボル集合拡大テスト** (`mini-test/61-embed-symbolset.egi`):
+```egison
+declare symbol x, y
+def p : Poly Integer [x] := 1 + x
+def q : Poly Integer [x, y] := p + y    -- Poly Integer [x] → Poly Integer [x, y] の自動 embed
+```
+
+**join のテスト** (`mini-test/62-join.egi`):
+```egison
+declare symbol x, y
+def p : Poly Integer [x] := 1 + x
+def q : Poly Integer [y] := 2 + y
+-- join(Poly Integer [x], Poly Integer [y]) = Poly Integer [x, y]
+p + q               -- => x + y + 3 : Poly Integer [x, y]
+```
+
+**推移的 embed のテスト** (`mini-test/63-embed-transitive.egi`):
+```egison
+declare symbol x
+-- Integer → Div Integer → Poly (Div Integer) [x]
+def r : Poly (Div Integer) [x] := x + 1    -- Integer 1 が推移的に embed
+(1 / 2) * x + 1    -- => (1/2) * x + 1 : Poly (Div Integer) [x]
+```
+
+**型クラスの基本テスト** (`mini-test/64-typeclass-ring.egi`):
+```egison
+-- Ring のインスタンスが正しく解決されることを確認
+declare symbol x
+def double {Ring a} (v : a) : a := v + v
+double 3             -- => 6 : Integer
+double (1 + x)       -- => 2 + 2 * x : Poly Integer [x]
+```
+
+**型エラーのテスト** (`mini-test/65-type-error.egi`):
+```egison
+-- 互換性のない型の演算でエラーが出ることを確認
+-- "hello" + 1       -- 型エラー: String と Integer に Embed 関係なし
+```
+
+#### 設計上の考慮点
+
+- **Coherence（一貫性）**: CAS型の包含関係は数学的に明確な半順序であり、どの経路で embed しても同じ数学的な値になる
+- **パフォーマンス**: embed は実行時に内部表現を変換するため、頻繁な変換はコストがかかる。型推論時に最適な変換経路を選択することで最小化
+- **エラーメッセージ**: 包含関係がない場合の型エラーで、利用可能な embed 候補を提示
+
+### Phase 6: ライブラリ関数の再実装
+
+Phase 5.5 の型クラス基盤（`Embed`, `Differentiable`, `CASMap`, `Integrable`）が完成した後、既存のライブラリ関数を新しいマッチャー（`poly m`, `div m`, `term m`）と型クラスを用いて再実装する。
+
+#### Step 6.1: `expandAll` の再実装
+
+`lib/math/expression.egi` の `expandAll` を `poly m` / `div m` / `term m` マッチャーで書き直す。
+
+```egison
+-- Poly 上の関数として定義
+def expandAll (mexpr : Poly a [..]) : Poly a [..] :=
+  ...  -- poly m の :+ パターンで項を分解し、各項のモノミアルを展開
+
+-- Div への適用は CASMap で持ち上げ
+-- casMap expandAll : Div (Poly a [..]) -> Div (Poly a [..])
+```
+
+- `expandAll` を `poly m` マッチャーで再実装
+- `expandAll'`（正規化版）も同様に再実装
+- `Div` への適用は `casMap expandAll` で統一的に持ち上げ
+- mini-test: `expandAll ((1 + x) * (1 + y))` 等の展開テスト
+
+#### Step 6.2: `substitute` の再実装
+
+`lib/math/expression.egi` の `substitute` を再実装する。
+
+```egison
+-- Poly 上の関数として定義
+substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
+
+-- Div への適用は casMap で持ち上げ
+-- casMap (substitute ls) : Div (Poly a [..]) -> Div (Poly a [..])
+```
+
+- `substitute`, `substitute'`, `rewriteSymbol` を再実装
+- `V.substitute`（ベクトル版）も再実装
+- 正規化は現時点では `mathNormalize` を呼ぶ（Phase 7.3 で `casNormalizeWithRules` に移行）
+- mini-test: `substitute [('x, 1 + y)] (x^2 + x)` 等の代入テスト
+
+#### Step 6.3: 偏微分演算子 `∂/∂` の再実装
+
+`lib/math/analysis/derivative.egi` の `∂/∂` を `Differentiable` 型クラスのメソッドとして再実装する。
+
+```egison
+instance {Ring a} Differentiable (Poly a [..]) where
+  ∂/∂ p s = matchAll p as poly (something) with
+    | ($c, $mono) :+ _ ->
+      -- mono 内の s の冪 n を取り出し、n * c * s^(n-1) * (残りのモノミアル) を生成
+      ...
+
+instance {Differentiable a, GCDDomain a} Differentiable (Div a) where
+  ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
+```
+
+- `Poly` インスタンス: `poly m` + `term m` + `assocMultiset factor` で微分を実装
+- `Div` インスタンス: 商の微分法則をそのまま表現
+- テンソル対応は `tensorMap2` を使う既存のラッパーを維持
+- 連鎖律（`Apply1` 等の合成関数の微分）の再実装
+- mini-test: `∂/∂ (x^2 + 3*x) x` → `2*x + 3` 等のテスト
+
+#### Step 6.4: `coefficients` / `coefficient` の再実装
+
+```egison
+def coefficients (f : Poly a [..]) (x : Factor) : [a] :=
+  ...  -- poly m マッチャーで各項から x の冪ごとに係数を収集
+```
+
+- `coefficients`, `coefficient` を再実装
+- mini-test: `coefficients (x^2 + 3*x + 1) x` → `[1, 3, 1]`
+
+#### Step 6.5: テイラー展開と積分演算子
+
+- `taylorExpansion`, `maclaurinExpansion` の再実装（`∂/∂` と `substitute` に依存）
+- `Sd`（不定積分）を `Integrable` 型クラスのメソッドとして再実装
+  ```egison
+  instance {Ring a} Integrable (Poly a [..]) where
+    Sd x p = ...  -- 各項の冪を1上げて係数を割る
+  ```
+- これらは `∂/∂` と `substitute` の完成後に着手
+- mini-test: `taylorExpansion ('sin x) x 0` の最初の数項を検証
+
+#### 依存関係
+
+```
+Phase 5 完了（パラメトリックマッチャー）
+    ↓
+Phase 5.5 完了（Embed, Differentiable, CASMap, Integrable 型クラス基盤）
+    ↓
+Step 6.1 expandAll（poly m + CASMap で再実装）
+Step 6.2 substitute（poly m + CASMap で再実装、mathNormalize 使用）
+    ↓
+Step 6.3 ∂/∂（Differentiable 型クラスメソッドとして実装）
+Step 6.4 coefficients
+    ↓
+Step 6.5 taylorExpansion, Sd（∂/∂, substitute, Integrable に依存）
+    ↓
+Phase 7.3 で mathNormalize 廃止時に substitute 等を casNormalizeWithRules に移行
+```
+
+### テスト開始時期のまとめ
+
+| Phase | テスト可能な内容 |
+|-------|----------------|
+| Phase 1-4（完了） | `cabal test` 全21テストパス。CASValue の基本演算、プリミティブパターンマッチ |
+| Phase 5 完了後 | パラメトリックマッチャー（`poly integer`, `div (poly integer)` 等）のテスト。`mini-test/` でマッチャーの動作確認 |
+| Phase 5.5 完了後 | embed の基本テスト（`x + 1`, シンボル集合拡大, join, 推移的 embed）。型クラス `Ring` の基本テスト（`double 3`, `double (1 + x)`）。**ここから型安全な数式計算が動作し始める** |
+| Phase 6 完了後 | `expandAll`, `substitute`, `∂/∂`, `coefficients`, `taylorExpansion` のテスト。**ここから `sample/` 以下の数学サンプルの一部が動作し始める** |
+| Phase 7.1-7.3 完了後 | `mathNormalize` 廃止後の回帰テスト。`sample/` 以下の全サンプルの動作確認 |
+| Phase 7.5 完了後 | `declare rule auto` のユーザー定義規則テスト（例: `j^2 = -1`） |
+| Phase 7.7 完了後 | `Rewrite.hs` 削除後の全回帰テスト。**ここで既存テスト + sample が全て通ることを目標** |
+
+### Phase 7: 簡約規則
 
 #### 現状のアーキテクチャ
 
@@ -1336,7 +1622,7 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 - 既存の `Rewrite.hs` → 最終的に `declare rule auto` で置き換え、`Rewrite.hs` は削除
 - ルールのマッチ対象（和/積/商パターン）は LHS の形から自動判定
 
-#### Step 6.1: sin/cos, rtu ルールの `Rewrite.hs` への移植
+#### Step 7.1: sin/cos, rtu ルールの `Rewrite.hs` への移植
 
 `normalize.egi` の Egison レベルルールを `Rewrite.hs` に移植し、`mapCASTerms` + `mapCASPolys` の統一的な仕組みで適用する。これにより `mathNormalize` の廃止に向けた準備が整う。
 
@@ -1365,7 +1651,7 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 
 備考: `normalize.egi` の `containFunction1` による条件分岐（sin/cos が含まれるときだけルール適用）は、パフォーマンス最適化であり、正しさには影響しない。移植段階では省略してよい。
 
-#### Step 6.2: `casNormalize` への規則環境の導入
+#### Step 7.2: `casNormalize` への規則環境の導入
 
 `casNormalize` が規則環境を参照できるようにし、既存の `casRewriteSymbol` を `casNormalize` の中に統合する。
 
@@ -1389,9 +1675,9 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 
 規則環境はトップレベルの専用環境で管理する。`casPlus`/`casMult` 等の算術関数内部では構造的正規化（`casNormalize`、規則なし）のみを行い、自動規則の適用は算術演算の最終結果に対して `casNormalizeWithRules` で行う。これにより算術関数は規則環境に依存せず、規則適用は明確に分離される。
 
-#### Step 6.3: `mathNormalize` の廃止
+#### Step 7.3: `mathNormalize` の廃止
 
-Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRewriteSymbol` が `casNormalizeWithRules` に統合されたことにより、`mathNormalize` は不要になる。
+Step 7.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 7.2 で `casRewriteSymbol` が `casNormalizeWithRules` に統合されたことにより、`mathNormalize` は不要になる。
 
 - `arithmetic.egi` の簡略化（`mathNormalize` 呼び出しを `symbolNormalize` に置換）
 - `expression.egi` の `substitute` 関数の修正
@@ -1400,7 +1686,7 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
 - `egison.hs` の mathLib ロード処理の除去
 - mini-test / sample の回帰テスト
 
-#### Step 6.4: AST とパーサー — `declare rule` 構文の追加
+#### Step 7.4: AST とパーサー — `declare rule` 構文の追加
 
 ユーザーが Egison レベルで簡約規則を定義できるようにする。
 
@@ -1408,7 +1694,7 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
 - `declare rule auto <lhs> = <rhs>` / `declare rule <name> <lhs> = <rhs>` のパーサー追加
 - mini-test: パースだけのテスト（実行はまだしない）
 
-#### Step 6.5: 自動規則のデシュガーと実行
+#### Step 7.5: 自動規則のデシュガーと実行
 
 `declare rule auto` をパースし、`ReductionEnv` に登録し、`casNormalizeWithRules` で適用する。
 
@@ -1424,7 +1710,7 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
   (1 + j)^2  -- => 2 * j
   ```
 
-#### Step 6.6: 手動規則と `simplify ... using ...`
+#### Step 7.6: 手動規則と `simplify ... using ...`
 
 名前付きの手動規則を登録し、ユーザーが明示的に適用できるようにする。
 
@@ -1439,7 +1725,7 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
   simplify expr using trig_pythagorean  -- => 2
   ```
 
-#### Step 6.7: 既存ハードコードルールの移行と `Rewrite.hs` 削除
+#### Step 7.7: 既存ハードコードルールの移行と `Rewrite.hs` 削除
 
 `Rewrite.hs` の全ハードコードルールを `declare rule auto` に移行し、`Rewrite.hs` を削除する。
 
@@ -1452,129 +1738,23 @@ Step 6.1 で sin/cos, rtu が `Rewrite.hs` に移植され、Step 6.2 で `casRe
 #### 依存関係
 
 ```
-Step 6.1 (sin/cos, rtu を Rewrite.hs に移植)
+Step 7.1 (sin/cos, rtu を Rewrite.hs に移植)
     ↓
-Step 6.2 (casNormalize に規則環境を導入 + casRewriteSymbol 統合)
+Step 7.2 (casNormalize に規則環境を導入 + casRewriteSymbol 統合)
     ↓
-Step 6.3 (mathNormalize 廃止 + normalize.egi 削除)
+Step 7.3 (mathNormalize 廃止 + normalize.egi 削除)
     ↓
-Step 6.4 (declare rule パーサー/AST)
+Step 7.4 (declare rule パーサー/AST)
     ↓
-Step 6.5 (declare rule auto の実行) ← ユーザー定義規則の最初の動作確認ポイント
+Step 7.5 (declare rule auto の実行) ← ユーザー定義規則の最初の動作確認ポイント
     ↓
-Step 6.6 (declare rule <name> + simplify)
+Step 7.6 (declare rule <name> + simplify)
     ↓
-Step 6.7 (Rewrite.hs のハードコードルール移行・削除)
+Step 7.7 (Rewrite.hs のハードコードルール移行・削除)
 ```
 
-Step 6.1 → 6.3 は既存コードのリファクタリング（新構文不要）。
-Step 6.4 → 6.5 で初めて `declare rule` がユーザーに見える。
-Step 6.6 → 6.7 で全ルールが統一的に管理される。
-
-### Phase 7: Embed 型クラスと Coercive Subtyping
-
-CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。
-
-**注**: Phase 5（パラメトリックマッチャー）と Phase 6（簡約規則）の完了後に着手する。パターンマッチと簡約規則が安定してから型システムへの深い統合を行うことで、変更の影響範囲を制御しやすくなる。
-
-#### 概要
-
-型の包含関係（例: `Integer ⊂ Poly Integer [x]`）がある場合に、型チェッカーが自動的に `embed` 関数の呼び出しを挿入する（elaboration）。これにより、ユーザーは明示的な型変換を書かずに、自然な数式表記で計算できる。
-
-```egison
--- ユーザーが書くコード
-x + 1    -- x : Poly Integer [x], 1 : Integer
-
--- 型チェッカーが変換後（elaborated）
-x + embed 1  -- embed 1 : Poly Integer [x]
-```
-
-#### Step 1: Embed 型クラスの定義
-
-- `Embed` 型クラスを `lib/core/cas.egi` に定義
-  ```egison
-  class Embed a b where
-    embed :: a -> b
-  ```
-- 基本インスタンスの実装
-  - `Embed Integer (Poly Integer [..])`
-  - `Embed Integer (Div Integer)`
-  - `Embed Factor (Poly Integer [..])`
-  - `Embed (Poly a [..]) (Poly b [..])` where `Embed a b`
-  - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
-  - `Embed (Term a [..]) (Poly a [..])` — `CASTerm` → `CASPoly`（1要素リストで包む）
-
-#### Step 2: 型チェッカーでの包含関係グラフの構築
-
-- `Type/Subtype.hs` を新規作成
-  - 包含関係のグラフ構造を定義
-  - `Embed` インスタンス宣言時にグラフにエッジを追加
-  - 推移閉包の計算（深さ制限付きBFSで探索）
-- `isSubtype` 関数（`Join.hs` に既存）と連携
-  - 包含関係の判定に使用
-  - `symbolSetSubset` でシンボル集合の包含も判定
-
-#### Step 3: 型推論での embed 自動挿入
-
-- `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
-  - 型 `τ₁` と `τ₂` が不一致の場合:
-    1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
-    2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
-    3. どちらでもなければ型エラー
-- 推移的な変換（`embed . embed`）の合成
-  - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
-  - グラフ上の最短経路で `embed` を連鎖
-- `Embed` 制約の解決と辞書渡し
-  - 型クラス解決機構と連携
-
-#### Step 4: 二項演算での join と embed の連携
-
-- 二項演算 `a + b` での処理フロー
-  1. `a : τ₁`, `b : τ₂` を推論
-  2. `joinTypes τ₁ τ₂` で最小上界 `τ` を計算（`Join.hs`）
-  3. `τ₁ ≠ τ` なら `embed` で `τ₁ → τ`
-  4. `τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
-  5. 結果の型は `τ`
-- 条件式 `if c then a else b` でも同様の join を実行
-- リストリテラル `[a, b, c]` での要素型の join
-
-#### Step 5: 内部表現変換関数の実装
-
-- `Math/CAS.hs` に変換関数を追加
-  ```haskell
-  -- Integer → Poly Integer [..]
-  embedIntToPoly :: CASValue -> CASValue
-  embedIntToPoly (CASInteger n) = CASPoly [CASTerm (CASInteger n) []]
-
-  -- Integer → Div Integer
-  embedIntToDiv :: CASValue -> CASValue
-  embedIntToDiv (CASInteger n) = CASDiv (CASInteger n) (CASInteger 1)
-
-  -- Factor → Poly Integer [..]
-  embedFactorToPoly :: CASValue -> CASValue
-  embedFactorToPoly (CASFactor sym) = CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
-
-  -- Poly a [S₁] → Poly a [S₂] (S₁ ⊆ S₂): 内部表現は変わらない
-  -- Poly a [..] → Poly b [..] (Embed a b): 各項の係数を再帰的に embed
-  embedPolyCoeff :: (CASValue -> CASValue) -> CASValue -> CASValue
-  ```
-
-#### Step 6: テストと検証
-
-- 自動 embed 挿入のテストケース
-  - `x + 1` → `x + embed 1`
-  - `f p` where `f : Poly Integer [x, y] -> ...`, `p : Poly Integer [x]`
-- 推移的な embed のテスト
-  - `Integer → Div Integer → Poly (Div Integer) [x]`
-- join との連携テスト
-  - `(1/2) * x` → `Poly (Div Integer) [x]`
-- エラーケースのテスト
-  - 互換性のない型の演算（例: `String + Integer`）で適切なエラーメッセージ
-
-#### 設計上の考慮点
-
-- **Coherence（一貫性）**: CAS型の包含関係は数学的に明確な半順序であり、どの経路で embed しても同じ数学的な値になる
-- **パフォーマンス**: embed は実行時に内部表現を変換するため、頻繁な変換はコストがかかる。型推論時に最適な変換経路を選択することで最小化
-- **エラーメッセージ**: 包含関係がない場合の型エラーで、利用可能な embed 候補を提示
+Step 7.1 → 7.3 は既存コードのリファクタリング（新構文不要）。
+Step 7.4 → 7.5 で初めて `declare rule` がユーザーに見える。
+Step 7.6 → 7.7 で全ルールが統一的に管理される。
 
 
