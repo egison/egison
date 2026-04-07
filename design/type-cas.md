@@ -21,6 +21,7 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 | `Div a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
 | `Poly a [s1, s2, ...]` | `a` を係数とするローラン多項式環（閉じた多項式型）。冪指数は負も許可    |
 | `Poly a [..]`          | `a` を係数とし、シンボル集合を固定しないローラン多項式型（開いた多項式型） |
+| `Term a [s1, s2, ...]` | `Poly a [s1, s2, ...]` の項。係数（型 `a`）とモノミアルの組。パターンマッチの中間結果として主に使われる補助型 |
 | `Tensor a`             | `a` を成分とするテンソル                          |
 
 
@@ -251,10 +252,20 @@ casPlus (CASDiv n1 d1) (CASDiv n2 d2) =
 
 #### 零の正規表現
 
+各型の零の正規表現:
+
+| 型 | 零の正規表現 |
+|---|---|
+| `Integer` | `CASInteger 0` |
+| `Factor` | 零なし（`Factor` は原子的な非零要素） |
+| `Poly a [S]` | `CASPoly []`（空の項リスト） |
+| `Div a` | 分子が `a` の零 / 分母が `a` の1。例: `Div Integer` → `CASDiv (CASInteger 0) (CASInteger 1)` |
+| `Div (Poly a [S])` | `CASDiv (CASPoly []) (CASPoly [CASTerm <one> []])` |
+
 正規化時に零を簡約する。具体的な規則：
 
 - `CASPoly` の正規化で零係数の項（`CASTerm` の係数が零）を除去する。結果として項が空になれば `CASPoly []` が零の正規形
-- `CASDiv` の正規化で分子が零なら、その型レベルの零に簡約する（例: `CASDiv (CASInteger 0) x` → `CASInteger 0`）
+- `CASDiv` の正規化で分子が零なら、`CASDiv <zero> <one>` に簡約する（分子を `a` の零、分母を `a` の1にする）。例: `CASDiv (CASInteger 0) (CASInteger 5)` → `CASDiv (CASInteger 0) (CASInteger 1)`。型構造を維持し、`Div a` の値は常に `CASDiv` コンストラクタを持つ
 - 各演算（`casPlus`, `casMult`）の出口で必ず正規化を通し、零の項が残らないようにする
 
 これにより等価比較が構造的な比較だけで済み、現在の `mathNormalize` の方針とも一致する。
@@ -355,15 +366,15 @@ def t : Poly Integer ['sqrt 2] := s + 1    -- Poly Integer ['sqrt 2]
 -- トップレベルでパターン変数を使った汎用規則を宣言
 declare rule auto ('sqrt $x)^2 = x
 
-sqrt : Integer -> Factor
+sqrt : Integer -> Poly Integer [..]
 sqrt n =
-  if (isPerfectSquare n) then embed (isqrt n)
-  else 'sqrt n
+  if (isPerfectSquare n) then embed (isqrt n)    -- Integer → Poly Integer [..] の embed
+  else embed ('sqrt n)                            -- Factor → Poly Integer [..] の embed
 ```
 
 - `declare rule auto ('sqrt $x)^2 = x` はトップレベル宣言で、任意の `x` に対して `('sqrt x)^2` を `x` に簡約する
-- 完全平方数のときは整数を返す（Integer ⊂ Factor で embed）
-- そうでないとき、新しい Factor `'sqrt n` を生成する。簡約規則は既にトップレベルで宣言済み
+- 完全平方数のときは整数を `Poly Integer [..]` に embed して返す
+- そうでないとき、Factor `'sqrt n` を生成し `Poly Integer [..]` に embed して返す。簡約規則は既にトップレベルで宣言済み
 - `sin`, `cos` などの超越関数も同様にユーザーが定義できる
 
 ---
@@ -373,12 +384,20 @@ sqrt n =
 ### 基本的な包含
 
 ```
-Integer  ⊂  Factor  ⊂  Poly Integer [s]
+Factor  ⊂  Poly Integer [s]
 Integer  ⊂  Div Integer
 Integer  ⊂  Poly Integer [s]
 
 Div Integer  ⊂  Poly (Div Integer) [s]
 Poly Integer [s]  ⊂  Poly (Div Integer) [s]
+
+Term a [S]  ⊂  Poly a [S]    -- 単一項の多項式として埋め込み
+```
+
+**embed の内部表現:**
+```
+Term a [S] → Poly a [S]:
+  CASTerm coeff mono → CASPoly [CASTerm coeff mono]
 ```
 
 ### シンボル集合の包含
@@ -513,6 +532,10 @@ join(Poly a [S], Poly b [..]) = Poly (join(a, b)) [..]
 join(Poly a [..], Poly b [S]) = Poly (join(a, b)) [..]
 join(Poly a [..], b) = Poly (join(a, b)) [..]
 join(a, Poly b [..]) = Poly (join(a, b)) [..]
+
+> **TODO**: 開いた `Poly` 同士の `join` において、フレッシュ型変数のユニフィケーションとシンボル集合の和集合 `∪` の関係は未解決。L112–116 の例（`polyAdd` で `[x]` と `[y]` が `[x, y]` に合流）と、L553 の「`S₁ ∪ S₂` は不要」の方針に矛盾がある。設計方針を決定後に修正する。
+
+> `join(Poly a [S], Poly b [..])` では閉じたシンボル集合 `[S]` の情報が失われ、開いた型 `[..]` に吸収される。これは暗黙に許可する。ユーザーが閉じた型で厳密に作業したい場合は、両辺を閉じた型に揃える必要がある。
 
 -- Div
 join(Div a, Div b) = Div (join(a, b))
@@ -884,6 +907,8 @@ casNormalizePoly :: ReductionEnv -> [CASTerm] -> CASValue
 
 関数引数のパターンマッチを含む規則（例: `'sin ($a + $b) = 'sin a * 'cos b + 'cos a * 'sin b`）では、規則の左辺 `'sin ($a + $b)` が `SymbolExpr` の `Apply1` コンストラクタにマッチし、その引数（`CASValue`）を `poly` マッチャーで分解して `$a + $b` を束縛する。つまり、`declare rule` の規則適用エンジンは、CAS マッチャー（`poly`, `div` 等）を内部的に利用して関数引数内のパターンを分解する。
 
+パターン変数の型は LHS の構造から推論される。`+` で分解される位置のパターン変数は `Poly a [..]` 型、モノミアル内のパターン変数は `Factor` 型として推論される。例えば `'sin ($a + $b) = ...` では、`$a + $b` が `poly` マッチャーで分解されるため、`$a` と `$b` は `Poly a [..]` 型となる。
+
 ---
 
 ## CASValue のパターンマッチ
@@ -912,9 +937,11 @@ div  {a} (m : Matcher a) : Matcher (Div a)
 `poly m` の `:+` パターンは、多項式を**項**と**残りの多項式**に分解する。項は `Term a` 型であり、係数（型 `a`）とモノミアル（`[(Factor, Integer)]`）の組である。`multiset m` の `::` と同じ意味論（順序不問の分解）。
 
 ```
-poly m       の  $a :+ $rest  →  a : Term a,          rest : Poly a ..
+poly m       の  $a :+ $rest  →  a : Term a [S],      rest : Poly a [S]
 multiset m   の  $a :: $rest  →  a : a,               rest : [a]
 ```
+
+`a : Term a [S]` はそのまま `Poly a [S]` を期待する関数に渡せる（`Term a [S] ⊂ Poly a [S]` の embed による）。
 
 項をさらに分解するには `term m` マッチャーを使う:
 
@@ -1158,7 +1185,7 @@ def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
 def div {a} (m : Matcher a) : Matcher (Div a) :=
   matcher
     | $ / $ as (m, m) with
-      | $tgt -> [(getCASNumerator tgt, getCASenominator tgt)]
+      | $tgt -> [(getCASNumerator tgt, getCASDenominator tgt)]
     | #$val as () with
       | $tgt -> if tgt == val then [()] else []
     | $ as (something) with
@@ -1360,7 +1387,7 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 - `symbolNormalize` プリミティブを `casNormalizeWithRules` 経由に変更
 - mini-test: 既存テストが通ることを確認
 
-備考: 規則環境の渡し方は要検討。`casPlus`/`casMult` 等の算術関数からも `casNormalize` が呼ばれるため、(a) グローバル `IORef`、(b) `Reader` モナド、(c) `casPlus` 等には空ルールの `casNormalize` を使い最終段で `casNormalizeWithRules` を適用、のいずれかを選ぶ。
+規則環境はトップレベルの専用環境で管理する。`casPlus`/`casMult` 等の算術関数内部では構造的正規化（`casNormalize`、規則なし）のみを行い、自動規則の適用は算術演算の最終結果に対して `casNormalizeWithRules` で行う。これにより算術関数は規則環境に依存せず、規則適用は明確に分離される。
 
 #### Step 6.3: `mathNormalize` の廃止
 
@@ -1475,6 +1502,7 @@ x + embed 1  -- embed 1 : Poly Integer [x]
   - `Embed Factor (Poly Integer [..])`
   - `Embed (Poly a [..]) (Poly b [..])` where `Embed a b`
   - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
+  - `Embed (Term a [..]) (Poly a [..])` — `CASTerm` → `CASPoly`（1要素リストで包む）
 
 #### Step 2: 型チェッカーでの包含関係グラフの構築
 
