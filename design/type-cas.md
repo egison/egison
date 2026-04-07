@@ -1273,6 +1273,36 @@ x + embed 1  -- embed 1 : Poly Integer [x]
   - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
   - `Embed (Term a [..]) (Poly a [..])` — `CASTerm` → `CASPoly`（1要素リストで包む）
 
+#### `[..]` インスタンスと閉じた Poly の関係
+
+`[..]` はフレッシュ型変数の糖衣構文であるため、`Embed Integer (Poly Integer [..])` は「任意のシンボル集合の `Poly Integer` への embed」として機能する。閉じた `Poly Integer [x]` や `Poly Integer [x, y]` に対して個別のインスタンスを定義する必要はない。
+
+```
+-- インスタンス宣言
+instance Embed Integer (Poly Integer [..]) where ...
+-- 脱糖後の内部表現（s はフレッシュ型変数）
+instance Embed Integer (Poly Integer [s]) where ...
+
+-- x + 1 の型チェック（x : Poly Integer [x], 1 : Integer）
+-- 1. Embed Integer (Poly Integer [s]) にマッチ
+-- 2. s が [x] にユニファイされる
+-- 3. 結果: embed 1 : Poly Integer [x]
+```
+
+同様に `Embed (Poly a [..]) (Poly b [..])` も、各 `[..]` が独立したフレッシュ型変数に脱糖されるため、任意のシンボル集合の組み合わせに対して機能する。
+
+**インスタンス解決の優先順位**:
+
+特定のシンボル集合に対する特化インスタンス（例: `instance Ring (Poly Integer [i])` で `i^2 = -1`）は、汎用の `[..]` インスタンスより優先される（overlapping instances の標準的な「より具体的な方が優先」規則）。
+
+```
+instance {Ring a} Ring (Poly a [..])      -- 汎用（優先度: 低）
+instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 の簡約を含む）
+
+-- Poly Integer [i] に対しては特化インスタンスが選ばれる
+-- Poly Integer [x] に対しては汎用インスタンスが選ばれ、[..] が [x] にユニファイ
+```
+
 #### Step 5.5.2: 型チェッカーでの包含関係グラフの構築
 
 - `Type/Subtype.hs` を新規作成
