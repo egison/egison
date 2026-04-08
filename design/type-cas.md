@@ -1,4 +1,4 @@
-# １Egison CAS 型システム設計
+# Egison CAS 型システム設計
 
 ## 概要
 
@@ -384,6 +384,7 @@ sqrt n =
 ### 基本的な包含
 
 ```
+Integer  ⊂  Factor
 Factor  ⊂  Poly Integer [s]
 Integer  ⊂  Div Integer
 Integer  ⊂  Poly Integer [s]
@@ -440,7 +441,7 @@ def q : Poly Integer [i] := n + i    -- Integer → Poly Integer [i] に自動 e
 
 `Embed` 型クラスと型チェッカーによる AST 変換の組み合わせで実装する。
 
-`**Embed` 型クラス**で変換規則を宣言的に定義する：
+**`Embed` 型クラス**で変換規則を宣言的に定義する：
 
 ```egison
 class Embed a b where
@@ -517,12 +518,7 @@ join(a, a) = a
 join(Integer, Div Integer) = Div Integer
 join(Integer, Poly Integer [S]) = Poly Integer [S]
 
--- 閉じた Poly 同士: 包含関係がある場合のみ許可
-join(Poly a [S₁], Poly b [S₂]) = Poly (join(a, b)) [S₂]    （S₁ ⊆ S₂ のとき）
-join(Poly a [S₁], Poly b [S₂]) = Poly (join(a, b)) [S₁]    （S₂ ⊆ S₁ のとき）
-join(Poly a [S₁], Poly b [S₂]) = 型エラー                    （S₁ ⊄ S₂ かつ S₂ ⊄ S₁）
-
--- 閉じた Poly 同士（シンボル集合の和集合を自動計算）
+-- 閉じた Poly 同士: シンボル集合の和集合を自動計算
 join(Poly a [S₁], Poly b [S₂]) = Poly (join(a, b)) [S₁ ∪ S₂]
 
 -- 閉じた Poly と他の型
@@ -536,14 +532,14 @@ join(Poly a [..], Poly b [S]) = Poly (join(a, b)) [..]
 join(Poly a [..], b) = Poly (join(a, b)) [..]
 join(a, Poly b [..]) = Poly (join(a, b)) [..]
 
-> シンボル集合が具体的に定まっている閉じた `Poly` 同士の `join` では、和集合 `S₁ ∪ S₂` を自動計算する。
-
-> `join(Poly a [S], Poly b [..])` では閉じたシンボル集合 `[S]` の情報が失われ、開いた型 `[..]` に吸収される。これは暗黙に許可する。ユーザーが閉じた型で厳密に作業したい場合は、両辺を閉じた型に揃える必要がある。
-
 -- Div
 join(Div a, Div b) = Div (join(a, b))
 join(a, Div b) = Div (join(a, b))
 ```
+
+> シンボル集合が具体的に定まっている閉じた `Poly` 同士の `join` では、和集合 `S₁ ∪ S₂` を自動計算する。包含関係がある場合（`[x] ⊆ [x, y]`）は和集合が大きい方と一致するだけなので、包含関係の有無に関わらず統一的に扱える。
+
+> `join(Poly a [S], Poly b [..])` では閉じたシンボル集合 `[S]` の情報が失われ、開いた型 `[..]` に吸収される。これは暗黙に許可する。ユーザーが閉じた型で厳密に作業したい場合は、両辺を閉じた型に揃える必要がある。
 
 #### join の具体例
 
@@ -563,8 +559,6 @@ join(Poly Integer [x], Poly Integer [..]) = Poly Integer [..]
 ```
 
 #### 設計の意図
-
-閉じた `Poly` のシンボル集合が具体的に定まっている場合、`join` は和集合 `S₁ ∪ S₂` を自動計算する。包含関係がある場合（`[x] ⊆ [x, y]`）は和集合が大きい方と一致するだけなので、包含関係の有無に関わらず統一的に扱える。
 
 型レベルのシンボル集合操作は以下の3つ。
 
@@ -596,11 +590,10 @@ def p : Poly Integer [x] := 1 + x
 def q : Poly Integer [y] := 2 + y
 
 p + q
--- join(Poly Integer [x], Poly Integer [y]) = 型エラー
--- ユーザーは以下のように明示的に合わせる必要がある:
-def p' : Poly Integer [x, y] := 1 + x
-def q' : Poly Integer [x, y] := 2 + y
-p' + q' -- OK: Poly Integer [x, y]
+-- join(Poly Integer [x], Poly Integer [y]) = Poly Integer [x, y]
+-- 和集合 [x] ∪ [y] = [x, y] を自動計算し、双方を embed
+⇝ (embed p) + (embed q) : Poly Integer [x, y]
+-- 結果: x + y + 3
 ```
 
 ### 3. tensorMap（スカラー関数のテンソルへの自動持ち上げ）
@@ -729,6 +722,8 @@ class Differentiable a where
   ∂/∂ : a -> Factor -> a
 ```
 
+第2引数は `Factor` 型であり、`declare symbol x` で宣言されたシンボルを直接渡す。シンボルは `Factor` として扱われ、`Poly` に昇格する前の段階で微分変数として使われる。呼び出し側では `∂/∂ f x` のように書き、`x` は `Factor` への coercive subtyping（`Embed` 経由の昇格ではなく、シンボル自体が `Factor` 型を持つ）で渡される。
+
 #### インスタンス
 
 ```egison
@@ -806,6 +801,8 @@ class CASMap f where
 instance {GCDDomain b} CASMap Div where
   casMap f (n/d) = f n / f d
 ```
+
+> **実装上の注意**: `CASMap` は型変数 `f` が高カインド（`* -> *`）である。Egison の型システムで高カインド多相をサポートしない場合は、`CASMap` を型クラスとして実装する代わりに、`casMapDiv : (a -> b) -> Div a -> Div b` のような具体的な関数として定義する。`CASMap` のインスタンスは実質的に `Div` のみであるため、高カインド多相なしでも機能に影響はない。
 
 `substitute` と `expandAll` は `Poly` 上の関数として定義し、`Div` への適用は `casMap` で持ち上げる。
 
@@ -886,26 +883,25 @@ simplify expr using trig_pythagorean
 ```haskell
 -- 簡約規則
 data ReductionRule = ReductionRule
-  { ruleName    :: Maybe String     -- 手動規則の名前（auto 規則は Nothing）
-  , ruleLHS     :: CASValue         -- 左辺のパターン
-  , ruleRHS     :: CASValue         -- 右辺
-  , ruleSymbols :: [SymbolExpr]     -- 関与するシンボル群
-  , ruleAuto    :: Bool             -- True = 自動適用、False = 手動適用
+  { ruleName :: Maybe String           -- 手動規則の名前（auto 規則は Nothing）
+  , ruleFunc :: CASValue -> CASValue   -- LHS → RHS の書き換え関数
   }
 
 -- 規則環境: シンボルから独立した専用の環境
 type ReductionEnv = [ReductionRule]
 ```
 
+`ruleFunc` は `declare rule auto <lhs> = <rhs>` の LHS パターンと RHS テンプレートから動的に生成される書き換え関数。LHS のパターン変数の束縛と RHS への代入を1つの関数に閉じ込める。
+
 正規化関数は規則環境を参照する:
 
 ```haskell
-casNormalizePoly :: ReductionEnv -> [CASTerm] -> CASValue
+casNormalizeWithRules :: ReductionEnv -> CASValue -> CASValue
 ```
 
 ### 関数引数内のパターン分解
 
-関数引数のパターンマッチを含む規則（例: `'sin ($a + $b) = 'sin a * 'cos b + 'cos a * 'sin b`）では、規則の左辺 `'sin ($a + $b)` が `SymbolExpr` の `Apply1` コンストラクタにマッチし、その引数（`CASValue`）を `poly` マッチャーで分解して `$a + $b` を束縛する。つまり、`declare rule` の規則適用エンジンは、CAS マッチャー（`poly`, `div` 等）を内部的に利用して関数引数内のパターンを分解する。
+関数引数のパターンマッチを含む規則（例: `'sin ($a + $b) = 'sin a * 'cos b + 'cos a * 'sin b`）では、規則の左辺 `'sin ($a + $b)` が `SymbolExpr` の `Apply1` コンストラクタにマッチし、その引数（`CASValue`）を `poly` マッチャーで分解して `$a + $b` を束縛する。つまり、`declare rule` の規則適用エンジンは、CAS マッチャー（`poly`, `frac` 等）を内部的に利用して関数引数内のパターンを分解する。
 
 パターン変数の型は LHS の構造から推論される。`+` で分解される位置のパターン変数は `Poly a [..]` 型、モノミアル内のパターン変数は `Factor` 型として推論される。例えば `'sin ($a + $b) = ...` では、`$a + $b` が `poly` マッチャーで分解されるため、`$a` と `$b` は `Poly a [..]` 型となる。
 
@@ -925,7 +921,7 @@ factor  : Matcher Factor
 -- パラメトリックマッチャー（係数マッチャーを受け取る）
 poly {a} (m : Matcher a) : Matcher (Poly a ..)
 term {a} (m : Matcher a) : Matcher (Term a ..)
-div  {a} (m : Matcher a) : Matcher (Div a)
+frac {a} (m : Matcher a) : Matcher (Div a)
 ```
 
 `poly`, `term` のシンボルリストはランタイムのマッチャーには不要（CASValue の内部構造が型ごとに異なるため、マッチャーが区別する必要がない）。型レベルでのみ `Poly a [x]` / `Poly a [x, y]` を区別する。
@@ -977,11 +973,9 @@ match expr as poly integer with
   | $a :+ $rest -> ...   -- a : Term Integer, rest : Poly Integer [x, y]
 
 -- Div (Poly Integer [x]) のパターンマッチ
-match expr as div (poly integer) with
+match expr as frac (poly integer) with
   | $n / $d -> ...       -- n, d : Poly Integer [x]
 ```
-
-### モノミアルの分解
 
 ### モノミアルと Factor の分解
 
@@ -1011,7 +1005,7 @@ match x as factor with
 
 ```egison
 -- Div (Poly Integer [x]) → Poly Integer [x] への安全な抽出
-match expr as div (poly integer) with
+match expr as frac (poly integer) with
   | $n / #1 -> n    -- 分母が1のときだけ安全に取り出す
 ```
 
@@ -1020,7 +1014,7 @@ match expr as div (poly integer) with
 - **`multiset` と同じ仕組み**: `poly m` の `:+` は `multiset m` の `::` と同じ意味論（順序不問の分解）
 - **`term` による段階的分解**: 項の構造（係数 + モノミアル）を `term m` で明示的に分解。係数マッチャー `m` がここで活きる
 - **`factor` でシンボルの内部構造を分解**: `symbol`, `apply1`, `quote` 等のパターンでシンボルの種類に応じた分解が可能
-- **合成が統一的**: `poly`, `div`, `term`, `factor`, `integer`, `multiset`, `assocMultiset` がすべて同じマッチャー合成の仕組みで組み合わさる
+- **合成が統一的**: `poly`, `frac`, `term`, `factor`, `integer`, `multiset`, `assocMultiset` がすべて同じマッチャー合成の仕組みで組み合わさる
 
 ---
 
@@ -1059,8 +1053,9 @@ Egison の設計は以下の点で異なる。
 - パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Div a` / `Factor` をパース
 - 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
 - `join` の実装（`Join.hs`: `joinTypes`, `isSubtype`, `symbolSetSubset`）
+  - **TODO**: `joinSymbolSets` の `otherwise` 分岐を和集合 `S₁ ∪ S₂` に変更する（現状は `Nothing` を返して型エラーになる）
 - 開いた `[..]` のフレッシュ型変数への脱糖（`freshenOpenSymbolSets`）
-- `Embed` 型クラスと coercive subtyping は Phase 7 として後続実装予定
+- `Embed` 型クラスと coercive subtyping は Phase 5.5 として後続実装予定
 
 ### Phase 3: ScalarData の CASValue 置換（完了）
 
@@ -1104,21 +1099,21 @@ Egison の設計は以下の点で異なる。
 型                                   マッチャー
 Integer                              integer
 Factor                               factor
-Div Integer                          div integer
+Div Integer                          frac integer
 Poly Integer [x]                     poly integer
-Poly (Div Integer) [x]              poly (div integer)
-Div (Poly Integer [x])              div (poly integer)
+Poly (Div Integer) [x]              poly (frac integer)
+Div (Poly Integer [x])              frac (poly integer)
 Poly (Poly Integer [x]) [y]         poly (poly integer)
-Tensor (Poly (Div Integer) [x])     tensor (poly (div integer))
+Tensor (Poly (Div Integer) [x])     tensor (poly (frac integer))
 ```
 
 マッチャーは係数マッチャーのみを引数に取る。シンボルリストはランタイムのマッチングに影響しないため、マッチャー引数には含めない（型レベルでのみ区別）。
 
 #### 実装方針
 
-`poly`, `div`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみとする。既存の `PDPlusPat`, `PDDivPat`, `PDTermPat` への変更は最小限で済む。
+`poly`, `frac`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみとする。既存の `PDPlusPat`, `PDDivPat`, `PDTermPat` への変更は最小限で済む。
 
-パターン環境と値環境は分離されているため、`inductive pattern MathExpr` のパターンコンストラクタ `poly`, `div`, `term` と同名のマッチャー関数 `def poly ...` は衝突しない。
+パターン環境と値環境は分離されているため、`inductive pattern MathExpr` のパターンコンストラクタ `poly`, `div`, `term` と同名のマッチャー関数 `def poly ...` は衝突しない。`frac` はパターンコンストラクタ `div` と名前が異なるため衝突の問題は生じない。
 
 #### Step 5.0: 基本マッチャーの定義
 
@@ -1149,8 +1144,8 @@ def factor : Matcher Factor :=
 
 `integer` は `something` のエイリアス（型チェッカー完成後に制約を追加可能）。`factor` は `SymbolExpr` の構造を分解するマッチャーで、既存の `PDSymbolPat`, `PDApply1Pat`, `PDQuotePat` 等に対応するプリミティブ関数を使う。
 
-- [ ] `integer` マッチャーを `lib/math/expression.egi` に定義
-- [ ] `factor` マッチャーを `lib/math/expression.egi` に定義
+- [ ] `integer` マッチャーを `lib/math/expression.egi` に定義（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
+- [ ] `factor` マッチャーを `lib/math/expression.egi` に定義（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
 - [ ] `extractSymbol`, `extractApply1`, `extractQuote` 等のプリミティブ関数追加（既存の `PDSymbolPat` 等の Haskell コードを公開）
 
 #### Step 5.1: `poly` パラメトリックマッチャーの実装
@@ -1175,14 +1170,16 @@ def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
 - `:+` の左側は `term m` マッチャーでマッチ（項の構造を分解可能にする）
 - `:+` の右側は `poly m` で再帰
 - `casToTerms` / `casFromTerms` はプリミティブ関数として提供
-- `poly` マッチャー関数を `lib/math/expression.egi` に定義
-- `casToTerms`, `casFromTerms` のプリミティブ関数追加
-- mini-test: `poly integer` での基本的なマッチ
+- [ ] `poly` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` にテストあり、未通過）
+- [ ] `casToTerms`, `casFromTerms` のプリミティブ関数追加（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
+- [ ] mini-test: `poly integer` での基本的なマッチ
 
-#### Step 5.2: `div` パラメトリックマッチャーの実装
+#### Step 5.2: `frac` パラメトリックマッチャーの実装
+
+`Div a` 型に対応するマッチャー。マッチャー名は `frac` とする（`div` はパターンコンストラクタ名や Haskell の組み込み関数と衝突するため）。
 
 ```egison
-def div {a} (m : Matcher a) : Matcher (Div a) :=
+def frac {a} (m : Matcher a) : Matcher (Div a) :=
   matcher
     | $ / $ as (m, m) with
       | $tgt -> [(getCASNumerator tgt, getCASDenominator tgt)]
@@ -1192,8 +1189,8 @@ def div {a} (m : Matcher a) : Matcher (Div a) :=
       | $tgt -> [tgt]
 ```
 
-- `div` マッチャー関数を `lib/math/expression.egi` に定義
-- mini-test: `div (poly integer)` でのマッチ
+- [ ] `frac` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` にテストあり、未通過）
+- [ ] mini-test: `frac (poly integer)` でのマッチ
 
 #### Step 5.3: `term` パラメトリックマッチャーの実装
 
@@ -1209,22 +1206,22 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 - 項を（係数, モノミアル）のペアに分解
 - 係数は `m` でマッチ、モノミアルは `assocMultiset factor` でマッチ
 - `termCoeff` / `termMonomial` はプリミティブ関数として提供
-- `term` マッチャー関数を `lib/math/expression.egi` に定義
-- `termCoeff`, `termMonomial` のプリミティブ関数追加
-- mini-test: `term integer` でのマッチ
+- [ ] `term` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` にテストあり、未通過）
+- [ ] `termCoeff`, `termMonomial` のプリミティブ関数追加（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
+- [ ] mini-test: `term integer` でのマッチ
 
 #### Step 5.4: `mathExpr` マッチャーとの互換性
 
 既存の `mathExpr` マッチャーは後方互換性のために維持する。
 
-- `mathExpr` を `poly`, `div`, `term` の合成として再定義
+- `mathExpr` を `poly`, `frac`, `term` の合成として再定義
 - 既存テスト（`cabal test`）と `mini-test/50-primitive-pattern.egi` が通ることを確認
 
 #### Step 5.5: 型推論との統合
 
 - `Type/Infer.hs` でマッチャー式 `poly m` の型推論
   - `m : Matcher a` のとき `poly m : Matcher (Poly a ..)`
-  - `div m : Matcher (Div a)`
+  - `frac m : Matcher (Div a)`
   - `term m : Matcher (Term a ..)`
 - マッチャー引数の型からパターン変数の型を推論
   - `match expr as poly integer with | $a :+ _ -> ...` で `a : Term Integer` を推論
@@ -1232,10 +1229,10 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 
 #### Step 5.6: テストと検証
 
-- [ ] 基本テスト: `integer`, `factor`, `poly integer`, `div integer`, `term integer`
-- [ ] factor テスト: `symbol`, `apply1`, `quote` パターン
-- [ ] 入れ子テスト: `poly (poly integer)`, `div (poly integer)`
-- [ ] 複合テスト: `div (poly (div integer))`
+- [ ] 基本テスト: `integer`, `factor`, `poly integer`, `frac integer`, `term integer`（`mini-test/60-parametric-matcher.egi`, `mini-test/62-poly-div-term.egi` にテストあり、未通過）
+- [ ] factor テスト: `symbol`, `apply1`, `quote` パターン（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
+- [ ] 入れ子テスト: `poly (poly integer)`, `frac (poly integer)`
+- [ ] 複合テスト: `frac (poly (frac integer))`
 - [ ] モノミアル分解テスト: `term integer` + `assocMultiset factor`
 - [ ] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
 - [ ] sample/ の数学サンプルが正しく動作すること
@@ -1305,13 +1302,10 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
 
 #### Step 5.5.2: 型チェッカーでの包含関係グラフの構築
 
-- `Type/Subtype.hs` を新規作成
-  - 包含関係のグラフ構造を定義
+- `Type/Join.hs`（既存）に包含関係グラフの機能を追加
+  - `isSubtype`, `symbolSetSubset` は実装済み
   - `Embed` インスタンス宣言時にグラフにエッジを追加
   - 推移閉包の計算（深さ制限付きBFSで探索）
-- `isSubtype` 関数（`Join.hs` に既存）と連携
-  - 包含関係の判定に使用
-  - `symbolSetSubset` でシンボル集合の包含も判定
 
 #### Step 5.5.3: 型推論での embed 自動挿入
 
@@ -1319,7 +1313,8 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
   - 型 `τ₁` と `τ₂` が不一致の場合:
     1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
     2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
-    3. どちらでもなければ型エラー
+    3. 閉じた Poly 同士でシンボル集合が異なる場合は `join` で `S₁ ∪ S₂` を計算し双方を embed
+    4. いずれでもなければ型エラー
 - 推移的な変換（`embed . embed`）の合成
   - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
   - グラフ上の最短経路で `embed` を連鎖
@@ -1374,7 +1369,7 @@ Phase 6 でライブラリ関数を型クラスのメソッドとして実装す
   class Differentiable a where
     ∂/∂ : a -> Factor -> a
   ```
-- **`CASMap` 型クラス**の定義
+- **`CASMap` 型クラス**の定義（高カインド多相が必要。代替案は `casMapDiv` 関数として定義）
   ```egison
   class CASMap f where
     casMap : (a -> b) -> f a -> f b
@@ -1447,11 +1442,11 @@ double (1 + x)       -- => 2 + 2 * x : Poly Integer [x]
 
 ### Phase 6: ライブラリ関数の再実装
 
-Phase 5.5 の型クラス基盤（`Embed`, `Differentiable`, `CASMap`, `Integrable`）が完成した後、既存のライブラリ関数を新しいマッチャー（`poly m`, `div m`, `term m`）と型クラスを用いて再実装する。
+Phase 5.5 の型クラス基盤（`Embed`, `Differentiable`, `CASMap`, `Integrable`）が完成した後、既存のライブラリ関数を新しいマッチャー（`poly m`, `frac m`, `term m`）と型クラスを用いて再実装する。
 
 #### Step 6.1: `expandAll` の再実装
 
-`lib/math/expression.egi` の `expandAll` を `poly m` / `div m` / `term m` マッチャーで書き直す。
+`lib/math/expression.egi` の `expandAll` を `poly m` / `frac m` / `term m` マッチャーで書き直す。
 
 ```egison
 -- Poly 上の関数として定義
@@ -1549,7 +1544,7 @@ Phase 7.3 で mathNormalize 廃止時に substitute 等を casNormalizeWithRules
 | Phase | テスト可能な内容 |
 |-------|----------------|
 | Phase 1-4（完了） | `cabal test` 全21テストパス。CASValue の基本演算、プリミティブパターンマッチ |
-| Phase 5 完了後 | パラメトリックマッチャー（`poly integer`, `div (poly integer)` 等）のテスト。`mini-test/` でマッチャーの動作確認 |
+| Phase 5 完了後 | パラメトリックマッチャー（`poly integer`, `frac (poly integer)` 等）のテスト。`mini-test/` でマッチャーの動作確認 |
 | Phase 5.5 完了後 | embed の基本テスト（`x + 1`, シンボル集合拡大, join, 推移的 embed）。型クラス `Ring` の基本テスト（`double 3`, `double (1 + x)`）。**ここから型安全な数式計算が動作し始める** |
 | Phase 6 完了後 | `expandAll`, `substitute`, `∂/∂`, `coefficients`, `taylorExpansion` のテスト。**ここから `sample/` 以下の数学サンプルの一部が動作し始める** |
 | Phase 7.1-7.3 完了後 | `mathNormalize` 廃止後の回帰テスト。`sample/` 以下の全サンプルの動作確認 |
