@@ -39,19 +39,19 @@ casRewriteSymbol =
 -- | Helper: Map a function over all terms in a CASValue
 mapCASTerms :: (CASTerm -> CASTerm) -> CASValue -> CASValue
 mapCASTerms f (CASPoly ts) = casNormalizePoly (map f ts)
-mapCASTerms f (CASDiv num denom) = casNormalize (CASDiv (mapCASTerms f num) (mapCASTerms f denom))
+mapCASTerms f (CASFrac num denom) = casNormalize (CASFrac (mapCASTerms f num) (mapCASTerms f denom))
 mapCASTerms _ v = v
 
 -- | Helper: Map a function over all terms, returning CASValue
 mapCASTerms' :: (CASTerm -> CASValue) -> CASValue -> CASValue
 mapCASTerms' f (CASPoly ts) = foldr casPlus (CASInteger 0) (map f ts)
-mapCASTerms' f (CASDiv num denom) = casNormalize (CASDiv (mapCASTerms' f num) (mapCASTerms' f denom))
+mapCASTerms' f (CASFrac num denom) = casNormalize (CASFrac (mapCASTerms' f num) (mapCASTerms' f denom))
 mapCASTerms' _ v = v
 
--- | Helper: Map over both polys in a CASDiv (or single poly)
+-- | Helper: Map over both polys in a CASFrac (or single poly)
 mapCASPolys :: ([CASTerm] -> [CASTerm]) -> CASValue -> CASValue
 mapCASPolys f (CASPoly ts) = casNormalizePoly (f ts)
-mapCASPolys f (CASDiv num denom) = casNormalize (CASDiv (mapCASPolys f num) (mapCASPolys f denom))
+mapCASPolys f (CASFrac num denom) = casNormalize (CASFrac (mapCASPolys f num) (mapCASPolys f denom))
 mapCASPolys _ v = v
 
 -- | Helper: Create an Apply symbol from WHNF and CASValue arguments
@@ -162,10 +162,10 @@ casIsNegative (CASPoly terms)
   isNegTerm _ = False
   isPosTerm (CASTerm (CASInteger c) _) = c > 0
   isPosTerm _ = False
-casIsNegative (CASDiv num (CASInteger d))
+casIsNegative (CASFrac num (CASInteger d))
   | d > 0     = casIsNegative num
   | d < 0     = fmap not (casIsNegative num)
-casIsNegative (CASDiv num (CASPoly [CASTerm (CASInteger d) []]))
+casIsNegative (CASFrac num (CASPoly [CASTerm (CASInteger d) []]))
   | d > 0     = casIsNegative num
   | d < 0     = fmap not (casIsNegative num)
 casIsNegative _ = Nothing
@@ -266,8 +266,8 @@ casRewriteRtu = mapCASTerms' g . mapCASTerms f
 
 -- | Rewrite dd (differential)
 casRewriteDd :: CASValue -> CASValue
-casRewriteDd (CASDiv num denom) =
-  CASDiv (casNormalizePoly (rewriteDdPoly (extractTerms num)))
+casRewriteDd (CASFrac num denom) =
+  CASFrac (casNormalizePoly (rewriteDdPoly (extractTerms num)))
          (casNormalizePoly (rewriteDdPoly (extractTerms denom)))
  where
   extractTerms (CASPoly ts) = ts

@@ -522,7 +522,7 @@ instance Pretty IPrimitiveDataPattern where
   pretty (PDSnocPat pat1 pat2) = pretty pat1 <+> pretty "*:" <+> pretty pat2
   pretty (PDConstantPat c) = pretty c
   -- MathExpr primitive patterns
-  pretty (PDDivPat p1 p2) = applyLike [pretty "Div", pretty p1, pretty p2]
+  pretty (PDFracPat p1 p2) = applyLike [pretty "Frac", pretty p1, pretty p2]
   pretty (PDPlusPat p) = applyLike [pretty "Plus", pretty p]
   pretty (PDTermPat p1 p2) = applyLike [pretty "Term", pretty p1, pretty p2]
   pretty (PDSymbolPat p1 p2) = applyLike [pretty "Symbol", pretty p1, pretty p2]

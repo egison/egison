@@ -185,7 +185,7 @@ unifyG _ _ _ TPort TPort = ok
 -- CAS types
 unifyG _ _ _ TFactor TFactor = ok
 
-unifyG mode ce cs (TDiv t1) (TDiv t2) =
+unifyG mode ce cs (TFrac t1) (TFrac t2) =
   unifyNormalized mode ce cs t1 t2
 
 unifyG mode ce cs (TPoly t1 ss1) (TPoly t2 ss2) = do

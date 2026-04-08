@@ -11,7 +11,7 @@ This module defines the new CASValue data type for the computer algebra system.
 The type structure directly determines the runtime internal representation.
 
 Key design principles:
-- Type composition determines normal form (e.g., Poly (Div Integer) vs Div (Poly Integer))
+- Type composition determines normal form (e.g., Poly (Frac Integer) vs Frac (Poly Integer))
 - Supports Laurent polynomials (negative exponents allowed in monomials)
 - Constructive: coefficients can be recursively nested CASValues
 -}
@@ -28,7 +28,7 @@ module Language.Egison.Math.CAS
     , casInteger
     , casFactor
     , casPoly
-    , casDiv
+    , casFrac
     , casTerm
     -- * Arithmetic operations
     , casPlus
@@ -107,7 +107,7 @@ data CASValue
   | CASPoly [CASTerm]
     -- ^ A polynomial (sum of terms). Empty list represents zero.
     -- Supports Laurent polynomials: monomial exponents can be negative.
-  | CASDiv CASValue CASValue
+  | CASFrac CASValue CASValue
     -- ^ A quotient: numerator / denominator
     -- Only needed when denominator is non-monomial
   deriving (Eq, Show)
@@ -196,7 +196,7 @@ prettyCAS (CASPoly terms) = prettyTerms terms
     isNegative _ = False
     negateCAST (CASTerm (CASInteger n) m) = CASTerm (CASInteger (-n)) m
     negateCAST t = t
-prettyCAS (CASDiv num denom) = prettyCAS' num ++ " / " ++ prettyCAS' denom
+prettyCAS (CASFrac num denom) = prettyCAS' num ++ " / " ++ prettyCAS' denom
 
 prettyCAS' :: CASValue -> String
 prettyCAS' v@(CASInteger _) = prettyCAS v
@@ -228,8 +228,8 @@ casPoly :: [CASTerm] -> CASValue
 casPoly terms = casNormalize (CASPoly terms)
 
 -- | Create a division CASValue, simplifying if possible
-casDiv :: CASValue -> CASValue -> CASValue
-casDiv num denom = casNormalize (CASDiv num denom)
+casFrac :: CASValue -> CASValue -> CASValue
+casFrac num denom = casNormalize (CASFrac num denom)
 
 -- | Create a term
 casTerm :: CASValue -> Monomial -> CASTerm
@@ -243,7 +243,7 @@ casTerm = CASTerm
 casIsZero :: CASValue -> Bool
 casIsZero (CASInteger 0) = True
 casIsZero (CASPoly [])   = True
-casIsZero (CASDiv n _)   = casIsZero n
+casIsZero (CASFrac n _)   = casIsZero n
 casIsZero _              = False
 
 -- | Check if a CASValue is one
@@ -260,7 +260,7 @@ casIsAtom (CASFactor _)  = True
 casIsAtom (CASPoly [])   = True   -- Zero
 casIsAtom (CASPoly [CASTerm _ []])  = True   -- Integer only
 casIsAtom (CASPoly [CASTerm (CASInteger 1) [_]]) = True  -- Single symbol with coeff 1
-casIsAtom (CASDiv num (CASPoly [CASTerm (CASInteger 1) []])) = casIsAtom num  -- n/1 = n
+casIsAtom (CASFrac num (CASPoly [CASTerm (CASInteger 1) []])) = casIsAtom num  -- n/1 = n
 casIsAtom _ = False
 
 --------------------------------------------------------------------------------
@@ -282,13 +282,13 @@ casPlus' (CASPoly ts1) (CASPoly ts2) = CASPoly (ts1 ++ ts2)
 casPlus' (CASInteger n) (CASPoly ts) = CASPoly (CASTerm (CASInteger n) [] : ts)
 casPlus' (CASPoly ts) (CASInteger n) = CASPoly (CASTerm (CASInteger n) [] : ts)
 
--- Div + Div: cross-multiply and add numerators
-casPlus' (CASDiv n1 d1) (CASDiv n2 d2) =
-  CASDiv (casPlus' (casMult' n1 d2) (casMult' n2 d1)) (casMult' d1 d2)
+-- Frac + Frac: cross-multiply and add numerators
+casPlus' (CASFrac n1 d1) (CASFrac n2 d2) =
+  CASFrac (casPlus' (casMult' n1 d2) (casMult' n2 d1)) (casMult' d1 d2)
 
--- Div + other: embed other as Div
-casPlus' (CASDiv n d) other = CASDiv (casPlus' n (casMult' other d)) d
-casPlus' other (CASDiv n d) = CASDiv (casPlus' (casMult' other d) n) d
+-- Frac + other: embed other as Frac
+casPlus' (CASFrac n d) other = CASFrac (casPlus' n (casMult' other d)) d
+casPlus' other (CASFrac n d) = CASFrac (casPlus' (casMult' other d) n) d
 
 -- Factor handling: lift to polynomial before operation
 casPlus' (CASFactor sym) other = casPlus' (liftFactorToPoly sym) other
@@ -300,7 +300,7 @@ casNegate (CASInteger n)  = CASInteger (-n)
 casNegate (CASPoly terms) = CASPoly (map negateTerm terms)
   where
     negateTerm (CASTerm coeff mono) = CASTerm (casNegate coeff) mono
-casNegate (CASDiv n d)    = CASDiv (casNegate n) d
+casNegate (CASFrac n d)    = CASFrac (casNegate n) d
 casNegate (CASFactor sym) = CASPoly [CASTerm (CASInteger (-1)) [(sym, 1)]]
 
 -- | Subtract two CASValues
@@ -330,13 +330,13 @@ casMult' (CASPoly ts1) (CASPoly ts2) =
     multTerms (CASTerm c1 m1) (CASTerm c2 m2) =
       CASTerm (casMult' c1 c2) (combineMonomials m1 m2)
 
--- Div * Div: multiply numerators and denominators
-casMult' (CASDiv n1 d1) (CASDiv n2 d2) =
-  CASDiv (casMult' n1 n2) (casMult' d1 d2)
+-- Frac * Frac: multiply numerators and denominators
+casMult' (CASFrac n1 d1) (CASFrac n2 d2) =
+  CASFrac (casMult' n1 n2) (casMult' d1 d2)
 
--- Div * other: multiply into numerator
-casMult' (CASDiv n d) other = CASDiv (casMult' n other) d
-casMult' other (CASDiv n d) = CASDiv (casMult' other n) d
+-- Frac * other: multiply into numerator
+casMult' (CASFrac n d) other = CASFrac (casMult' n other) d
+casMult' other (CASFrac n d) = CASFrac (casMult' other n) d
 
 -- Factor handling: lift to polynomial before operation
 casMult' (CASFactor sym) other = casMult' (liftFactorToPoly sym) other
@@ -357,7 +357,7 @@ combineMonomials m1 m2 = foldr insertSymbol m2 m1
 
 -- | Divide two CASValues: a / b
 casDivide :: CASValue -> CASValue -> CASValue
-casDivide a b = casNormalize (CASDiv a b)
+casDivide a b = casNormalize (CASFrac a b)
 
 -- | Raise a CASValue to an integer power
 casPower :: CASValue -> Integer -> CASValue
@@ -369,13 +369,13 @@ casPower x n
 
 -- | Get the numerator of a CASValue
 casNumerator :: CASValue -> CASValue
-casNumerator (CASDiv num _) = num
-casNumerator x              = x  -- Non-Div values are their own numerator
+casNumerator (CASFrac num _) = num
+casNumerator x              = x  -- Non-Frac values are their own numerator
 
 -- | Get the denominator of a CASValue
 casDenominator :: CASValue -> CASValue
-casDenominator (CASDiv _ denom) = denom
-casDenominator _                = CASInteger 1  -- Non-Div values have denominator 1
+casDenominator (CASFrac _ denom) = denom
+casDenominator _                = CASInteger 1  -- Non-Frac values have denominator 1
 
 --------------------------------------------------------------------------------
 -- Normalization
@@ -386,7 +386,7 @@ casNormalize :: CASValue -> CASValue
 casNormalize (CASInteger n) = CASInteger n
 casNormalize (CASFactor sym) = CASFactor sym
 casNormalize (CASPoly terms) = casNormalizePoly terms
-casNormalize (CASDiv num denom) = casNormalizeDiv num denom
+casNormalize (CASFrac num denom) = casNormalizeFrac num denom
 
 -- | Normalize a polynomial
 -- Steps:
@@ -462,14 +462,14 @@ sortTermsDescending = sortBy (flip (comparing termDegree) <> flip (comparing ter
     -- Use show-based key for consistent lexicographic ordering
     termSymbolsKey (CASTerm _ mono) = map (\(s, e) -> (show s, e)) (sortBy (comparing (show . fst)) mono)
 
--- | Normalize a division
+-- | Normalize a fraction
 -- Steps:
 -- 1. If denominator is 1, return numerator
 -- 2. If numerator is 0, return 0
 -- 3. Simplify using GCD
 -- 4. Ensure positive denominator
-casNormalizeDiv :: CASValue -> CASValue -> CASValue
-casNormalizeDiv num denom =
+casNormalizeFrac :: CASValue -> CASValue -> CASValue
+casNormalizeFrac num denom =
   let num' = casNormalize num
       denom' = casNormalize denom
   in case (num', denom') of
@@ -488,7 +488,7 @@ casNormalizeDiv num denom =
              d' = abs (d `div` g)
          in if d' == 1
             then CASInteger n'
-            else CASDiv (CASInteger n') (CASInteger d')
+            else CASFrac (CASInteger n') (CASInteger d')
        -- Poly / Integer: divide each coefficient by the integer
        (CASPoly ts1, CASInteger d) ->
          let g = casTermsGcdCoeff ts1 d
@@ -497,19 +497,19 @@ casNormalizeDiv num denom =
              ts1' = map (\(CASTerm c m) -> CASTerm (divCoeffBy c g sign) m) ts1
          in if d' == 1
             then casNormalizePoly ts1'
-            else CASDiv (casNormalizePoly ts1') (CASInteger d')
+            else CASFrac (casNormalizePoly ts1') (CASInteger d')
        -- Poly / Poly: try to reduce by monomial GCD
        (CASPoly ts1, CASPoly ts2) ->
          let (ts1', ts2') = simplifyPolyDiv ts1 ts2
          in case (ts1', ts2') of
               (ts1'', [CASTerm (CASInteger 1) []]) -> casNormalizePoly ts1''
-              _ -> CASDiv (casNormalizePoly ts1') (casNormalizePoly ts2')
+              _ -> CASFrac (casNormalizePoly ts1') (casNormalizePoly ts2')
        -- a / (b / c) = (a * c) / b
-       (n, CASDiv b c) -> casNormalizeDiv (casMult n c) b
+       (n, CASFrac b c) -> casNormalizeFrac (casMult n c) b
        -- (a / b) / c = a / (b * c)
-       (CASDiv a b, c) -> casNormalizeDiv a (casMult b c)
+       (CASFrac a b, c) -> casNormalizeFrac a (casMult b c)
        -- Default: no simplification
-       _ -> CASDiv num' denom'
+       _ -> CASFrac num' denom'
 
 -- | Compute GCD of polynomial coefficients with an integer
 casTermsGcdCoeff :: [CASTerm] -> Integer -> Integer
@@ -721,8 +721,8 @@ casZeroM CASM _ = ()
 
 -- | Match a single term in CASValue and extract coefficient, denominator coefficient, and monomial
 casSingleTerm :: Pattern (PP Integer, PP Integer, PP Monomial) CASM CASValue (Integer, Integer, Monomial)
-casSingleTerm _ _ (CASDiv (CASPoly [CASTerm (CASInteger c) mono]) (CASPoly [CASTerm (CASInteger c2) []])) = pure (c, c2, mono)
-casSingleTerm _ _ (CASDiv (CASSingleTerm c mono) (CASInteger c2)) = pure (c, c2, mono)
+casSingleTerm _ _ (CASFrac (CASPoly [CASTerm (CASInteger c) mono]) (CASPoly [CASTerm (CASInteger c2) []])) = pure (c, c2, mono)
+casSingleTerm _ _ (CASFrac (CASSingleTerm c mono) (CASInteger c2)) = pure (c, c2, mono)
 casSingleTerm _ _ (CASPoly [CASTerm (CASInteger c) mono]) = pure (c, 1, mono)
 casSingleTerm _ _ (CASInteger n) = pure (n, 1, [])  -- Integer is a single term with empty monomial
 casSingleTerm _ _ _ = mzero

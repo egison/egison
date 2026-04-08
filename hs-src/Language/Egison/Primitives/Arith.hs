@@ -176,7 +176,7 @@ truncate' = oneArg $ \val -> numberUnaryOp' val
     CASInteger n -> Just (n % 1)
     CASPoly [] -> Just 0
     CASPoly [CASTerm coef []] -> extractRationalCAS coef
-    CASDiv num den -> do
+    CASFrac num den -> do
       n <- extractIntegerCAS num
       d <- extractIntegerCAS den
       if d == 0 then Nothing else Just (n % d)

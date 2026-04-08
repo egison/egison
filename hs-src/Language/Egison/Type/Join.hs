@@ -8,10 +8,10 @@ CAS type lattice, used for binary operations and conditional expressions.
 
 Type lattice for CAS types:
   Integer ⊂ Factor ⊂ Poly Integer [s]
-  Integer ⊂ Div Integer
+  Integer ⊂ Frac Integer
   Integer ⊂ Poly Integer [s]
-  Div Integer ⊂ Poly (Div Integer) [s]
-  Poly Integer [s] ⊂ Poly (Div Integer) [s]
+  Frac Integer ⊂ Poly (Frac Integer) [s]
+  Poly Integer [s] ⊂ Poly (Frac Integer) [s]
 
 Symbol set inclusion:
   Poly a [x] ⊂ Poly a [x, y]     -- [x] ⊆ [x, y]
@@ -46,8 +46,8 @@ joinTypes :: Type -> Type -> Either JoinError Type
 joinTypes t1 t2 | t1 == t2 = Right t1
 
 -- Integer joins
-joinTypes TInt (TDiv t) = Right (TDiv (joinCoeff TInt t))
-joinTypes (TDiv t) TInt = Right (TDiv (joinCoeff t TInt))
+joinTypes TInt (TFrac t) = Right (TFrac (joinCoeff TInt t))
+joinTypes (TFrac t) TInt = Right (TFrac (joinCoeff t TInt))
 joinTypes TInt (TPoly t ss) = Right (TPoly (joinCoeff TInt t) ss)
 joinTypes (TPoly t ss) TInt = Right (TPoly (joinCoeff t TInt) ss)
 joinTypes TInt TFactor = Right TFactor
@@ -57,13 +57,13 @@ joinTypes TFactor TInt = Right TFactor
 joinTypes TFactor (TPoly t ss) = Right (TPoly (joinCoeff TInt t) ss)
 joinTypes (TPoly t ss) TFactor = Right (TPoly (joinCoeff t TInt) ss)
 
--- Div joins
-joinTypes (TDiv t1) (TDiv t2) = Right (TDiv (joinCoeff t1 t2))
-joinTypes (TDiv t) (TPoly pt ss) =
-  -- Div a with Poly b [S] -> Div (Poly (join a b) [S])
-  Right (TDiv (TPoly (joinCoeff t pt) ss))
-joinTypes (TPoly pt ss) (TDiv t) =
-  Right (TDiv (TPoly (joinCoeff pt t) ss))
+-- Frac joins
+joinTypes (TFrac t1) (TFrac t2) = Right (TFrac (joinCoeff t1 t2))
+joinTypes (TFrac t) (TPoly pt ss) =
+  -- Frac a with Poly b [S] -> Frac (Poly (join a b) [S])
+  Right (TFrac (TPoly (joinCoeff t pt) ss))
+joinTypes (TPoly pt ss) (TFrac t) =
+  Right (TFrac (TPoly (joinCoeff pt t) ss))
 
 -- Poly joins - most complex case
 joinTypes (TPoly t1 ss1) (TPoly t2 ss2) =
@@ -92,16 +92,16 @@ joinTypes t1 t2 = Left (IncompatibleTypes t1 t2)
 -- | Join coefficient types (simplified version for recursive calls)
 joinCoeff :: Type -> Type -> Type
 joinCoeff TInt TInt = TInt
-joinCoeff TInt (TDiv t) = TDiv (joinCoeff TInt t)
-joinCoeff (TDiv t) TInt = TDiv (joinCoeff t TInt)
-joinCoeff (TDiv t1) (TDiv t2) = TDiv (joinCoeff t1 t2)
+joinCoeff TInt (TFrac t) = TFrac (joinCoeff TInt t)
+joinCoeff (TFrac t) TInt = TFrac (joinCoeff t TInt)
+joinCoeff (TFrac t1) (TFrac t2) = TFrac (joinCoeff t1 t2)
 joinCoeff t1 t2 | t1 == t2 = t1
 joinCoeff _ _ = TAny  -- Fallback for incompatible coefficients
 
 -- | Extract coefficient type from a type (for Poly integration)
 extractCoeff :: Type -> Type
 extractCoeff TInt = TInt
-extractCoeff (TDiv t) = TDiv t
+extractCoeff (TFrac t) = TFrac t
 extractCoeff TFactor = TInt
 extractCoeff (TPoly t _) = t
 extractCoeff _ = TAny
@@ -144,7 +144,7 @@ isSubtype :: Type -> Type -> Bool
 isSubtype t1 t2 | t1 == t2 = True
 
 -- Integer is subtype of many types
-isSubtype TInt (TDiv TInt) = True
+isSubtype TInt (TFrac TInt) = True
 isSubtype TInt TFactor = True
 isSubtype TInt (TPoly TInt _) = True
 isSubtype TInt TMathExpr = True
@@ -152,8 +152,8 @@ isSubtype TInt TMathExpr = True
 -- Factor subtypes
 isSubtype TFactor (TPoly TInt _) = True
 
--- Div subtypes
-isSubtype (TDiv t1) (TDiv t2) = isSubtype t1 t2
+-- Frac subtypes
+isSubtype (TFrac t1) (TFrac t2) = isSubtype t1 t2
 
 -- Poly subtypes
 isSubtype (TPoly t1 ss1) (TPoly t2 ss2) =

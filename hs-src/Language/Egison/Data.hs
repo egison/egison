@@ -302,20 +302,20 @@ extractCASInteger cv = case cv of
   CASInteger n -> Just n
   CASPoly [] -> Just 0
   CASPoly [CASTerm coef []] -> extractCASInteger coef
-  CASDiv num den -> do
+  CASFrac num den -> do
     n <- extractCASInteger num
     d <- extractCASInteger den
     if d /= 0 && n `mod` d == 0 then Just (n `div` d) else Nothing
   _ -> Nothing
 
 instance EgisonData Rational where
-  toEgison r = CASData $ CAS.casNormalize (CAS.CASDiv (CAS.CASInteger (numerator r)) (CAS.CASInteger (denominator r)))
+  toEgison r = CASData $ CAS.casNormalize (CAS.CASFrac (CAS.CASInteger (numerator r)) (CAS.CASInteger (denominator r)))
   fromEgison val = case val of
     CASData (CASInteger 0)                  -> return 0
     CASData (CASPoly [])                    -> return 0
     CASData (CASInteger x)                  -> return (x % 1)
     CASData (CASPoly [CASTerm (CASInteger x) []]) -> return (x % 1)
-    CASData (CASDiv (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) -> return (x % y)
+    CASData (CASFrac (CASPoly [CASTerm (CASInteger x) []]) (CASPoly [CASTerm (CASInteger y) []])) -> return (x % y)
     _                                       -> throwErrorWithTrace (TypeMismatch "rational" (Value val))
 
 instance EgisonData Double where

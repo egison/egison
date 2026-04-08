@@ -71,9 +71,9 @@ instance ToMathExpr CAS.CASValue where
   toMathExpr (CAS.CASPoly []) = Atom "0" []
   toMathExpr (CAS.CASPoly [t]) = toMathExpr t
   toMathExpr (CAS.CASPoly ts) = Plus (map toMathExpr ts)
-  toMathExpr (CAS.CASDiv num (CAS.CASInteger 1)) = toMathExpr num
-  toMathExpr (CAS.CASDiv num (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) []])) = toMathExpr num
-  toMathExpr (CAS.CASDiv num denom) = Div (toMathExpr num) (toMathExpr denom)
+  toMathExpr (CAS.CASFrac num (CAS.CASInteger 1)) = toMathExpr num
+  toMathExpr (CAS.CASFrac num (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) []])) = toMathExpr num
+  toMathExpr (CAS.CASFrac num denom) = Div (toMathExpr num) (toMathExpr denom)
 
 instance ToMathExpr CAS.CASTerm where
   toMathExpr (CAS.CASTerm coeff []) = toMathExpr coeff

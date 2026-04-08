@@ -242,7 +242,7 @@ freshenOpenSymbolSets ty = case ty of
   TPoly t ss -> do
     t' <- freshenOpenSymbolSets t
     return $ TPoly t' ss
-  TDiv t -> TDiv <$> freshenOpenSymbolSets t
+  TFrac t -> TFrac <$> freshenOpenSymbolSets t
   -- Recursive cases
   TTuple ts -> TTuple <$> mapM freshenOpenSymbolSets ts
   TCollection t -> TCollection <$> freshenOpenSymbolSets t
@@ -1604,7 +1604,7 @@ inferIExprWithContext expr ctx = case expr of
               return (resultType'', allBindings, s)
         
         -- MathExpr primitive patterns
-        PDDivPat patNum patDen -> do
+        PDFracPat patNum patDen -> do
           -- Div: MathExpr -> PolyExpr, PolyExpr
           -- However, if pattern is a pattern variable, it gets MathExpr (auto-conversion)
           let polyExprTy = TPolyExpr
@@ -2829,7 +2829,7 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
       ty <- inferConstant c
       return (ty, emptySubst)
     -- MathExpr primitive patterns
-    inferPatternType (PDDivPat _ _) = return (TMathExpr, emptySubst)
+    inferPatternType (PDFracPat _ _) = return (TMathExpr, emptySubst)
     inferPatternType (PDPlusPat _) = return (TPolyExpr, emptySubst)
     inferPatternType (PDTermPat _ _) = return (TTermExpr, emptySubst)
     inferPatternType (PDSymbolPat _ _) = return (TSymbolExpr, emptySubst)
@@ -2917,7 +2917,7 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
       ty <- inferConstant c
       return (ty, emptySubst)
     -- MathExpr primitive patterns
-    inferPatternType (PDDivPat _ _) = return (TMathExpr, emptySubst)
+    inferPatternType (PDFracPat _ _) = return (TMathExpr, emptySubst)
     inferPatternType (PDPlusPat _) = return (TPolyExpr, emptySubst)
     inferPatternType (PDTermPat _ _) = return (TTermExpr, emptySubst)
     inferPatternType (PDSymbolPat _ _) = return (TSymbolExpr, emptySubst)
@@ -3041,7 +3041,7 @@ extractIBindingsFromPattern pat ty = case pat of
       TCollection elemTy -> extractIBindingsFromPattern p1 ty ++ extractIBindingsFromPattern p2 elemTy
       _ -> []
   -- MathExpr primitive patterns
-  PDDivPat p1 p2 ->
+  PDFracPat p1 p2 ->
     let polyExprTy = TPolyExpr
         mathExprTy = TMathExpr
         p1Ty = if isPatVarPat p1 then mathExprTy else polyExprTy

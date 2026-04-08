@@ -658,7 +658,7 @@ typeAtomSimple =
   <|> try diffFormTypeExpr
   -- New CAS types
   <|> try factorTypeExpr
-  <|> try divTypeExpr
+  <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
@@ -683,7 +683,7 @@ typeAtom =
   <|> try diffFormTypeExpr
   -- New CAS types
   <|> try factorTypeExpr
-  <|> try divTypeExpr
+  <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
@@ -702,7 +702,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Div", "Poly"]
+    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -733,12 +733,12 @@ diffFormTypeExpr = do
 factorTypeExpr :: Parser TypeExpr
 factorTypeExpr = TEFactor <$ reserved "Factor"
 
--- | Parse Div type (e.g., Div Integer)
-divTypeExpr :: Parser TypeExpr
-divTypeExpr = do
-  _ <- reserved "Div"
+-- | Parse Frac type (e.g., Frac Integer)
+fracTypeExpr :: Parser TypeExpr
+fracTypeExpr = do
+  _ <- reserved "Frac"
   innerType <- typeAtomOrParenType
-  return $ TEDiv innerType
+  return $ TEFrac innerType
 
 -- | Parse Poly type (e.g., Poly Integer [x, y] or Poly Integer [..])
 polyTypeExpr :: Parser TypeExpr
@@ -772,7 +772,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Div", "Poly"]
+    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Frac", "Poly"]
 
 expr :: Parser Expr
 expr = do
@@ -1350,11 +1350,11 @@ pdPattern = makeExprParser pdApplyOrAtom table
     mathExprPrimitivePattern = do
       name <- upperId
       case name of
-        "Div" -> do
+        "Frac" -> do
           args <- many pdAtom
           case args of
-            [p1, p2] -> return $ PDDivPat p1 p2
-            _ -> fail "Div requires exactly 2 arguments"
+            [p1, p2] -> return $ PDFracPat p1 p2
+            _ -> fail "Frac requires exactly 2 arguments"
         "Plus" -> do
           args <- many pdAtom
           case args of

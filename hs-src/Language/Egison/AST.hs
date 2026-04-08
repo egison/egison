@@ -329,7 +329,7 @@ data PDPatternBase var
   | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
   -- MathExpr primitive patterns
-  | PDDivPat (PDPatternBase var) (PDPatternBase var)        -- Div: MathExpr -> PolyExpr, PolyExpr
+  | PDFracPat (PDPatternBase var) (PDPatternBase var)        -- Frac: MathExpr -> PolyExpr, PolyExpr
   | PDPlusPat (PDPatternBase var)                           -- Plus: PolyExpr -> [TermExpr]
   | PDTermPat (PDPatternBase var) (PDPatternBase var)       -- Term: TermExpr -> Integer, [(SymbolExpr, Integer)]
   | PDSymbolPat (PDPatternBase var) (PDPatternBase var)     -- Symbol: SymbolExpr -> String, [IndexExpr]
@@ -452,7 +452,7 @@ data TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a
   -- New CAS types (Phase 2)
   | TEFactor                           -- ^ Factor type (atomic mathematical factor)
-  | TEDiv TypeExpr                     -- ^ Div type, e.g., Div Integer
+  | TEFrac TypeExpr                     -- ^ Frac type, e.g., Frac Integer
   | TEPoly TypeExpr SymbolSetExpr      -- ^ Poly type, e.g., Poly Integer [x, y]
   deriving (Show, Eq)
 

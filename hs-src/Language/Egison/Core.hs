@@ -1247,12 +1247,12 @@ extractFunctionObjectCAS cv = Value (CASData cv)
 
 -- Helper: Extract numerator from CASValue
 getCASNumerator :: CASValue -> CASValue
-getCASNumerator (CAS.CASDiv num _) = num
+getCASNumerator (CAS.CASFrac num _) = num
 getCASNumerator cv = cv
 
 -- Helper: Extract denominator from CASValue
 getCASenominator :: CASValue -> CASValue
-getCASenominator (CAS.CASDiv _ den) = den
+getCASenominator (CAS.CASFrac _ den) = den
 getCASenominator _ = CAS.CASInteger 1
 
 -- Helper: Convert CASValue to list of CASTerms
@@ -1335,7 +1335,7 @@ primitiveDataPatternMatch (PDConstantPat expr) ref = do
     _                                    -> matchFail
 -- CASValue primitive patterns
 -- All patterns work directly with CASData CASValue, no intermediate types needed
-primitiveDataPatternMatch (PDDivPat patNum patDen) ref = do
+primitiveDataPatternMatch (PDFracPat patNum patDen) ref = do
   whnf <- lift $ evalRef ref
   case whnf of
     Value (CASData cv) -> do

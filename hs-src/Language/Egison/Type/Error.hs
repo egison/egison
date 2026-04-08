@@ -236,7 +236,7 @@ prettyType TPort = "Port"
 prettyType TAny = "_"
 -- New CAS types
 prettyType TFactor = "Factor"
-prettyType (TDiv t) = "Div " ++ prettyType t
+prettyType (TFrac t) = "Frac " ++ prettyType t
 prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
   where
     prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " syms ++ "]"

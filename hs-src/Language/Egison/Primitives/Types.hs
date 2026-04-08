@@ -64,7 +64,7 @@ isRationalCAS cv = case cv of
   CASInteger _ -> True
   CASPoly [] -> True  -- zero
   CASPoly [CASTerm coef []] -> isRationalCAS coef
-  CASDiv num den -> isRationalCAS num && isRationalCAS den
+  CASFrac num den -> isRationalCAS num && isRationalCAS den
   _ -> False
 
 --
@@ -85,7 +85,7 @@ extractRational cv = case cv of
   CASInteger n -> Just (n % 1)
   CASPoly [] -> Just 0
   CASPoly [CASTerm coef []] -> extractRational coef
-  CASDiv num den -> do
+  CASFrac num den -> do
     n <- extractInteger num
     d <- extractInteger den
     if d == 0 then Nothing else Just (n % d)

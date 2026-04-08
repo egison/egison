@@ -18,7 +18,7 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 | ---------------------- | --------------------------------------- |
 | `Integer`              | 基本型。整数                                  |
 | `Factor`               | クォート演算子 `'` で生成される原子的な数式要素              |
-| `Div a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
+| `Frac a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
 | `Poly a [s1, s2, ...]` | `a` を係数とするローラン多項式環（閉じた多項式型）。冪指数は負も許可    |
 | `Poly a [..]`          | `a` を係数とし、シンボル集合を固定しないローラン多項式型（開いた多項式型） |
 | `Term a [s1, s2, ...]` | `Poly a [s1, s2, ...]` の項。係数（型 `a`）とモノミアルの組。パターンマッチの中間結果として主に使われる補助型 |
@@ -28,7 +28,7 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 ### Poly はローラン多項式環
 
 `Poly a [s]` は標準的な多項式環 `a[s]` ではなく、ローラン多項式環 `a[s, s⁻¹]` を表す。
-単項式（Monomial）の冪指数に負の整数を許可することで、`1/r` や `1/r^2` を `Div` なしで直接表現できる。
+単項式（Monomial）の冪指数に負の整数を許可することで、`1/r` や `1/r^2` を `Frac` なしで直接表現できる。
 
 ```egison
 declare symbol r, θ
@@ -36,15 +36,15 @@ declare symbol r, θ
 -- 1/r, 1/r^2 は Poly Integer [r] でそのまま表現可能
 r + 1/r + 1/r^2 : Poly Integer [r]
 
--- 物理の式も Div なしで書ける
+-- 物理の式も Frac なしで書ける
 ∂/∂ (∂/∂ f r) r + ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2 : Poly Integer [..]
 ```
 
-`Div` が必要になるのは、分母が非モノミアルの多項式の場合のみ：
+`Frac` が必要になるのは、分母が非モノミアルの多項式の場合のみ：
 
 ```egison
-1 / (r + 1)     : Div (Poly Integer [r])    -- 分母 r+1 はモノミアルでない
-r / (r^2 - 1)   : Div (Poly Integer [r])    -- 分母 r^2-1 はモノミアルでない
+1 / (r + 1)     : Frac (Poly Integer [r])    -- 分母 r+1 はモノミアルでない
+r / (r^2 - 1)   : Frac (Poly Integer [r])    -- 分母 r^2-1 はモノミアルでない
 ```
 
 ### グレブナー基底との互換性
@@ -124,18 +124,18 @@ Type ADT に `TPoly Type SymbolSet` を追加し、`SymbolSet` は `Closed [Symb
 
 ```
 Integer                              -- Z（整数）
-Div Integer                          -- Q（有理数）
+Frac Integer                          -- Q（有理数）
 Poly Integer [x]                     -- Z[x, x⁻¹]（整数係数ローラン多項式、閉じた型）
 Poly Integer [x, y]                  -- Z[x, x⁻¹, y, y⁻¹]（多変数、閉じた型）
 Poly Integer [i]                     -- Z[i]（ガウス整数、i^2 = -1）
 Poly Integer ['sqrt 2]               -- Z[√2]
-Poly (Div Integer) [x]               -- Q[x, x⁻¹]（有理数係数ローラン多項式）
-Poly (Div Integer) [i]               -- Q(i)
-Div (Poly Integer [x])               -- Z[x, x⁻¹] の分数体（非モノミアル除算）
+Poly (Frac Integer) [x]               -- Q[x, x⁻¹]（有理数係数ローラン多項式）
+Poly (Frac Integer) [i]               -- Q(i)
+Frac (Poly Integer [x])               -- Z[x, x⁻¹] の分数体（非モノミアル除算）
 Poly (Poly Integer [x]) [y]         -- Z[x, x⁻¹][y, y⁻¹]（y について整理、係数が x のローラン多項式）
 Poly Integer [..]                    -- 整数係数、シンボル自由なローラン多項式
-Poly (Div Integer) [..]              -- 有理数係数、シンボル自由なローラン多項式
-Tensor (Poly (Div Integer) [x])      -- 有理数係数ローラン多項式を成分とするテンソル
+Poly (Frac Integer) [..]              -- 有理数係数、シンボル自由なローラン多項式
+Tensor (Poly (Frac Integer) [x])      -- 有理数係数ローラン多項式を成分とするテンソル
 ```
 
 ### 入れ子の Poly と多変数の Poly
@@ -157,20 +157,20 @@ Poly Integer [x, y]             -- Z[x, x⁻¹, y, y⁻¹]: x と y を対等に
 
 ```
 Integer               → CASInteger 3
-Div Integer           → CASDiv (CASInteger 2) (CASInteger 3)         -- 2/3
+Frac Integer           → CASFrac (CASInteger 2) (CASInteger 3)         -- 2/3
 Poly Integer [x]      → CASPoly [CASTerm (CASInteger 1) [(x,1)],
                                   CASTerm (CASInteger 1) []]         -- x + 1
 Poly Integer [r]      → CASPoly [CASTerm (CASInteger 1) [(r,1)],
                                   CASTerm (CASInteger 1) [(r,-1)],
                                   CASTerm (CASInteger 1) [(r,-2)]]   -- r + 1/r + 1/r^2
-Poly (Div Integer) [x]→ CASPoly [CASTerm (CASDiv 1 2) [(x,1)]]     -- (1/2)x
+Poly (Frac Integer) [x]→ CASPoly [CASTerm (CASFrac 1 2) [(x,1)]]     -- (1/2)x
 Poly (Poly Integer [x]) [y]
                        → CASPoly [CASTerm (CASPoly [CASTerm (CASInteger 1) [(x,1)],
                                                      CASTerm (CASInteger 1) []]) [(y,2)],
                                   CASTerm (CASPoly [CASTerm (CASInteger 2) [(x,1)]]) [(y,1)],
                                   CASTerm (CASPoly [CASTerm (CASInteger 3) []]) []]
                                                     -- (x+1)y^2 + 2x·y + 3
-Div (Poly Integer [x])→ CASDiv (CASPoly ...) (CASPoly ...)          -- 非モノミアル分数
+Frac (Poly Integer [x])→ CASFrac (CASPoly ...) (CASPoly ...)          -- 非モノミアル分数
 ```
 
 ### Haskell での表現（概念）
@@ -180,15 +180,15 @@ data CASValue
   = CASInteger Integer
   | CASFactor SymbolExpr          -- クォート演算子で生成された原子的要素
   | CASPoly [CASTerm]             -- 項のリスト
-  | CASDiv CASValue CASValue     -- 分子 / 分母（非モノミアル除算のみ）
+  | CASFrac CASValue CASValue     -- 分子 / 分母（非モノミアル除算のみ）
 
 data CASTerm = CASTerm CASValue Monomial  -- 係数 × 単項式
--- 係数は CASValue（再帰的）: CASInteger, CASFactor, CASDiv, 別の CASPoly 等
+-- 係数は CASValue（再帰的）: CASInteger, CASFactor, CASFrac, 別の CASPoly 等
 
 type Monomial = [(SymbolExpr, Integer)]   -- シンボルの冪の積（冪指数は負も可）
 ```
 
-型の入れ子構造が内部表現の入れ子構造に直接対応する。例えば `Poly (Div Integer) [x]` の各項の係数は `CASDiv (CASInteger _) (CASInteger _)` になる。
+型の入れ子構造が内部表現の入れ子構造に直接対応する。例えば `Poly (Frac Integer) [x]` の各項の係数は `CASFrac (CASInteger _) (CASInteger _)` になる。
 
 `Monomial` の冪指数が `Integer` であることにより、`r⁻¹` は `[(r, -1)]`、`r⁻²` は `[(r, -2)]` として自然に表現される。
 
@@ -230,8 +230,8 @@ data SymbolExpr
 
 - `Poly a [s]` の `(+)`: 同じ単項式の項をまとめ、係数の加算は `a` の `(+)` で行う
 - `Poly a [s]` の `(*)`: 係数の乗算は `a` の `(*)` で行い、単項式を結合する（冪指数の加算、負も可）
-- `Div a` の `(+)`: 通分して `a` の演算で計算し、`a` の `gcd` で簡約する
-- `Div a` の `(*)`: 分子同士・分母同士を `a` の `(*)` で掛け、`gcd` で簡約する
+- `Frac a` の `(+)`: 通分して `a` の演算で計算し、`a` の `gcd` で簡約する
+- `Frac a` の `(*)`: 分子同士・分母同士を `a` の `(*)` で掛け、`gcd` で簡約する
 
 演算のディスパッチは、型チェッカーが正しい組み合わせを保証するため、ランタイムでは `CASValue` のコンストラクタによるパターンマッチで再帰的に処理する。
 
@@ -239,8 +239,8 @@ data SymbolExpr
 casPlus :: CASValue -> CASValue -> CASValue
 casPlus (CASInteger a) (CASInteger b) = CASInteger (a + b)
 casPlus (CASPoly ts1) (CASPoly ts2) = casNormalizePoly (ts1 ++ ts2)
-casPlus (CASDiv n1 d1) (CASDiv n2 d2) =
-  casNormalizeDiv (casPlus (casMult n1 d2) (casMult n2 d1))
+casPlus (CASFrac n1 d1) (CASFrac n2 d2) =
+  casNormalizeFrac (casPlus (casMult n1 d2) (casMult n2 d1))
                   (casMult d1 d2)
 ```
 
@@ -259,13 +259,13 @@ casPlus (CASDiv n1 d1) (CASDiv n2 d2) =
 | `Integer` | `CASInteger 0` |
 | `Factor` | 零なし（`Factor` は原子的な非零要素） |
 | `Poly a [S]` | `CASPoly []`（空の項リスト） |
-| `Div a` | 分子が `a` の零 / 分母が `a` の1。例: `Div Integer` → `CASDiv (CASInteger 0) (CASInteger 1)` |
-| `Div (Poly a [S])` | `CASDiv (CASPoly []) (CASPoly [CASTerm <one> []])` |
+| `Frac a` | 分子が `a` の零 / 分母が `a` の1。例: `Frac Integer` → `CASFrac (CASInteger 0) (CASInteger 1)` |
+| `Frac (Poly a [S])` | `CASFrac (CASPoly []) (CASPoly [CASTerm <one> []])` |
 
 正規化時に零を簡約する。具体的な規則：
 
 - `CASPoly` の正規化で零係数の項（`CASTerm` の係数が零）を除去する。結果として項が空になれば `CASPoly []` が零の正規形
-- `CASDiv` の正規化で分子が零なら、`CASDiv <zero> <one>` に簡約する（分子を `a` の零、分母を `a` の1にする）。例: `CASDiv (CASInteger 0) (CASInteger 5)` → `CASDiv (CASInteger 0) (CASInteger 1)`。型構造を維持し、`Div a` の値は常に `CASDiv` コンストラクタを持つ
+- `CASFrac` の正規化で分子が零なら、`CASFrac <zero> <one>` に簡約する（分子を `a` の零、分母を `a` の1にする）。例: `CASFrac (CASInteger 0) (CASInteger 5)` → `CASFrac (CASInteger 0) (CASInteger 1)`。型構造を維持し、`Frac a` の値は常に `CASFrac` コンストラクタを持つ
 - 各演算（`casPlus`, `casMult`）の出口で必ず正規化を通し、零の項が残らないようにする
 
 これにより等価比較が構造的な比較だけで済み、現在の `mathNormalize` の方針とも一致する。
@@ -386,11 +386,11 @@ sqrt n =
 ```
 Integer  ⊂  Factor
 Factor  ⊂  Poly Integer [s]
-Integer  ⊂  Div Integer
+Integer  ⊂  Frac Integer
 Integer  ⊂  Poly Integer [s]
 
-Div Integer  ⊂  Poly (Div Integer) [s]
-Poly Integer [s]  ⊂  Poly (Div Integer) [s]
+Frac Integer  ⊂  Poly (Frac Integer) [s]
+Poly Integer [s]  ⊂  Poly (Frac Integer) [s]
 
 Term a [S]  ⊂  Poly a [S]    -- 単一項の多項式として埋め込み
 ```
@@ -413,7 +413,7 @@ Poly a [S]  ⊂  Poly a [..]        -- 閉じた型 → 開いた型
 
 ```
 a ⊂ b  ならば  Poly a [S] ⊂ Poly b [S]     -- 係数の埋め込み
-a ⊂ b  ならば  Div a ⊂ Div b                -- 分数の埋め込み
+a ⊂ b  ならば  Frac a ⊂ Frac b               -- 分数の埋め込み
 a ⊂ b  ならば  Tensor a ⊂ Tensor b          -- テンソルの埋め込み
 ```
 
@@ -450,8 +450,8 @@ class Embed a b where
 instance Embed Integer (Poly Integer [..]) where
   embed n = ...  -- CASInteger n → CASPoly [CASTerm (CASInteger n) []]
 
-instance Embed Integer (Div Integer) where
-  embed n = ...  -- CASInteger n → CASDiv (CASInteger n) (CASInteger 1)
+instance Embed Integer (Frac Integer) where
+  embed n = ...  -- CASInteger n → CASFrac (CASInteger n) (CASInteger 1)
 
 instance Embed Factor (Poly Integer [..]) where
   embed f = ...  -- CASFactor sym → CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
@@ -474,7 +474,7 @@ x + 1        -- x : Poly Integer [x], 1 : Integer
 x + embed 1  -- embed 1 : Poly Integer [x]
 ```
 
-**推移的な変換**（例: `Integer → Poly Integer [s] → Poly (Div Integer) [s]`）は、型チェッカーが包含関係の推移閉包を探索し、必要に応じて `embed . embed` を合成する。
+**推移的な変換**（例: `Integer → Poly Integer [s] → Poly (Frac Integer) [s]`）は、型チェッカーが包含関係の推移閉包を探索し、必要に応じて `embed . embed` を合成する。
 
 #### 各変換の内部表現
 
@@ -482,8 +482,8 @@ x + embed 1  -- embed 1 : Poly Integer [x]
 Integer → Poly Integer [..]:
   CASInteger n → CASPoly [CASTerm (CASInteger n) []]
 
-Integer → Div Integer:
-  CASInteger n → CASDiv (CASInteger n) (CASInteger 1)
+Integer → Frac Integer:
+  CASInteger n → CASFrac (CASInteger n) (CASInteger 1)
 
 Factor → Poly Integer [..]:
   CASFactor sym → CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
@@ -515,7 +515,7 @@ Coq の Coercion mechanism に倣い、型チェッカーに coercive subtyping 
 join(a, a) = a
 
 -- 係数の昇格
-join(Integer, Div Integer) = Div Integer
+join(Integer, Frac Integer) = Frac Integer
 join(Integer, Poly Integer [S]) = Poly Integer [S]
 
 -- 閉じた Poly 同士: シンボル集合の和集合を自動計算
@@ -532,9 +532,9 @@ join(Poly a [..], Poly b [S]) = Poly (join(a, b)) [..]
 join(Poly a [..], b) = Poly (join(a, b)) [..]
 join(a, Poly b [..]) = Poly (join(a, b)) [..]
 
--- Div
-join(Div a, Div b) = Div (join(a, b))
-join(a, Div b) = Div (join(a, b))
+-- Frac
+join(Frac a, Frac b) = Frac (join(a, b))
+join(a, Frac b) = Frac (join(a, b))
 ```
 
 > シンボル集合が具体的に定まっている閉じた `Poly` 同士の `join` では、和集合 `S₁ ∪ S₂` を自動計算する。包含関係がある場合（`[x] ⊆ [x, y]`）は和集合が大きい方と一致するだけなので、包含関係の有無に関わらず統一的に扱える。
@@ -552,7 +552,7 @@ join(Poly Integer [x, y], Poly Integer [x]) = Poly Integer [x, y]
 join(Poly Integer [x], Poly Integer [y]) = Poly Integer [x, y]
 
 -- 係数の昇格（シンボル集合は同一）
-join(Poly Integer [x], Poly (Div Integer) [x]) = Poly (Div Integer) [x]
+join(Poly Integer [x], Poly (Frac Integer) [x]) = Poly (Frac Integer) [x]
 
 -- 開いた型との合流
 join(Poly Integer [x], Poly Integer [..]) = Poly Integer [..]
@@ -696,11 +696,11 @@ instance {Field a} EuclideanDomain (Poly a [..]) where
 instance {GCDDomain a} GCDDomain (Poly a [..]) where
   gcd := ...
 
-instance {GCDDomain a} Ring (Div a) where
+instance {GCDDomain a} Ring (Frac a) where
   (+) (p/q) (r/s) := simplify ((p*s + r*q) / (q*s))
   (*) (p/q) (r/s) := simplify ((p*r) / (q*s))
 
-instance {GCDDomain a} Field (Div a)
+instance {GCDDomain a} Field (Frac a)
 ```
 
 ### 型クラス制約による安全性
@@ -710,12 +710,12 @@ instance {GCDDomain a} Field (Div a)
 def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
 
 -- Poly Integer [x] で gcd を使うには Field Integer が必要 → エラー
--- Poly (Div Integer) [x] で gcd を使うには Field (Div Integer) ✓ → OK
+-- Poly (Frac Integer) [x] で gcd を使うには Field (Frac Integer) ✓ → OK
 ```
 
 ### 微分演算子と Differentiable 型クラス
 
-偏微分演算子 `∂/∂` は `Poly`、`Div`、`Tensor` など複数の型構造に対して定義する必要があるため、型クラスとして定義する。
+偏微分演算子 `∂/∂` は `Poly`、`Frac`、`Tensor` など複数の型構造に対して定義する必要があるため、型クラスとして定義する。
 
 ```egison
 class Differentiable a where
@@ -730,7 +730,7 @@ class Differentiable a where
 instance {Ring a} Differentiable (Poly a [..]) where
   ∂/∂ p s = ...  -- 各項のモノミアルから該当シンボルの冪を取り出し、冪を1下げて係数に掛ける
 
-instance {Differentiable a, GCDDomain a} Differentiable (Div a) where
+instance {Differentiable a, GCDDomain a} Differentiable (Frac a) where
   ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
 ```
 
@@ -761,7 +761,7 @@ def laplacianPolar {Differentiable a} (f : a) : a :=
 
 ### 積分演算子と Integrable 型クラス
 
-不定積分 `Sd` も微分と同様に `Poly` と `Div` で異なるロジックが必要であるため、型クラスとして定義する。
+不定積分 `Sd` も微分と同様に `Poly` と `Frac` で異なるロジックが必要であるため、型クラスとして定義する。
 
 ```egison
 class Integrable a where
@@ -774,7 +774,7 @@ class Integrable a where
 instance {Ring a} Integrable (Poly a [..]) where
   Sd x p = ...  -- 各項の冪を1上げて係数を割る
 
-instance {Integrable a, GCDDomain a} Integrable (Div a) where
+instance {Integrable a, GCDDomain a} Integrable (Frac a) where
   Sd x (n/d) = ...  -- 部分分数分解等
 ```
 
@@ -787,33 +787,33 @@ declare symbol x
 
 def f : Poly Integer [x] := x^2 + 3 * x
 
-Sd x f   -- => (1/3) * x^3 + (3/2) * x^2 : Poly (Div Integer) [x]
+Sd x f   -- => (1/3) * x^3 + (3/2) * x^2 : Poly (Frac Integer) [x]
 ```
 
 ### CASMap 型クラス
 
-`substitute`（代入）や `expandAll`（展開）のような操作は、`Poly` レベルの変換を `Div` の分子・分母に持ち上げるだけで済む。この共通パターンを `CASMap` 型クラスで抽象化する。`Tensor` への持ち上げは `tensorMap` の自動挿入で行われるため、`CASMap` は主に `Div` のためのものである。
+`substitute`（代入）や `expandAll`（展開）のような操作は、`Poly` レベルの変換を `Frac` の分子・分母に持ち上げるだけで済む。この共通パターンを `CASMap` 型クラスで抽象化する。`Tensor` への持ち上げは `tensorMap` の自動挿入で行われるため、`CASMap` は主に `Frac` のためのものである。
 
 ```egison
 class CASMap f where
   casMap : (a -> b) -> f a -> f b
 
-instance {GCDDomain b} CASMap Div where
+instance {GCDDomain b} CASMap Frac where
   casMap f (n/d) = f n / f d
 ```
 
-> **実装上の注意**: `CASMap` は型変数 `f` が高カインド（`* -> *`）である。Egison の型システムで高カインド多相をサポートしない場合は、`CASMap` を型クラスとして実装する代わりに、`casMapDiv : (a -> b) -> Div a -> Div b` のような具体的な関数として定義する。`CASMap` のインスタンスは実質的に `Div` のみであるため、高カインド多相なしでも機能に影響はない。
+> **実装上の注意**: `CASMap` は型変数 `f` が高カインド（`* -> *`）である。Egison の型システムで高カインド多相をサポートしない場合は、`CASMap` を型クラスとして実装する代わりに、`casMapFrac : (a -> b) -> Frac a -> Frac b` のような具体的な関数として定義する。`CASMap` のインスタンスは実質的に `Frac` のみであるため、高カインド多相なしでも機能に影響はない。
 
-`substitute` と `expandAll` は `Poly` 上の関数として定義し、`Div` への適用は `casMap` で持ち上げる。
+`substitute` と `expandAll` は `Poly` 上の関数として定義し、`Frac` への適用は `casMap` で持ち上げる。
 
 ```egison
 -- Poly 上の関数
 substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
 expandAll : Poly a [..] -> Poly a [..]
 
--- Div への適用は casMap で持ち上げ
--- casMap (substitute ls) : Div (Poly a [..]) -> Div (Poly a [..])
--- casMap expandAll       : Div (Poly a [..]) -> Div (Poly a [..])
+-- Frac への適用は casMap で持ち上げ
+-- casMap (substitute ls) : Frac (Poly a [..]) -> Frac (Poly a [..])
+-- casMap expandAll       : Frac (Poly a [..]) -> Frac (Poly a [..])
 ```
 
 ### type class が不要な演算子
@@ -921,7 +921,7 @@ factor  : Matcher Factor
 -- パラメトリックマッチャー（係数マッチャーを受け取る）
 poly {a} (m : Matcher a) : Matcher (Poly a ..)
 term {a} (m : Matcher a) : Matcher (Term a ..)
-frac {a} (m : Matcher a) : Matcher (Div a)
+frac {a} (m : Matcher a) : Matcher (Frac a)
 ```
 
 `poly`, `term` のシンボルリストはランタイムのマッチャーには不要（CASValue の内部構造が型ごとに異なるため、マッチャーが区別する必要がない）。型レベルでのみ `Poly a [x]` / `Poly a [x, y]` を区別する。
@@ -972,7 +972,7 @@ match expr as poly (poly integer) with
 match expr as poly integer with
   | $a :+ $rest -> ...   -- a : Term Integer, rest : Poly Integer [x, y]
 
--- Div (Poly Integer [x]) のパターンマッチ
+-- Frac (Poly Integer [x]) のパターンマッチ
 match expr as frac (poly integer) with
   | $n / $d -> ...       -- n, d : Poly Integer [x]
 ```
@@ -1004,7 +1004,7 @@ match x as factor with
 パターンマッチにより、`coerce` を使わずに安全に値を抽出できる。
 
 ```egison
--- Div (Poly Integer [x]) → Poly Integer [x] への安全な抽出
+-- Frac (Poly Integer [x]) → Poly Integer [x] への安全な抽出
 match expr as frac (poly integer) with
   | $n / #1 -> n    -- 分母が1のときだけ安全に取り出す
 ```
@@ -1027,7 +1027,7 @@ Egison の設計は以下の点で異なる。
 |           | Axiom        | Egison                             |
 | --------- | ------------ | ---------------------------------- |
 | 型システム     | 独自（SPAD言語）   | HM型推論 + type class                 |
-| 正規形の制御    | ドメインタワー      | 型注釈による `Poly`, `Div` の組み合わせ        |
+| 正規形の制御    | ドメインタワー      | 型注釈による `Poly`, `Frac` の組み合わせ        |
 | 多項式の表現    | 標準多項式        | ローラン多項式（負の冪を許可）                    |
 | 型変換       | `::` 演算子で明示的 | embed の自動挿入                        |
 | 内部表現      | ドメインごとに固定    | 型構造から構成的に決定                        |
@@ -1044,13 +1044,13 @@ Egison の設計は以下の点で異なる。
 
 ### Phase 1: CASValue の基盤実装（完了）
 
-`CASValue` データ型（`CASInteger`, `CASFactor`, `CASPoly`, `CASDiv`, `CASTerm`）を `Math/CAS.hs` に定義し、演算関数（`casPlus`, `casMult`）とローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）を実装した。`SymbolExpr` も `CASValue` を参照するよう移行済み。
+`CASValue` データ型（`CASInteger`, `CASFactor`, `CASPoly`, `CASFrac`, `CASTerm`）を `Math/CAS.hs` に定義し、演算関数（`casPlus`, `casMult`）とローラン多項式の正規化（降冪順、零の除去、モノミアルGCD簡約）を実装した。`SymbolExpr` も `CASValue` を参照するよう移行済み。
 
 ### Phase 2: 型システムへの統合（完了）
 
-- `Type` ADT に `TPoly Type SymbolSet`、`TDiv Type`、`TFactor` を追加（`Types.hs`）
+- `Type` ADT に `TPoly Type SymbolSet`、`TFrac Type`、`TFactor` を追加（`Types.hs`）
 - `SymbolSet` の定義（`SymbolSetClosed [String]` / `SymbolSetOpen` / `SymbolSetVar TyVar`）
-- パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Div a` / `Factor` をパース
+- パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Frac a` / `Factor` をパース
 - 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
 - `join` の実装（`Join.hs`: `joinTypes`, `isSubtype`, `symbolSetSubset`）
   - **TODO**: `joinSymbolSets` の `otherwise` 分岐を和集合 `S₁ ∪ S₂` に変更する（現状は `Nothing` を返して型エラーになる）
@@ -1070,7 +1070,7 @@ Egison の設計は以下の点で異なる。
 
 | パターン         | 対象                    | 抽出内容                |
 | ------------ | --------------------- | ------------------- |
-| `div $ $`    | `CASDiv num den`      | 分子、分母（各 `CASData`）  |
+| `div $ $`    | `CASFrac num den`      | 分子、分母（各 `CASData`）  |
 | `poly $`     | `CASPoly terms`       | 項リスト（各 `CASData`）   |
 | `term $ $`   | `CASTerm coeff mono`  | 係数（`CASData`）、モノミアル |
 | `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト        |
@@ -1090,7 +1090,7 @@ Egison の設計は以下の点で異なる。
 
 `mathExpr` マッチャーは固定的なモノリシック構造で、以下ができない:
 
-- `Poly (Div Integer) [x]` と `Poly Integer [x]` で異なるマッチャーを使い分ける
+- `Poly (Frac Integer) [x]` と `Poly Integer [x]` で異なるマッチャーを使い分ける
 - 入れ子構造（`Poly (Poly Integer [x]) [y]`）の各層に適切なマッチャーを指定する
 
 目標は型とマッチャーの構造を一致させること:
@@ -1099,19 +1099,19 @@ Egison の設計は以下の点で異なる。
 型                                   マッチャー
 Integer                              integer
 Factor                               factor
-Div Integer                          frac integer
+Frac Integer                          frac integer
 Poly Integer [x]                     poly integer
-Poly (Div Integer) [x]              poly (frac integer)
-Div (Poly Integer [x])              frac (poly integer)
+Poly (Frac Integer) [x]              poly (frac integer)
+Frac (Poly Integer [x])              frac (poly integer)
 Poly (Poly Integer [x]) [y]         poly (poly integer)
-Tensor (Poly (Div Integer) [x])     tensor (poly (frac integer))
+Tensor (Poly (Frac Integer) [x])     tensor (poly (frac integer))
 ```
 
 マッチャーは係数マッチャーのみを引数に取る。シンボルリストはランタイムのマッチングに影響しないため、マッチャー引数には含めない（型レベルでのみ区別）。
 
 #### 実装方針
 
-`poly`, `frac`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみとする。既存の `PDPlusPat`, `PDDivPat`, `PDTermPat` への変更は最小限で済む。
+`poly`, `frac`, `term` を純粋な Egison のマッチャー定義（`matcher` 式）として実装し、プリミティブは `casToTerms` 等の補助関数のみとする。既存の `PDPlusPat`, `PDFracPat`, `PDTermPat` への変更は最小限で済む。
 
 パターン環境と値環境は分離されているため、`inductive pattern MathExpr` のパターンコンストラクタ `poly`, `div`, `term` と同名のマッチャー関数 `def poly ...` は衝突しない。`frac` はパターンコンストラクタ `div` と名前が異なるため衝突の問題は生じない。
 
@@ -1176,10 +1176,10 @@ def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
 
 #### Step 5.2: `frac` パラメトリックマッチャーの実装
 
-`Div a` 型に対応するマッチャー。マッチャー名は `frac` とする（`div` はパターンコンストラクタ名や Haskell の組み込み関数と衝突するため）。
+`Frac a` 型に対応するマッチャー。マッチャー名は `frac` とする（`div` はパターンコンストラクタ名や Haskell の組み込み関数と衝突するため）。
 
 ```egison
-def frac {a} (m : Matcher a) : Matcher (Div a) :=
+def frac {a} (m : Matcher a) : Matcher (Frac a) :=
   matcher
     | $ / $ as (m, m) with
       | $tgt -> [(getCASNumerator tgt, getCASDenominator tgt)]
@@ -1221,7 +1221,7 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 
 - `Type/Infer.hs` でマッチャー式 `poly m` の型推論
   - `m : Matcher a` のとき `poly m : Matcher (Poly a ..)`
-  - `frac m : Matcher (Div a)`
+  - `frac m : Matcher (Frac a)`
   - `term m : Matcher (Term a ..)`
 - マッチャー引数の型からパターン変数の型を推論
   - `match expr as poly integer with | $a :+ _ -> ...` で `a : Term Integer` を推論
@@ -1241,7 +1241,7 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 
 CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。Phase 5（パラメトリックマッチャー）の完了後、Phase 6（ライブラリ関数の再実装）の前に着手する。
 
-**Phase 6 の前に行う理由**: `∂/∂` を `Differentiable` 型クラスのメソッドとして、`expandAll` の `Div` への持ち上げを `CASMap` 型クラスで最初から実装するため。型クラスの基盤なしにライブラリ関数を実装すると、Phase 7 で二度手間のリファクタリングが必要になる。
+**Phase 6 の前に行う理由**: `∂/∂` を `Differentiable` 型クラスのメソッドとして、`expandAll` の `Frac` への持ち上げを `CASMap` 型クラスで最初から実装するため。型クラスの基盤なしにライブラリ関数を実装すると、Phase 7 で二度手間のリファクタリングが必要になる。
 
 #### 概要
 
@@ -1264,7 +1264,7 @@ x + embed 1  -- embed 1 : Poly Integer [x]
   ```
 - 基本インスタンスの実装
   - `Embed Integer (Poly Integer [..])`
-  - `Embed Integer (Div Integer)`
+  - `Embed Integer (Frac Integer)`
   - `Embed Factor (Poly Integer [..])`
   - `Embed (Poly a [..]) (Poly b [..])` where `Embed a b`
   - `Embed (Poly a [S₁]) (Poly a [S₂])` where `S₁ ⊆ S₂`
@@ -1316,7 +1316,7 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
     3. 閉じた Poly 同士でシンボル集合が異なる場合は `join` で `S₁ ∪ S₂` を計算し双方を embed
     4. いずれでもなければ型エラー
 - 推移的な変換（`embed . embed`）の合成
-  - 例: `Integer → Poly Integer [x] → Poly (Div Integer) [x]`
+  - 例: `Integer → Poly Integer [x] → Poly (Frac Integer) [x]`
   - グラフ上の最短経路で `embed` を連鎖
 - `Embed` 制約の解決と辞書渡し
   - 型クラス解決機構と連携
@@ -1340,9 +1340,9 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
   embedIntToPoly :: CASValue -> CASValue
   embedIntToPoly (CASInteger n) = CASPoly [CASTerm (CASInteger n) []]
 
-  -- Integer → Div Integer
+  -- Integer → Frac Integer
   embedIntToDiv :: CASValue -> CASValue
-  embedIntToDiv (CASInteger n) = CASDiv (CASInteger n) (CASInteger 1)
+  embedIntToDiv (CASInteger n) = CASFrac (CASInteger n) (CASInteger 1)
 
   -- Factor → Poly Integer [..]
   embedFactorToPoly :: CASValue -> CASValue
@@ -1362,7 +1362,7 @@ Phase 6 でライブラリ関数を型クラスのメソッドとして実装す
   class Ring a extends AddGroup a, MulMonoid a
   instance Ring Integer
   instance {Ring a} Ring (Poly a [..])
-  instance {GCDDomain a} Ring (Div a)
+  instance {GCDDomain a} Ring (Frac a)
   ```
 - **`Differentiable` 型クラス**の定義
   ```egison
@@ -1373,7 +1373,7 @@ Phase 6 でライブラリ関数を型クラスのメソッドとして実装す
   ```egison
   class CASMap f where
     casMap : (a -> b) -> f a -> f b
-  instance {GCDDomain b} CASMap Div where
+  instance {GCDDomain b} CASMap Frac where
     casMap f (n/d) = f n / f d
   ```
 - **`Integrable` 型クラス**の定義
@@ -1414,9 +1414,9 @@ p + q               -- => x + y + 3 : Poly Integer [x, y]
 **推移的 embed のテスト** (`mini-test/63-embed-transitive.egi`):
 ```egison
 declare symbol x
--- Integer → Div Integer → Poly (Div Integer) [x]
-def r : Poly (Div Integer) [x] := x + 1    -- Integer 1 が推移的に embed
-(1 / 2) * x + 1    -- => (1/2) * x + 1 : Poly (Div Integer) [x]
+-- Integer → Frac Integer → Poly (Frac Integer) [x]
+def r : Poly (Frac Integer) [x] := x + 1    -- Integer 1 が推移的に embed
+(1 / 2) * x + 1    -- => (1/2) * x + 1 : Poly (Frac Integer) [x]
 ```
 
 **型クラスの基本テスト** (`mini-test/64-typeclass-ring.egi`):
@@ -1453,13 +1453,13 @@ Phase 5.5 の型クラス基盤（`Embed`, `Differentiable`, `CASMap`, `Integrab
 def expandAll (mexpr : Poly a [..]) : Poly a [..] :=
   ...  -- poly m の :+ パターンで項を分解し、各項のモノミアルを展開
 
--- Div への適用は CASMap で持ち上げ
--- casMap expandAll : Div (Poly a [..]) -> Div (Poly a [..])
+-- Frac への適用は CASMap で持ち上げ
+-- casMap expandAll : Frac (Poly a [..]) -> Frac (Poly a [..])
 ```
 
 - `expandAll` を `poly m` マッチャーで再実装
 - `expandAll'`（正規化版）も同様に再実装
-- `Div` への適用は `casMap expandAll` で統一的に持ち上げ
+- `Frac` への適用は `casMap expandAll` で統一的に持ち上げ
 - mini-test: `expandAll ((1 + x) * (1 + y))` 等の展開テスト
 
 #### Step 6.2: `substitute` の再実装
@@ -1470,8 +1470,8 @@ def expandAll (mexpr : Poly a [..]) : Poly a [..] :=
 -- Poly 上の関数として定義
 substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
 
--- Div への適用は casMap で持ち上げ
--- casMap (substitute ls) : Div (Poly a [..]) -> Div (Poly a [..])
+-- Frac への適用は casMap で持ち上げ
+-- casMap (substitute ls) : Frac (Poly a [..]) -> Frac (Poly a [..])
 ```
 
 - `substitute`, `substitute'`, `rewriteSymbol` を再実装
@@ -1490,12 +1490,12 @@ instance {Ring a} Differentiable (Poly a [..]) where
       -- mono 内の s の冪 n を取り出し、n * c * s^(n-1) * (残りのモノミアル) を生成
       ...
 
-instance {Differentiable a, GCDDomain a} Differentiable (Div a) where
+instance {Differentiable a, GCDDomain a} Differentiable (Frac a) where
   ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
 ```
 
 - `Poly` インスタンス: `poly m` + `term m` + `assocMultiset factor` で微分を実装
-- `Div` インスタンス: 商の微分法則をそのまま表現
+- `Frac` インスタンス: 商の微分法則をそのまま表現
 - テンソル対応は `tensorMap2` を使う既存のラッパーを維持
 - 連鎖律（`Apply1` 等の合成関数の微分）の再実装
 - mini-test: `∂/∂ (x^2 + 3*x) x` → `2*x + 3` 等のテスト
@@ -1604,8 +1604,8 @@ Phase 7.3 で mathNormalize 廃止時に substitute 等を casNormalizeWithRules
 CASValue はネストする再帰的な構造を持つ。型によって構造が異なる:
 
 ```
-Div (Poly Integer [x])      → CASDiv { num: CASPoly [...], den: CASPoly [...] }
-Poly (Div Integer) [x]      → CASPoly [CASTerm (CASDiv ...) monomial, ...]
+Frac (Poly Integer [x])      → CASFrac { num: CASPoly [...], den: CASPoly [...] }
+Poly (Frac Integer) [x]      → CASPoly [CASTerm (CASFrac ...) monomial, ...]
 Poly (Poly Integer [x]) [y] → CASPoly [CASTerm (CASPoly [...]) monomial, ...]
 ```
 
@@ -1624,7 +1624,7 @@ declare rule auto i^2 = -1
 declare rule auto ('sqrt $x)^2 = x
 ```
 
-**商パターン（LHS に `/` を含む）**: CASDiv の分子・分母に対してマッチ
+**商パターン（LHS に `/` を含む）**: CASFrac の分子・分母に対してマッチ
 
 ```egison
 -- 分母の有理化: 2 / sqrt(2) => sqrt(2)
@@ -1634,10 +1634,10 @@ declare rule rationalize_sqrt $x / ('sqrt $y) = x * 'sqrt y / y
 ルールは CASValue ツリーを**再帰的に走査**して、マッチする全ノードに適用する。入れ子構造のどの深さにあってもルールが適用される:
 
 - `Poly (Poly Integer [x]) [y]` では、外側の CASPoly にも内側の CASPoly（係数）にも和パターンルールが適用される
-- `Poly (Div Integer) [x]` では、係数の CASDiv に商パターンルールが適用される
+- `Poly (Frac Integer) [x]` では、係数の CASFrac に商パターンルールが適用される
 - ユーザーは入れ子の深さを意識する必要がない
 
-既存の `mapCASTerms` / `mapCASPolys` も実質的にツリー走査を行っている（CASDiv の中身にも再帰的に適用）。統合後のツリー走査はこれを一般化したもの。
+既存の `mapCASTerms` / `mapCASPolys` も実質的にツリー走査を行っている（CASFrac の中身にも再帰的に適用）。統合後のツリー走査はこれを一般化したもの。
 
 #### 設計方針
 
