@@ -5,7 +5,8 @@
 Egisonの数式処理システム(CAS)のための型システムの設計方針をまとめる。
 型によって数式の正規形（内部表現）を制御し、HM型推論とtype classを基盤とする。
 基本的に依存型は採用しないが、`Poly` の第2引数（シンボル集合）のみ依存型的に扱う。
-ただし自動型推論できる範囲に制限する。
+型推論は開いた型 `[..]` を推論し、閉じた型 `[S]` への絞り込みはユーザが型注釈で指定する。
+絞り込み時にはランタイムでシンボル集合の検証を行う（`coerce`）。
 
 ---
 
@@ -377,6 +378,24 @@ sqrt n =
 - そうでないとき、Factor `'sqrt n` を生成し `Poly Integer [..]` に embed して返す。簡約規則は既にトップレベルで宣言済み
 - `sin`, `cos` などの超越関数も同様にユーザーが定義できる
 
+#### 呼び出し側での型の絞り込み
+
+`sqrt` は `Poly Integer [..]` を返すが、呼び出し側で型注釈を付けることで具体的な型に絞り込める。型チェッカーが `coerce` を自動挿入し、ランタイムで検証される。
+
+```egison
+-- 開いた型のまま使う（型注釈不要）
+sqrt 2 + sqrt 3         -- : Poly Integer [..]
+
+-- 閉じた型に絞り込む（型注釈で coerce が自動挿入）
+def s : Poly Integer ['sqrt 2] := sqrt 2
+
+-- Integer に絞り込む（sqrt 4 = 2 なのでランタイム検証成功）
+def n : Integer := sqrt 4
+
+-- Integer に絞り込む（sqrt 2 は整数でないのでランタイムエラー）
+-- def m : Integer := sqrt 2    -- エラー: coerce 失敗
+```
+
 ---
 
 ## 型の包含関係
@@ -504,6 +523,54 @@ Coq の Coercion mechanism に倣い、型チェッカーに coercive subtyping 
 - 型不一致の検出時に、グラフ上の最短経路（深さ制限付きBFS）で推移的な `embed` の合成を探索する
 - **Coherence（一貫性）** は、CAS型の包含関係が数学的に明確な半順序であることから自然に保証される（どの経路でも同じ数学的な値に変換される）
 - 参考文献: Luo (1999) *Coercive subtyping*, Breazu-Tannen et al. (1991) *Inheritance as implicit coercion*
+
+#### coerce（型の絞り込み）
+
+`embed` は安全な widening（具体 → 一般）だが、逆方向の narrowing（一般 → 具体）が必要な場面がある。典型的には、関数の戻り値が開いた型 `[..]` で推論されるが、ユーザは結果が特定のシンボル集合に属することを知っている場合。
+
+```egison
+-- sqrt は開いた型しか返せない
+sqrt : Integer -> Poly Integer [..]
+
+-- ユーザは結果の型を知っている
+def x : Poly Integer ['sqrt 2] := sqrt 2    -- coerce が自動挿入される
+def n : Integer := sqrt 4                   -- coerce が自動挿入される
+```
+
+`coerce` は `embed` の逆方向の操作で、ランタイム検証を伴う：
+
+```egison
+class Coerce a b where
+  coerce :: a -> b    -- ランタイムで型の適合性を検証し、失敗時はエラー
+```
+
+**型チェッカーによる自動挿入**: ターゲット型が文脈から既知で、ソース型が包含関係の逆方向にある場合、型チェッカーが `coerce` を自動挿入する。ユーザが明示的に書く必要はなく、型注釈がトリガーとなる。
+
+```egison
+-- ユーザが書くコード
+def x : Poly Integer ['sqrt 2] := sqrt 2
+
+-- 型チェッカーが変換後（elaborated）
+def x : Poly Integer ['sqrt 2] := coerce (sqrt 2)
+```
+
+**ランタイム検証の内容**:
+
+| 変換 | 検証内容 |
+|------|----------|
+| `Poly a [..] → Poly a [S]` | 全項のモノミアルに含まれるシンボルが `S` の部分集合か |
+| `Poly a [..] → Integer` | 全項のモノミアルが空（定数項のみ）で、係数が `Integer` に変換可能か |
+| `Poly a [..] → Factor` | 単一項で係数が1、モノミアルが単一シンボルの1乗か |
+| `Frac a → a` | 分母が1か |
+
+**embed との対称性**:
+
+```
+embed  : 具体 → 一般（常に安全、コンパイル時保証、型チェッカーが自動挿入）
+coerce : 一般 → 具体（ランタイム検証、失敗時エラー、型注釈による自動挿入）
+```
+
+**設計の根拠**: `sqrt` のような関数は、入力値によって戻り値の具体的な型が変わる（`sqrt 4 → Integer`, `sqrt 2 → Poly Integer ['sqrt 2]`）。依存型を導入すれば戻り値の型を精密に表現できるが、型推論の複雑さが大幅に増す。代わりに、関数の型シグネチャは `Poly Integer [..]` のような上限型で統一し、呼び出し側でユーザが型注釈で具体型を指定する方式を採る。これにより型推論は HM の枠内に収まり、narrowing のコストはランタイム検証で支払う。
 
 ### 2. join（二項演算時の最小上界の計算）
 
@@ -1001,13 +1068,28 @@ match x as factor with
 
 ### 安全なダウンキャスト
 
-パターンマッチにより、`coerce` を使わずに安全に値を抽出できる。
+型の絞り込みには2つの方法がある。
+
+**1. パターンマッチによる条件付き抽出**（`coerce` 不要、常に安全）:
 
 ```egison
 -- Frac (Poly Integer [x]) → Poly Integer [x] への安全な抽出
 match expr as frac (poly integer) with
   | $n / #1 -> n    -- 分母が1のときだけ安全に取り出す
 ```
+
+**2. 型注釈による `coerce`**（ランタイム検証付き）:
+
+```egison
+-- Poly Integer [..] → Poly Integer ['sqrt 2] への絞り込み
+def s : Poly Integer ['sqrt 2] := sqrt 2    -- coerce が自動挿入
+
+-- Poly Integer [..] → Integer への絞り込み
+def n : Integer := sqrt 4                   -- coerce が自動挿入（成功）
+-- def m : Integer := sqrt 2               -- coerce が自動挿入（ランタイムエラー）
+```
+
+パターンマッチはプログラマが条件分岐を書くため常に安全。`coerce` はランタイム検証を伴うが、型注釈だけで簡潔に書ける。用途に応じて使い分ける。
 
 ### 設計の利点
 
@@ -1314,12 +1396,30 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
     1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
     2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
     3. 閉じた Poly 同士でシンボル集合が異なる場合は `join` で `S₁ ∪ S₂` を計算し双方を embed
-    4. いずれでもなければ型エラー
+    4. ターゲット型が既知で逆方向（一般 → 具体）なら `coerce` を挿入
+    5. いずれでもなければ型エラー
 - 推移的な変換（`embed . embed`）の合成
   - 例: `Integer → Poly Integer [x] → Poly (Frac Integer) [x]`
   - グラフ上の最短経路で `embed` を連鎖
 - `Embed` 制約の解決と辞書渡し
   - 型クラス解決機構と連携
+
+#### Step 5.5.3a: coerce の自動挿入
+
+- 型注釈で具体型が指定されており、推論された型が包含関係の逆方向にある場合に `coerce` を挿入
+  - 例: `def x : Poly Integer ['sqrt 2] := sqrt 2` で `sqrt 2 : Poly Integer [..]` → `coerce (sqrt 2) : Poly Integer ['sqrt 2]`
+  - 例: `def n : Integer := sqrt 4` で `sqrt 4 : Poly Integer [..]` → `coerce (sqrt 4) : Integer`
+- `Coerce` 型クラスの定義
+  ```egison
+  class Coerce a b where
+    coerce :: a -> b    -- ランタイム検証付き
+  ```
+- 基本インスタンスの実装（`Math/CAS.hs` にランタイム検証関数）
+  - `Coerce (Poly a [..]) (Poly a [S])` — シンボル集合の検証
+  - `Coerce (Poly a [..]) Integer` — 定数項のみかを検証
+  - `Coerce (Poly a [..]) Factor` — 単一シンボル項かを検証
+  - `Coerce (Frac a) a` — 分母が1かを検証
+- ランタイム検証失敗時は `CoerceError` を送出（エラーメッセージに期待される型と実際の値を表示）
 
 #### Step 5.5.4: 二項演算での join と embed の連携
 
