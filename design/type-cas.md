@@ -403,7 +403,6 @@ def n : Integer := sqrt 4
 ### 基本的な包含
 
 ```
-Integer  ⊂  Factor
 Factor  ⊂  Poly Integer [s]
 Integer  ⊂  Frac Integer
 Integer  ⊂  Poly Integer [s]
