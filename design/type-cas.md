@@ -18,11 +18,12 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 | 型                      | 意味                                      |
 | ---------------------- | --------------------------------------- |
 | `Integer`              | 基本型。整数                                  |
-| `Factor`               | クォート演算子 `'` で生成される原子的な数式要素              |
 | `Frac a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
+| `Factor`               | クォート演算子 `'` で生成される原子的な数式要素              |
+| `Term a [s1, s2, ...]` | `Poly a [s1, s2, ...]` の項。係数（型 `a`）とモノミアルの組。パターンマッチの中間結果として主に使われる補助型 |
 | `Poly a [s1, s2, ...]` | `a` を係数とするローラン多項式環（閉じた多項式型）。冪指数は負も許可    |
 | `Poly a [..]`          | `a` を係数とし、シンボル集合を固定しないローラン多項式型（開いた多項式型） |
-| `Term a [s1, s2, ...]` | `Poly a [s1, s2, ...]` の項。係数（型 `a`）とモノミアルの組。パターンマッチの中間結果として主に使われる補助型 |
+| `MathValue`            | 全ての CAS 型の上位型。ランタイム表現は `CASValue` そのもの。微分・積分など型が予測困難な数学的操作の入出力に使う |
 | `Tensor a`             | `a` を成分とするテンソル                          |
 
 
@@ -411,6 +412,12 @@ Frac Integer  ⊂  Poly (Frac Integer) [s]
 Poly Integer [s]  ⊂  Poly (Frac Integer) [s]
 
 Term a [S]  ⊂  Poly a [S]    -- 単一項の多項式として埋め込み
+
+-- MathValue は全 CAS 型の上位型
+Integer        ⊂  MathValue
+Factor         ⊂  MathValue
+Poly a [S]     ⊂  MathValue   -- 任意の a, S に対して
+Frac a         ⊂  MathValue   -- 任意の a に対して
 ```
 
 **embed の内部表現:**
@@ -767,6 +774,28 @@ instance {GCDDomain a} Ring (Frac a) where
   (*) (p/q) (r/s) := simplify ((p*r) / (q*s))
 
 instance {GCDDomain a} Field (Frac a)
+
+-- MathValue: ランタイムディスパッチによる Ring/Field インスタンス
+-- CASValue のコンストラクタで分岐し、各型の演算に委譲する
+instance Ring MathValue where
+  (+) := casPlus   -- CASValue のコンストラクタによるパターンマッチで再帰的に処理
+  (*) := casMult
+  zero := CASInteger 0
+  one := CASInteger 1
+  neg := casNeg
+```
+
+**精密な型と `MathValue` の使い分け**: 精密な型（`Poly Integer [x]` 等）が分かっている文脈では、精密な型の `Ring` インスタンスが型推論で優先される。`MathValue` の `Ring` インスタンスは、`∂/∂` や `Sd` の結果など型が `MathValue` に推論される文脈でのみ使われる。
+
+```egison
+declare symbol x
+
+def p : Poly Integer [x] := 1 + x
+def q : Poly Integer [x] := 2 + 3 * x
+p + q    -- Ring (Poly Integer [x]) が使われる（精密な型）
+
+def dp := ∂/∂ p x    -- dp : MathValue
+dp + dp              -- Ring MathValue が使われる（ランタイムディスパッチ）
 ```
 
 ### 型クラス制約による安全性
@@ -779,25 +808,25 @@ def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
 -- Poly (Frac Integer) [x] で gcd を使うには Field (Frac Integer) ✓ → OK
 ```
 
-### 微分演算子と Differentiable 型クラス
+### 微分演算子 `∂/∂`
 
-偏微分演算子 `∂/∂` は `Poly`、`Frac`、`Tensor` など複数の型構造に対して定義する必要があるため、型クラスとして定義する。
+偏微分演算子 `∂/∂` は `MathValue` 上の関数として定義する。微分は結果の型が入力の型から予測困難な場合がある（例: `∂/∂ ('log x) x → 1/x` で `Poly Integer ['log x]` → `Frac (Poly Integer [x])` のようにシンボル集合と型構造の両方が変わる）ため、型クラスではなく `MathValue` を入出力とする。
 
 ```egison
-class Differentiable a where
-  ∂/∂ : a -> Factor -> a
+∂/∂ : MathValue -> Factor -> MathValue
 ```
 
 第2引数は `Factor` 型であり、`declare symbol x` で宣言されたシンボルを直接渡す。シンボルは `Factor` として扱われ、`Poly` に昇格する前の段階で微分変数として使われる。呼び出し側では `∂/∂ f x` のように書き、`x` は `Factor` への coercive subtyping（`Embed` 経由の昇格ではなく、シンボル自体が `Factor` 型を持つ）で渡される。
 
-#### インスタンス
+#### 実装
+
+内部では `CASValue` のコンストラクタをパターンマッチし、各層に応じた微分を行う。
 
 ```egison
-instance {Ring a} Differentiable (Poly a [..]) where
-  ∂/∂ p s = ...  -- 各項のモノミアルから該当シンボルの冪を取り出し、冪を1下げて係数に掛ける
-
-instance {Differentiable a, GCDDomain a} Differentiable (Frac a) where
-  ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
+∂/∂ f s = ...
+  -- CASPoly の場合: 各項のモノミアルから該当シンボルの冪を取り出し、冪を1下げて係数に掛ける
+  -- CASFrac の場合: 商の微分法則 (∂/∂ n s * d - n * ∂/∂ d s) / d^2
+  -- CASFactor (Apply1 ...) の場合: 連鎖律
 ```
 
 #### 利用例
@@ -807,41 +836,49 @@ declare symbol x, y
 
 def f : Poly Integer [x, y] := x^2 * y + 3 * x * y^2
 
-∂/∂ f x   -- => 2 * x * y + 3 * y^2 : Poly Integer [x, y]
-∂/∂ f y   -- => x^2 + 6 * x * y     : Poly Integer [x, y]
+∂/∂ f x   -- => 2 * x * y + 3 * y^2 : MathValue
+∂/∂ f y   -- => x^2 + 6 * x * y     : MathValue
+
+-- 型が変わる例
+∂/∂ ('log x) x   -- => 1/x : MathValue（Frac になる）
+```
+
+呼び出し側で結果の型を精密に指定したい場合は `coerce` を使う:
+
+```egison
+def result : Poly Integer [x, y] := coerce (∂/∂ f x)    -- ランタイム検証付き
 ```
 
 #### 微分演算子の合成
 
-`∂/∂` を組み合わせた高階の微分演算子は、`Differentiable` 制約を使った通常の関数として定義する。演算子ごとに新たな型クラスを用意する必要はない。
+`∂/∂` を組み合わせた高階の微分演算子は、`MathValue` 上の通常の関数として定義する。
 
 ```egison
 -- ラプラシアン（2次元）
-def laplacian2D {Differentiable a} (f : a) : a :=
+def laplacian2D (f : MathValue) : MathValue :=
   ∂/∂ (∂/∂ f x) x + ∂/∂ (∂/∂ f y) y
 
 -- ラプラシアン（極座標）
-def laplacianPolar {Differentiable a} (f : a) : a :=
+def laplacianPolar (f : MathValue) : MathValue :=
   ∂/∂ (∂/∂ f r) r + ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2
 ```
 
-### 積分演算子と Integrable 型クラス
+### 積分演算子 `Sd`
 
-不定積分 `Sd` も微分と同様に `Poly` と `Frac` で異なるロジックが必要であるため、型クラスとして定義する。
+不定積分 `Sd` も `MathValue` 上の関数として定義する。積分は結果の型が入力から予測困難（係数に分数が出る、対数が出る等）なため、`MathValue` で統一する。
 
 ```egison
-class Integrable a where
-  Sd : Factor -> a -> a    -- ∫ f dx
+Sd : Factor -> MathValue -> MathValue    -- ∫ f dx
 ```
 
-#### インスタンス
+#### 実装
+
+内部では `CASValue` のコンストラクタをパターンマッチし、各層に応じた積分を行う。
 
 ```egison
-instance {Ring a} Integrable (Poly a [..]) where
-  Sd x p = ...  -- 各項の冪を1上げて係数を割る
-
-instance {Integrable a, GCDDomain a} Integrable (Frac a) where
-  Sd x (n/d) = ...  -- 部分分数分解等
+Sd x f = ...
+  -- CASPoly の場合: 各項の冪を1上げて係数を割る
+  -- CASFrac の場合: 部分分数分解等
 ```
 
 注: 積分は微分と異なり、常に閉じた形で結果が得られるとは限らない。
@@ -853,44 +890,29 @@ declare symbol x
 
 def f : Poly Integer [x] := x^2 + 3 * x
 
-Sd x f   -- => (1/3) * x^3 + (3/2) * x^2 : Poly (Frac Integer) [x]
+Sd x f   -- => (1/3) * x^3 + (3/2) * x^2 : MathValue
+-- 精密な型に絞り込みたい場合は coerce を使う
+def result : Poly (Frac Integer) [x] := coerce (Sd x f)
 ```
 
-### CASMap 型クラス
+### `substitute` と `expandAll`
 
-`substitute`（代入）や `expandAll`（展開）のような操作は、`Poly` レベルの変換を `Frac` の分子・分母に持ち上げるだけで済む。この共通パターンを `CASMap` 型クラスで抽象化する。`Tensor` への持ち上げは `tensorMap` の自動挿入で行われるため、`CASMap` は主に `Frac` のためのものである。
-
-```egison
-class CASMap f where
-  casMap : (a -> b) -> f a -> f b
-
-instance {GCDDomain b} CASMap Frac where
-  casMap f (n/d) = f n / f d
-```
-
-> **実装上の注意**: `CASMap` は型変数 `f` が高カインド（`* -> *`）である。Egison の型システムで高カインド多相をサポートしない場合は、`CASMap` を型クラスとして実装する代わりに、`casMapFrac : (a -> b) -> Frac a -> Frac b` のような具体的な関数として定義する。`CASMap` のインスタンスは実質的に `Frac` のみであるため、高カインド多相なしでも機能に影響はない。
-
-`substitute` と `expandAll` は `Poly` 上の関数として定義し、`Frac` への適用は `casMap` で持ち上げる。
+`substitute`（代入）や `expandAll`（展開）は `MathValue` 上の関数として定義する。内部で `CASValue` のコンストラクタをパターンマッチし、`Poly` の場合は項を分解して処理、`Frac` の場合は分子・分母に再帰的に適用する。
 
 ```egison
--- Poly 上の関数
-substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
-expandAll : Poly a [..] -> Poly a [..]
-
--- Frac への適用は casMap で持ち上げ
--- casMap (substitute ls) : Frac (Poly a [..]) -> Frac (Poly a [..])
--- casMap expandAll       : Frac (Poly a [..]) -> Frac (Poly a [..])
+substitute : List (Factor, MathValue) -> MathValue -> MathValue
+expandAll : MathValue -> MathValue
 ```
 
 ### type class が不要な演算子
 
-以下の演算子は既存の型クラス制約と関数合成で定義でき、新たな型クラスは不要。
+以下の演算子は `MathValue` 上の関数、既存の型クラス制約、または関数合成で定義でき、新たな型クラスは不要。
 
 | 演算子 | 定義方法 |
 |--------|----------|
-| `∇` / `grad` / `nabla` | `Differentiable` 制約で `∂/∂` を合成 |
-| `div`（発散）, `rot`（回転） | `Differentiable` + `Ring` でテンソル演算と合成 |
-| `taylorExpansion` | `Differentiable` 制約で `∂/∂` を繰り返し適用 |
+| `∇` / `grad` / `nabla` | `MathValue` 上で `∂/∂` を合成 |
+| `div`（発散）, `rot`（回転） | `∂/∂` + `Ring` でテンソル演算と合成 |
+| `taylorExpansion` | `∂/∂` を繰り返し適用 |
 | `wedge` (`∧`), `ι` | `Field` 制約でテンソル上の演算として定義 |
 | `dotProduct`, `crossProduct`, `trace` | `Ring` 制約で定義 |
 | `M.inverse`, `M.determinant` | `Field` / `Ring` 上のテンソル演算 |
@@ -1452,9 +1474,9 @@ instance Ring (Poly Integer [i])          -- 特化（優先度: 高、i^2 = -1 
   embedPolyCoeff :: (CASValue -> CASValue) -> CASValue -> CASValue
   ```
 
-#### Step 5.5.6: CAS 用の代数的型クラスと演算子型クラスの定義
+#### Step 5.5.6: CAS 用の代数的型クラスと MathValue の定義
 
-Phase 6 でライブラリ関数を型クラスのメソッドとして実装するための基盤を定義する。
+Phase 6 でライブラリ関数を実装するための基盤を定義する。
 
 - **代数的型クラス階層**の実装（`Ring`, `Field`, `GCDDomain` 等）
   ```egison
@@ -1462,23 +1484,18 @@ Phase 6 でライブラリ関数を型クラスのメソッドとして実装す
   instance Ring Integer
   instance {Ring a} Ring (Poly a [..])
   instance {GCDDomain a} Ring (Frac a)
+  instance Ring MathValue    -- ランタイムディスパッチ
   ```
-- **`Differentiable` 型クラス**の定義
+- **`MathValue` 型**の定義と embed/coerce のサポート
+  - `MathValue` は全 CAS 型の上位型。ランタイム表現は `CASValue` そのもの
+  - 全 CAS 型から `MathValue` への `Embed` インスタンス
+  - `MathValue` から精密な型への `Coerce` インスタンス（ランタイム検証付き）
+- **`∂/∂`, `Sd`, `substitute`, `expandAll`** を `MathValue` 上の関数として定義
   ```egison
-  class Differentiable a where
-    ∂/∂ : a -> Factor -> a
-  ```
-- **`CASMap` 型クラス**の定義（高カインド多相が必要。代替案は `casMapDiv` 関数として定義）
-  ```egison
-  class CASMap f where
-    casMap : (a -> b) -> f a -> f b
-  instance {GCDDomain b} CASMap Frac where
-    casMap f (n/d) = f n / f d
-  ```
-- **`Integrable` 型クラス**の定義
-  ```egison
-  class Integrable a where
-    Sd : Factor -> a -> a
+  ∂/∂ : MathValue -> Factor -> MathValue
+  Sd : Factor -> MathValue -> MathValue
+  substitute : List (Factor, MathValue) -> MathValue -> MathValue
+  expandAll : MathValue -> MathValue
   ```
 
 #### Step 5.5.7: 基本テストの作成と検証
@@ -1541,37 +1558,31 @@ double (1 + x)       -- => 2 + 2 * x : Poly Integer [x]
 
 ### Phase 6: ライブラリ関数の再実装
 
-Phase 5.5 の型クラス基盤（`Embed`, `Differentiable`, `CASMap`, `Integrable`）が完成した後、既存のライブラリ関数を新しいマッチャー（`poly m`, `frac m`, `term m`）と型クラスを用いて再実装する。
+Phase 5.5 の基盤（`Embed`, `MathValue`, `Ring MathValue`）が完成した後、既存のライブラリ関数を新しいマッチャー（`poly m`, `frac m`, `term m`）と `MathValue` 上の関数として再実装する。
 
 #### Step 6.1: `expandAll` の再実装
 
-`lib/math/expression.egi` の `expandAll` を `poly m` / `frac m` / `term m` マッチャーで書き直す。
+`lib/math/expression.egi` の `expandAll` を `MathValue` 上の関数として書き直す。
 
 ```egison
--- Poly 上の関数として定義
-def expandAll (mexpr : Poly a [..]) : Poly a [..] :=
-  ...  -- poly m の :+ パターンで項を分解し、各項のモノミアルを展開
-
--- Frac への適用は CASMap で持ち上げ
--- casMap expandAll : Frac (Poly a [..]) -> Frac (Poly a [..])
+expandAll : MathValue -> MathValue
 ```
 
-- `expandAll` を `poly m` マッチャーで再実装
+内部では `CASValue` のコンストラクタをパターンマッチし、`CASPoly` の場合は項を分解して展開、`CASFrac` の場合は分子・分母に再帰的に適用する。
+
+- `expandAll` を再実装
 - `expandAll'`（正規化版）も同様に再実装
-- `Frac` への適用は `casMap expandAll` で統一的に持ち上げ
 - mini-test: `expandAll ((1 + x) * (1 + y))` 等の展開テスト
 
 #### Step 6.2: `substitute` の再実装
 
-`lib/math/expression.egi` の `substitute` を再実装する。
+`lib/math/expression.egi` の `substitute` を `MathValue` 上の関数として再実装する。
 
 ```egison
--- Poly 上の関数として定義
-substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
-
--- Frac への適用は casMap で持ち上げ
--- casMap (substitute ls) : Frac (Poly a [..]) -> Frac (Poly a [..])
+substitute : List (Factor, MathValue) -> MathValue -> MathValue
 ```
+
+内部では `CASValue` のコンストラクタをパターンマッチし、`CASPoly` の場合は項を分解して処理、`CASFrac` の場合は分子・分母に再帰的に適用する。
 
 - `substitute`, `substitute'`, `rewriteSymbol` を再実装
 - `V.substitute`（ベクトル版）も再実装
@@ -1580,21 +1591,19 @@ substitute : List (Factor, Poly a [..]) -> Poly a [..] -> Poly a [..]
 
 #### Step 6.3: 偏微分演算子 `∂/∂` の再実装
 
-`lib/math/analysis/derivative.egi` の `∂/∂` を `Differentiable` 型クラスのメソッドとして再実装する。
+`lib/math/analysis/derivative.egi` の `∂/∂` を `MathValue` 上の関数として再実装する。
 
 ```egison
-instance {Ring a} Differentiable (Poly a [..]) where
-  ∂/∂ p s = matchAll p as poly (something) with
-    | ($c, $mono) :+ _ ->
-      -- mono 内の s の冪 n を取り出し、n * c * s^(n-1) * (残りのモノミアル) を生成
-      ...
+∂/∂ : MathValue -> Factor -> MathValue
 
-instance {Differentiable a, GCDDomain a} Differentiable (Frac a) where
-  ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2  -- 商の微分法則
+∂/∂ f s = ...
+  -- CASPoly: 各項のモノミアルから該当シンボルの冪を取り出し、冪を1下げて係数に掛ける
+  -- CASFrac: 商の微分法則 (∂/∂ n s * d - n * ∂/∂ d s) / d^2
+  -- CASFactor (Apply1 ...): 連鎖律
 ```
 
-- `Poly` インスタンス: `poly m` + `term m` + `assocMultiset factor` で微分を実装
-- `Frac` インスタンス: 商の微分法則をそのまま表現
+- `CASPoly` の場合: `poly m` + `term m` + `assocMultiset factor` で微分を実装
+- `CASFrac` の場合: 商の微分法則をそのまま表現
 - テンソル対応は `tensorMap2` を使う既存のラッパーを維持
 - 連鎖律（`Apply1` 等の合成関数の微分）の再実装
 - mini-test: `∂/∂ (x^2 + 3*x) x` → `2*x + 3` 等のテスト
@@ -1612,10 +1621,11 @@ def coefficients (f : Poly a [..]) (x : Factor) : [a] :=
 #### Step 6.5: テイラー展開と積分演算子
 
 - `taylorExpansion`, `maclaurinExpansion` の再実装（`∂/∂` と `substitute` に依存）
-- `Sd`（不定積分）を `Integrable` 型クラスのメソッドとして再実装
+- `Sd`（不定積分）を `MathValue` 上の関数として再実装
   ```egison
-  instance {Ring a} Integrable (Poly a [..]) where
-    Sd x p = ...  -- 各項の冪を1上げて係数を割る
+  Sd : Factor -> MathValue -> MathValue
+  -- CASPoly の場合: 各項の冪を1上げて係数を割る
+  -- CASFrac の場合: 部分分数分解等
   ```
 - これらは `∂/∂` と `substitute` の完成後に着手
 - mini-test: `taylorExpansion ('sin x) x 0` の最初の数項を検証
@@ -1625,15 +1635,15 @@ def coefficients (f : Poly a [..]) (x : Factor) : [a] :=
 ```
 Phase 5 完了（パラメトリックマッチャー）
     ↓
-Phase 5.5 完了（Embed, Differentiable, CASMap, Integrable 型クラス基盤）
+Phase 5.5 完了（Embed, MathValue, Ring MathValue 基盤）
     ↓
-Step 6.1 expandAll（poly m + CASMap で再実装）
-Step 6.2 substitute（poly m + CASMap で再実装、mathNormalize 使用）
+Step 6.1 expandAll（MathValue 上の関数として再実装）
+Step 6.2 substitute（MathValue 上の関数として再実装、mathNormalize 使用）
     ↓
-Step 6.3 ∂/∂（Differentiable 型クラスメソッドとして実装）
+Step 6.3 ∂/∂（MathValue 上の関数として実装）
 Step 6.4 coefficients
     ↓
-Step 6.5 taylorExpansion, Sd（∂/∂, substitute, Integrable に依存）
+Step 6.5 taylorExpansion, Sd（∂/∂, substitute に依存、MathValue 上の関数）
     ↓
 Phase 7.3 で mathNormalize 廃止時に substitute 等を casNormalizeWithRules に移行
 ```
@@ -1644,8 +1654,8 @@ Phase 7.3 で mathNormalize 廃止時に substitute 等を casNormalizeWithRules
 |-------|----------------|
 | Phase 1-4（完了） | `cabal test` 全21テストパス。CASValue の基本演算、プリミティブパターンマッチ |
 | Phase 5 完了後 | パラメトリックマッチャー（`poly integer`, `frac (poly integer)` 等）のテスト。`mini-test/` でマッチャーの動作確認 |
-| Phase 5.5 完了後 | embed の基本テスト（`x + 1`, シンボル集合拡大, join, 推移的 embed）。型クラス `Ring` の基本テスト（`double 3`, `double (1 + x)`）。**ここから型安全な数式計算が動作し始める** |
-| Phase 6 完了後 | `expandAll`, `substitute`, `∂/∂`, `coefficients`, `taylorExpansion` のテスト。**ここから `sample/` 以下の数学サンプルの一部が動作し始める** |
+| Phase 5.5 完了後 | embed の基本テスト（`x + 1`, シンボル集合拡大, join, 推移的 embed）。型クラス `Ring` の基本テスト（`double 3`, `double (1 + x)`）。`MathValue` の `Ring` インスタンスと embed/coerce テスト。**ここから型安全な数式計算が動作し始める** |
+| Phase 6 完了後 | `expandAll`, `substitute`, `∂/∂`, `Sd`, `coefficients`, `taylorExpansion`（すべて `MathValue` 上の関数）のテスト。**ここから `sample/` 以下の数学サンプルの一部が動作し始める** |
 | Phase 7.1-7.3 完了後 | `mathNormalize` 廃止後の回帰テスト。`sample/` 以下の全サンプルの動作確認 |
 | Phase 7.5 完了後 | `declare rule auto` のユーザー定義規則テスト（例: `j^2 = -1`） |
 | Phase 7.7 完了後 | `Rewrite.hs` 削除後の全回帰テスト。**ここで既存テスト + sample が全て通ることを目標** |
