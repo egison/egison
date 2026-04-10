@@ -6,15 +6,15 @@ inductive pattern Matrix a:=
   | quadCons (Matrix a) (Matrix a) (Matrix a) (Matrix a)
   | matCons Integer Integer a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
 
-def matrix : Matcher (Matrix MathExpr) :=
+def matrix : Matcher (Matrix MathValue) :=
   matcher
-    | quadCons $ $ $ $ as (mathExpr, matrix, matrix, matrix) with
+    | quadCons $ $ $ $ as (mathValue, matrix, matrix, matrix) with
       | $tgt ->
         match tensorShape tgt as list integer with
           | $m :: $n :: _ ->
             [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
           | _ -> []
-    | matCons #$i #$j $ $ $ $ $ as (mathExpr, matrix, matrix, matrix, matrix) with
+    | matCons #$i #$j $ $ $ $ $ as (mathValue, matrix, matrix, matrix, matrix) with
       | $tgt ->
         let ns := tensorShape tgt
             m := nth 1 ns
@@ -29,7 +29,7 @@ def matrix : Matcher (Matrix MathExpr) :=
     | $ as (something) with
       | $tgt -> [tgt]
 
-def M.inverse (m: Matrix MathExpr) : Matrix MathExpr :=
+def M.inverse (m: Matrix MathValue) : Matrix MathValue :=
   let d := M.det m
    in generateTensor
         (\[i, j] ->
@@ -40,20 +40,20 @@ def M.inverse (m: Matrix MathExpr) : Matrix MathExpr :=
               else - (M.det (M.join A B C D) / d))
         (tensorShape m)
 
-def M.* (s: Matrix MathExpr) (t: Matrix MathExpr) : Matrix MathExpr := 
+def M.* (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] (s~i~j . t_j_k)
 
-def M.*' (s: Matrix MathExpr) (t: Matrix MathExpr) : Matrix MathExpr := 
+def M.*' (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] (s~i~j .' t_j_k)
 
-def M.power (t: Matrix MathExpr) (k: Integer) : Matrix MathExpr := 
+def M.power (t: Matrix MathValue) (k: Integer) : Matrix MathValue := 
   foldl M.* t (take (k - 1) (repeat1 t))
 
-def M.comm (m1: Matrix MathExpr) (m2: Matrix MathExpr) : Matrix MathExpr := 
+def M.comm (m1: Matrix MathValue) (m2: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
-def M.join (A: Matrix MathExpr) (B: Matrix MathExpr) (C: Matrix MathExpr) (D: Matrix MathExpr)
-  : Matrix MathExpr :=
+def M.join (A: Matrix MathValue) (B: Matrix MathValue) (C: Matrix MathValue) (D: Matrix MathValue)
+  : Matrix MathValue :=
   let ashape := tensorShape A
       bshape := tensorShape B
       cshape := tensorShape C
@@ -81,7 +81,7 @@ def M.join (A: Matrix MathExpr) (B: Matrix MathExpr) (C: Matrix MathExpr) (D: Ma
 --
 -- Determinant
 --
-def M.determinant (m: Matrix MathExpr) : MathExpr :=
+def M.determinant (m: Matrix MathValue) : MathValue :=
   match tensorShape m as list integer with
     | [#0, #0] -> 1
     | [$n, #n] ->
@@ -90,4 +90,4 @@ def M.determinant (m: Matrix MathExpr) : MathExpr :=
             sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
     | _ -> undefined
 
-def M.det (m: Matrix MathExpr) : MathExpr := M.determinant m
+def M.det (m: Matrix MathValue) : MathValue := M.determinant m

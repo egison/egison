@@ -328,8 +328,8 @@ evalTopExprStr env topExpr = do
 
 valueToStr :: EgisonValue -> EvalM String
 valueToStr val = do
-  mathExpr <- asks optMathExpr
-  case mathExpr of
+  mathValue <- asks optMathValue
+  case mathValue of
     Nothing   -> return (show val)
     Just lang -> return (prettyMath lang val)
 

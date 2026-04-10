@@ -2,7 +2,7 @@
 -- 3D Polar (Spherical) Laplacian using chain rule
 --
 
-declare symbol r, θ, φ : MathExpr
+declare symbol r, θ, φ : MathValue
 
 def x := r * sin θ * cos φ
 def y := r * sin θ * sin φ

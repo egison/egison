@@ -2,18 +2,18 @@
 -- Exterior Derivative
 --
 
-declare symbol x, y, z : MathExpr
+declare symbol x, y, z : MathValue
 
 def N : Integer := 3
 
-def params : Vector MathExpr := [|x, y, z|]
+def params : Vector MathValue := [|x, y, z|]
 
 def g : Matrix Integer := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
 
 def d {a} (X: a) : DiffForm a := !(flip ∂/∂) params X
 
 
---def f : MathExpr := function (x, y, z)
+--def f : MathValue := function (x, y, z)
 def f := x ^ 2 + y ^ 2 + z ^ 2
 
 -- The exterior derivative of f is the gradient 1-form

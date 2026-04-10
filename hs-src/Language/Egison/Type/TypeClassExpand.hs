@@ -1184,10 +1184,10 @@ applyConcreteConstraintDictionaries expr = do
     -- Resolve dictionary for a concrete constraint
     resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryForConstraint classEnv (Constraint className tyArg) = do
-      -- Normalize TInt to TMathExpr for instance matching
-      -- Integer and MathExpr are the same type in Egison
+      -- Normalize TInt to TMathValue for instance matching
+      -- Integer and MathValue are the same type in Egison
       let normalizedType = case tyArg of
-                             TInt -> TMathExpr
+                             TInt -> TMathValue
                              _ -> tyArg
       let instances = lookupInstances className classEnv
       case findMatchingInstanceForType normalizedType instances of

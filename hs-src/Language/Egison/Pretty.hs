@@ -241,7 +241,7 @@ instance Pretty TypedParam where
 
 instance Pretty TypeExpr where
   pretty TEInt = pretty "Integer"
-  pretty TEMathExpr = pretty "MathExpr"
+  pretty TEMathValue = pretty "MathValue"
   pretty TEFloat = pretty "Float"
   pretty TEBool = pretty "Bool"
   pretty TEChar = pretty "Char"
@@ -521,7 +521,7 @@ instance Pretty IPrimitiveDataPattern where
   pretty (PDConsPat pat1 pat2) = pretty pat1 <+> pretty "::" <+> pretty pat2
   pretty (PDSnocPat pat1 pat2) = pretty pat1 <+> pretty "*:" <+> pretty pat2
   pretty (PDConstantPat c) = pretty c
-  -- MathExpr primitive patterns
+  -- MathValue primitive patterns
   pretty (PDFracPat p1 p2) = applyLike [pretty "Frac", pretty p1, pretty p2]
   pretty (PDPlusPat p) = applyLike [pretty "Plus", pretty p]
   pretty (PDTermPat p1 p2) = applyLike [pretty "Term", pretty p1, pretty p2]
@@ -916,7 +916,7 @@ prettyTypeDoc (Types.TInductive name []) = pretty name
 prettyTypeDoc (Types.TInductive name ts) = hsep (pretty name : map prettyTypeDoc ts)
 prettyTypeDoc Types.TAny = pretty "_"
 prettyTypeDoc Types.TPort = pretty "Port"
-prettyTypeDoc Types.TMathExpr = pretty "MathExpr"
+prettyTypeDoc Types.TMathValue = pretty "MathValue"
 prettyTypeDoc Types.TPolyExpr = pretty "PolyExpr"
 prettyTypeDoc Types.TTermExpr = pretty "TermExpr"
 prettyTypeDoc Types.TSymbolExpr = pretty "SymbolExpr"

@@ -2,14 +2,14 @@
 
 declare symbol x, a, b, c
 
-def quadraticFormula : MathExpr -> MathExpr -> (MathExpr, MathExpr) := qF
+def quadraticFormula : MathValue -> MathValue -> (MathValue, MathValue) := qF
 
-def qF (f: MathExpr) (x: MathExpr) : (MathExpr, MathExpr) :=
-  match coefficients f x as list mathExpr with
+def qF (f: MathValue) (x: MathValue) : (MathValue, MathValue) :=
+  match coefficients f x as list mathValue with
     | [$a_0, $a_1, $a_2] -> qF' a_2 a_1 a_0
 
-def qF' (a: MathExpr) (b: MathExpr) (c: MathExpr) : (MathExpr, MathExpr) :=
-  match (a, b, c) as (mathExpr, mathExpr, mathExpr) with
+def qF' (a: MathValue) (b: MathValue) (c: MathValue) : (MathValue, MathValue) :=
+  match (a, b, c) as (mathValue, mathValue, mathValue) with
     | (#1, #0, _) -> (sqrt (- c), - sqrt (- c))
     | (#1, _, _) ->
       (2)#((- (b / 2)) + $1, (- (b / 2)) + $2)

@@ -219,7 +219,7 @@ inductiveArgType = try $ do
 inductiveTypeAtom :: Parser TypeExpr
 inductiveTypeAtom =
       TEInt     <$ reserved "Integer"
-  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEMathValue <$ reserved "MathValue"
   <|> TEFloat   <$ reserved "Float"
   <|> TEBool    <$ reserved "Bool"
   <|> TEChar    <$ reserved "Char"
@@ -645,7 +645,7 @@ typeExprWithApp = do
 typeAtomSimple :: Parser TypeExpr
 typeAtomSimple =
       TEInt     <$ reserved "Integer"
-  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEMathValue <$ reserved "MathValue"
   <|> TEFloat   <$ reserved "Float"
   <|> TEBool    <$ reserved "Bool"
   <|> TEChar    <$ reserved "Char"
@@ -670,7 +670,7 @@ typeAtomSimple =
 typeAtom :: Parser TypeExpr
 typeAtom =
       TEInt     <$ reserved "Integer"
-  <|> TEMathExpr <$ reserved "MathExpr"
+  <|> TEMathValue <$ reserved "MathValue"
   <|> TEFloat   <$ reserved "Float"
   <|> TEBool    <$ reserved "Bool"
   <|> TEChar    <$ reserved "Char"
@@ -702,7 +702,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
+    typeReservedKeywords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -772,7 +772,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathExpr", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Frac", "Poly"]
+    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Frac", "Poly"]
 
 expr :: Parser Expr
 expr = do
@@ -1341,13 +1341,13 @@ pdPattern = makeExprParser pdApplyOrAtom table
       ]
 
     pdApplyOrAtom :: Parser PrimitiveDataPattern
-    pdApplyOrAtom = try mathExprPrimitivePattern
+    pdApplyOrAtom = try mathValuePrimitivePattern
                 <|> PDInductivePat <$> upperId <*> many pdAtom
                 <|> pdAtom
     
-    -- MathExpr primitive patterns
-    mathExprPrimitivePattern :: Parser PrimitiveDataPattern
-    mathExprPrimitivePattern = do
+    -- MathValue primitive patterns
+    mathValuePrimitivePattern :: Parser PrimitiveDataPattern
+    mathValuePrimitivePattern = do
       name <- upperId
       case name of
         "Frac" -> do
@@ -1415,7 +1415,7 @@ pdPattern = makeExprParser pdApplyOrAtom table
           case args of
             [p] -> return $ PDUserPat p
             _ -> fail "User requires exactly 1 argument"
-        _ -> fail "Not a MathExpr primitive pattern"
+        _ -> fail "Not a MathValue primitive pattern"
 
 pdAtom :: Parser PrimitiveDataPattern
 pdAtom = PDWildCard    <$ symbol "_"

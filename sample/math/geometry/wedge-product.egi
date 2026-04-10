@@ -2,11 +2,11 @@
 -- Wedge Product
 --
 
-declare symbol x, y, z: MathExpr
+declare symbol x, y, z: MathValue
 
 def N : Integer := 3
 
-def params : Vector MathExpr := [|x, y, z|]
+def params : Vector MathValue := [|x, y, z|]
 
 def g : Matrix Integer := [|[|1, 0, 0|], [|0, 1, 0|], [|0, 0, 1|]|]
 

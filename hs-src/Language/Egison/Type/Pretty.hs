@@ -24,7 +24,7 @@ import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..)
 -- | Pretty print a Type
 prettyType :: Type -> String
 prettyType TInt             = "Integer"
-prettyType TMathExpr        = "MathExpr"
+prettyType TMathValue        = "MathValue"
 prettyType TPolyExpr        = "PolyExpr"
 prettyType TTermExpr        = "TermExpr"
 prettyType TSymbolExpr      = "SymbolExpr"
@@ -68,7 +68,7 @@ prettySymbolSet (SymbolSetVar (TyVar v)) = v
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String
 prettyTypeAtom t@TInt       = prettyType t
-prettyTypeAtom t@TMathExpr  = prettyType t
+prettyTypeAtom t@TMathValue  = prettyType t
 prettyTypeAtom t@TPolyExpr  = prettyType t
 prettyTypeAtom t@TTermExpr  = prettyType t
 prettyTypeAtom t@TSymbolExpr = prettyType t
@@ -134,7 +134,7 @@ prettyIndex (IndexVar s)                = "_" ++ s
 -- | Pretty print a TypeExpr (source-level type)
 prettyTypeExpr :: TypeExpr -> String
 prettyTypeExpr TEInt          = "Integer"
-prettyTypeExpr TEMathExpr     = "MathExpr"
+prettyTypeExpr TEMathValue     = "MathValue"
 prettyTypeExpr TEFloat        = "Float"
 prettyTypeExpr TEBool         = "Bool"
 prettyTypeExpr TEChar         = "Char"
@@ -174,7 +174,7 @@ prettySymbolSetExpr SSEOpen          = "[..]"
 -- | Pretty print an atomic TypeExpr
 prettyTypeExprAtom :: TypeExpr -> String
 prettyTypeExprAtom t@TEInt       = prettyTypeExpr t
-prettyTypeExprAtom t@TEMathExpr  = prettyTypeExpr t
+prettyTypeExprAtom t@TEMathValue  = prettyTypeExpr t
 prettyTypeExprAtom t@TEFloat     = prettyTypeExpr t
 prettyTypeExprAtom t@TEBool      = prettyTypeExpr t
 prettyTypeExprAtom t@TEChar      = prettyTypeExpr t

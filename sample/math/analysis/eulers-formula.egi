@@ -1,6 +1,6 @@
 -- Euler's formula: e^(ix) = cos(x) + i*sin(x)
 
-declare symbol x : MathExpr
+declare symbol x : MathValue
 
 assertEqual "Taylor expansion of e^(ix)"
   (take 8 (taylorExpansion (e^(i * x)) x 0))

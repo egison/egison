@@ -8,10 +8,10 @@
 declare symbol z1, z2, z1b, z2b
 
 -- Holomorphic exterior derivative (∂)
-def dh (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) [| z1, z2 |] X
+def dh (X : MathValue) : DiffForm MathValue := !(flip ∂/∂) [| z1, z2 |] X
 
 -- Anti-holomorphic exterior derivative (∂̄)
-def da (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) [| z1b, z2b |] X
+def da (X : MathValue) : DiffForm MathValue := !(flip ∂/∂) [| z1b, z2b |] X
 
 def h := 1 + z1 * z1b + z2 * z2b
 

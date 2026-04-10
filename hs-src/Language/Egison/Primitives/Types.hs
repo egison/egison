@@ -36,12 +36,12 @@ lazyPrimitives =
   -- Note: Other type checking functions (isBool, isScalar, isFloat, isChar, isString,
   -- isCollection, isHash, isTensor, typeName) are removed because they are not needed
   -- with the static type system. isInteger and isRational are kept because
-  -- MathExpr = Integer = Rational in Egison.
+  -- MathValue = Integer = Rational in Egison.
   ]
 
 --
 -- Typing
--- Note: Only isInteger and isRational are kept because MathExpr = Integer = Rational in Egison.
+-- Note: Only isInteger and isRational are kept because MathValue = Integer = Rational in Egison.
 -- Other type checking functions are removed as they are not needed with the static type system.
 --
 

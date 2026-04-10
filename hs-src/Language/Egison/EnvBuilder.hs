@@ -222,7 +222,7 @@ processTopExpr result topExpr = case topExpr of
   DeclareSymbol names mTypeExpr -> do
     let ty = case mTypeExpr of
                Just texpr -> typeExprToType texpr
-               Nothing    -> TInt  -- Default to Integer (MathExpr)
+               Nothing    -> TInt  -- Default to Integer (MathValue)
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
         -- Add each symbol to the type environment

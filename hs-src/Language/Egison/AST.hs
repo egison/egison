@@ -328,20 +328,20 @@ data PDPatternBase var
   | PDConsPat (PDPatternBase var) (PDPatternBase var)
   | PDSnocPat (PDPatternBase var) (PDPatternBase var)
   | PDConstantPat ConstantExpr
-  -- MathExpr primitive patterns
-  | PDFracPat (PDPatternBase var) (PDPatternBase var)        -- Frac: MathExpr -> PolyExpr, PolyExpr
+  -- MathValue primitive patterns
+  | PDFracPat (PDPatternBase var) (PDPatternBase var)        -- Frac: MathValue -> PolyExpr, PolyExpr
   | PDPlusPat (PDPatternBase var)                           -- Plus: PolyExpr -> [TermExpr]
   | PDTermPat (PDPatternBase var) (PDPatternBase var)       -- Term: TermExpr -> Integer, [(SymbolExpr, Integer)]
   | PDSymbolPat (PDPatternBase var) (PDPatternBase var)     -- Symbol: SymbolExpr -> String, [IndexExpr]
-  | PDApply1Pat (PDPatternBase var) (PDPatternBase var)     -- Apply1: SymbolExpr -> MathExpr, MathExpr
+  | PDApply1Pat (PDPatternBase var) (PDPatternBase var)     -- Apply1: SymbolExpr -> MathValue, MathValue
   | PDApply2Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply2
   | PDApply3Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply3
   | PDApply4Pat (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) (PDPatternBase var) -- Apply4
-  | PDQuotePat (PDPatternBase var)                          -- Quote: SymbolExpr -> MathExpr
-  | PDFunctionPat (PDPatternBase var) (PDPatternBase var) -- Function: SymbolExpr -> MathExpr, [MathExpr]
-  | PDSubPat (PDPatternBase var)                            -- Sub: IndexExpr -> MathExpr
-  | PDSupPat (PDPatternBase var)                            -- Sup: IndexExpr -> MathExpr
-  | PDUserPat (PDPatternBase var)                           -- User: IndexExpr -> MathExpr
+  | PDQuotePat (PDPatternBase var)                          -- Quote: SymbolExpr -> MathValue
+  | PDFunctionPat (PDPatternBase var) (PDPatternBase var) -- Function: SymbolExpr -> MathValue, [MathValue]
+  | PDSubPat (PDPatternBase var)                            -- Sub: IndexExpr -> MathValue
+  | PDSupPat (PDPatternBase var)                            -- Sup: IndexExpr -> MathValue
+  | PDUserPat (PDPatternBase var)                           -- User: IndexExpr -> MathValue
   deriving (Functor, Foldable, Show)
 
 type PrimitiveDataPattern = PDPatternBase String
@@ -430,8 +430,8 @@ extractNameFromVarWithIndices (VarWithIndices name _) = name
 
 -- | Type expression in source code
 data TypeExpr
-  = TEInt                              -- ^ Integer (= MathExpr)
-  | TEMathExpr                         -- ^ MathExpr (= Integer)
+  = TEInt                              -- ^ Integer (= MathValue)
+  | TEMathValue                         -- ^ MathValue (= Integer)
   | TEFloat                            -- ^ Float
   | TEBool                             -- ^ Bool
   | TEChar                             -- ^ Char

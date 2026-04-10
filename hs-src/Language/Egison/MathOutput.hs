@@ -21,14 +21,14 @@ prettyMath :: String -> EgisonValue -> String
 prettyMath lang val =
   -- 'lang' is either "asciimath", "latex", "mathematica" or "maxima"
   -- Other invalid options are rejected in Interpreter/egison.hs
-  case showMathExpr lang (toMathExpr val) of
+  case showMathValue lang (toMathValue val) of
     "undefined" -> "undefined"
     output      -> "#" ++ lang ++ "|" ++ output ++ "|#"
 
-showMathExpr :: String -> MathExpr -> String
-showMathExpr "asciimath"   = AsciiMath.showMathExpr
-showMathExpr "latex"       = Latex.showMathExpr
-showMathExpr "mathematica" = Mathematica.showMathExpr
-showMathExpr "maxima"      = Maxima.showMathExpr
-showMathExpr "haskell"     = show
-showMathExpr _             = error "Unreachable"
+showMathValue :: String -> MathValue -> String
+showMathValue "asciimath"   = AsciiMath.showMathValue
+showMathValue "latex"       = Latex.showMathValue
+showMathValue "mathematica" = Mathematica.showMathValue
+showMathValue "maxima"      = Maxima.showMathValue
+showMathValue "haskell"     = show
+showMathValue _             = error "Unreachable"

@@ -196,7 +196,7 @@ instantiate (Forall vs cs t) counter =
       Constraint cls (foldr (\(old, new) acc -> substVar old new acc) ty vars)
     substVar :: TyVar -> Type -> Type -> Type
     substVar _ _ TInt = TInt
-    substVar _ _ TMathExpr = TMathExpr
+    substVar _ _ TMathValue = TMathValue
     substVar _ _ TPolyExpr = TPolyExpr
     substVar _ _ TTermExpr = TTermExpr
     substVar _ _ TSymbolExpr = TSymbolExpr

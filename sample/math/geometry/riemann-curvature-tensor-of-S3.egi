@@ -1,30 +1,30 @@
-declare symbol r, θ, φ, ψ: MathExpr
+declare symbol r, θ, φ, ψ: MathValue
 
 -- Parameters
-def x : Vector MathExpr := [| θ, φ, ψ |]
+def x : Vector MathValue := [| θ, φ, ψ |]
 
-def X : Vector MathExpr := [| r * cos θ
+def X : Vector MathValue := [| r * cos θ
           , r * sin θ * cos φ
           , r * sin θ * sin φ * cos ψ
           , r * sin θ * sin φ * sin ψ
           |]
 
 -- Local basis
-def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
+def e_i_j : Matrix MathValue := ∂/∂ X_j x~i
 
 -- Metric tensors
---def g_i_j : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [3, 3]
-def g_i_j : Matrix MathExpr := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
-def g~i~j : Matrix MathExpr := M.inverse g_#_#
+--def g_i_j : Matrix MathValue := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [3, 3]
+def g_i_j : Matrix MathValue := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]
+def g~i~j : Matrix MathValue := M.inverse g_#_#
 
 assertEqual "Metric tensor g_#_#"
   g_#_#
   [| [| r^2, 0, 0 |], [| 0, r^2 * (sin θ)^2, 0 |], [| 0, 0, r^2 * (sin θ)^2 * (sin φ)^2 |] |]_#_#
 
 -- Christoffel symbols
-def Γ_i_j_k : Tensor MathExpr := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k : Tensor MathValue := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
-def Γ~i_j_k : Tensor MathExpr := withSymbols [m]
+def Γ~i_j_k : Tensor MathValue := withSymbols [m]
   g~i~m . Γ_m_j_k
 
 assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
@@ -39,7 +39,7 @@ assertEqual "Christoffel symbols of the second kind Γ~3_#_#"
 
 
 -- Riemann curvature
-def R~i_j_k_l : Tensor MathExpr := withSymbols [m]
+def R~i_j_k_l : Tensor MathValue := withSymbols [m]
   ∂/∂ Γ~i_j_l x~k - ∂/∂ Γ~i_j_k x~l + Γ~m_j_l . Γ~i_m_k - Γ~m_j_k . Γ~i_m_l
 
 assertEqual "Riemann curvature R~#_#_1_1"
@@ -71,7 +71,7 @@ assertEqual "Riemann curvature R~#_#_3_3"
   [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]~#_#
 
 -- Ricci curvature
-def Ric_i_j : Tensor MathExpr := withSymbols [m]
+def Ric_i_j : Tensor MathValue := withSymbols [m]
   sum (contract R~m_i_m_j)
 
 assertEqual "Ricci curvature Ric_#_#"
@@ -79,7 +79,7 @@ assertEqual "Ricci curvature Ric_#_#"
   [| [| 2, 0, 0 |], [| 0, 2 * (sin θ)^2, 0 |], [| 0, 0, 2 * (sin θ)^2 * (sin φ)^2 |] |]_#_#
 
 -- Scalar curvature
-def scalarCurvature : MathExpr := withSymbols [i, j]
+def scalarCurvature : MathValue := withSymbols [i, j]
   g~i~j . Ric_i_j
 
 assertEqual "scalar curvature"

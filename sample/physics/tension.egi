@@ -4,15 +4,15 @@
 
 declare symbol α, β, γ, c1, c2, p
 
-def C : Matrix MathExpr := [|[|α, 0, 0|], [|0, β, 0|], [|0, 0, γ|]|]
+def C : Matrix MathValue := [|[|α, 0, 0|], [|0, β, 0|], [|0, 0, γ|]|]
 
-def I (C: Matrix MathExpr) : MathExpr := trace C
+def I (C: Matrix MathValue) : MathValue := trace C
 
-def II (C: Matrix MathExpr) : MathExpr := (trace C ^ 2 - trace (M.* C C)) / 2
+def II (C: Matrix MathValue) : MathValue := (trace C ^ 2 - trace (M.* C C)) / 2
 
-def III (C: Matrix MathExpr) : MathExpr := M.det C
+def III (C: Matrix MathValue) : MathValue := M.det C
 
-def W : MathExpr := c1 * (I C - 3) + c2 * (II C - 3)
+def W : MathValue := c1 * (I C - 3) + c2 * (II C - 3)
 
 I C
 
@@ -28,6 +28,6 @@ III C
 
 W
 
-def S_i_j : Matrix MathExpr := 2 * ∂/∂ W C~i~j - p * (M.inverse C)_i_j
+def S_i_j : Matrix MathValue := 2 * ∂/∂ W C~i~j - p * (M.inverse C)_i_j
 
 S_#_#

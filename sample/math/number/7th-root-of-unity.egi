@@ -1,21 +1,21 @@
 -- 7th root of unity
 
-def z : MathExpr := rtu 7
+def z : MathValue := rtu 7
 
-def a11 : MathExpr := z ^ 1 + z ^ 6
-def a12 : MathExpr := z ^ 2 + z ^ 5
-def a13 : MathExpr := z ^ 3 + z ^ 4
+def a11 : MathValue := z ^ 1 + z ^ 6
+def a12 : MathValue := z ^ 2 + z ^ 5
+def a13 : MathValue := z ^ 3 + z ^ 4
 
-def b10 : MathExpr := a11 + a12 + a13
-def b10' : MathExpr := b10
+def b10 : MathValue := a11 + a12 + a13
+def b10' : MathValue := b10
 
 assertEqual "b10'" b10' (-1)
 
-def b11 : MathExpr := a11 + w * a12 + w ^ 2 * a13
-def b12 : MathExpr := a13 + w * a11 + w ^ 2 * a12
-def b13 : MathExpr := a12 + w * a13 + w ^ 2 * a11
+def b11 : MathValue := a11 + w * a12 + w ^ 2 * a13
+def b12 : MathValue := a13 + w * a11 + w ^ 2 * a12
+def b13 : MathValue := a12 + w * a13 + w ^ 2 * a11
 
-def b11' : MathExpr := rt 3 (b11 * b12 * b13)
+def b11' : MathValue := rt 3 (b11 * b12 * b13)
 
 -- b11' = rt 3 (14 + 21 * w)
 

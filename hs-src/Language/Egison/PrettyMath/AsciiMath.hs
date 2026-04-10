@@ -4,54 +4,54 @@ Licence     : MIT
 -}
 
 module Language.Egison.PrettyMath.AsciiMath
-  ( showMathExpr
+  ( showMathValue
   ) where
 
 import           Data.List                      (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
-showMathExpr :: MathExpr -> String
-showMathExpr (Atom func []) = func
-showMathExpr (NegativeAtom func) = "-" ++ func
-showMathExpr (Plus []) = ""
-showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
+showMathValue :: MathValue -> String
+showMathValue (Atom func []) = func
+showMathValue (NegativeAtom func) = "-" ++ func
+showMathValue (Plus []) = ""
+showMathValue (Plus (x:xs)) = showMathValue x ++ showMathValueForPlus xs
  where
-  showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus []                                  = ""
-  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ " " ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs)                              = " + " ++ showMathExpr x ++ showMathExprForPlus xs
-showMathExpr (Multiply []) = ""
-showMathExpr (Multiply [x]) = showMathExpr x
-showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
-showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " " ++ showMathExpr (Multiply xs)
-showMathExpr (Div x y) = "frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
-showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
-showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathExpr x
-showMathExpr (Func (Atom "rt" []) [x, y]) = "root " ++ showMathExpr x ++ " " ++ showMathExpr y
-showMathExpr (Func (Atom "exp" []) [x]) = "e^(" ++ showMathExpr x ++ ")"
-showMathExpr (Func f lvs) = showMathExpr f ++ "(" ++ showMathExprArg lvs ++ ")"
-showMathExpr (Tensor lvs mis)
-  | null mis = "(" ++ showMathExprArg lvs ++ ")"
-  | not (any isSub mis) = "(" ++ showMathExprArg lvs ++ ")^(" ++ showMathExprIndices mis ++ ")"
-  | all isSub mis = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices mis ++ ")"
-  | otherwise = "(" ++ showMathExprArg lvs ++ ")_(" ++ showMathExprIndices (filter isSub mis) ++ ")^(" ++ showMathExprIndices (filter (not . isSub) mis) ++ ")"
-showMathExpr (Tuple lvs) = "(" ++ showMathExprArg lvs ++ ")"
-showMathExpr (Collection lvs) = "{" ++ showMathExprArg lvs ++ "}"
+  showMathValueForPlus :: [MathValue] -> String
+  showMathValueForPlus []                                  = ""
+  showMathValueForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathValue (Multiply ys) ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathValue (Multiply (Atom a []:ys)) ++ " " ++ showMathValueForPlus xs
+  showMathValueForPlus (x:xs)                              = " + " ++ showMathValue x ++ showMathValueForPlus xs
+showMathValue (Multiply []) = ""
+showMathValue (Multiply [x]) = showMathValue x
+showMathValue (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathValue (Multiply xs)
+showMathValue (Multiply (x:xs)) = showMathValue' x ++ " " ++ showMathValue (Multiply xs)
+showMathValue (Div x y) = "frac{" ++ showMathValue x ++ "}{" ++ showMathValue y ++ "}"
+showMathValue (Power lv1 lv2) = showMathValue lv1 ++ "^" ++ showMathValue lv2
+showMathValue (Func (Atom "sqrt" []) [x]) = "sqrt " ++ showMathValue x
+showMathValue (Func (Atom "rt" []) [x, y]) = "root " ++ showMathValue x ++ " " ++ showMathValue y
+showMathValue (Func (Atom "exp" []) [x]) = "e^(" ++ showMathValue x ++ ")"
+showMathValue (Func f lvs) = showMathValue f ++ "(" ++ showMathValueArg lvs ++ ")"
+showMathValue (Tensor lvs mis)
+  | null mis = "(" ++ showMathValueArg lvs ++ ")"
+  | not (any isSub mis) = "(" ++ showMathValueArg lvs ++ ")^(" ++ showMathValueIndices mis ++ ")"
+  | all isSub mis = "(" ++ showMathValueArg lvs ++ ")_(" ++ showMathValueIndices mis ++ ")"
+  | otherwise = "(" ++ showMathValueArg lvs ++ ")_(" ++ showMathValueIndices (filter isSub mis) ++ ")^(" ++ showMathValueIndices (filter (not . isSub) mis) ++ ")"
+showMathValue (Tuple lvs) = "(" ++ showMathValueArg lvs ++ ")"
+showMathValue (Collection lvs) = "{" ++ showMathValueArg lvs ++ "}"
 
-showMathExpr' :: MathExpr -> String
-showMathExpr' (Plus lvs) = "(" ++ showMathExpr (Plus lvs) ++ ")"
-showMathExpr' val        = showMathExpr val
+showMathValue' :: MathValue -> String
+showMathValue' (Plus lvs) = "(" ++ showMathValue (Plus lvs) ++ ")"
+showMathValue' val        = showMathValue val
 
-showMathExprArg :: [MathExpr] -> String
-showMathExprArg exprs = intercalate ", " $ map showMathExpr exprs
+showMathValueArg :: [MathValue] -> String
+showMathValueArg exprs = intercalate ", " $ map showMathValue exprs
 
-showMathExprIndices :: [MathIndex] -> String
-showMathExprIndices []  = error "unreachable"
-showMathExprIndices lvs = concatMap showMathIndex lvs
+showMathValueIndices :: [MathIndex] -> String
+showMathValueIndices []  = error "unreachable"
+showMathValueIndices lvs = concatMap showMathIndex lvs
 
 showMathIndex :: MathIndex -> String
-showMathIndex (Super a) = showMathExpr a
-showMathIndex (Sub a)   = showMathExpr a
+showMathIndex (Super a) = showMathValue a
+showMathIndex (Sub a)   = showMathValue a

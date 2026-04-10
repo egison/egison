@@ -2,9 +2,9 @@
 -- Mathematical Functions
 --
 
-def abs (x: MathExpr) : MathExpr := if isRational x then i.abs x else 'abs x
+def abs (x: MathValue) : MathValue := if isRational x then i.abs x else 'abs x
 
-def exp (x: MathExpr) : MathExpr :=
+def exp (x: MathValue) : MathValue :=
   if isTerm x
     then match x as termExpr with
       | #0 -> 1
@@ -13,65 +13,65 @@ def exp (x: MathExpr) : MathExpr :=
       | _ -> 'exp x
     else 'exp x
 
-def log (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def log (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #1 -> 0
     | #e -> 1
     | _ -> 'log x
 
-def cos (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def cos (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 1
     | mult $n #π -> (-1) ^ abs n
     | (mult _ #π) / #2 -> 0
     | _ -> 'cos x
 
-def sin (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def sin (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 0
     | mult _ #π -> 0
     | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
     | _ -> 'sin x
 
-def tan (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def tan (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 0
     | _ -> 'tan x
 
---def acos : MathExpr -> MathExpr := f.acos
---def asin : MathExpr -> MathExpr := f.asin
---def atan : MathExpr -> MathExpr := f.atan
+--def acos : MathValue -> MathValue := f.acos
+--def asin : MathValue -> MathValue := f.asin
+--def atan : MathValue -> MathValue := f.atan
 
-def cosh (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def cosh (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 1
     | _ -> 'cosh x
 
-def sinh (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def sinh (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 0
     | _ -> 'sinh x
 
-def tanh (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def tanh (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 0
     | _ -> 'tanh x
 
---def acosh : MathExpr -> MathExpr := f.acosh
---def asinh : MathExpr -> MathExpr := f.asinh
---def atanh : MathExpr -> MathExpr := f.atanh
+--def acosh : MathValue -> MathValue := f.acosh
+--def asinh : MathValue -> MathValue := f.asinh
+--def atanh : MathValue -> MathValue := f.atanh
 
-def sinc (x: MathExpr) : MathExpr :=
-  match x as mathExpr with
+def sinc (x: MathValue) : MathValue :=
+  match x as mathValue with
     | #0 -> 1
     | _ -> sin x / x
 
-def sigmoid (z: MathExpr) : MathExpr := 1 / (1 + exp (- z))
+def sigmoid (z: MathValue) : MathValue := 1 / (1 + exp (- z))
 
 def kroneckerDelta (js: [Integer]) : Integer := 
   if all (= head js) (tail js) then 1 else 0
 
-def eulerTotientFunction (n: Integer) : MathExpr := 
+def eulerTotientFunction (n: Integer) : MathValue := 
   n * product (map (\p -> 1 - 1 / p) (unique (pF n)))
 
 def ε : Integer -> Tensor Integer :=

@@ -8,10 +8,10 @@ def N := 4
 
 def g := [|[|-1, 0, 0, 0|], [|0, 1, 0, 0|], [|0, 0, 1, 0|], [|0, 0, 0, 1|]|]
 
-def d (X : Tensor MathExpr) : Tensor MathExpr :=
+def d (X : Tensor MathValue) : Tensor MathValue :=
   !(flip ∂/∂) [| t, x, y, z |] X
 
-def hodge (A : DiffForm MathExpr) : DiffForm MathExpr :=
+def hodge (A : DiffForm MathValue) : DiffForm MathValue :=
   let k := dfOrder A
    in withSymbols [i, j]
         sqrt (abs (M.det g_#_#)) *

@@ -4,49 +4,49 @@ Licence     : MIT
 -}
 
 module Language.Egison.PrettyMath.Maxima
-  ( showMathExpr
+  ( showMathValue
   ) where
 
 import           Language.Egison.PrettyMath.AST
 
-showMathExpr :: MathExpr -> String
-showMathExpr (Atom a []) = a
-showMathExpr (Partial _ _) = "undefined"
-showMathExpr (NegativeAtom a) = "-" ++ a
-showMathExpr (Plus []) = ""
-showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
+showMathValue :: MathValue -> String
+showMathValue (Atom a []) = a
+showMathValue (Partial _ _) = "undefined"
+showMathValue (NegativeAtom a) = "-" ++ a
+showMathValue (Plus []) = ""
+showMathValue (Plus (x:xs)) = showMathValue x ++ showMathValueForPlus xs
  where
-  showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus []                                  = ""
-  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs)                              = " + " ++  showMathExpr x ++ showMathExprForPlus xs
-showMathExpr (Multiply []) = ""
-showMathExpr (Multiply [x]) = showMathExpr x
-showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
-showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
-showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " * " ++ showMathExpr (Multiply xs)
-showMathExpr (Div x y) = addBracket x ++ "/" ++ addBracket y
+  showMathValueForPlus :: [MathValue] -> String
+  showMathValueForPlus []                                  = ""
+  showMathValueForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathValue (Multiply ys) ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathValue (Multiply (Atom a []:ys)) ++ showMathValueForPlus xs
+  showMathValueForPlus (x:xs)                              = " + " ++  showMathValue x ++ showMathValueForPlus xs
+showMathValue (Multiply []) = ""
+showMathValue (Multiply [x]) = showMathValue x
+showMathValue (Multiply (Atom "1" []:xs)) = showMathValue (Multiply xs)
+showMathValue (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathValue (Multiply xs)
+showMathValue (Multiply (x:xs)) = showMathValue' x ++ " * " ++ showMathValue (Multiply xs)
+showMathValue (Div x y) = addBracket x ++ "/" ++ addBracket y
  where
-   addBracket x@(Atom _ []) = showMathExpr x
-   addBracket x             = "(" ++ showMathExpr x ++ ")"
-showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
-showMathExpr (Func (Atom "sqrt" []) [x]) = "sqrt(" ++ showMathExpr x ++ ")"
-showMathExpr (Func (Atom "rt" []) [x, y]) = showMathExpr y ++ "^(1/" ++ showMathExpr x ++ ")"
-showMathExpr (Func (Atom "exp" []) [x]) = "exp(" ++ showMathExpr x ++ ")"
-showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ++ ")"
-showMathExpr (Tensor _ _) = "undefined"
-showMathExpr (Tuple _) = "undefined"
-showMathExpr (Collection xs) = "[" ++ showMathExprArg xs ++ "]"
-showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
+   addBracket x@(Atom _ []) = showMathValue x
+   addBracket x             = "(" ++ showMathValue x ++ ")"
+showMathValue (Power lv1 lv2) = showMathValue lv1 ++ "^" ++ showMathValue lv2
+showMathValue (Func (Atom "sqrt" []) [x]) = "sqrt(" ++ showMathValue x ++ ")"
+showMathValue (Func (Atom "rt" []) [x, y]) = showMathValue y ++ "^(1/" ++ showMathValue x ++ ")"
+showMathValue (Func (Atom "exp" []) [x]) = "exp(" ++ showMathValue x ++ ")"
+showMathValue (Func f xs) = showMathValue f ++ "(" ++ showMathValueArg xs ++ ")"
+showMathValue (Tensor _ _) = "undefined"
+showMathValue (Tuple _) = "undefined"
+showMathValue (Collection xs) = "[" ++ showMathValueArg xs ++ "]"
+showMathValue (Quote x) = "(" ++ showMathValue x ++ ")"
 
-showMathExpr' :: MathExpr -> String
-showMathExpr' x@(Plus _) = "(" ++ showMathExpr x ++ ")"
-showMathExpr' x          = showMathExpr x
+showMathValue' :: MathValue -> String
+showMathValue' x@(Plus _) = "(" ++ showMathValue x ++ ")"
+showMathValue' x          = showMathValue x
 
-showMathExprArg :: [MathExpr] -> String
-showMathExprArg []            = ""
-showMathExprArg [Tensor _ []] = "undefined"
-showMathExprArg [a]           = showMathExpr a
-showMathExprArg lvs           = showMathExpr (head lvs) ++ ", " ++ showMathExprArg (tail lvs)
+showMathValueArg :: [MathValue] -> String
+showMathValueArg []            = ""
+showMathValueArg [Tensor _ []] = "undefined"
+showMathValueArg [a]           = showMathValue a
+showMathValueArg lvs           = showMathValue (head lvs) ++ ", " ++ showMathValueArg (tail lvs)

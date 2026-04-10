@@ -9,7 +9,7 @@ def params := [| r, θ |]
 def u := r * e ^ (2 * π * i * θ)
 def ū := r * e ^ ((-2) * π * i * θ)
 
-def d (X : MathExpr) : DiffForm MathExpr := !(flip ∂/∂) params X
+def d (X : MathValue) : DiffForm MathValue := !(flip ∂/∂) params X
 
 -- Connection 1-form
 def ω := ū * d u / '(1 + u * ū)

@@ -4,79 +4,79 @@ Licence     : MIT
 -}
 
 module Language.Egison.PrettyMath.Latex
-  ( showMathExpr
+  ( showMathValue
   ) where
 
 import           Data.List                      (intercalate)
 
 import           Language.Egison.PrettyMath.AST
 
-showMathExpr :: MathExpr -> String
-showMathExpr (Atom a []) = a
-showMathExpr (Atom a xs) = a ++ showMathExprScript xs
-showMathExpr (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
+showMathValue :: MathValue -> String
+showMathValue (Atom a []) = a
+showMathValue (Atom a xs) = a ++ showMathValueScript xs
+showMathValue (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
  where
-  showPartial :: [MathExpr] -> String
+  showPartial :: [MathValue] -> String
   showPartial xs = let lx = elemCount xs in convertToPartial2 (head lx) ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" (tail lx)
 
-  convertToPartial :: (MathExpr, Int) -> String
-  convertToPartial (x, 1) = "\\partial " ++ showMathExpr x
-  convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathExpr x
+  convertToPartial :: (MathValue, Int) -> String
+  convertToPartial (x, 1) = "\\partial " ++ showMathValue x
+  convertToPartial (x, n) = "\\partial^" ++ show n ++ " " ++ showMathValue x
 
-  convertToPartial2 :: (MathExpr, Int) -> String
-  convertToPartial2 (x, 1) = "\\partial " ++ showMathExpr x
-  convertToPartial2 (x, n) = "\\partial " ++ showMathExpr x ++ "^"  ++ show n
-showMathExpr (NegativeAtom a) = "-" ++ a
-showMathExpr (Plus []) = ""
-showMathExpr (Plus (x:xs)) = showMathExpr x ++ showMathExprForPlus xs
+  convertToPartial2 :: (MathValue, Int) -> String
+  convertToPartial2 (x, 1) = "\\partial " ++ showMathValue x
+  convertToPartial2 (x, n) = "\\partial " ++ showMathValue x ++ "^"  ++ show n
+showMathValue (NegativeAtom a) = "-" ++ a
+showMathValue (Plus []) = ""
+showMathValue (Plus (x:xs)) = showMathValue x ++ showMathValueForPlus xs
  where
-  showMathExprForPlus :: [MathExpr] -> String
-  showMathExprForPlus []                                  = ""
-  showMathExprForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathExpr (Multiply ys) ++ showMathExprForPlus xs
-  showMathExprForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathExpr (Multiply (Atom a []:ys)) ++ showMathExprForPlus xs
-  showMathExprForPlus (x:xs)                              = " + " ++  showMathExpr x ++ showMathExprForPlus xs
-showMathExpr (Multiply []) = ""
-showMathExpr (Multiply [x]) = showMathExpr x
-showMathExpr (Multiply (Atom "1" []:xs)) = showMathExpr (Multiply xs)
-showMathExpr (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathExpr (Multiply xs)
-showMathExpr (Multiply (x:xs)) = showMathExpr' x ++ " " ++ showMathExpr (Multiply xs)
-showMathExpr (Div x y) = "\\frac{" ++ showMathExpr x ++ "}{" ++ showMathExpr y ++ "}"
-showMathExpr (Power lv1 lv2) = showMathExpr lv1 ++ "^" ++ showMathExpr lv2
-showMathExpr (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathExpr x ++ "}"
-showMathExpr (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathExpr x ++ "]{" ++ showMathExpr y ++ "}"
-showMathExpr (Func (Atom "exp" []) [x]) = "e^{" ++ showMathExpr x ++ "}"
-showMathExpr (Func f xs) = showMathExpr f ++ "(" ++ showMathExprArg xs ", " ++ ")"
-showMathExpr (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathExprVectors xs ++ "\\end{pmatrix}" ++ showMathExprScript mis
-showMathExpr (Tuple xs) = "(" ++ showMathExprArg xs ", " ++ ")"
-showMathExpr (Collection xs) = "\\{" ++ showMathExprArg xs ", " ++ "\\}"
-showMathExpr (Quote x) = "(" ++ showMathExpr x ++ ")"
+  showMathValueForPlus :: [MathValue] -> String
+  showMathValueForPlus []                                  = ""
+  showMathValueForPlus (NegativeAtom a:xs)                 = " - " ++ a ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom "1":ys):xs) = " - " ++ showMathValue (Multiply ys) ++ showMathValueForPlus xs
+  showMathValueForPlus (Multiply (NegativeAtom a:ys):xs)   = " - " ++ showMathValue (Multiply (Atom a []:ys)) ++ showMathValueForPlus xs
+  showMathValueForPlus (x:xs)                              = " + " ++  showMathValue x ++ showMathValueForPlus xs
+showMathValue (Multiply []) = ""
+showMathValue (Multiply [x]) = showMathValue x
+showMathValue (Multiply (Atom "1" []:xs)) = showMathValue (Multiply xs)
+showMathValue (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathValue (Multiply xs)
+showMathValue (Multiply (x:xs)) = showMathValue' x ++ " " ++ showMathValue (Multiply xs)
+showMathValue (Div x y) = "\\frac{" ++ showMathValue x ++ "}{" ++ showMathValue y ++ "}"
+showMathValue (Power lv1 lv2) = showMathValue lv1 ++ "^" ++ showMathValue lv2
+showMathValue (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathValue x ++ "}"
+showMathValue (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathValue x ++ "]{" ++ showMathValue y ++ "}"
+showMathValue (Func (Atom "exp" []) [x]) = "e^{" ++ showMathValue x ++ "}"
+showMathValue (Func f xs) = showMathValue f ++ "(" ++ showMathValueArg xs ", " ++ ")"
+showMathValue (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathValueVectors xs ++ "\\end{pmatrix}" ++ showMathValueScript mis
+showMathValue (Tuple xs) = "(" ++ showMathValueArg xs ", " ++ ")"
+showMathValue (Collection xs) = "\\{" ++ showMathValueArg xs ", " ++ "\\}"
+showMathValue (Quote x) = "(" ++ showMathValue x ++ ")"
 
-showMathExpr' :: MathExpr -> String
-showMathExpr' (Plus xs) = "(" ++ showMathExpr (Plus xs) ++ ")"
-showMathExpr' x         = showMathExpr x
+showMathValue' :: MathValue -> String
+showMathValue' (Plus xs) = "(" ++ showMathValue (Plus xs) ++ ")"
+showMathValue' x         = showMathValue x
 
-showMathExprArg :: [MathExpr] -> String -> String
-showMathExprArg exprs sep = intercalate sep $ map showMathExpr exprs
+showMathValueArg :: [MathValue] -> String -> String
+showMathValueArg exprs sep = intercalate sep $ map showMathValue exprs
 
-showMathExprSuper :: MathIndex -> String
-showMathExprSuper (Super (Atom "#" [])) = "\\#"
-showMathExprSuper (Super x)             = showMathExpr x
-showMathExprSuper (Sub _)               = "\\;"
+showMathValueSuper :: MathIndex -> String
+showMathValueSuper (Super (Atom "#" [])) = "\\#"
+showMathValueSuper (Super x)             = showMathValue x
+showMathValueSuper (Sub _)               = "\\;"
 
-showMathExprSub :: MathIndex -> String
-showMathExprSub (Sub (Atom "#" [])) = "\\#"
-showMathExprSub (Sub x)             = showMathExpr x
-showMathExprSub (Super _)           = "\\;"
+showMathValueSub :: MathIndex -> String
+showMathValueSub (Sub (Atom "#" [])) = "\\#"
+showMathValueSub (Sub x)             = showMathValue x
+showMathValueSub (Super _)           = "\\;"
 
-showMathExprScript :: [MathIndex] -> String
-showMathExprScript [] = ""
-showMathExprScript is = "_{" ++ concatMap showMathExprSub is ++ "}^{" ++ concatMap showMathExprSuper is ++ "}"
+showMathValueScript :: [MathIndex] -> String
+showMathValueScript [] = ""
+showMathValueScript is = "_{" ++ concatMap showMathValueSub is ++ "}^{" ++ concatMap showMathValueSuper is ++ "}"
 
-showMathExprVectors :: [MathExpr] -> String
-showMathExprVectors []                = ""
-showMathExprVectors (Tensor lvs []:r) = showMathExprArg lvs " & " ++ " \\\\ " ++ showMathExprVectors r
-showMathExprVectors lvs               = showMathExprArg lvs " \\\\ " ++ "\\\\ "
+showMathValueVectors :: [MathValue] -> String
+showMathValueVectors []                = ""
+showMathValueVectors (Tensor lvs []:r) = showMathValueArg lvs " & " ++ " \\\\ " ++ showMathValueVectors r
+showMathValueVectors lvs               = showMathValueArg lvs " \\\\ " ++ "\\\\ "
 
 elemCount :: Eq a => [a] -> [(a, Int)]
 elemCount []     = []

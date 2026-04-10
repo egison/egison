@@ -34,7 +34,7 @@ data EgisonOpts = EgisonOpts {
     optShowBanner       :: Bool,
     optTestOnly         :: Bool,
     optPrompt           :: String,
-    optMathExpr         :: Maybe String,
+    optMathValue         :: Maybe String,
     optMathNormalize    :: Bool,
     optTypeCheck        :: Bool,       -- ^ Enable type checking
     optTypeCheckStrict  :: Bool,       -- ^ Strict type checking mode

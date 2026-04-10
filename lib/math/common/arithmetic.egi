@@ -3,37 +3,37 @@
 -- Arithmetic Operation
 --
 --
-declare symbol i, w, e, π: MathExpr
+declare symbol i, w, e, π: MathValue
 
-def (+') : MathExpr -> MathExpr -> MathExpr := i.+
-def (-') : MathExpr -> MathExpr -> MathExpr := i.-
-def (*') : MathExpr -> MathExpr -> MathExpr := i.*
-def (/') : MathExpr -> MathExpr -> MathExpr := i./
+def (+') : MathValue -> MathValue -> MathValue := i.+
+def (-') : MathValue -> MathValue -> MathValue := i.-
+def (*') : MathValue -> MathValue -> MathValue := i.*
+def (/') : MathValue -> MathValue -> MathValue := i./
 
-def plusForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+def plusForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   mathNormalize (x +' y)
 
-def minusForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+def minusForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   mathNormalize (x -' y)
 
-def multForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+def multForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   mathNormalize (x *' y)
 
-def divForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+def divForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   x /' y
 
 def sum {AddMonoid a} (xs: [a]) : a := foldl (+) zero xs
-def sum' (xs: [MathExpr]) : MathExpr := foldl (+') 0 xs
+def sum' (xs: [MathValue]) : MathValue := foldl (+') 0 xs
 
 def product {MulMonoid a} (xs: [a]) : a := foldl (*) one xs
-def product' (xs: [MathExpr]) : MathExpr := foldl (*') 1 xs
+def product' (xs: [MathValue]) : MathValue := foldl (*') 1 xs
 
-def power (x: MathExpr) (n: MathExpr) : MathExpr := mathNormalize (power' x n)
-def power' (x: MathExpr) (n: MathExpr) : MathExpr := foldl (*') 1 (take n (repeat1 x))
+def power (x: MathValue) (n: MathValue) : MathValue := mathNormalize (power' x n)
+def power' (x: MathValue) (n: MathValue) : MathValue := foldl (*') 1 (take n (repeat1 x))
 
-def exp (x: MathExpr) : MathExpr := 'exp x
+def exp (x: MathValue) : MathValue := 'exp x
 
-def (^) (x: MathExpr) (n: MathExpr) : MathExpr :=
+def (^) (x: MathValue) (n: MathValue) : MathValue :=
   if x = e
     then exp n
     else if isRational n
@@ -42,7 +42,7 @@ def (^) (x: MathExpr) (n: MathExpr) : MathExpr :=
         else 1 / x ^ i.neg n
       else '(^) x n
 
-def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
+def (^') (x: MathValue) (n: MathValue) : MathValue :=
   if x = e
     then exp n
     else if isRational n
@@ -51,7 +51,7 @@ def (^') (x: MathExpr) (n: MathExpr) : MathExpr :=
         else 1 /' x ^' i.neg n
       else '(^) x n
 
-def gcdForMathExpr (x: MathExpr) (y: MathExpr) : MathExpr :=
+def gcdForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   match (x, y) as (termExpr, termExpr) with
     | (_, #0) -> x
     | (#0, _) -> y

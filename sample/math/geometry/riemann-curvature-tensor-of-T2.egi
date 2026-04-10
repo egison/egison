@@ -1,18 +1,18 @@
-declare symbol a, b, θ, φ: MathExpr
+declare symbol a, b, θ, φ: MathValue
 
 -- Parameters
-def x : Vector MathExpr := [| θ, φ |]
+def x : Vector MathValue := [| θ, φ |]
 
-def X : Vector MathExpr := [| `(a * cos θ + b) * cos φ -- x
+def X : Vector MathValue := [| `(a * cos θ + b) * cos φ -- x
           , `(a * cos θ + b) * sin φ -- y
           , a * sin θ                -- z
           |]
 
-def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
+def e_i_j : Matrix MathValue := ∂/∂ X_j x~i
 
 -- Metric tensors
-def g[_i_j] : Matrix MathExpr := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
-def g[~i~j] : Matrix MathExpr := M.inverse g_#_#
+def g[_i_j] : Matrix MathValue := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
+def g[~i~j] : Matrix MathValue := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#

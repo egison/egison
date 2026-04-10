@@ -1,35 +1,35 @@
-declare symbol r, θ: MathExpr
+declare symbol r, θ: MathValue
 
 -- Parameters and metrics
 
 def N : Integer := 2
 
-def x : Vector MathExpr := [|r, θ|]
+def x : Vector MathValue := [|r, θ|]
 
-def g_i_j : Matrix MathExpr := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
-def g~i~j : Matrix MathExpr := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
+def g_i_j : Matrix MathValue := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
+def g~i~j : Matrix MathValue := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
 
 -- Hodge Laplacian
 
-def d (A: Tensor MathExpr) : Tensor MathExpr := !(flip ∂/∂) x A
+def d (A: Tensor MathValue) : Tensor MathValue := !(flip ∂/∂) x A
 
-def hodge (A: Tensor MathExpr) : Tensor MathExpr :=
+def hodge (A: Tensor MathValue) : Tensor MathValue :=
   let k := dfOrder A in
     withSymbols [i, j]
       (sqrt (M.det g_#_#)) * (foldl (.) ((subrefs A (map 1#j_$1 (between 1 k))) . (subrefs (ε' N k) (map 1#i_$1 (between 1 N))))
                                         (map 1#g~(i_$1)~(j_$1) [1..k]))
 
 
-def δ (A: Tensor MathExpr) : Tensor MathExpr :=
+def δ (A: Tensor MathValue) : Tensor MathValue :=
   let k := dfOrder A in
     -1^(N * (k + 1) + 1) * (hodge (d (hodge A)))
 
-def Δ (A: Tensor MathExpr) : Tensor MathExpr :=
+def Δ (A: Tensor MathValue) : Tensor MathValue :=
   match (dfOrder A) as integer with
   | #0 -> δ (d A)
   | #N -> d (δ A)
   | _  -> d (δ A) + δ (d A)
 
-def f : MathExpr := function (r, θ)
+def f : MathValue := function (r, θ)
 
 assertEqual "Laplacian" (Δ f) ((-1 / r^2) * ((∂/∂ (∂/∂ f θ) θ) + r * (∂/∂ f r) + (r^2 * (∂/∂ (∂/∂ f r) r))))

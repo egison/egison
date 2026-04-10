@@ -1,6 +1,6 @@
 -- Spherical Laplacian in 3D using tensor notation
 
-declare symbol r, θ, φ : MathExpr
+declare symbol r, θ, φ : MathValue
 
 def f := function (r, θ, φ)
 
@@ -9,7 +9,7 @@ def x := [| r, θ, φ |]
 def X := [| r * sin θ * cos φ, r * sin θ * sin φ, r * cos θ |]
 
 -- Local basis
-def e_i_j : Matrix MathExpr := ∂/∂ X_j x~i
+def e_i_j : Matrix MathValue := ∂/∂ X_j x~i
 
 -- Metric tensor
 def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [3, 3]

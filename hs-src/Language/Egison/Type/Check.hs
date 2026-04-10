@@ -68,12 +68,12 @@ builtinTypes = concat
 
     -- Primitives from Primitives.hs (strictPrimitives and lazyPrimitives)
     primitivesTypes =
-      [ ("addSubscript", binOp TInt TInt TInt)  -- MathExpr operations
-      , ("addSuperscript", binOp TInt TInt TInt)  -- MathExpr operations
+      [ ("addSubscript", binOp TInt TInt TInt)  -- MathValue operations
+      , ("addSuperscript", binOp TInt TInt TInt)  -- MathValue operations
       , ("assert", binOp TString TBool TBool)
       , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
       , ("sortWithSign", Forall [] [] $ TFun (TCollection (TCollection TInt)) (TTuple [TInt, TCollection TInt]))
-      , ("updateFunctionArgs", Forall [] [] $ TFun TMathExpr (TFun (TCollection TMathExpr) TMathExpr))
+      , ("updateFunctionArgs", Forall [] [] $ TFun TMathValue (TFun (TCollection TMathValue) TMathValue))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
@@ -96,7 +96,7 @@ builtinTypes = concat
       -- Fraction operations
       , ("numerator", unaryOp TInt TInt)
       , ("denominator", unaryOp TInt TInt)
-      -- MathExpr operations
+      -- MathValue operations
       , ("symbolNormalize", unaryOp TInt TInt)
       -- Integer operations
       , ("i.modulo", binOp TInt TInt TInt)

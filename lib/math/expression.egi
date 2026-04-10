@@ -4,38 +4,38 @@
 --
 --
 
-inductive pattern MathExpr :=
-  | frac MathExpr MathExpr
-  | (/) MathExpr MathExpr
-  | plus [MathExpr]
-  | poly [MathExpr]
-  | term Integer [(MathExpr, Integer)]
-  | mult Integer MathExpr
-  | (+) MathExpr MathExpr
-  | (*) MathExpr MathExpr
-  | (^) MathExpr Integer
+inductive pattern MathValue :=
+  | frac MathValue MathValue
+  | (/) MathValue MathValue
+  | plus [MathValue]
+  | poly [MathValue]
+  | term Integer [(MathValue, Integer)]
+  | mult Integer MathValue
+  | (+) MathValue MathValue
+  | (*) MathValue MathValue
+  | (^) MathValue Integer
   | symbol String [IndexExpr]
-  | apply1 (MathExpr -> MathExpr) MathExpr
-  | apply2 (MathExpr -> MathExpr -> MathExpr) MathExpr MathExpr
-  | apply3 (MathExpr -> MathExpr -> MathExpr -> MathExpr) MathExpr MathExpr MathExpr
-  | apply4 (MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathExpr) MathExpr MathExpr MathExpr MathExpr
-  | quote MathExpr
-  | func MathExpr [MathExpr]
+  | apply1 (MathValue -> MathValue) MathValue
+  | apply2 (MathValue -> MathValue -> MathValue) MathValue MathValue
+  | apply3 (MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue
+  | apply4 (MathValue -> MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue MathValue
+  | quote MathValue
+  | func MathValue [MathValue]
 
 inductive pattern IndexExpr :=
-  | sub MathExpr
-  | sup MathExpr
-  | user MathExpr
+  | sub MathValue
+  | sup MathValue
+  | user MathValue
 
 def indexExpr : Matcher IndexExpr :=
   matcher
-    | sub $ as (mathExpr) with
+    | sub $ as (mathValue) with
         | Sub $e -> [e]
         | _ -> []
-    | sup $ as (mathExpr) with
+    | sup $ as (mathValue) with
         | Sup $e -> [e]
         | _ -> []
-    | user $ as (mathExpr) with
+    | user $ as (mathValue) with
         | User $e -> [e]
         | _ -> []
     | #$val as () with
@@ -43,26 +43,26 @@ def indexExpr : Matcher IndexExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
-def mathExpr : Matcher MathExpr :=
+def mathValue : Matcher MathValue :=
   matcher
-    | frac $ $ as (mathExpr, mathExpr) with
+    | frac $ $ as (mathValue, mathValue) with
         | Frac $p1 $p2 -> [(p1, p2)]
         | _ -> []
-    | $ / $ as (mathExpr, mathExpr) with
+    | $ / $ as (mathValue, mathValue) with
         | Frac $p1 $p2 -> [(p1, p2)]
         | _ -> []
-    | poly $ as (multiset mathExpr) with
+    | poly $ as (multiset mathValue) with
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
         | _ -> []
-    | plus $ as (multiset mathExpr) with
+    | plus $ as (multiset mathValue) with
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
         | _ -> []
-    | $ + $ as (mathExpr, mathExpr) with
+    | $ + $ as (mathValue, mathValue) with
         | Frac (Plus $ts) (Plus [Term 1 []]) ->
             matchAll ts as multiset something with
               | $t :: $tss -> (t, sum' tss)
         | _ -> []
-    | term $ $ as (integer, assocMultiset mathExpr) with
+    | term $ $ as (integer, assocMultiset mathValue) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, xs)]
         | _ -> []
@@ -78,27 +78,27 @@ def mathExpr : Matcher MathExpr :=
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
-    | apply1 $ $ as (something, mathExpr) with
+    | apply1 $ $ as (something, mathValue) with
         | Frac (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
             [(v, a1)]
         | _ -> []
-    | apply2 $ $ $ as (something, mathExpr, mathExpr) with
+    | apply2 $ $ $ as (something, mathValue, mathValue) with
         | Frac (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
             [(v, a1, a2)]
         | _ -> []
-    | apply3 $ $ $ $ as (something, mathExpr, mathExpr, mathExpr) with
+    | apply3 $ $ $ $ as (something, mathValue, mathValue, mathValue) with
         | Frac (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
             [(v, a1, a2, a3)]
         | _ -> []
-    | apply4 $ $ $ $ $ as (something, mathExpr, mathExpr, mathExpr, mathExpr) with
+    | apply4 $ $ $ $ $ as (something, mathValue, mathValue, mathValue, mathValue) with
         | Frac (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
             [(v, a1, a2, a3, a4)]
         | _ -> []
-    | quote $ as (mathExpr) with
+    | quote $ as (mathValue) with
         | Frac (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
             [mexpr]
         | _ -> []
-    | func $ $ as (mathExpr, list mathExpr) with
+    | func $ $ as (mathValue, list mathValue) with
         | Frac
             (Plus [Term 1 [(Function $name $args, 1)]])
             (Plus [Term 1 []]) ->
@@ -109,57 +109,57 @@ def mathExpr : Matcher MathExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
-def multExpr : Matcher MathExpr :=
+def multExpr : Matcher MathValue :=
   matcher
-    | ($ ^ $) * $ as (mathExpr, integer, multExpr) with
+    | ($ ^ $) * $ as (mathValue, integer, multExpr) with
         | $tgt ->
-            matchAll tgt as mathExpr with
+            matchAll tgt as mathValue with
               | term _ (($x, $n) :: $rs) -> (x, n, product' (map (\(x, n) -> x ^' n) rs))
-    | $ ^ $ as (mathExpr, integer) with
+    | $ ^ $ as (mathValue, integer) with
         | $tgt ->
-            match tgt as mathExpr with
+            match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
               | _ -> []
-    | $ * $ as (mathExpr, multExpr) with
+    | $ * $ as (mathValue, multExpr) with
         | $tgt ->
-            matchAll tgt as mathExpr with
+            matchAll tgt as mathValue with
               | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
     | #$val as () with
         | $tgt -> if val = tgt then [()] else []
     | $ as something with
         | $tgt -> [tgt]
 
-def termExpr : Matcher MathExpr := mathExpr
+def termExpr : Matcher MathValue := mathValue
 
-def isSymbol (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
+def isSymbol (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
     | symbol _ _ -> True
     | _ -> False
 
-def isApply (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
+def isApply (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
     | apply1 _ _ -> True
     | apply2 _ _ _ -> True
     | apply3 _ _ _ _ -> True
     | apply4 _ _ _ _ _ -> True
     | _ -> False
 
-def isSimpleTerm (mexpr: MathExpr) : Bool := isSymbol mexpr || isApply mexpr
+def isSimpleTerm (mexpr: MathValue) : Bool := isSymbol mexpr || isApply mexpr
 
-def isTerm (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
+def isTerm (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
     | term _ _ -> True
     | #0 -> True
     | _ -> False
 
-def isPolynomial (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
+def isPolynomial (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
     | poly _ -> True
     | #0 -> True
     | _ -> False
 
-def isMonomial (mexpr: MathExpr) : Bool :=
-  match mexpr as mathExpr with
+def isMonomial (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
     | poly [term _ _] / poly [term _ _] -> True
     | #0 -> True
     | _ -> False
@@ -167,40 +167,40 @@ def isMonomial (mexpr: MathExpr) : Bool :=
 --
 -- Accessor
 --
-def fromMonomial (mexpr: MathExpr) : (MathExpr, MathExpr) :=
-  match mexpr as mathExpr with
+def fromMonomial (mexpr: MathValue) : (MathValue, MathValue) :=
+  match mexpr as mathValue with
     | term $a $xs / term $b $ys ->
       (a / b, foldl (*') 1 (map (uncurry (^')) xs) / foldl (*') 1 (map (uncurry (^')) ys))
 
 --
 -- Map
 --
-def mapPolys (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
-  match mexpr as mathExpr with
+def mapPolys (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
+  match mexpr as mathValue with
     | $p1 / $p2 -> fn p1 /' fn p2
 
-def fromPoly (mexpr: MathExpr) : [MathExpr] :=
-  match mexpr as mathExpr with
+def fromPoly (mexpr: MathValue) : [MathValue] :=
+  match mexpr as mathValue with
     | poly $ts1 / $q -> map (\t1 -> t1 /' q) ts1
 
-def mapPoly (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
-  match mexpr as mathExpr with
+def mapPoly (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
+  match mexpr as mathValue with
     | poly $ts1 / $q -> foldl (+') 0 (map (\t1 -> fn (t1 /' q)) ts1)
 
-def mapTerms (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
-  match mexpr as mathExpr with
+def mapTerms (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
+  match mexpr as mathValue with
     | poly $ts1 / poly $ts2 ->
         foldl (+') 0 (map fn ts1) /' foldl (+') 0 (map fn ts2)
 
-def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
+def mapSymbols (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
   mapTerms
-    (\match as mathExpr with
+    (\match as mathValue with
       | term $a $xs ->
           a *' foldl
                 (*')
                 1
                 (map
-                  (\(x, n) -> match x as mathExpr with
+                  (\(x, n) -> match x as mathValue with
                       | symbol _ _ -> fn x ^' n
                       | apply1 $g $a1 ->
                           let a1' := mapSymbols fn a1
@@ -236,17 +236,17 @@ def mapSymbols (fn: MathExpr -> MathExpr) (mexpr: MathExpr) : MathExpr :=
                   xs))
     mexpr
 
-def scanAllTerms (mexpr: MathExpr) (f: MathExpr -> Bool) : Bool :=
-  match mexpr as mathExpr with
+def scanAllTerms (mexpr: MathValue) (f: MathValue -> Bool) : Bool :=
+  match mexpr as mathValue with
     | poly $ts1 / poly $ts2 -> any f (ts1 ++ ts2)
     | _ -> not ((debug2 "scanAllTerms" mexpr) = mexpr) -- TODO: if tensorMap is inserted correctly, we canremove this
 
-def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
+def containSymbol (x: MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
-    (\t -> match t as mathExpr with
+    (\t -> match t as mathValue with
       | term _ $xs ->
           any
-            (\(y, _) -> match y as mathExpr with
+            (\(y, _) -> match y as mathValue with
               | #x -> True
               | apply1 _ $a1 -> containSymbol x a1
               | apply2 _ $a1 $a2 -> containSymbol x a1 || containSymbol x a2
@@ -255,12 +255,12 @@ def containSymbol (x: MathExpr) (mexpr: MathExpr) : Bool :=
               | _ -> False)
             xs)
 
-def containFunction1 (f : MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
+def containFunction1 (f : MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
-    (\t -> match t as mathExpr with
+    (\t -> match t as mathValue with
       | term _ $xs ->
           any
-            (\(y, _) -> match y as mathExpr with
+            (\(y, _) -> match y as mathValue with
               | apply1 #f _ -> True
               | apply1 _ $a1 -> containFunction1 f a1
               | apply2 _ $a1 $a2 -> containFunction1 f a1 || containFunction1 f a2
@@ -268,12 +268,12 @@ def containFunction1 (f : MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3 || containFunction1 f a4
               | _ -> False) xs)
 
-def containFunction2 (f : MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
+def containFunction2 (f : MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
-    (\t -> match t as mathExpr with
+    (\t -> match t as mathValue with
       | term _ $xs ->
           any
-            (\(y, _) -> match y as mathExpr with
+            (\(y, _) -> match y as mathValue with
               | apply2 #f _ _ -> True
               | apply1 _ $a1 -> containFunction2 f a1
               | apply2 _ $a1 $a2 -> containFunction2 f a1 || containFunction2 f a2
@@ -282,12 +282,12 @@ def containFunction2 (f : MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : 
               | _ -> False)
             xs)
 
-def containFunction3 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
+def containFunction3 (f : MathValue -> MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
-    (\t -> match t as mathExpr with
+    (\t -> match t as mathValue with
       | term _ $xs ->
           any
-            (\(y, _) -> match y as mathExpr with
+            (\(y, _) -> match y as mathValue with
               | apply3 #f _ _ _ -> True
               | apply1 _ $a1 -> containFunction3 f a1
               | apply2 _ $a1 $a2 -> containFunction3 f a1 || containFunction3 f a2
@@ -296,12 +296,12 @@ def containFunction3 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr) (mexpr: 
               | _ -> False)
             xs)
 
-def containFunction4 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathExpr) (mexpr: MathExpr) : Bool :=
+def containFunction4 (f : MathValue -> MathValue -> MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
-    (\t -> match t as mathExpr with
+    (\t -> match t as mathValue with
       | term _ $xs ->
           any
-            (\(y, _) -> match y as mathExpr with
+            (\(y, _) -> match y as mathValue with
               | apply4 #f _ _ _ _ -> True
               | apply1 _ $a1 -> containFunction4 f a1
               | apply2 _ $a1 $a2 -> containFunction4 f a1 || containFunction4 f a2
@@ -313,24 +313,24 @@ def containFunction4 (f : MathExpr -> MathExpr -> MathExpr -> MathExpr -> MathEx
 --
 -- Substitute
 --
-def substitute (ls: [(MathExpr, MathExpr)]) (mexpr: MathExpr) : MathExpr :=
-  match ls as list (mathExpr, mathExpr) with
+def substitute (ls: [(MathValue, MathValue)]) (mexpr: MathValue) : MathValue :=
+  match ls as list (mathValue, mathValue) with
     | [] -> mathNormalize mexpr
     | ($x, $a) :: $rs -> substitute rs (substitute' x a mexpr)
 
-def substitute' (x: MathExpr) (a: MathExpr) (mexpr: MathExpr) : MathExpr := 
+def substitute' (x: MathValue) (a: MathValue) (mexpr: MathValue) : MathValue := 
   mapSymbols (rewriteSymbol x a) mexpr
 
-def rewriteSymbol (x: MathExpr) (a: MathExpr) (sexpr: MathExpr) : MathExpr :=
-  match sexpr as mathExpr with
+def rewriteSymbol (x: MathValue) (a: MathValue) (sexpr: MathValue) : MathValue :=
+  match sexpr as mathValue with
     | #x -> a
     | _ -> sexpr
 
-def V.substitute (xs: Vector MathExpr) (ys: Vector MathExpr) (mexpr: MathExpr) : MathExpr :=
+def V.substitute (xs: Vector MathValue) (ys: Vector MathValue) (mexpr: MathValue) : MathValue :=
   substitute (zip (tensorToList xs) (tensorToList ys)) mexpr
 
-def expandAll (mexpr: MathExpr) : MathExpr :=
-  match mexpr as mathExpr with
+def expandAll (mexpr: MathValue) : MathValue :=
+  match mexpr as mathValue with
     | ?isInteger -> mexpr
     | ?isSymbol -> mexpr
     -- function application
@@ -347,8 +347,8 @@ def expandAll (mexpr: MathExpr) : MathExpr :=
     -- quotient
     | $p1 / $p2 -> expandAll p1 / expandAll p2
 
-def expandAll' (mexpr: MathExpr) : MathExpr :=
-  match mexpr as mathExpr with
+def expandAll' (mexpr: MathValue) : MathValue :=
+  match mexpr as mathValue with
     | ?isInteger -> mexpr
     | ?isSymbol -> mexpr
     -- function application
@@ -368,28 +368,28 @@ def expandAll' (mexpr: MathExpr) : MathExpr :=
 --
 -- Coefficient
 --
-def coefficients (f: MathExpr) (x: MathExpr) : [MathExpr] :=
-  let m := maximum (0 :: (matchAll f as mathExpr with
+def coefficients (f: MathValue) (x: MathValue) : [MathValue] :=
+  let m := maximum (0 :: (matchAll f as mathValue with
                            | poly (term $a ((#x, $k) :: $ts) :: _) / _ -> k))
   in map (coefficient f x) (between 0 m)
 
-def coefficient (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
+def coefficient (f: MathValue) (x: MathValue) (m: Integer) : MathValue :=
   if m = 0
-    then sum (matchAll f as mathExpr with
+    then sum (matchAll f as mathValue with
                | poly (term $a (!((#x, _) :: _) & $ts) :: _) / _ ->
                  foldl (*') a (map (uncurry (^')) ts)) / denominator f
     else coefficient' f x m
 
-def coefficient' (f: MathExpr) (x: MathExpr) (m: Integer) : MathExpr :=
+def coefficient' (f: MathValue) (x: MathValue) (m: Integer) : MathValue :=
   sum
-    (matchAll f as mathExpr with
+    (matchAll f as mathValue with
       | poly (term $a ((#x, #m) :: (!((#x, _) :: _) & $ts)) :: _) /_ ->
         foldl (*') a (map (uncurry (^')) ts)) /' denominator f
 
-def L./ (xs: [MathExpr]) (ys: [MathExpr]) : ([MathExpr], [MathExpr]) :=
+def L./ (xs: [MathValue]) (ys: [MathValue]) : ([MathValue], [MathValue]) :=
   if length xs < length ys
     then ([], xs)
-    else match (ys, xs) as (list mathExpr, list mathExpr) with
+    else match (ys, xs) as (list mathValue, list mathValue) with
       | ($y :: $yrs, $x :: $xrs) ->
         let (zs, rs) := L./ (map2 (-) (take (length yrs) xrs) (map (* (x / y)) yrs) ++ drop (length yrs) xrs) ys
          in (x / y :: zs, rs)

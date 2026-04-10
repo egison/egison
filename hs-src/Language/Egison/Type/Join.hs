@@ -81,10 +81,10 @@ joinTypes other (TPoly t ss@SymbolSetOpen) =
 joinTypes TAny t = Right t
 joinTypes t TAny = Right t
 
--- MathExpr compatibility (legacy)
-joinTypes TInt TMathExpr = Right TMathExpr
-joinTypes TMathExpr TInt = Right TMathExpr
-joinTypes TMathExpr TMathExpr = Right TMathExpr
+-- MathValue compatibility (legacy)
+joinTypes TInt TMathValue = Right TMathValue
+joinTypes TMathValue TInt = Right TMathValue
+joinTypes TMathValue TMathValue = Right TMathValue
 
 -- Default: types are incompatible
 joinTypes t1 t2 = Left (IncompatibleTypes t1 t2)
@@ -147,7 +147,7 @@ isSubtype t1 t2 | t1 == t2 = True
 isSubtype TInt (TFrac TInt) = True
 isSubtype TInt TFactor = True
 isSubtype TInt (TPoly TInt _) = True
-isSubtype TInt TMathExpr = True
+isSubtype TInt TMathValue = True
 
 -- Factor subtypes
 isSubtype TFactor (TPoly TInt _) = True

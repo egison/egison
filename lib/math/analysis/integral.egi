@@ -4,8 +4,8 @@
 --
 --
 
-def Sd (x : MathExpr) (f : MathExpr) : MathExpr :=
-  match f as mathExpr with
+def Sd (x : MathValue) (f : MathValue) : MathValue :=
+  match f as mathValue with
     -- symbols
     | #x -> 1 / 2 * x ^ 2
     | symbol _ _ -> f * x
@@ -32,10 +32,10 @@ def Sd (x : MathExpr) (f : MathExpr) : MathExpr :=
     | plus $ts / $p2 -> sum (map 1#(Sd x ($1 / p2)) ts)
     | $p1 / $p2 -> if containSymbol x p2 then 'Sd x f else Sd x p1 / p2
 
-def multSd (x: MathExpr) (f: MathExpr) (g: MathExpr) : MathExpr :=
+def multSd (x: MathValue) (f: MathValue) (g: MathValue) : MathValue :=
   let F := Sd x f
    in F * g - Sd x (F * d/d g x)
 
-def dSd (x: MathExpr) (a: MathExpr) (b: MathExpr) (f: MathExpr) : MathExpr :=
+def dSd (x: MathValue) (a: MathValue) (b: MathValue) (f: MathValue) : MathValue :=
   let F := Sd x f
    in substitute [(x, b)] F - substitute [(x, a)] F

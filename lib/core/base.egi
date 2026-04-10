@@ -82,32 +82,32 @@ def (/) {Field a} (x: a) (y: a) : a := x * inv y
 def modulo {EuclideanDomain a} (x: a) (y: a) : a := snd (divMod x y)
 def quotient {EuclideanDomain a} (x: a) (y: a) : a := fst (divMod x y)
 
--- MathExpr instances
-instance AddSemigroup MathExpr where
-  (+) x y := plusForMathExpr x y
+-- MathValue instances
+instance AddSemigroup MathValue where
+  (+) x y := plusForMathValue x y
 
-instance AddMonoid MathExpr where
+instance AddMonoid MathValue where
   zero := 0
 
-instance AddGroup MathExpr where
-  neg x := minusForMathExpr 0 x
+instance AddGroup MathValue where
+  neg x := minusForMathValue 0 x
 
-instance MulSemigroup MathExpr where
-  (*) x y := multForMathExpr x y
+instance MulSemigroup MathValue where
+  (*) x y := multForMathValue x y
 
-instance MulMonoid MathExpr where
+instance MulMonoid MathValue where
   one := 1
 
-instance MulGroup MathExpr where
-  inv x := divForMathExpr 1 x
+instance MulGroup MathValue where
+  inv x := divForMathValue 1 x
 
-instance Ring MathExpr
-instance Field MathExpr
+instance Ring MathValue
+instance Field MathValue
 
-instance GCDDomain MathExpr where
-  gcd x y := gcdForMathExpr x y
+instance GCDDomain MathValue where
+  gcd x y := gcdForMathValue x y
 
-instance EuclideanDomain MathExpr where
+instance EuclideanDomain MathValue where
   divMod x y := (i.quotient x y, i.modulo x y)
 
 -- Float instances

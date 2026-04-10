@@ -2,22 +2,22 @@
 -- 2D Polar Laplacian using chain rule
 --
 
-declare symbol r, θ : MathExpr
+declare symbol r, θ : MathValue
 
-def x : MathExpr := r * cos θ
-def y : MathExpr := r * sin θ
+def x : MathValue := r * cos θ
+def y : MathValue := r * sin θ
 
 def u := function (x, y)
 
-def uR : MathExpr := ∂/∂ u r
+def uR : MathValue := ∂/∂ u r
 
 assert "∂u/∂r"
   (show uR = "u|1 (r * 'cos θ) (r * 'sin θ) * 'cos θ + u|2 (r * 'cos θ) (r * 'sin θ) * 'sin θ")
 
-def uRR : MathExpr := ∂/∂ (∂/∂ u r) r
+def uRR : MathValue := ∂/∂ (∂/∂ u r) r
 
-def uΘ : MathExpr := ∂/∂ u θ
-def uΘΘ : MathExpr := ∂/∂ (∂/∂ u θ) θ
+def uΘ : MathValue := ∂/∂ u θ
+def uΘΘ : MathValue := ∂/∂ (∂/∂ u θ) θ
 
 -- Laplacian in polar coordinates: ∂²u/∂r² + (1/r)∂u/∂r + (1/r²)∂²u/∂θ²
 -- Full Laplacian should simplify to u|1|1 + u|2|2

@@ -115,7 +115,7 @@ unifyG :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either U
 
 -- Same types unify trivially
 unifyG _ _ _ TInt TInt = ok
-unifyG _ _ _ TMathExpr TMathExpr = ok
+unifyG _ _ _ TMathValue TMathValue = ok
 unifyG _ _ _ TPolyExpr TPolyExpr = ok
 unifyG _ _ _ TTermExpr TTermExpr = ok
 unifyG _ _ _ TSymbolExpr TSymbolExpr = ok
@@ -125,9 +125,9 @@ unifyG _ _ _ TBool TBool = ok
 unifyG _ _ _ TChar TChar = ok
 unifyG _ _ _ TString TString = ok
 
--- Special rule: TInt and TMathExpr unify
-unifyG _ _ _ TInt TMathExpr = ok
-unifyG _ _ _ TMathExpr TInt = ok
+-- Special rule: TInt and TMathValue unify
+unifyG _ _ _ TInt TMathValue = ok
+unifyG _ _ _ TMathValue TInt = ok
 
 -- Type variables: delegated to mode-specific handler
 unifyG mode ce cs (TVar v) t = unifyVarG mode ce cs v t

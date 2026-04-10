@@ -81,7 +81,7 @@ import           Language.Egison.Type.Types      (Type(..))
 -- Used for type class method dispatch
 valueToType :: EgisonValue -> Type
 valueToType (Bool _)         = TBool
-valueToType (CASData _)      = TInt  -- MathExpr = TInt in Egison
+valueToType (CASData _)      = TInt  -- MathValue = TInt in Egison
 valueToType (Float _)        = TFloat
 valueToType (Char _)         = TChar
 valueToType (String _)       = TString

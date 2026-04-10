@@ -71,7 +71,7 @@ data SymbolSet
 -- | Egison types
 data Type
   = TInt                              -- ^ Integer
-  | TMathExpr                         -- ^ MathExpr (mathematical expression, unifies with Integer)
+  | TMathValue                         -- ^ MathValue (mathematical expression, unifies with Integer)
   | TPolyExpr                         -- ^ PolyExpr (polynomial expression) - legacy
   | TTermExpr                         -- ^ TermExpr (term in polynomial) - legacy
   | TSymbolExpr                       -- ^ SymbolExpr (symbolic variable) - legacy
@@ -98,10 +98,10 @@ data Type
   | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
 
--- | Type alias: MathExpr = Integer in Egison
+-- | Type alias: MathValue = Integer in Egison
 -- Both names refer to the same type (TInt)
-tMathExpr :: Type
-tMathExpr = TInt
+tMathValue :: Type
+tMathValue = TInt
 
 -- | Type scheme for polymorphic types (∀a. C a => Type)
 -- Includes type constraints for type class support
@@ -136,7 +136,7 @@ freshTyVar prefix n = TyVar (prefix ++ show n)
 -- | Get free type variables from a type
 freeTyVars :: Type -> Set TyVar
 freeTyVars TInt             = Set.empty
-freeTyVars TMathExpr        = Set.empty
+freeTyVars TMathValue        = Set.empty
 freeTyVars TPolyExpr        = Set.empty
 freeTyVars TTermExpr        = Set.empty
 freeTyVars TSymbolExpr      = Set.empty
@@ -200,9 +200,9 @@ isSubsetSymbolSet _ (SymbolSetVar _) = False
 -- This is used for generating instance dictionary names and method names
 -- E.g., TInt -> "Integer", TTensor TInt -> "TensorInteger"
 typeToName :: Type -> String
--- Note: TInt is normalized to "MathExpr" because Integer = MathExpr in Egison
-typeToName TInt = "MathExpr"  -- Integer = MathExpr, use MathExpr for dictionary names
-typeToName TMathExpr = "MathExpr"
+-- Note: TInt is normalized to "MathValue" because Integer = MathValue in Egison
+typeToName TInt = "MathValue"  -- Integer = MathValue, use MathValue for dictionary names
+typeToName TMathValue = "MathValue"
 typeToName TFloat = "Float"
 typeToName TBool = "Bool"
 typeToName TChar = "Char"
@@ -224,10 +224,10 @@ typeToName _ = "Unknown"
 -- | Get the type constructor name only, without type parameters
 -- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
 typeConstructorName :: Type -> String
--- Note: TInt is normalized to "MathExpr" because Integer = MathExpr in Egison
--- and all type class instances are defined for MathExpr, not Integer
-typeConstructorName TInt = "MathExpr"  -- Integer = MathExpr, use MathExpr for dictionary names
-typeConstructorName TMathExpr = "MathExpr"
+-- Note: TInt is normalized to "MathValue" because Integer = MathValue in Egison
+-- and all type class instances are defined for MathValue, not Integer
+typeConstructorName TInt = "MathValue"  -- Integer = MathValue, use MathValue for dictionary names
+typeConstructorName TMathValue = "MathValue"
 typeConstructorName TPolyExpr = "PolyExpr"
 typeConstructorName TTermExpr = "TermExpr"
 typeConstructorName TSymbolExpr = "SymbolExpr"
@@ -272,7 +272,7 @@ sanitizeMethodName name = name
 -- | Convert TypeExpr (from AST) to Type (internal representation)
 typeExprToType :: TypeExpr -> Type
 typeExprToType TEInt = TInt
-typeExprToType TEMathExpr = TMathExpr  -- MathExpr is a primitive type
+typeExprToType TEMathValue = TMathValue  -- MathValue is a primitive type
 typeExprToType TEFloat = TFloat
 typeExprToType TEBool = TBool
 typeExprToType TEChar = TChar
@@ -285,7 +285,7 @@ typeExprToType (TEApp t1 ts) =
     TVar (TyVar name) -> 
       -- Special case: convert inductive type names to primitive types
       case (name, ts) of
-        ("MathExpr", [])   -> TMathExpr
+        ("MathValue", [])   -> TMathValue
         ("PolyExpr", [])   -> TPolyExpr
         ("TermExpr", [])   -> TTermExpr
         ("SymbolExpr", []) -> TSymbolExpr
@@ -311,10 +311,10 @@ typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSe
     symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
 
 -- | Normalize inductive type names to primitive types if applicable
--- This is used to convert TInductive "MathExpr" [] to TMathExpr, etc.
+-- This is used to convert TInductive "MathValue" [] to TMathValue, etc.
 normalizeInductiveTypes :: Type -> Type
 normalizeInductiveTypes (TInductive name []) = case name of
-  "MathExpr"   -> TMathExpr
+  "MathValue"   -> TMathValue
   "PolyExpr"   -> TPolyExpr
   "TermExpr"   -> TTermExpr
   "SymbolExpr" -> TSymbolExpr
