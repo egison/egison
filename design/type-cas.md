@@ -3,12 +3,39 @@
 ## 概要
 
 Egisonの数式処理システム(CAS)のための型システムの設計方針をまとめる。
-型によって数式の正規形（内部表現）を制御し、HM型推論とtype classを基盤とする。
-基本的に依存型は採用しないが、`Poly` の3つの原子集合スロット（定数 Factor / 平のシンボル / 合成 Factor）のみ依存型的に扱う。
-型推論は開いた型 `[..] [..] [..]` を推論し、閉じた型への絞り込みはユーザが型注釈で指定する。
-絞り込み時にはランタイムでシンボル集合の検証を行う（`coerce`）。
+
+### 基本原則
+
+**`MathValue` が第一級の計算型**である。`1`, `1 + i`, `x + x^2`, `x + sin x` はすべて `MathValue` として自由に計算できる。演算（`+`, `*`, `∂/∂` 等）も簡約規則（`i^2 = -1` 等）もすべて `MathValue` 上で動作する。
+
+**`Poly a [cs] [ss] [fs]` 等は `MathValue` の subtype** であり、「この式はこの代数構造に属する」という型注釈 + 「その構造の正規形で表示・保持せよ」という指示として機能する。内部表現は `MathValue` と同じ `CASValue` で、subtype への `coerce` 時に所属検証と正規化を行う。
+
+```egison
+-- すべて MathValue として自由に計算
+1 + i                    -- : MathValue
+x + x^2                  -- : MathValue
+x + sin x                -- : MathValue
+∂/∂ (sin x) x           -- : MathValue (= cos x)
+
+-- 型注釈で subtype に絞り込む → 正規化される
+type GaussianInt := Poly Integer [] [i] []
+def a : GaussianInt := 1 + i                           -- coerce + 正規化
+def p : Poly (Frac Integer) [] [x] [] := (x + x^2) / 2 -- (1/2)x + (1/2)x^2 に正規化
+```
+
+### 型システムの基盤
+
+HM型推論とtype classを基盤とする。基本的に依存型は採用しないが、`Poly` の3つの原子集合スロット（定数 Factor / 平のシンボル / 合成 Factor）のみ依存型的に扱う。
 
 `Poly` の原子集合を3スロットに分けるのは、**微分演算子 `∂/∂` が型保存になる十分条件を型レベルで表現する** ためである。合成 Factor のスロット `fs` が空のとき、`Poly` は微分で閉じている。詳細は「微分演算子 `∂/∂`」のセクションを参照。
+
+### 設計のレイヤー
+
+| レイヤー | 責務 |
+|---|---|
+| **`MathValue` + `declare rule auto`** | 演算 + 簡約規則の適用（`i^2 = -1` 等すべて） |
+| **subtype (`Poly a [cs] [ss] [fs]`, `Frac a` 等)** | 所属検証 + 正規形の保証。subtype 上の `Ring` は `MathValue` の演算をラップ + coerce |
+| **`Differentiable` 型クラス** | `fs = []` の `Poly` で微分の型保存を静的に保証 |
 
 ---
 
@@ -19,17 +46,27 @@ Egisonの数式処理システム(CAS)のための型システムの設計方針
 
 | 型                      | 意味                                      |
 | ---------------------- | --------------------------------------- |
-| `Integer`              | 基本型。整数                                  |
-| `Frac a`                | `a` の分数体/分数環。分母が非モノミアルの場合にのみ必要          |
+| `MathValue`            | **第一級の計算型**。全ての CAS 計算はこの型上で行う。ランタイム表現は `CASValue`。簡約規則もすべてこの型に紐づく |
+| `Integer`              | 基本型。整数。`MathValue` の subtype                                  |
+| `Frac a`                | `a` の分数体/分数環。`MathValue` の subtype          |
 | `ConstFactor`          | 内部に平のシンボルを含まない原子的要素（例: `'sqrt 2`, `'log 3`）。`Factor` の真の部分型 |
 | `Symbol`               | `declare symbol` で宣言された平の不定元（例: `x`, `y`, `r`, `θ`）。`Factor` の真の部分型 |
 | `CompFactor`           | 内部に平のシンボルを含む原子的要素（例: `'sin x`, `'sqrt x`, `'log (x+1)`）。`Factor` の真の部分型 |
-| `Factor`               | 原子的な数式要素全体（`ConstFactor` ∪ `Symbol` ∪ `CompFactor` の和）|
+| `Factor`               | 原子的な数式要素全体（`ConstFactor` ∪ `Symbol` ∪ `CompFactor` の和）。`MathValue` の subtype |
 | `Term a [cs] [ss] [fs]` | `Poly a [cs] [ss] [fs]` の項。係数（型 `a`）とモノミアル（3スロットの組）を持つ補助型 |
-| `Poly a [cs] [ss] [fs]` | `a` を係数とするローラン多項式環（閉じた多項式型）。`cs` は `ConstFactor` のリスト、`ss` は `Symbol` のリスト、`fs` は `CompFactor` のリスト。3スロットを分けることで「微分で閉じている」性質を型レベルで表現できる |
-| `Poly a [..] [..] [..]` | 3スロットそれぞれをフレッシュ型変数で開いたローラン多項式型（開いた多項式型） |
-| `MathValue`            | 全ての CAS 型の上位型。ランタイム表現は `CASValue` そのもの。微分・積分など型が予測困難な数学的操作の入出力に使う |
+| `Poly a [cs] [ss] [fs]` | `a` を係数とするローラン多項式環。`MathValue` の subtype。内部表現は `MathValue` と同じ `CASValue` で、型注釈による coerce 時に所属検証 + 正規化を行う。3スロットにより「微分で閉じている」性質を型レベルで表現できる |
+| `Poly a [..] [..] [..]` | 3スロットそれぞれをフレッシュ型変数で開いたローラン多項式型（開いた多項式型）。`MathValue` の subtype |
 | `Tensor a`             | `a` を成分とするテンソル                          |
+
+### 型エイリアス
+
+ユーザは `Poly` の特殊化に型エイリアスを定義できる:
+
+```egison
+type GaussianInt := Poly Integer [] [i] []              -- Z[i]
+type Zsqrt2      := Poly Integer ['sqrt 2] [] []        -- Z[√2]
+type RatFunc     := Frac (Poly Integer [] [x] [])        -- Z[x] の分数体
+```
 
 
 ### Poly はローラン多項式環
@@ -926,21 +963,41 @@ class EuclideanDomain a extends GCDDomain a where
 
 ### インスタンス例
 
+#### MathValue: 第一級の計算型
+
+`MathValue` の `Ring` インスタンスが全ての CAS 計算の基盤。`casPlus`/`casMult` は `CASValue` のコンストラクタでパターンマッチし、`casNormalize` で `declare rule auto` の簡約規則を適用する。
+
+```egison
+-- MathValue: 全 CAS 計算の基盤
+instance Ring MathValue where
+  (+) a b := casNormalize (casPlus a b)    -- 演算 + 簡約規則の適用
+  (*) a b := casNormalize (casMult a b)
+  zero := CASInteger 0
+  one := CASInteger 1
+  neg := casNeg
+```
+
+#### subtype の Ring: MathValue の演算をラップ + coerce
+
+subtype（`Poly a [cs] [ss] [fs]`, `Frac a` 等）の `Ring` インスタンスは、**`MathValue` の演算をラップして結果を subtype に coerce する**。独自の簡約ロジックを持たない。
+
 ```egison
 instance Ring Integer
+
+-- Poly の Ring: MathValue の演算を使い、結果を Poly に coerce
+instance {Ring a} Ring (Poly a [..] [..] [..]) where
+  (+) p q := coerce (unwrap p + unwrap q)   -- MathValue として演算 → Poly に coerce
+  (*) p q := coerce (unwrap p * unwrap q)
+
+instance {GCDDomain a} Ring (Frac a) where
+  (+) (p/q) (r/s) := coerce (unwrap (p/q) + unwrap (r/s))
+  (*) (p/q) (r/s) := coerce (unwrap (p/q) * unwrap (r/s))
+
+instance {GCDDomain a} Field (Frac a)
+
 instance EuclideanDomain Integer where
   divMod := ...
   gcd := ...
-
--- 汎用: 任意の原子集合に対するインスタンス（[..] [..] [..] はフレッシュ型変数に脱糖）
-instance {Ring a} Ring (Poly a [..] [..] [..]) where
-  (+) := ...
-  (*) := ...
-
--- 特化: 特定の原子集合に対するインスタンス（例: i^2 = -1 の簡約）
--- 汎用 [..] [..] [..] より優先される（overlapping instances の優先順位）
-instance Ring (Poly Integer [] [i] []) where
-  ...
 
 instance {Field a} EuclideanDomain (Poly a [..] [..] [..]) where
   divMod := ...
@@ -948,34 +1005,32 @@ instance {Field a} EuclideanDomain (Poly a [..] [..] [..]) where
 
 instance {GCDDomain a} GCDDomain (Poly a [..] [..] [..]) where
   gcd := ...
-
-instance {GCDDomain a} Ring (Frac a) where
-  (+) (p/q) (r/s) := simplify ((p*s + r*q) / (q*s))
-  (*) (p/q) (r/s) := simplify ((p*r) / (q*s))
-
-instance {GCDDomain a} Field (Frac a)
-
--- MathValue: ランタイムディスパッチによる Ring/Field インスタンス
--- CASValue のコンストラクタで分岐し、各型の演算に委譲する
-instance Ring MathValue where
-  (+) := casPlus   -- CASValue のコンストラクタによるパターンマッチで再帰的に処理
-  (*) := casMult
-  zero := CASInteger 0
-  one := CASInteger 1
-  neg := casNeg
 ```
 
-**精密な型と `MathValue` の使い分け**: 精密な型（`Poly Integer [] [x] []` 等）が分かっている文脈では、精密な型の `Ring` インスタンスが型推論で優先される。`MathValue` の `Ring` インスタンスは、型が `MathValue` に推論される文脈でのみ使われる。
+`coerce` はランタイムで所属検証を行い、結果が subtype に属さない場合はエラーを送出する。ただし、正しい簡約規則が `declare rule auto` で登録されていれば、通常は coerce が失敗することはない（例: `Poly Integer [] [i] []` の演算で `i^2 = -1` が適用されるため、結果は常に `i` の1次以下になる）。
+
+**特化インスタンスは不要**: 旧設計では `instance Ring (Poly Integer [] [i] [])` のように `i^2 = -1` を埋め込む特化インスタンスがあったが、新設計では簡約規則はすべて `MathValue` の `casNormalize` で処理されるため、`Poly` のインスタンスは汎用の1つだけで済む。
+
+#### 型推論の挙動
 
 ```egison
-declare symbol x
+declare symbol x, i
+declare rule auto i^2 = -1
+
+type GaussianInt := Poly Integer [] [i] []
+
+def a : GaussianInt := 1 + i
+def b : GaussianInt := 2 + 3*i
+a + b         -- Ring GaussianInt が選ばれる → : GaussianInt (= 3 + 4*i)
+a * b         -- Ring GaussianInt が選ばれる → : GaussianInt (= -1 + 5*i)
 
 def p : Poly Integer [] [x] [] := 1 + x
 def q : Poly Integer [] [x] [] := 2 + 3 * x
-p + q    -- Ring (Poly Integer [] [x] []) が使われる（精密な型）
+p + q         -- Ring (Poly Integer [] [x] []) が選ばれる → : Poly Integer [] [x] []
 
-def v : MathValue := someFunctionReturningMathValue
-v + v    -- Ring MathValue が使われる（ランタイムディスパッチ）
+-- subtype が異なる場合は MathValue に落ちる
+a + p         -- GaussianInt と Poly Integer [] [x] [] の混合
+              -- → embed で MathValue に落ちる → Ring MathValue → : MathValue
 ```
 
 ### 型クラス制約による安全性
@@ -991,6 +1046,8 @@ def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
 ### 微分演算子 `∂/∂`
 
 偏微分演算子 `∂/∂` は **型保存型の型クラス `Differentiable` のメソッド** として定義する。3 スロット化された `Poly` 型のおかげで、「微分で閉じる十分条件」を **型レベルでユニフィケーションだけで** 表現できる。
+
+`MathValue` 中心設計では、`∂/∂` の**実装**は `MathValue` 上の `casDeriv` 一本で行い、subtype のインスタンスは `Ring` と同様に `MathValue` の演算をラップ + coerce する。型クラスの役割は**型推論**と**型保存の静的保証**に限定される。
 
 #### 微分で閉じる条件
 
@@ -1013,53 +1070,49 @@ class Differentiable a where
 #### インスタンス
 
 ```egison
--- ケースA: fs スロットが空の Poly は微分で閉じている
--- 第3スロットが [] であることだけが選択条件で、HM のユニフィケーションで自動判定される
+-- ケースA: fs = [] の Poly は微分で閉じている
+-- MathValue の casDeriv を呼び、結果を同じ Poly 型に coerce する
 instance {Ring c} Differentiable (Poly c [cs] [ss] []) where
-  ∂/∂ p s = ...
-    -- monoConsts の各因子: s で微分すると 0（連鎖律対象なし）→ 項が消える
-    -- monoSymbols の各因子: 標準的な冪則
-    -- monoComps: 空なので考慮不要
+  ∂/∂ p s = coerce (casDeriv (unwrap p) s)
 
 -- ケースB: 有理関数も同条件で閉じている
 instance {Ring c} Differentiable (Frac (Poly c [cs] [ss] [])) where
-  ∂/∂ (n/d) s = (∂/∂ n s * d - n * ∂/∂ d s) / d^2
+  ∂/∂ f s = coerce (casDeriv (unwrap f) s)
 
--- ケースC: 一般ケース（連鎖律含む）はランタイムディスパッチ
+-- ケースC: 一般ケース（MathValue 上で直接計算）
 instance Differentiable MathValue where
   ∂/∂ := casDeriv
-    -- CASValue のコンストラクタでパターンマッチ:
-    --   CASPoly:                  各項のモノミアル3スロットを処理
-    --                               - monoConsts: 連鎖律対象なし → 0 として消える
-    --                               - monoSymbols: 標準的な冪則
-    --                               - monoComps: 連鎖律で内部 arg を再帰的に微分
-    --   CASFrac:                  商の微分法則 (∂/∂ n s * d - n * ∂/∂ d s) / d^2
-    --   CASFactor (Apply1 ...):  連鎖律
 ```
 
-`fs ≠ []` の Poly や `Factor`、`CompFactor` などには `Differentiable` インスタンスを与えない。これらの第1引数は型チェッカーが `Embed _ MathValue` を使って `MathValue` 経由で `Differentiable MathValue` インスタンスを選ぶ。
+`casDeriv : MathValue -> Symbol -> MathValue` が唯一の実装。`CASValue` のコンストラクタでパターンマッチし、3スロットのモノミアルを処理する:
+- `monoConsts` の各因子: 連鎖律対象なし → 0 として消える
+- `monoSymbols` の各因子: 標準的な冪則
+- `monoComps` の各因子: 連鎖律で内部 `arg` を再帰的に微分
+- `CASFrac`: 商の微分法則 `(∂/∂ n s * d - n * ∂/∂ d s) / d^2`
+- `CASFactor (Apply1 ...)`: 連鎖律
+
+`fs ≠ []` の Poly や `Factor` 等には `Differentiable` インスタンスを与えない。これらは型チェッカーが `Embed _ MathValue` を使って `Differentiable MathValue` インスタンスを選ぶ。
 
 #### インスタンス選択の挙動
 
-| 呼び出し | 第1引数のスロット | 選ばれるインスタンス | 結果型 |
-|----|----|----|----|
-| `∂/∂ (p : Poly Integer [] [x, y] []) x` | `[] [x,y] []` | ケースA (`fs = []`) | `Poly Integer [] [x, y] []` |
-| `∂/∂ (q : Poly Integer ['sqrt 2] [x] []) x` | `['sqrt 2] [x] []` | ケースA (`fs = []`) | `Poly Integer ['sqrt 2] [x] []` |
-| `∂/∂ (f : Frac (Poly Integer [] [x] [])) x` | `Frac (… fs = [])` | ケースB | `Frac (Poly Integer [] [x] [])` |
-| `∂/∂ (r : Poly Integer [] [] [('sin x)]) x` | `[] [] [('sin x)]` | ケースA選択不能 → ケースC（`Embed`） | `MathValue` |
-| `∂/∂ (sin x) x` | `Poly Integer [] [] [('sin x)]` 経由 | ケースC | `MathValue` |
-| `∂/∂ (v : MathValue) x` | — | ケースC | `MathValue` |
-| `∂/∂ p ('log x)` | — | — | **型エラー**（第2引数が `Symbol` でない） |
+| 呼び出し | 選ばれるインスタンス | 結果型 |
+|----|----|----|
+| `∂/∂ (p : Poly Integer [] [x, y] []) x` | ケースA (`fs = []`) | `Poly Integer [] [x, y] []` |
+| `∂/∂ (q : Poly Integer ['sqrt 2] [x] []) x` | ケースA (`fs = []`) | `Poly Integer ['sqrt 2] [x] []` |
+| `∂/∂ (f : Frac (Poly Integer [] [x] [])) x` | ケースB | `Frac (Poly Integer [] [x] [])` |
+| `∂/∂ (sin x) x` — 型注釈なし | ケースC | `MathValue` |
+| `∂/∂ (v : MathValue) x` | ケースC | `MathValue` |
+| `∂/∂ p ('log x)` | — | **型エラー**（第2引数が `Symbol` でない） |
 
-ケースA/Bは型変数 `cs`, `ss` が任意で `fs = []` のときだけマッチするので、HM のユニフィケーションで自動的に選択される。これは設計書冒頭の「精密な型と `MathValue` の使い分け」（`Ring` インスタンスの選択ルール）と同じ枠組みである。
+ケースA/Bは型変数 `cs`, `ss` が任意で `fs = []` のときだけマッチするので、HM のユニフィケーションで自動的に選択される。
 
 #### `Symbol` を第2引数に取る根拠
 
 `Factor` ではなく `Symbol` に制限する理由:
 
-1. **意味的明確性**: 数学的に微分は変数（シンボル）に対して定義される。`'sin x` のような合成原子で微分する操作は曖昧で、ユーザの誤用を生みやすい。
-2. **型による静的保証**: `Differentiable (Poly c [cs] [ss] [])` のインスタンスは「第2引数が平のシンボルである」前提で型が閉じている。`Factor` を許すと、合成原子を渡したときに `cs` スロットの定数 Factor の中に偶然同じ原子が含まれるケースで意味が破綻する。
-3. **既存の `Embed` 階層との整合**: `Symbol ⊂ Factor` なので、ユーザコードでは引き続き `∂/∂ f x` のように自然に書ける。シンボル `x` は `Symbol` 型を持つため、`Embed` を経由する必要すらない。
+1. **意味的明確性**: 数学的に微分は変数（シンボル）に対して定義される
+2. **型による静的保証**: `Differentiable (Poly c [cs] [ss] [])` のインスタンスは「第2引数が平のシンボルである」前提で型が閉じている
+3. **`Embed` 階層との整合**: `Symbol ⊂ Factor` なので、ユーザコードでは `∂/∂ f x` のように自然に書ける
 
 #### 利用例
 
@@ -1075,34 +1128,25 @@ def f : Poly Integer [] [x, y] [] := x^2 * y + 3 * x * y^2
 def g : Poly Integer ['sqrt 2] [x] [] := ('sqrt 2) * x^2 + 3*x
 ∂/∂ g x   -- => 2 * ('sqrt 2) * x + 3 : Poly Integer ['sqrt 2] [x] []
 
--- 連鎖律が必要なケース（fs ≠ []）→ MathValue にフォールバック
-def h : Poly Integer [] [] [('sin x)] := 'sin x
-∂/∂ h x   -- => 'cos x : MathValue（auto-coerce で精密型に絞れる）
+-- 型注釈なしの MathValue 計算
+∂/∂ (sin x) x          -- => cos x : MathValue
+∂/∂ (x^2 + sin x) x    -- => 2*x + cos x : MathValue
 
--- 型エラーになる例
--- ∂/∂ f ('log x)   -- 型エラー: 'log x : CompFactor は Symbol でない
-```
+-- MathValue の結果を精密型に絞り込み
+def result : Poly Integer [] [] [('cos x)] := coerce (∂/∂ (sin x) x)
 
-`MathValue` で返ってきた結果を精密な型に絞りたい場合は `coerce` を使う:
-
-```egison
-def result : Poly Integer [] [] [('cos x)] := coerce (∂/∂ ('sin x) x)    -- ランタイム検証付き
+-- 型エラー
+-- ∂/∂ f ('log x)   -- 型エラー: 'log x は Symbol でない
 ```
 
 #### 微分演算子の合成
 
-`∂/∂` を組み合わせた高階の微分演算子は、入力型に応じてケースA/B（精密型）またはケースC（`MathValue`）が選ばれる。
-
 ```egison
--- 精密型版: 入出力ともに同じ精密型を保つ
+-- 精密型版: fs = [] なら入出力ともに同じ精密型を保つ
 def laplacian2D {Ring c, cs, ss} (f : Poly c [cs] [ss] []) : Poly c [cs] [ss] [] :=
   ∂/∂ (∂/∂ f x) x + ∂/∂ (∂/∂ f y) y
 
--- ラプラシアン（極座標）も fs = [] のままで書ける
-def laplacianPolar {Ring c, cs, ss} (f : Poly c [cs] [ss] []) : Poly c [cs] [ss] [] :=
-  ∂/∂ (∂/∂ f r) r + ∂/∂ f r / r + ∂/∂ (∂/∂ f θ) θ / r^2
-
--- 連鎖律を扱う必要がある一般ケース: MathValue で受ける
+-- MathValue 版: 一般ケース
 def laplacian2DGeneral (f : MathValue) : MathValue :=
   ∂/∂ (∂/∂ f x) x + ∂/∂ (∂/∂ f y) y
 ```
@@ -1168,6 +1212,8 @@ expandAll : MathValue -> MathValue
 ## 簡約規則の宣言 (`declare rule`)
 
 簡約規則はシンボル宣言から独立した専用構文 `declare rule` で宣言する。これにより単一シンボルの規則も複数シンボル間の関係式も統一的に扱える。`declare symbol` と `declare rule` は常に分けて定義し、`declare symbol ... with ...` の糖衣構文は採用しない。
+
+**すべての簡約規則は `MathValue` レベルに紐づく**。`i^2 = -1` は `GaussianInt` (`Poly Integer [] [i] []`) 固有の規則ではなく、`i` を含む任意の `MathValue` の演算で `casNormalize` により適用される。subtype の `Ring` インスタンスは `MathValue` の演算をラップして coerce するだけなので、簡約規則は自動的に全ての subtype に波及する。
 
 ```egison
 -- シンボル宣言と簡約規則は常に別々に書く
@@ -1728,14 +1774,13 @@ instance Embed Integer (Poly Integer [cs] [ss] [fs]) where ...
 
 **インスタンス解決の優先順位**:
 
-特定の原子集合に対する特化インスタンス（例: `instance Ring (Poly Integer [] [i] [])` で `i^2 = -1`）は、汎用の `[..] [..] [..]` インスタンスより優先される（overlapping instances の標準的な「より具体的な方が優先」規則）。
+新設計では簡約規則はすべて `MathValue` の `casNormalize` で処理されるため、**特化インスタンスは不要**。`Poly` の `Ring` インスタンスは汎用の1つだけで済む。
 
 ```
-instance {Ring a} Ring (Poly a [..] [..] [..])    -- 汎用（優先度: 低）
-instance Ring (Poly Integer [] [i] [])            -- 特化（優先度: 高、i^2 = -1 の簡約を含む）
+instance {Ring a} Ring (Poly a [..] [..] [..])    -- 汎用（唯一のインスタンス）
 
--- Poly Integer [] [i] [] に対しては特化インスタンスが選ばれる
--- Poly Integer [] [x] [] に対しては汎用インスタンスが選ばれ、cs/ss/fs がユニファイ
+-- Poly Integer [] [i] [] も Poly Integer [] [x] [] も同じインスタンスが選ばれる
+-- i^2 = -1 の簡約は MathValue の casNormalize で処理される
 ```
 
 #### Step 5.5.2: 型チェッカーでの包含関係グラフの構築
@@ -1827,28 +1872,43 @@ instance Ring (Poly Integer [] [i] [])            -- 特化（優先度: 高、i
 
 Phase 6 でライブラリ関数を実装するための基盤を定義する。
 
+- **`MathValue` を第一級の計算型として定義**
+  - `MathValue` は全 CAS 計算の基盤。ランタイム表現は `CASValue`
+  - `Ring MathValue` が全演算の本体: `casPlus`/`casMult` + `casNormalize`（`declare rule auto` を適用）
+  - 全 CAS subtype から `MathValue` への `Embed` インスタンス
+  - `MathValue` から subtype への `Coerce` インスタンス（所属検証 + 正規化）
 - **代数的型クラス階層**の実装（`Ring`, `Field`, `GCDDomain` 等）
   ```egison
   class Ring a extends AddGroup a, MulMonoid a
+
+  -- MathValue: 全 CAS 計算の基盤
+  instance Ring MathValue where
+    (+) a b := casNormalize (casPlus a b)
+    (*) a b := casNormalize (casMult a b)
+
+  -- subtype の Ring: MathValue の演算をラップ + coerce
   instance Ring Integer
-  instance {Ring a} Ring (Poly a [..] [..] [..])
-  instance {GCDDomain a} Ring (Frac a)
-  instance Ring MathValue    -- ランタイムディスパッチ
+  instance {Ring a} Ring (Poly a [..] [..] [..]) where
+    (+) p q := coerce (unwrap p + unwrap q)
+    (*) p q := coerce (unwrap p * unwrap q)
+  instance {GCDDomain a} Ring (Frac a) where
+    (+) a b := coerce (unwrap a + unwrap b)
+    (*) a b := coerce (unwrap a * unwrap b)
   ```
-- **`MathValue` 型**の定義と embed/coerce のサポート
-  - `MathValue` は全 CAS 型の上位型。ランタイム表現は `CASValue` そのもの
-  - 全 CAS 型から `MathValue` への `Embed` インスタンス
-  - `MathValue` から精密な型への `Coerce` インスタンス（ランタイム検証付き）
 - **`∂/∂`, `Sd`, `substitute`, `expandAll`** を定義
-  - `∂/∂` は `Differentiable` 型クラスのメソッドとして定義（精密型インスタンスは `fs = []` の Poly でのみ選択され、それ以外は `MathValue` インスタンスにフォールバック）
-  - `Sd`, `substitute`, `expandAll` は `MathValue` 上の関数として定義
+  - `∂/∂` は `Differentiable` 型クラスのメソッド。実装は `casDeriv : MathValue -> Symbol -> MathValue` 一本
+  - subtype のインスタンスは `casDeriv` を呼んで coerce する
+  - `Sd`, `substitute`, `expandAll` は `MathValue` 上の関数
   ```egison
   class Differentiable a where
     ∂/∂ : a -> Symbol -> a
 
-  instance {Ring c} Differentiable (Poly c [cs] [ss] [])         -- fs = [] のときだけ閉じる
-  instance {Ring c} Differentiable (Frac (Poly c [cs] [ss] []))  -- 同上
-  instance Differentiable MathValue                              -- 一般ケース
+  instance {Ring c} Differentiable (Poly c [cs] [ss] []) where
+    ∂/∂ p s = coerce (casDeriv (unwrap p) s)     -- fs = [] のときだけ閉じる
+  instance {Ring c} Differentiable (Frac (Poly c [cs] [ss] [])) where
+    ∂/∂ f s = coerce (casDeriv (unwrap f) s)     -- 同上
+  instance Differentiable MathValue where
+    ∂/∂ := casDeriv                              -- 一般ケース
 
   Sd : Symbol -> MathValue -> MathValue
   substitute : List (Factor, MathValue) -> MathValue -> MathValue
