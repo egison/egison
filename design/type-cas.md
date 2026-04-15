@@ -914,55 +914,86 @@ class EuclideanDomain a extends GCDDomain a where
   divMod (x: a) (y: a) : (a, a)
 ```
 
-### インスタンス例
+### インスタンスの2つのパターン
 
-#### MathValue: 第一級の計算型
+型クラスのインスタンスには2つのパターンがある:
 
-`MathValue` の `Ring` インスタンスが全ての CAS 計算の基盤。`casPlus`/`casMult` は `CASValue` のコンストラクタでパターンマッチし、`casNormalize` で `declare rule auto` の簡約規則を適用する。
+**パターン1: MathValue に委譲する型クラス（`Ring` 等）**
+
+`Ring` の演算（`+`, `*`）はすべて `MathValue` レベルの `casPlus`/`casMult` + `casNormalize` で実装される。subtype のインスタンスは MathValue の演算をラップ + coerce するだけで、**独自の簡約ロジックを持たない**。簡約規則は `declare rule auto` で `MathValue` レベルに統一されるため、`Ring` の特化インスタンスは不要。
+
+**パターン2: subtype ごとに独自実装する型クラス（`GCDDomain` 等）**
+
+`gcd` や素因数分解は型ごとに異なるアルゴリズムが必要であり、`MathValue` には定義できない。各 subtype が**独自のアルゴリズムを直接実装**する。汎用インスタンスと特化インスタンスが共存する場合は、**より具体的なインスタンスを優先**する。
+
+| | パターン1 (`Ring`) | パターン2 (`GCDDomain`) |
+|---|---|---|
+| `MathValue` インスタンス | あり（全計算の基盤） | **なし**（型エラー） |
+| subtype の実装方式 | MathValue に委譲 + coerce | 各 subtype が独自実装 |
+| 特化インスタンス | 不要 | 必要（`Z[i]` 等に専用アルゴリズム） |
+
+#### Ring インスタンス（パターン1）
 
 ```egison
 -- MathValue: 全 CAS 計算の基盤
 instance Ring MathValue where
-  (+) a b := casNormalize (casPlus a b)    -- 演算 + 簡約規則の適用
+  (+) a b := casNormalize (casPlus a b)
   (*) a b := casNormalize (casMult a b)
   zero := CASInteger 0
   one := CASInteger 1
   neg := casNeg
-```
 
-#### subtype の Ring: MathValue の演算をラップ + coerce
-
-subtype（`Poly a [cs] [ss] [fs]`, `Frac a` 等）の `Ring` インスタンスは、**`MathValue` の演算をラップして結果を subtype に coerce する**。独自の簡約ロジックを持たない。
-
-```egison
+-- subtype: MathValue の演算をラップ + coerce
 instance Ring Integer
-
--- Poly の Ring: MathValue の演算を使い、結果を Poly に coerce
 instance {Ring a} Ring (Poly a [..] [..] [..]) where
-  (+) p q := coerce (unwrap p + unwrap q)   -- MathValue として演算 → Poly に coerce
+  (+) p q := coerce (unwrap p + unwrap q)
   (*) p q := coerce (unwrap p * unwrap q)
-
 instance {GCDDomain a} Ring (Frac a) where
   (+) (p/q) (r/s) := coerce (unwrap (p/q) + unwrap (r/s))
   (*) (p/q) (r/s) := coerce (unwrap (p/q) * unwrap (r/s))
-
 instance {GCDDomain a} Field (Frac a)
-
-instance EuclideanDomain Integer where
-  divMod := ...
-  gcd := ...
-
-instance {Field a} EuclideanDomain (Poly a [..] [..] [..]) where
-  divMod := ...
-  gcd := ...
-
-instance {GCDDomain a} GCDDomain (Poly a [..] [..] [..]) where
-  gcd := ...
 ```
 
-`coerce` はランタイムで所属検証を行い、結果が subtype に属さない場合はエラーを送出する。ただし、正しい簡約規則が `declare rule auto` で登録されていれば、通常は coerce が失敗することはない（例: `Poly Integer [] [i] []` の演算で `i^2 = -1` が適用されるため、結果は常に `i` の1次以下になる）。
+#### GCDDomain / EuclideanDomain インスタンス（パターン2）
 
-**特化インスタンスは不要**: 旧設計では `instance Ring (Poly Integer [] [i] [])` のように `i^2 = -1` を埋め込む特化インスタンスがあったが、新設計では簡約規則はすべて `MathValue` の `casNormalize` で処理されるため、`Poly` のインスタンスは汎用の1つだけで済む。
+```egison
+-- 整数: ユークリッドの互除法
+instance EuclideanDomain Integer where
+  gcd a b := ...
+  divMod a b := ...
+
+-- Z[i]（ガウス整数）: ノルム N(a+bi) = a²+b² を使うユークリッド算法
+type GaussianInt := Poly Integer [] [i] []
+instance EuclideanDomain GaussianInt where
+  gcd a b := ...  -- ガウス整数専用のアルゴリズム
+  divMod a b := ...
+
+-- 係数が体の多項式: 汎用の多項式GCD
+instance {Field a} EuclideanDomain (Poly a [..] [..] [..]) where
+  gcd a b := ...  -- 一般の多項式ユークリッド算法
+  divMod a b := ...
+
+-- 係数が GCDDomain の多項式: 内容と原始部分に分解する GCD
+instance {GCDDomain a} GCDDomain (Poly a [..] [..] [..]) where
+  gcd a b := ...  -- 内容 GCD × 原始部分 GCD
+```
+
+#### インスタンス解決の優先順位
+
+汎用インスタンスと特化インスタンスが共存する場合、**より具体的なインスタンスを優先**する:
+
+```egison
+-- GaussianInt (= Poly Integer [] [i] []) に gcd を適用
+gcd (1 + i) (2 + i)
+-- 候補1: instance EuclideanDomain GaussianInt             -- 具体的 ✓ 選ばれる
+-- 候補2: instance {GCDDomain a} GCDDomain (Poly a [..] [..] [..])  -- 汎用
+
+-- Poly (Frac Integer) [] [x] [] に gcd を適用
+gcd (x^2 - 1) (x - 1)
+-- 候補: instance {Field a} EuclideanDomain (Poly a [..] [..] [..])  -- a = Frac Integer, Field ✓
+```
+
+具体性の判定: 型引数がすべて具体的（型変数なし）なインスタンスは、型変数を含むインスタンスより具体的とみなす。CAS 型の特化インスタンスは有限個（`Z[i]`, `Z[ω]` 等）なので、この規則で十分。
 
 #### 型推論の挙動
 
@@ -976,6 +1007,7 @@ def a : GaussianInt := 1 + i
 def b : GaussianInt := 2 + 3*i
 a + b         -- Ring GaussianInt が選ばれる → : GaussianInt (= 3 + 4*i)
 a * b         -- Ring GaussianInt が選ばれる → : GaussianInt (= -1 + 5*i)
+gcd a b       -- EuclideanDomain GaussianInt（特化）が選ばれる
 
 def p : Poly Integer [] [x] [] := 1 + x
 def q : Poly Integer [] [x] [] := 2 + 3 * x
@@ -985,16 +1017,9 @@ p + q         -- Ring (Poly Integer [] [x] []) が選ばれる → : Poly Intege
 a + p         -- GaussianInt と Poly Integer [] [x] [] の混合
               -- → join: ss スロット [i] ∪ [x] = [i, x]
               -- → 双方を embed → Ring (Poly Integer [] [i, x] []) → : Poly Integer [] [i, x] []
-```
 
-### 型クラス制約による安全性
-
-```egison
--- gcd を多項式に使うには係数が体である必要がある
-def gcd {EuclideanDomain a} (x: a) (y: a) : a := ...
-
--- Poly Integer [] [x] [] で gcd を使うには Field Integer が必要 → エラー
--- Poly (Frac Integer) [] [x] [] で gcd を使うには Field (Frac Integer) ✓ → OK
+-- MathValue には GCDDomain インスタンスがないので型エラー
+-- gcd (unwrap a) (unwrap p)   -- 型エラー: GCDDomain MathValue は存在しない
 ```
 
 ### 微分演算子 `∂/∂`
