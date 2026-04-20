@@ -758,6 +758,96 @@ a ⊂ b  ならば  Tensor a ⊂ Tensor b                              -- テン
 
 ---
 
+## 実行時の型昇格タワー
+
+`MathValue` 上の演算で、異なる部分型の値が混在したときに内部表現を一意化するためのタワー（priority ordering）を定める。後述の `join` は、このタワーに沿って結果の外側構造を決定する。
+
+### タワーの定義
+
+| レベル | 型 | 意味 | 内部表現 |
+|---|---|---|---|
+| 1 | `Integer` | Z | `CASInteger n` |
+| 2 | `Frac Integer` | Q | `CASFrac (CASInteger _) (CASInteger _)` |
+| 3 | `Poly Integer [..] [..] [..]` | Z のローラン多項式 | `CASPoly [CASTerm (CASInteger _) _]` |
+| 4 | `Poly (Frac Integer) [..] [..] [..]` | Q のローラン多項式 | `CASPoly [CASTerm (CASFrac _ _) _]` |
+| 5 | `Frac (Poly Integer [..] [..] [..])` | Q(x₁,...) の分数体 | `CASFrac (CASPoly _) (CASPoly _)` |
+
+`Tensor` は **このタワーと直交** しており、`Tensor MathValue` として扱う（成分ごとに独立にタワー中の位置を持つ）。
+
+### 演算規則
+
+二項演算 `a op b` の結果レベルは `max(level(a), level(b))`。両方を max レベルまで `embed` してから演算する。
+
+- **embed は自動**（演算の前処理として挿入）
+- **demote は明示のみ**（`coerce` および表示時のみ）— 通常演算の出口で走査コストを毎回払うのを避ける方針（選択肢 B）
+
+```egison
+-- level 1 + level 2 → level 2
+def a : Integer := 3
+def b : Frac Integer := 1/2
+a + b
+-- a を level 2 に embed → 3/1
+-- Frac Integer での加算 → 7/2
+
+-- level 3 + level 2 → level 4
+def p : Poly Integer [] [x] [] := x + 1
+def q : Frac Integer := 1/2
+p + q
+-- 双方を level 4 に embed → Poly (Frac Integer) [] [x] []
+-- 結果: (1)x + (3/2)
+
+-- level 3 + level 5 → level 5
+def p : Poly Integer [] [x] [] := x + 1
+def r : Frac (Poly Integer [] [x] []) := 1 / (x + 1)
+p + r
+-- 双方を level 5 に embed
+-- 結果: ((x+1)^2 + 1) / (x+1) : Frac (Poly Integer [] [x] [])
+```
+
+### スロット情報との合成
+
+タワーによる **外側の構造**（Integer/Frac/Poly/...）の決定と、`Poly` の 3 スロット（`cs`/`ss`/`fs`）の和集合計算は **直交** しており、合成される。
+
+1. まずタワーで外側の構造レベルを決定
+2. `Poly` 相当のレベルに着地したら、各スロットは [join セクション](#2-join二項演算時の最小上界の計算) の和集合ルール（`cs₁ ∪ cs₂` 等）で計算
+
+```
+join(Poly Integer [sqrt 2] [x] [], Frac Integer)
+  → タワー: max(level 3, level 2) = level 4
+  → スロット: [sqrt 2] [x] []  (Frac Integer は全スロット空として合成)
+  → 結果: Poly (Frac Integer) [sqrt 2] [x] []
+```
+
+### ローラン多項式との整合性
+
+タワーの level 3/4（`Poly`）はローラン多項式環を表すため、**モノミアル分母は level 3/4 に吸収** される。level 5（`Frac (Poly ...)`）は **分母が非モノミアルの多項式** のときのみ用いる。
+
+```egison
+-- モノミアル分母 → level 3 に留まる（負冪で表現）
+x / r^2 : Poly Integer [] [x, r] []    -- CASTerm の monoSymbols = [(x,1), (r,-2)]
+
+-- 非モノミアル分母 → level 5 に上がる
+1 / (x + 1) : Frac (Poly Integer [] [x] [])
+```
+
+割り算 `a / b` のレベル判定は `b` の形で分岐する:
+
+- `b` が定数 → 係数除算（係数側の level に委ねる）
+- `b` が単項式（`CASPoly [CASTerm c m]` が1項のみ） → `m` の負冪として吸収、level 3/4 に留まる
+- `b` が非単項式 → level 5 に上げる
+
+### 不変条件と `declare rule` への影響
+
+`MathValue` 内部の `CASValue` は、演算の出口で **タワー中の適切なレベルに embed された形** で保持される。demote は明示のみ（選択肢 B）なので:
+
+- 同じ数学的値が同じ `CASValue` 構造を持つとは限らない（例: `(x+1)/1` と `x+1` は別表現になりうる）
+- 等価比較や `declare rule` の適用は、必要に応じて明示的に `normalize` / `coerce` を通して demote してから行う
+- 通常演算の出口で走査コストを払わずに済む
+
+Axiom のドメインタワーとの関係については [Axiom/FriCAS との比較](#axiomfricas-との比較) を参照。
+
+---
+
 ## 自動変換の3つの仕組み
 
 ### 1. embed（包含関係による自動埋め込み）
@@ -920,14 +1010,16 @@ coerce : 一般 → 具体（ランタイム検証、失敗時エラー、型注
 
 1. `joinTypes τ₁ τ₂` を試みる
 2. 成功 → 結果 `τ` に対して、`τ₁ ≠ τ` なら `embed` で `τ₁ → τ`、`τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
-3. 失敗（共通の上位 subtype がない）→ `τ = MathValue` として双方を `embed`
+3. 失敗（タワー外でかつ共通の上位 subtype がない）→ `τ = MathValue` として双方を `embed`
+
+外側の構造（Integer/Frac/Poly/...）の合流は [実行時の型昇格タワー](#実行時の型昇格タワー) が規定する。以下の規則は、タワーによる外側決定と `Poly` のスロット和集合を合成した形になっている。
 
 #### join の計算規則
 
 ```
 join(a, a) = a
 
--- 係数の昇格
+-- 係数の昇格（タワー: level 1 → 2、1 → 3）
 join(Integer, Frac Integer) = Frac Integer
 join(Integer, Poly Integer [cs] [ss] [fs]) = Poly Integer [cs] [ss] [fs]
 
@@ -943,9 +1035,18 @@ join(a, Poly b [cs] [ss] [fs]) = Poly (join(a, b)) [cs] [ss] [fs]    -- a が b 
 join(Poly a [..] [..] [..], Poly b [..] [..] [..]) = Poly (join(a, b)) [..] [..] [..]
 join(Poly a [cs] [..] [fs], Poly b [cs'] [ss'] [fs']) = Poly (join(a, b)) [cs ∪ cs'] [..] [fs ∪ fs']
 
--- Frac
+-- Poly と Frac Integer（タワー: level 3 + level 2 → level 4）
+join(Poly Integer [cs] [ss] [fs], Frac Integer) = Poly (Frac Integer) [cs] [ss] [fs]
+join(Frac Integer, Poly Integer [cs] [ss] [fs]) = Poly (Frac Integer) [cs] [ss] [fs]
+
+-- Frac 同士（同レベルでの再帰）
 join(Frac a, Frac b) = Frac (join(a, b))
-join(a, Frac b) = Frac (join(a, b))
+
+-- Frac (Poly ...) が絡むケース（タワー: level 5 へ）
+join(Poly a [cs] [ss] [fs], Frac (Poly b [cs'] [ss'] [fs']))
+  = Frac (Poly (join(a, b)) [cs ∪ cs'] [ss ∪ ss'] [fs ∪ fs'])
+join(Frac (Poly a [cs] [ss] [fs]), Frac (Poly b [cs'] [ss'] [fs']))
+  = Frac (Poly (join(a, b)) [cs ∪ cs'] [ss ∪ ss'] [fs ∪ fs'])
 
 -- 上記のどれにもマッチしない場合 → MathValue にフォールバック
 join(_, _) = MathValue
@@ -957,12 +1058,18 @@ join(_, _) = MathValue
 
 #### フォールバックの例
 
+タワー内に収まる型同士の join は必ずタワーによって解消されるため、`MathValue` フォールバックは **タワー外の型**（将来拡張型、`Tensor` 要素の不一致など）でのみ発生する。
+
 ```
--- 共通の上位 subtype がない → MathValue
-join(Integer, ConstantFactor) = MathValue
-join(Poly Integer [] [x] [], Frac Integer) = MathValue
-  -- ※ Frac (Poly Integer [] [x] []) にする案もあるが、
-  --    暗黙に Frac で包むのは意図しない型変換を招くため MathValue にフォールバック
+-- タワー内で解消される例（フォールバックしない）
+join(Integer, ConstantFactor) = Poly Integer [..] [] []
+  -- ConstantFactor ⊂ Poly Integer [..] [] []、Integer は全スロット embed 可
+join(Poly Integer [] [x] [], Frac Integer) = Poly (Frac Integer) [] [x] []
+  -- タワー level 3 + level 2 → level 4、スロットは [] [x] []
+
+-- タワー外で共通の上位 subtype がない → MathValue
+-- 例: Tensor a と Tensor b で join(a, b) が MathValue に落ちる場合
+join(Tensor (Poly Integer [sqrt 2] [] []), Tensor ConstantFactor) = Tensor MathValue
 ```
 
 #### join の具体例
@@ -1011,13 +1118,16 @@ p + q
 ```
 
 ```egison
--- join が失敗 → MathValue にフォールバック
+-- タワーで解消される例: Integer + ConstantFactor → Poly Integer [..] [] []
 def n : Integer := 3
 def s := (sqrt 2 : ConstantFactor)
 
 n + s
--- joinTypes Integer ConstantFactor → 失敗 → MathValue
-⇝ (embed n) + (embed s) : MathValue
+-- joinTypes Integer ConstantFactor
+--   ConstantFactor ⊂ Poly Integer [..] [] []、Integer は任意の Poly に embed 可
+-- → Poly Integer [..] [] []
+⇝ (embed n) + (embed s) : Poly Integer [..] [] []
+-- 結果: sqrt 2 + 3
 ```
 
 ### 3. tensorMap（スカラー関数のテンソルへの自動持ち上げ）
@@ -1580,16 +1690,18 @@ match (sin x) as appliedFactor with
 
 ## Axiom/FriCAS との比較
 
-Axiom は「ドメインタワー」（例: `Polynomial(Fraction(Integer))`）で同様の正規形制御を実現している。
+Axiom は「ドメインタワー」（例: `Polynomial(Fraction(Integer))`）で正規形制御を実現している。
+Egison は同じ問題意識を [実行時の型昇格タワー](#実行時の型昇格タワー) — 5 レベル（`Integer` / `Frac Integer` / `Poly Integer [..] [..] [..]` / `Poly (Frac Integer) [..] [..] [..]` / `Frac (Poly Integer [..] [..] [..])`）に固定した runtime の昇格規則 — として取り込む。
 Egison の設計は以下の点で異なる。
 
 
 |           | Axiom        | Egison                             |
 | --------- | ------------ | ---------------------------------- |
 | 型システム     | 独自（SPAD言語）   | HM型推論 + type class                 |
-| 正規形の制御    | ドメインタワー      | 型注釈による `Poly`, `Frac` の組み合わせ        |
+| 正規形の制御    | ユーザー定義のドメインタワー | 5 レベルに固定した runtime タワー + 型注釈による絞り込み |
+| ドメインの選択   | ユーザーがドメインを明示  | タワーは組み込み、ユーザーはスロット・原子集合のみ指定        |
 | 多項式の表現    | 標準多項式        | ローラン多項式（負の冪を許可）                    |
-| 型変換       | `::` 演算子で明示的 | embed の自動挿入                        |
+| 型変換       | `::` 演算子で明示的 | embed の自動挿入（demote は明示のみ）          |
 | 内部表現      | ドメインごとに固定    | 型構造から構成的に決定                        |
 | シンボル集合の制御 | なし（全シンボル対等）  | 3スロット (`[cs] [ss] [fs]`) の閉じた/開いた集合を選択可能 |
 | 微分の型保存    | なし           | `fs = []` で型保存になることを型レベルで表現          |
