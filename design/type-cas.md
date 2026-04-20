@@ -70,23 +70,25 @@ type RatFunc     := Frac (Poly Integer [] [x] [])        -- Z[x] の分数体
 
 ### 糖衣構文
 
-3スロットのうち1つだけ非空のケース（最も頻出）に対して糖衣構文を提供する:
+3スロットのうち1つだけ非空のケース（最も頻出）、および全スロットを開いたケースに対して糖衣構文を提供する:
 
 | 糖衣構文 | 脱糖 | 例 |
 |---|---|---|
 | `ConstantPoly a [cs]` | `Poly a [cs] [] []` | `ConstantPoly Integer [sqrt 2]` = `Z[√2]` |
 | `SymbolPoly a [ss]` | `Poly a [] [ss] []` | `SymbolPoly Integer [x, y]` = `Z[x,y]` |
 | `AppliedPoly a [fs]` | `Poly a [] [] [fs]` | `AppliedPoly Integer [(sin x)]` |
+| `OpenPoly a` | `Poly a [..] [..] [..]` | `OpenPoly Integer` = 全スロット開いたローラン多項式 |
 | `ConstantTerm a [cs]` | `Term a [cs] [] []` | |
 | `SymbolTerm a [ss]` | `Term a [] [ss] []` | |
 | `AppliedTerm a [fs]` | `Term a [] [] [fs]` | |
 
-2スロット以上が非空の場合は生の `Poly a [cs] [ss] [fs]` を使う:
+2スロット以上が非空で、かつ全開でもないケースは生の `Poly a [cs] [ss] [fs]` を使う:
 
 ```egison
 -- 糖衣構文で書けるケース
 def a : ConstantPoly Integer [sqrt 2] := 1 + sqrt 2
 def p : SymbolPoly Integer [x, y] := x^2 + y
+def q : OpenPoly Integer := sqrt 2 + x + sin x    -- 原子集合を固定せず探索的に計算
 
 -- 混在ケースは生の Poly
 def r : Poly Integer [sqrt 2] [x] [] := (sqrt 2) * x + 1
