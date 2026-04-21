@@ -73,27 +73,32 @@ match t as term integer with
 
 ---
 
-### B. `declare apply` のブランチ型と `MathValue` 戻り値
+### ~~B. `declare apply` のブランチ型と `MathValue` 戻り値~~ (解決済み)
 
 #### 課題
 
+`declare apply` の RHS 各ブランチに型注釈(`(isqrt x : Integer)` 等)を書いたとき、宣言型 `MathValue` との関係が曖昧だった。
+
+#### 解決済み(2026-04-21)
+
+**`declare apply` の RHS は常に `MathValue` として評価される**。ブランチ別の型注釈は書かない(書いても関数インタフェースには漏れない)。呼び出し側で具体的な型が必要な場合は、式レベル型注釈で coerce を挿入する。
+
 ```egison
+-- 定義側: 型注釈なし
 declare apply sqrt x :=
-  if isInteger x then (isqrt x : Integer)              -- Integer
-  else ('sqrt x : Poly Integer [..] [] [])             -- Poly
+  if isInteger x then
+    if isPerfectSquare x then isqrt x
+    else if hasPerfectSquareFactor x then
+      let (k, m) = extractPerfectSquareFactor x in k * sqrt m
+    else 'sqrt x
+  else 'sqrt x
+
+-- 呼び出し側で型絞り込み
+(sqrt 4 : Integer)                         -- 2 : Integer
+(sqrt 8 : Poly Integer [sqrt 2] [] [])     -- 2 * sqrt 2
 ```
 
-関数の宣言型 `MathValue → MathValue` と、各ブランチの推論型(`join` 結果が MathValue より具体的になりうる)の関係が未定。ブランチ別型注釈が呼び出し側の型推論にどう影響するかが曖昧。
-
-#### 解決案
-
-**推論型 ⊆ 宣言型 を許容**、ただし呼び出しサイトでは**宣言型のまま扱う**。
-
-- 全ブランチの型を `join` した結果が、宣言型 `MathValue` に `embed` 可能であれば OK(常に成立するはず)
-- 呼び出し側で `sqrt x` と書いたときの静的型は `MathValue`(宣言に従う)
-- ユーザーが精密な型を得たい場合は `(sqrt 4 : Integer)` のように**式レベル型注釈**で coerce を挿入する
-
-ブランチ別注釈は**実装検証(各ブランチが意図通りの型を返すかのチェック)のため**であって、関数の外に漏れない。
+設計書 [type-cas.md](./type-cas.md) の「数学関数の適用規則 (`declare apply`)」および「sqrt の定義全体像」セクション参照。
 
 ---
 
@@ -123,30 +128,34 @@ casDeepNormalize :: CASValue -> CASValue    -- + 分母 1 Frac を demote など
 
 ---
 
-### D. `declare rule` LHS シンボル参照の型付け
+### ~~D. `declare rule` LHS シンボル参照の型付け~~ (解決済み)
 
 #### 課題
 
-```egison
-declare rule auto term i^2 = -1
-```
+`declare rule auto term i^2 = -1` の `i` はパターン変数ではなく特定シンボルへの参照。規則の適用スコープ(どの型の値に対して試すか)が未定だった。
 
-- `i` はパターン変数ではなく特定シンボルへの参照
-- この規則の適用スコープは? `Poly Integer [] [i] []` 限定? 任意の `MathValue` で `i` 原子を含むもの?
-- LHS 内のシンボルリテラルの型付けが未定
+#### 解決済み(2026-04-21)
 
-#### 解決案
+**規則は意味論的には常に MathValue レベルで登録される**が、**型情報で適用を最適化**する。
 
-**規則は型を持たず、常に `MathValue` に対する書き換え**として登録する。LHS は `CASValue` のパターンで、シンボル参照は `SymbolExpr` の構造的等価で照合する。
+1. `T = MathValue` → 規則適用
+2. `T` のどこかのスロットに `[..]` がある → 規則適用
+3. 全スロット閉じている → `triggerSymbols(R) ∩ atoms(T) ≠ ∅` のときのみ適用
 
 ```egison
-declare rule auto term i^2 = -1
--- 内部表現: term-level pattern matching i^2 (Symbol "i" の 2 乗)
--- 適用対象: 任意の MathValue の内部 CASValue ツリーで、i^2 を含むモノミアル全て
--- 型注釈不要、どの Poly 型でも一律に適用される
+declare rule auto term i^2 = -1   -- triggerSymbols = {i}
+
+def p : Poly Integer [] [x] [] := x^2 + 1     -- i 不在 → 規則スキップ
+def q : GaussianInt := 1 + i                   -- i ∈ atoms → 規則適用
+def r : MathValue := ...                       -- 常に適用
+def s : Poly Integer [..] [..] [..] := ...     -- [..] あり → 常に適用
 ```
 
-設計書 L1670「パターン変数の型はすべて `MathValue`」の既存方針を追認するだけ。型チェックはルール登録時に行わず、適用時の `CASValue` 構造一致だけで判定する。
+これは**正しさを保存する最適化**: 型フィルタで省かれた規則が適用されてもマッチしないはずなので結果は変わらない。
+
+`ReductionRule` に `triggerSymbols :: [SymbolExpr]` フィールドを追加し、`casNormalizeWithRules :: ReductionEnv -> Type -> CASValue -> CASValue` で型を受け取るようにする。
+
+設計書 [type-cas.md](./type-cas.md) の「規則適用の型情報フィルタ」セクション参照。
 
 ---
 
@@ -399,9 +408,9 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 | # | 課題 | 優先度 | 解決案の要点 |
 |---|---|---|---|
 | ~~A~~ | ~~`term m` 型情報~~ | ~~高~~ | **解決済み**: マッチャーを 1 スロット(flat)分解にする |
-| B | `declare apply` ブランチ型 | 高 | 推論型 ⊆ 宣言型 を許容、呼出側は宣言型 |
+| ~~B~~ | ~~`declare apply` ブランチ型~~ | ~~高~~ | **解決済み**: RHS は常に MathValue、ブランチ注釈なし、呼出側で coerce |
 | C | demote ポリシー | 高 | `casDeepNormalize` を等価比較用に分離 |
-| D | `declare rule` LHS 型 | 高 | 型なし、MathValue レベル一元登録 |
+| ~~D~~ | ~~`declare rule` LHS 型~~ | ~~高~~ | **解決済み**: 型情報で適用をフィルタ(triggerSymbols) |
 | E | SymbolExpr 正規化 | 高 | パース時正規化、前方参照禁止 |
 | F | 型クラス特化 | 中 | `[..]` を fresh 型変数として単一化 |
 | G | 未登録 derivative | 中 | `Derivative f` シンボル化(Mathematica 流) |
@@ -432,8 +441,8 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 
 ### Phase 6/7(ライブラリ/規則)着手前
 
-- **B**(`declare apply` ブランチ型) — ライブラリ関数の型付け方針
-- **D**(`declare rule` LHS 型付け)
+- ~~**B**(`declare apply` ブランチ型)~~ — 解決済み(RHS は MathValue)
+- ~~**D**(`declare rule` LHS 型付け)~~ — 解決済み(triggerSymbols フィルタ)
 - **G**(未登録 `declare derivative`)
 - **I**(`declare symbol` と `declare mathfunc` の同一性)
 
