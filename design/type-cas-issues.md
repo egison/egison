@@ -102,29 +102,29 @@ declare apply sqrt x :=
 
 ---
 
-### C. 正規化の demote ポリシー
+### ~~C. 正規化の demote ポリシー~~ (解決済み)
 
 #### 課題
 
-「demote は明示のみ」方針(L842)だと、`CASFrac (CASInteger 3) (CASInteger 1)` と `CASInteger 3` が別表現になる。これにより:
+「demote は明示のみ」方針では `CASFrac (CASInteger 3) (CASInteger 1)` と `CASInteger 3` が別表現になり、等価判定や規則マッチが壊れる懸念があった。
 
-- `(x+1)/1` と `x+1` が `==` で不一致
-- `declare rule` の LHS パターンマッチが、demote されていない値に対して失敗する
-- 等価判定が直感に反する
+#### 解決済み(2026-04-21)
 
-一方で、構造的正規化で demote すると、タワー設計の「演算の出口でレベルを保持する」原則に反する。
+`==` を `x - y = 0` で定義することで、demote ポリシーから完全に独立した。`x - y` の計算過程で `casNormalize` が適用され、差が数学的に 0 なら常に `CASInteger 0` に到達する(現実装で既に保証)。demote の有無は `==` の結果に影響しない。
 
-#### 解決案
+```egison
+instance Eq MathValue where
+  (==) x y := (x - y) = 0
 
-`casNormalize` は demote しない(既存方針維持)。ただし **等価比較と規則マッチ用の「深い正規化」関数** `casDeepNormalize` を別途用意し、必要な境界で呼び出す。
-
-```haskell
-casNormalize     :: CASValue -> CASValue    -- 構造的正規化のみ(既存)
-casDeepNormalize :: CASValue -> CASValue    -- + 分母 1 Frac を demote など
-                                            -- == 演算、rule マッチで使用
+-- 例: (x+1)/1 == x+1
+-- → ((x+1)/1 - (x+1)) = 0
+-- → 内部で CASFrac と CASPoly の減算、normalize を経て CASInteger 0
+-- → 0 = 0 → true
 ```
 
-通常の算術演算の出口では走らないので性能に影響しない。等価比較と規則適用の境界でのみ呼ばれるので、一貫性が保たれる。
+さらに、現実装の `casNormalize` は既に自動 demote を行っている([CAS.hs:409, 477](../hs-src/Language/Egison/Math/CAS.hs))ので、設計書の「demote は明示のみ」方針は現実装と矛盾していた。現実装の**自動 demote を採用**することで設計と実装が一致する。
+
+設計書 [type-cas.md](./type-cas.md) の「等価性: `Eq MathValue` と subtype からの fallback」セクション参照。
 
 ---
 
@@ -159,32 +159,28 @@ def s : Poly Integer [..] [..] [..] := ...     -- [..] あり → 常に適用
 
 ---
 
-### E. `SymbolExpr` 正規形比較のタイミング
+### ~~E. `SymbolExpr` 正規形比較のタイミング~~ (解決済み)
 
 #### 課題
 
-`SymbolSetClosed [SymbolExpr]` で照合するため以下を決める必要がある:
+`SymbolSetClosed [SymbolExpr]` で注釈を照合するため、`sqrt 2` 等の正規化タイミングが未定だった。前方参照の扱いも未決。
 
-- `sqrt 2` と `sqrt (1 + 1)` は同じ原子か?
-- **正規化のタイミング**: パース時? 比較時?
-- `declare mathfunc sqrt` 未登録のまま `[sqrt 2]` と書かれたときの扱い
+#### 解決済み(2026-04-21)
 
-#### 解決案
-
-**パース時に正規化**。`declare mathfunc` と `declare symbol` が**型注釈より前に宣言されていることを要求**(前方参照禁止)。
+**宣言環境 (Declaration Environment) の導入**により解決。プログラム読み込み時のプリパスで `declare mathfunc`, `declare symbol` 等を全て先に収集してから型推論・評価に入るので、**宣言順序の制約がなくなる**。
 
 ```egison
+-- この順序で書いても有効(プリパスで declare mathfunc を先に収集するので)
+def s : Poly Integer [sqrt 2] [] [] := sqrt 2
 declare mathfunc sqrt : MathValue -> MathValue
 declare apply sqrt x := ...
-
--- この順序の後でのみ以下が書ける:
-def s : Poly Integer [sqrt 2] [] [] := sqrt 2
--- パーサが [sqrt 2] を読む時点で declare mathfunc sqrt が既知
--- → Apply1 sqrt_id (CASInteger 2) に即正規化
--- → SymbolExpr 集合に格納
 ```
 
-前方参照のエラー判定は現行言語の名前解決機構で足りる。`sqrt (1 + 1)` も正規化で `sqrt 2` に簡約されるので、注釈との比較が一貫する。
+正規化のタイミング: 型注釈 `[sqrt 2]` を評価する時点で `MathFuncEnv` と `ApplyRuleEnv` が揃っているので、`Apply1 sqrt_id (CASInteger 2)` に正規化して `SymbolSetClosed [SymbolExpr]` に格納できる。
+
+`sqrt (1 + 1)` も `declare apply` によって `sqrt 2` に正規化されるので、注釈との比較が一貫する。
+
+設計書 [type-cas.md](./type-cas.md) の「宣言環境 (Declaration Environment)」セクション参照。
 
 ---
 
@@ -409,9 +405,9 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 |---|---|---|---|
 | ~~A~~ | ~~`term m` 型情報~~ | ~~高~~ | **解決済み**: マッチャーを 1 スロット(flat)分解にする |
 | ~~B~~ | ~~`declare apply` ブランチ型~~ | ~~高~~ | **解決済み**: RHS は常に MathValue、ブランチ注釈なし、呼出側で coerce |
-| C | demote ポリシー | 高 | `casDeepNormalize` を等価比較用に分離 |
+| ~~C~~ | ~~demote ポリシー~~ | ~~高~~ | **解決済み**: `==` を `x - y = 0` で定義し demote 独立、現実装の自動 demote を採用 |
 | ~~D~~ | ~~`declare rule` LHS 型~~ | ~~高~~ | **解決済み**: 型情報で適用をフィルタ(triggerSymbols) |
-| E | SymbolExpr 正規化 | 高 | パース時正規化、前方参照禁止 |
+| ~~E~~ | ~~SymbolExpr 正規化~~ | ~~高~~ | **解決済み**: 宣言環境のプリパスで先に収集、順序制約なし |
 | F | 型クラス特化 | 中 | `[..]` を fresh 型変数として単一化 |
 | G | 未登録 derivative | 中 | `Derivative f` シンボル化(Mathematica 流) |
 | H | パース曖昧性 | 中 | 3 スロット専用構文 + atom 式 |
@@ -429,14 +425,14 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 
 ### Phase 2(型システム 3 スロット化)着手前
 
-- **E**(SymbolExpr 正規化タイミング) — `SymbolSet` の実装開始条件
+- ~~**E**(SymbolExpr 正規化タイミング)~~ — 解決済み(宣言環境のプリパス)
 - **F**(型クラス特化メカニズム) — インスタンス解決の設計
 - **J**(インスタンス優先順位) — F と密接に関連
 
 ### Phase 5(パラメトリックマッチャー)着手前
 
 - ~~**A**(`term m` の型情報ルーティング)~~ — 解決済み(1 スロット分解)
-- **C**(demote ポリシー) — 等価比較とルール適用の土台
+- ~~**C**(demote ポリシー)~~ — 解決済み(`x - y = 0` で demote 独立)
 - **H**(パース曖昧性) — 注釈文法の確定
 
 ### Phase 6/7(ライブラリ/規則)着手前
