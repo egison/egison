@@ -27,6 +27,7 @@
 - [H. パースの曖昧性](#h-パースの曖昧性)
 - [I. `declare symbol sin x` と `declare mathfunc sin` の同一性](#i-declare-symbol-sin-x-と-declare-mathfunc-sin-の同一性)
 - [J. インスタンス優先順位の具体化](#j-インスタンス優先順位の具体化)
+- [P. 関数シンボル (`function (x)`) の CAS 型システム統合](#p-関数シンボル-function-x-の-cas-型システム統合)
 
 ### 低優先度
 
@@ -186,18 +187,15 @@ declare apply sqrt x := ...
 
 ## 中優先度
 
-### F. 型クラスインスタンスの特化メカニズム
+### ~~F. 型クラスインスタンスの特化メカニズム~~ (解決済み)
 
 #### 課題
 
-`instance Ring (Poly a [..] [..] [..])` のテンプレートから `Ring (Poly Integer [] [i] [])` を解決時に自動派生する仕組みが必要。
+`instance Ring (Poly a [..] [..] [..])` のテンプレートから `Ring (Poly Integer [] [i] [])` を解決時に自動派生する仕組みが必要だった。部分特化(`[sqrt 2] [..] [..]` 等)の扱いも未決。
 
-- インスタンスヘッドの `[..]` をパラメトリック型変数として扱う単一化アルゴリズム
-- ユーザーが `instance Ring (Poly a [sqrt 2] [] [])` のような**部分特化**を書いた場合の扱い(`[..]` と閉じたスロットの混在)
+#### 解決済み(2026-04-22)
 
-#### 解決案
-
-**インスタンスヘッドの `[..]` をフレッシュ型変数として扱う**標準 Haskell 的な instance resolution。
+**インスタンスヘッドの `[..]` をフレッシュ型変数として扱う**標準 Haskell 的な instance resolution を採用。
 
 ```
 instance {Ring a} Ring (Poly a [..] [..] [..]) where ...
@@ -209,70 +207,72 @@ instance {Ring a} Ring (Poly a [..] [..] [..]) where ...
 -- → 解決成功、型は Poly Integer [] [i] [] が保存される
 ```
 
-閉じたスロットと `[..]` の混在(部分特化)も同じ単一化で自然に動く。
+閉じたスロットと `[..]` の混在(部分特化)も同じ単一化で自然に動く。subtype への fallback も同じ仕組みで(embed 挿入により)解決する。
+
+設計書 [type-cas.md](./type-cas.md) の「インスタンス解決メカニズム」セクション参照。
 
 ---
 
-### G. `declare derivative` 未登録関数の微分
+### ~~G. `declare derivative` 未登録関数の微分~~ (解決済み)
 
 #### 課題
+
+`declare mathfunc f` で宣言されたが `declare derivative f` が未登録の関数の微分をどう扱うかが未決だった。
+
+#### 解決済み(2026-04-22)
+
+**`declare derivative` 未登録はエラー**。`declare mathfunc f` + 未登録で `∂/∂ (f x) x` を計算しようとすると実行時エラーとなる。
+
+シンボリックに未知関数を扱いたい場合は、Egison の**関数シンボル**(`function (x)`)を使う。これは `declare mathfunc` とは別機構で、具体実装を持たず連鎖律で自動微分できる:
 
 ```egison
-declare mathfunc f : MathValue -> MathValue
--- declare derivative f なし
-
-∂/∂ (f x) x  -- ???
+-- declare mathfunc なしで、値レベルでシンボリック関数を定義
+def f := function (x)
+∂/∂ (f x) x   -- = f|1 x (偏微分インデックス付きの新しい function を返す)
 ```
 
-未登録関数の微分をエラーにするか、何らかの形で残すか決める必要がある。
+この 2 系統の役割分担により、「`declare mathfunc` は具体実装のある関数専用、シンボリック操作は関数シンボル」という明確な使い分けができる。
 
-#### 解決案
-
-**Mathematica 流の symbolic derivative**。未登録関数の導関数は `Derivative f` という新しいシンボリック Factor として残す。
-
-```
-∂/∂ (f x) x  -- f の導関数未登録
-  = (Derivative f)(x) * 1
-  = (Derivative f)(x) : AppliedFactor
--- 後で declare derivative f = g が追加されれば再評価で g に置換可能
-```
-
-エラーにしない理由: 数式処理では未知関数の微分も形式的に操作したい場面が多い(未定係数法など)。
+設計書 [type-cas.md](./type-cas.md) の「`AppliedFactor` の導関数定義」および「関数シンボル (`function (x)`) との使い分け」セクション参照。
 
 ---
 
-### H. パースの曖昧性
+### ~~H. パースの曖昧性~~ (解決済み)
 
 #### 課題
 
-- `[sin x, sqrt (x+1)]` のように **式を原子として** 注釈に書きたい
+- 式を原子として注釈に書きたい(`[sin x, sqrt (x+1)]`)
 - `Poly Integer [x, y]`(スロット集合)と `[Integer]`(リスト型)のレキサ上の曖昧性
 - `[..]` 構文の特別扱い
 
-#### 解決案
+#### 解決済み(2026-04-23)
 
-**`Poly T [S1] [S2] [S3]` の 3 スロット構文を専用パスでパース**。スロット内は atom 式として読み、リスト型構文(`[T]`)と文脈で区別する。
+**`Poly T [S1] [S2] [S3]` の 3 スロット構文を専用パスでパース**。3 つの角括弧グループを必須とすることで、コレクション型 `[T]` との曖昧性を解消。
 
 ```
 Poly Integer [sqrt 2] [x, y] [sin x, log (x+1)]
             ^^^^^^^^ ^^^^^^^ ^^^^^^^^^^^^^^^^^^^
              atom 式  atom 式  atom 式のリスト
--- 3 つの角括弧グループを必須とする文法で [Integer] リスト型とは区別
+-- 3 つの角括弧を必須 → [Integer] リスト型とは区別
 ```
 
-`[..]` はレキサ段階で専用トークン扱い。
+スロット内は atom 式として読む(関数適用 `sin x` 等を許容)。`[..]` はレキサ段階で専用トークン化する。
+
+1 スロット記法(`Poly T [x, y]`)は糖衣構文(`ConstantPoly`, `SymbolPoly` 等)のみで許可し、生の `Poly` は常に 3 スロットを要求する。
+
+設計書 [type-cas.md](./type-cas.md) の「型構文の実装」セクション参照(文法 BNF を記載)。
 
 ---
 
-### I. `declare symbol sin x` と `declare mathfunc sin` の同一性
+### ~~I. `declare symbol sin x` と `declare mathfunc sin` の同一性~~ (解決済み)
 
 #### 課題
 
-`declare symbol sin x` で登録した合成原子と、`declare mathfunc sin` 経由の `sin x` 評価結果が**構造的に等しい** `SymbolExpr` を生成する必要がある。両経路が別の内部表現を生成すると、`SymbolSetClosed` との照合で失敗する。
+`declare symbol sin x` で登録した合成原子と、`declare mathfunc sin` 経由の `sin x` 評価結果が構造的に等しい `SymbolExpr` を生成する必要があった。両経路が別表現を生成すると、`SymbolSetClosed` との照合で失敗する。
 
-#### 解決案
+#### 解決済み(2026-04-22)
 
-**`declare symbol sin x` を廃止**し、合成原子は `declare mathfunc sin` + 型注釈で暗黙登録する。
+**`declare symbol sin x` を廃止**し、合成原子は `declare mathfunc sin` のみで登録する。型注釈に `sin x` 等の合成原子が出現した時点で、宣言環境(`MathFuncEnv`)を参照して `SymbolExpr` に正規化される。
 
 ```egison
 -- 旧(廃止):
@@ -281,26 +281,22 @@ declare symbol sin x  -- 合成原子登録
 -- 新:
 declare mathfunc sin : MathValue -> MathValue
 -- Poly 型注釈に sin x が現れた時点で AppliedFactor 原子として自動登録
-def f : Poly Integer [] [] [sin x] := sin x  -- パーサが [sin x] を見て登録
+def f : Poly Integer [] [] [sin x] := sin x  -- パーサが [sin x] を見て MathFuncEnv で正規化
 ```
 
 登録経路が 1 つに統一され、SymbolExpr の同一性問題が消える。
 
+設計書 [type-cas.md](./type-cas.md) の「シンボルと不定元」および「Factor の各分類から Poly への埋め込み」セクション参照。
+
 ---
 
-### J. インスタンス優先順位の具体化
+### ~~J. インスタンス優先順位の具体化~~ (解決済み)
 
 #### 課題
 
-```
-instance Ring (Poly a [..] [..] [..])           -- 汎用
-instance Ring GaussianInt                        -- = Poly Integer [] [i] []
-instance Ring (Poly Integer [..] [..] [..])     -- 部分特化(係数だけ具体)
-```
+複数のインスタンスが適用可能な場合(汎用 / 部分特化 / 完全特化)に「より具体的なもの」の判定アルゴリズムが未定だった。
 
-複数のインスタンスが適用可能な場合に「より具体的なもの」の判定アルゴリズムが未定。
-
-#### 解決案
+#### 解決済み(2026-04-22)
 
 **2 段階の具体性比較**:
 
@@ -317,6 +313,8 @@ Ring (Poly Integer [] [i] []) を解決するとき:
 
 → Ring GaussianInt が選ばれる
 ```
+
+設計書 [type-cas.md](./type-cas.md) の「インスタンス解決の優先順位」セクション参照(F の解決時に統合記述済み)。
 
 ---
 
@@ -399,6 +397,33 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 
 ---
 
+### P. 関数シンボル (`function (x)`) の CAS 型システム統合
+
+#### 課題
+
+Egison の既存機構である関数シンボル(`def f := function (x)`, [function-symbol.md](./function-symbol.md))を、新しい CAS 型システム(`Poly`, `Factor`, タワー, 型クラス etc.)にどう統合するかが未定義。
+
+具体的な未決事項:
+
+1. **型**: `function (x)` の値の型は何か?
+   - `AppliedFactor`? `MathValue`? 独自型 `FunctionSymbol`?
+   - 関数シンボル全般の抽象化 `Func (a -> b)` のような高階型?
+2. **`Poly` の原子集合への出現**: `Poly Integer [] [] [f x]` のように原子集合に書けるか?
+3. **`SymbolExpr` との関係**: 既存実装では `FunctionData` として別枠だが、新 `SymbolExpr` / `CASValue` でどう表現するか
+4. **偏微分インデックス `f|1`, `f|2` の型**: 導関数が `function` のまま残るとき、その型は?
+5. **`declare mathfunc` との相互作用**: 同じ名前で両方定義したときの挙動は禁止すべきか?
+6. **関数シンボルの適用(`f a`)**: 引数数チェックをどう行うか。型で表現するか、実行時エラーに留めるか
+
+#### 解決案(暫定)
+
+Phase 6 以降で個別に設計。現段階では「関数シンボルは新 CAS 型システム下でも既存の挙動を保持する」を最低限の目標とし、具体的な型付けは後回し。
+
+- `FunctionData` を `SymbolExpr` のバリアントとして維持
+- 型レベルでは関数シンボルの値は `MathValue`(あるいは `AppliedFactor`)として扱う
+- 型注釈の原子集合(`Poly ... [f x]`)への出現は当面禁止(明確な型が決まってから解放)
+
+---
+
 ## まとめ
 
 | # | 課題 | 優先度 | 解決案の要点 |
@@ -408,16 +433,17 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 | ~~C~~ | ~~demote ポリシー~~ | ~~高~~ | **解決済み**: `==` を `x - y = 0` で定義し demote 独立、現実装の自動 demote を採用 |
 | ~~D~~ | ~~`declare rule` LHS 型~~ | ~~高~~ | **解決済み**: 型情報で適用をフィルタ(triggerSymbols) |
 | ~~E~~ | ~~SymbolExpr 正規化~~ | ~~高~~ | **解決済み**: 宣言環境のプリパスで先に収集、順序制約なし |
-| F | 型クラス特化 | 中 | `[..]` を fresh 型変数として単一化 |
-| G | 未登録 derivative | 中 | `Derivative f` シンボル化(Mathematica 流) |
-| H | パース曖昧性 | 中 | 3 スロット専用構文 + atom 式 |
-| I | symbol/mathfunc 同一性 | 中 | `declare symbol sin x` 廃止、注釈経由登録 |
-| J | インスタンス優先度 | 中 | 2 段階具体性比較、競合はエラー |
+| ~~F~~ | ~~型クラス特化~~ | ~~中~~ | **解決済み**: `[..]` を fresh 型変数として単一化、subtype は embed fallback |
+| ~~G~~ | ~~未登録 derivative~~ | ~~中~~ | **解決済み**: 未登録はエラー、シンボリック微分は `function (x)` 機構を使う |
+| ~~H~~ | ~~パース曖昧性~~ | ~~中~~ | **解決済み**: 3 スロット専用構文(3 つの `[...]` 必須)+ atom 式 |
+| ~~I~~ | ~~symbol/mathfunc 同一性~~ | ~~中~~ | **解決済み**: `declare symbol sin x` 廃止、`declare mathfunc` のみで登録 |
+| ~~J~~ | ~~インスタンス優先度~~ | ~~中~~ | **解決済み**: 2 段階具体性比較、競合はエラー |
 | K | Term→Poly ラップ | 低 | 受け入れ |
 | L | Rewrite.hs 移行 | 低 | ゴールデンテスト |
 | M | 異種 Tensor | 低 | homogeneous 要求、明示 embed |
 | N | coerce エラー | 低 | 詳細原子レポート |
 | O | パターン/マッチャー共存 | 低 | 名前空間分離(既存機構で解決) |
+| P | 関数シンボルの型統合 | 中 | 暫定: 既存挙動維持、型注釈原子集合への出現は当面禁止 |
 
 ---
 
@@ -426,21 +452,21 @@ Phase 4 で導入した `inductive pattern MathExpr`(`poly $`, `div $ $`, `term 
 ### Phase 2(型システム 3 スロット化)着手前
 
 - ~~**E**(SymbolExpr 正規化タイミング)~~ — 解決済み(宣言環境のプリパス)
-- **F**(型クラス特化メカニズム) — インスタンス解決の設計
-- **J**(インスタンス優先順位) — F と密接に関連
+- ~~**F**(型クラス特化メカニズム)~~ — 解決済み(`[..]` を fresh 型変数として単一化)
+- ~~**J**(インスタンス優先順位)~~ — 解決済み(2 段階具体性比較)
 
 ### Phase 5(パラメトリックマッチャー)着手前
 
 - ~~**A**(`term m` の型情報ルーティング)~~ — 解決済み(1 スロット分解)
 - ~~**C**(demote ポリシー)~~ — 解決済み(`x - y = 0` で demote 独立)
-- **H**(パース曖昧性) — 注釈文法の確定
+- ~~**H**(パース曖昧性)~~ — 解決済み(3 スロット専用構文)
 
 ### Phase 6/7(ライブラリ/規則)着手前
 
 - ~~**B**(`declare apply` ブランチ型)~~ — 解決済み(RHS は MathValue)
 - ~~**D**(`declare rule` LHS 型付け)~~ — 解決済み(triggerSymbols フィルタ)
-- **G**(未登録 `declare derivative`)
-- **I**(`declare symbol` と `declare mathfunc` の同一性)
+- ~~**G**(未登録 `declare derivative`)~~ — 解決済み(エラー、シンボリック微分は関数シンボル)
+- ~~**I**(`declare symbol` と `declare mathfunc` の同一性)~~ — 解決済み(`declare symbol sin x` 廃止)
 
 ### 実装時に個別解決
 
