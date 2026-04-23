@@ -2175,20 +2175,31 @@ Egison の設計は以下の点で異なる。
 
 **実装したプリミティブパターン**:
 
+実装は2層構造になっている。Layer 1 は AST レベルのプリミティブデータパターン（`PDxxxPat`, 先頭大文字）、Layer 2 は `inductive pattern MathValue` 経由でユーザーに公開される名前（先頭小文字）。Layer 2 のパターンは `mathValue` マッチャーの `with` 節で Layer 1 PDP に展開される。
 
-| パターン         | 対象                    | 抽出内容                |
-| ------------ | --------------------- | ------------------- |
-| `div $ $`    | `CASFrac num den`      | 分子、分母（各 `CASData`）  |
-| `poly $`     | `CASPoly terms`       | 項リスト（各 `CASData`）   |
-| `term $ $`   | `CASTerm coeff mono`  | 係数（`CASData`）、モノミアル |
-| `symbol $ $` | `Symbol name indices` | 名前、インデックスリスト        |
-| `apply1 $ $` | `Apply1 fn arg`       | 関数、引数（各 `CASData`）  |
-| `quote $`    | `Quote expr`          | 引用式（`CASData`）      |
+
+| Layer 1（プリミティブデータパターン） | Layer 2（`inductive pattern MathValue` 経由） |
+| ----------------------------- | ------------------------------------------ |
+| `Frac $ $` (`PDFracPat`)      | `frac $ $` / `$ / $`                       |
+| `Plus $` (`PDPlusPat`)        | `poly $` ※ Phase 5 で `:+` に移行予定             |
+| `Term $ $` (`PDTermPat`)      | `term $ $`                                  |
+| `Symbol $ $` (`PDSymbolPat`)  | `symbol $ $`                                |
+| `Apply1 $ $` (`PDApply1Pat`)  | `apply1 $ $`                                |
+| `Quote $` (`PDQuotePat`)      | `quote $`                                   |
+
+各パターンの対象 `CASValue` コンストラクタと抽出内容:
+
+- `Frac` / `frac` / `/` — `CASFrac num den` から分子・分母（各 `CASValue`）
+- `Plus` / `poly` — `CASPoly terms` から項リスト（各 `CASValue`）
+- `Term` / `term` — `CASTerm coeff mono` から係数（`CASValue`）とモノミアル
+- `Symbol` / `symbol` — `CASFactor (Symbol name indices)` から名前とインデックスリスト
+- `Apply1` / `apply1` — `CASFactor (Apply1 fn arg)` から関数と引数（各 `CASValue`）
+- `Quote` / `quote` — `CASFactor (Quote expr)` から引用式（`CASValue`）
 
 
 **現状の制約**: これらのプリミティブパターンは `mathExpr` マッチャー内でのみ使われ、係数やシンボル集合を型に応じて区別できない。次の Phase 5 でパラメトリックマッチャーに拡張する。
 
-**保持するもの**: `inductive pattern MathExpr` / `IndexExpr` 宣言、`CASIndexData`。
+**保持するもの**: `inductive pattern MathValue` / `IndexExpr` 宣言、`CASIndexData`。
 
 ### Phase 5: パラメトリックマッチャー（poly, div, term）
 
@@ -2480,7 +2491,7 @@ def coefficients {a} (f : Poly a [..] [..] [..]) (x : Symbol) : [a] :=
 ```
 
 - `coefficients`, `coefficient` を再実装
-- mini-test: `coefficients ((x^2 + 3*x + 1) : Poly Integer [] [x] []) x` → `[1, 3, 1]`
+- mini-test: `coefficients ((x^2 + 3*x + 1) : SymbolPoly Integer [x]) x` → `[1, 3, 1]`
 
 #### Step 6.5: テイラー展開と積分演算子
 
