@@ -131,6 +131,183 @@ def multExpr : Matcher MathValue :=
 
 def termExpr : Matcher MathValue := mathValue
 
+-- Phase 5 Step 5.0: basic matchers (atoms, factor, symbol).
+-- These deliberately delegate to `mathValue` so that they can be used as
+-- generic decomposition matchers under the `factor` / `symbol` names while
+-- the full parametric matchers below provide coefficient-aware variants.
+
+def symbol : Matcher MathValue := mathValue
+
+def factor : Matcher MathValue := mathValue
+
+-- Phase 5 Step 5.1-5.3: parametric matchers `term`, `poly`, `frac`.
+-- They share the same runtime behavior as `mathValue` but the coefficient
+-- matcher is parametric (`m` rather than the hard-coded `integer`). Pattern
+-- variables bound by `term $`, `mult $`, `$ * $` therefore have type `a` (the
+-- coefficient type the user picked), enabling typed decomposition such as
+-- `match p as poly (frac integer) with | term $c _ -> ...` where `c : Frac Integer`.
+--
+-- All three matchers share the structural patterns to ease delegation:
+-- a single term is also a polynomial, a polynomial is also a fraction (over 1).
+-- This keeps `match (3 * x) as poly integer with | term $c _ -> c` working
+-- without requiring callers to coerce manually.
+
+def term {a} (m: Matcher a) : Matcher MathValue :=
+  matcher
+    | term $ $ as (m, assocMultiset mathValue) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]
+        | _ -> []
+    | mult $ $ as (m, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | $ * $ as (m, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | symbol $ $ as (something, list indexExpr) with
+        | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | _ -> []
+    | apply1 $ $ as (something, mathValue) with
+        | Frac (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1)]
+        | _ -> []
+    | apply2 $ $ $ as (something, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2)]
+        | _ -> []
+    | apply3 $ $ $ $ as (something, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3)]
+        | _ -> []
+    | apply4 $ $ $ $ $ as (something, mathValue, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3, a4)]
+        | _ -> []
+    | quote $ as (mathValue) with
+        | Frac (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) -> [mexpr]
+        | _ -> []
+    | func $ $ as (mathValue, list mathValue) with
+        | Frac
+            (Plus [Term 1 [(Function $name $args, 1)]])
+            (Plus [Term 1 []]) ->
+            [(name, args)]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
+
+def poly {a} (m: Matcher a) : Matcher MathValue :=
+  matcher
+    | poly $ as (multiset (term m)) with
+        | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
+        | _ -> []
+    | plus $ as (multiset (term m)) with
+        | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
+        | _ -> []
+    | $ + $ as (term m, poly m) with
+        | Frac (Plus $ts) (Plus [Term 1 []]) ->
+            matchAll ts as multiset something with
+              | $t :: $tss -> (t, sum' tss)
+        | _ -> []
+    -- Delegation to term-level patterns: a single-term value is also a polynomial
+    | term $ $ as (m, assocMultiset mathValue) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]
+        | _ -> []
+    | mult $ $ as (m, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | $ * $ as (m, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | symbol $ $ as (something, list indexExpr) with
+        | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | _ -> []
+    | apply1 $ $ as (something, mathValue) with
+        | Frac (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1)]
+        | _ -> []
+    | apply2 $ $ $ as (something, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2)]
+        | _ -> []
+    | apply3 $ $ $ $ as (something, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3)]
+        | _ -> []
+    | apply4 $ $ $ $ $ as (something, mathValue, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3, a4)]
+        | _ -> []
+    | quote $ as (mathValue) with
+        | Frac (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) -> [mexpr]
+        | _ -> []
+    | func $ $ as (mathValue, list mathValue) with
+        | Frac
+            (Plus [Term 1 [(Function $name $args, 1)]])
+            (Plus [Term 1 []]) ->
+            [(name, args)]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
+
+def frac {a} (m: Matcher a) : Matcher MathValue :=
+  matcher
+    | frac $ $ as (m, m) with
+        | Frac $p1 $p2 -> [(p1, p2)]
+        | _ -> []
+    | $ / $ as (m, m) with
+        | Frac $p1 $p2 -> [(p1, p2)]
+        | _ -> []
+    -- Delegation to poly-level patterns: a non-fraction value is also Frac _ 1
+    | $ + $ as (mathValue, mathValue) with
+        | Frac (Plus $ts) (Plus [Term 1 []]) ->
+            matchAll ts as multiset something with
+              | $t :: $tss -> (t, sum' tss)
+        | _ -> []
+    | poly $ as (multiset mathValue) with
+        | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
+        | _ -> []
+    -- Delegation to term-level patterns
+    | term $ $ as (mathValue, assocMultiset mathValue) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]
+        | _ -> []
+    | mult $ $ as (mathValue, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | $ * $ as (mathValue, multExpr) with
+        | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
+            [(n, product' (map (\(x, n) -> x ^' n) xs))]
+        | _ -> []
+    | symbol $ $ as (something, list indexExpr) with
+        | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | _ -> []
+    | apply1 $ $ as (something, mathValue) with
+        | Frac (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1)]
+        | _ -> []
+    | quote $ as (mathValue) with
+        | Frac (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) -> [mexpr]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
+
+-- mathExpr: an alias for `mathValue` used by older code and the parametric
+-- matcher tests. Kept for backward compatibility.
+def mathExpr : Matcher MathValue := mathValue
+
+
 def isSymbol (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
     | symbol _ _ -> True

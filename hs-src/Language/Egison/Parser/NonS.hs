@@ -749,19 +749,35 @@ polyTypeExpr = do
   return $ TEPoly coeffType symbolSet
 
 -- | Parse a symbol set expression
--- Either [..] for open, or [x, y, z] for closed
+-- Either [..] for open, or [x, y, sqrt 2, sin x, ...] for closed.
+-- Closed slots accept simple identifiers as well as function-applied forms
+-- like `sqrt 2`, `sin x`, which are normalized to a space-separated string.
 symbolSetExpr :: Parser SymbolSetExpr
 symbolSetExpr = brackets $ openSymbolSet <|> closedSymbolSet
   where
     -- [..] - open symbol set
     openSymbolSet = SSEOpen <$ symbol ".."
-    -- [x, y, z] - closed symbol set with symbol names
-    closedSymbolSet = SSEClosed <$> symbolName `sepBy` symbol ","
-    -- Symbol names are lowercase identifiers
-    symbolName = lexeme $ do
+    -- [x, y, sqrt 2, ...] - closed symbol set with atom expressions.
+    -- Each atom is normalized to a string for now (Phase 1.5 stub);
+    -- a future revision will replace [String] with a structured atom type.
+    closedSymbolSet = SSEClosed <$> atomName `sepBy` symbol ","
+    -- An atom name is either a simple lowercase identifier (`x`) or a
+    -- function application with simple-name / integer arguments (`sqrt 2`,
+    -- `sin x`). Nested atoms (`sqrt (x + 1)`) are not yet supported.
+    atomName :: Parser String
+    atomName = lexeme $ do
+      hd <- atomIdent
+      args <- many (try (some (char ' ') >> atomArg))
+      return $ if null args then hd else unwords (hd : args)
+    atomIdent :: Parser String
+    atomIdent = do
       c <- lowerChar
       cs <- many identChar
       return (c : cs)
+    atomArg :: Parser String
+    atomArg = atomIdent <|> atomNumber
+    atomNumber :: Parser String
+    atomNumber = some digitChar
 
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do

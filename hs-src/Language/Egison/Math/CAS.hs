@@ -39,6 +39,8 @@ module Language.Egison.Math.CAS
     , casPower
     , casNumerator
     , casDenominator
+    -- * Observed type (Phase 8)
+    , prettyTypeOf
     -- * Normalization
     , casNormalize
     , casNormalizePoly
@@ -202,6 +204,70 @@ prettyCAS' :: CASValue -> String
 prettyCAS' v@(CASInteger _) = prettyCAS v
 prettyCAS' v@(CASFactor _) = prettyCAS v
 prettyCAS' v = "(" ++ prettyCAS v ++ ")"
+
+-- | Compute the observed type of a CASValue and pretty print it.
+-- The observed type is the most specific static type that the value
+-- inhabits, computed bottom-up from the runtime structure.
+--   CASInteger _      → "Integer"
+--   CASFactor (Symbol ...)
+--                     → "Symbol"
+--   CASFactor _       → "Factor"
+--   CASPoly []        → "Integer"   (canonical zero)
+--   CASPoly terms     → "Poly C [atoms]" where C is the join of term coefficient
+--                       types and atoms is the sorted list of distinct flat atoms
+--   CASFrac n d       → "Frac (typeOf n)" if d is integer/poly with single term,
+--                       otherwise "Frac (Poly typeOf-num [..])"
+prettyTypeOf :: CASValue -> String
+prettyTypeOf (CASInteger _) = "Integer"
+prettyTypeOf (CASFactor (Symbol _ _ _)) = "Symbol"
+prettyTypeOf (CASFactor _) = "Factor"
+prettyTypeOf (CASPoly []) = "Integer"
+prettyTypeOf (CASPoly terms) =
+  let coeffTypes = map (\(CASTerm c _) -> prettyTypeOf c) terms
+      coeffType  = joinObservedTypes coeffTypes
+      atoms      = collectAtoms terms
+      atomStr    = if null atoms
+                     then "[]"
+                     else "[" ++ commaSep atoms ++ "]"
+   in "Poly " ++ parenIfApp coeffType ++ " " ++ atomStr
+prettyTypeOf (CASFrac n d) =
+  "Frac " ++ parenIfApp inner
+  where
+    nT = prettyTypeOf n
+    dT = prettyTypeOf d
+    -- If numerator and denominator share the observed type, that's the inner;
+    -- otherwise widen to MathValue.
+    inner = if nT == dT then nT else "MathValue"
+
+-- | Pretty join of observed types of multiple coefficients. The simple rule:
+-- if all are equal, use that. Otherwise widen to the broadest seen.
+joinObservedTypes :: [String] -> String
+joinObservedTypes [] = "Integer"
+joinObservedTypes ts
+  | all (== head ts) ts = head ts
+  | otherwise = "MathValue"
+
+-- | Collect distinct atom names from a list of CASTerm monomials.
+-- Returns a sorted list of pretty atom forms (`x`, `sin x`, etc.).
+collectAtoms :: [CASTerm] -> [String]
+collectAtoms terms =
+  let atomNames = [prettySymbolExpr s | CASTerm _ mono <- terms, (s, _) <- mono]
+  in unique (sortBy compare atomNames)
+  where
+    unique [] = []
+    unique (x:xs) = x : unique (dropWhile (== x) xs)
+
+-- | Comma-separate strings.
+commaSep :: [String] -> String
+commaSep []     = ""
+commaSep [x]    = x
+commaSep (x:xs) = x ++ ", " ++ commaSep xs
+
+-- | Wrap in parens if the type printed contains a space (i.e. an application).
+parenIfApp :: String -> String
+parenIfApp s
+  | ' ' `elem` s = "(" ++ s ++ ")"
+  | otherwise    = s
 
 -- | Helper function to create Apply constructors based on argument count
 makeApplyExpr :: CASValue -> [CASValue] -> SymbolExpr

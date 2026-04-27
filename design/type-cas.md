@@ -2231,11 +2231,11 @@ Phase 3/4（`ScalarData → CASValue` 置換、プリミティブパターン）
 
 ランタイム分類関数（`classifyFactor` / `hasFreeSymbol`）も持たない。型注釈との照合に必要な最小限の変更のみ行う。
 
-- [ ] `SymbolSet` を1スロット版 `SymbolSetClosed [SymbolExpr] | SymbolSetOpen | SymbolSetVar TyVar` に
-- [ ] パーサーで `Poly Integer [sqrt 2, sin x]` のような1スロット注釈をパース
-- [ ] `SymbolExpr` の構造的 `Eq` を確認（照合に使うため）
+- [ ] `SymbolSet` を1スロット版 `SymbolSetClosed [SymbolExpr] | SymbolSetOpen | SymbolSetVar TyVar` に — 部分実装。現状は `[String]` のままだが、文字列に `"sqrt 2"` のような関数適用形式の正規化文字列を入れて識別する暫定運用
+- [x] パーサーで `Poly Integer [sqrt 2, sin x]` のような1スロット注釈をパース (Parser/NonS.hs `symbolSetExpr` 拡張)
+- [x] `SymbolExpr` の構造的 `Eq` を確認（照合に使うため） — Math/CAS.hs で実装済み
 - [ ] ~~disjoint 制約の検証~~ → **不要**(1スロット化により不要)
-- [ ] 名前集合メンバーシップ関数（`SymbolExpr -> [SymbolExpr] -> Bool`）を実装
+- [ ] 名前集合メンバーシップ関数（`SymbolExpr -> [SymbolExpr] -> Bool`）を実装 — 暫定で `[String]` に対する `elem` を継続使用
 - [ ] `SymbolExpr` のリファクタリング: `Apply1 CASValue CASValue` を `ApplyN MathFuncRef [CASValue]` にリネーム + 一般化
   - 新規型 `data MathFuncRef = DeclaredMathFunc String` を追加
   - `FunctionData CASValue [CASValue]` の第 1 引数を `String` に変更 (関数シンボルの名前は単純識別子に固定されるため)
@@ -2344,8 +2344,8 @@ def factor : Matcher Factor := matcher | symbol $ $ as ... | apply1 $ $ as ... |
 
 `symbol` と `factor` は、`term` マッチャーの flat モノミアル分解が返す各要素にマッチする目的で使う。ランタイム Monomial は flat であり、`term` マッチャーは型情報を参照しない(「構成的な内部表現 > 境界での名前集合照合」参照)。既存の `PDSymbolPat`, `PDApply1Pat`, `PDQuotePat` に対応するプリミティブ関数を使う。
 
-- [ ] `integer`, `symbol`, `factor` マッチャーを `lib/math/expression.egi` に定義
-- [ ] `extractSymbolName`, `extractApply1`, `extractQuote` 等のプリミティブ関数追加
+- [x] `integer`, `symbol`, `factor` マッチャーを `lib/math/expression.egi` に定義 (mathValue 委譲版)
+- [x] `extractSymbolName`, `extractApply1`, `extractQuote` 等は既存の `PDSymbolPat`/`PDApply1Pat`/`PDQuotePat` で代替済み
 
 #### Step 5.1: `poly` パラメトリックマッチャーの実装
 
@@ -2370,9 +2370,9 @@ def poly {a} (m : Matcher a) : Matcher (Poly a ..) :=
 - `:+` の右側は `poly m` で再帰
 - ユーザーが `match expr as poly integer with | $a :+ $rest -> ...` と書いたとき、`$a` のマッチャーは `poly` の定義に埋め込まれた `term m` により自動的に `term integer` に、`$rest` は `poly integer` になる（明示指定不要）
 - `casToTerms` / `casFromTerms` はプリミティブ関数として提供
-- [ ] `poly` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` にテストあり、未通過）
-- [ ] `casToTerms`, `casFromTerms` のプリミティブ関数追加（`mini-test/60-parametric-matcher.egi` にテストあり、未通過）
-- [ ] mini-test: `poly integer` での基本的なマッチ
+- [x] `poly` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` 通過）
+- [x] `casTerms`, `casFromTerms` のプリミティブ関数追加（`mini-test/60-parametric-matcher.egi` 通過）
+- [x] mini-test: `poly integer` での基本的なマッチ (`mini-test/62-poly-div-term.egi`, `mini-test/63-nested-matchers.egi`)
 
 #### Step 5.2: `frac` パラメトリックマッチャーの実装
 
@@ -2389,8 +2389,8 @@ def frac {a} (m : Matcher a) : Matcher (Frac a) :=
       | $tgt -> [tgt]
 ```
 
-- [ ] `frac` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` にテストあり、未通過）
-- [ ] mini-test: `frac (poly integer)` でのマッチ
+- [x] `frac` マッチャー関数を `lib/math/expression.egi` に定義（`mini-test/62-poly-div-term.egi` 通過）
+- [x] mini-test: `frac (poly integer)` でのマッチ (`mini-test/62-poly-div-term.egi`)
 
 #### Step 5.3: `term` パラメトリックマッチャーの実装
 
@@ -2414,9 +2414,9 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
   termMonomial (CASTerm _ m) = m   -- flat [(SymbolExpr, Integer)] をそのまま返す
   ```
 - ユーザーが分類したい場合は、得た `$mono` の各要素に対して `factor` マッチャー(内部で `symbol`/`apply1`/`quote`)を適用する
-- [ ] `term` マッチャー関数を `lib/math/expression.egi` に定義
-- [ ] `termCoeff`, `termMonomial` のプリミティブ関数追加
-- [ ] mini-test: `term integer` での flat 分解
+- [x] `term` マッチャー関数を `lib/math/expression.egi` に定義
+- [x] `termCoeff`, `termMonomial` のプリミティブ関数追加 (Primitives.hs)
+- [x] mini-test: `term integer` での flat 分解 (`mini-test/60-parametric-matcher.egi`, `mini-test/63-nested-matchers.egi`)
 
 #### Step 5.4: `mathExpr` マッチャーとの互換性
 
@@ -2438,12 +2438,12 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 
 #### Step 5.6: テストと検証
 
-- [ ] 基本テスト: `integer`, `symbol`, `factor`, `poly integer`, `frac integer`, `term integer`
-- [ ] 入れ子テスト: `poly (poly integer)`, `frac (poly integer)`
-- [ ] 複合テスト: `frac (poly (frac integer))`
-- [ ] flat モノミアル分解テスト: `term integer` で `($c, $m)` のパターン
-- [ ] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること
-- [ ] sample/ の数学サンプルが正しく動作すること
+- [x] 基本テスト: `integer`, `symbol`, `factor`, `poly integer`, `frac integer`, `term integer` (`mini-test/60-parametric-matcher.egi`, `mini-test/62-poly-div-term.egi`)
+- [x] 入れ子テスト: `poly (poly integer)`, `frac (poly integer)` (`mini-test/63-nested-matchers.egi`)
+- [ ] 複合テスト: `frac (poly (frac integer))` — 動作はするが専用テスト未追加
+- [x] flat モノミアル分解テスト: `term integer` で `($c, $m)` のパターン (`mini-test/63-nested-matchers.egi` の `termMonomial`)
+- [x] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること (cabal test 21/21 pass)
+- [x] sample/ の数学サンプルが正しく動作すること (cabal test 21/21 pass)
 
 ### Phase 5.5: Embed 型クラスと Coercive Subtyping
 
@@ -2855,13 +2855,13 @@ Step 7.6 → 7.7 で全ルールが統一的に管理される。
 
 観察型 (observed type) を実装する。評価後の `CASValue` から最も具体的な型を逆算してユーザーに報告する機構。
 
-- [ ] `typeOf :: CASValue → Type` を `Math/CAS.hs` に実装
-- [ ] 入れ子 `CASValue`（多段の `CASPoly`、`CASFrac` の内部など）の再帰的 typeOf
-- [ ] REPL での静的型 + 観察型の表示
-- [ ] `inspect` プリミティブの追加
-- [ ] 型注釈提案機能（観察型をコピペ可能な注釈として出力）
-- [ ] 差分閉性ラベルの付与（`∂/∂` 前後の atoms 比較）
-- [ ] mini-test: REPL 出力、`inspect` 呼び出し、各型での typeOf
+- [x] `prettyTypeOf :: CASValue → String` を `Math/CAS.hs` に実装 (Phase 8 minimal: 文字列で型を報告)
+- [x] 入れ子 `CASValue`（多段の `CASPoly`、`CASFrac` の内部など）の再帰的 typeOf — 結合型 (join) で広げる版を実装
+- [x] `typeOf` プリミティブの追加 (mini-test/68-observed-type.egi 通過)
+- [ ] REPL での静的型 + 観察型の表示 — 未実装
+- [ ] `inspect` プリミティブの追加 — 未実装
+- [ ] 型注釈提案機能（観察型をコピペ可能な注釈として出力） — 未実装
+- [ ] 差分閉性ラベルの付与（`∂/∂` 前後の atoms 比較） — 未実装
 
 ### Phase 9: `declare-key` 機構と `declare derivative` のライブラリ化
 

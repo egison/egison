@@ -20,6 +20,7 @@ import           Data.List                         (lookup)
 import           Data.Foldable                     (toList)
 
 import qualified Data.Sequence                     as Sq
+import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 
  {--  -- for 'egison-sqlite'
@@ -78,9 +79,14 @@ primitives =
 
         , ("assert",      assert)
         , ("assertEqual", assertEqual)
-        
+
         , ("sortWithSign", sortWithSign)
         , ("updateFunctionArgs", updateFunctionArgs)
+        , ("casTerms", casTermsPrim)
+        , ("casFromTerms", casFromTermsPrim)
+        , ("termCoeff", termCoeffPrim)
+        , ("termMonomial", termMonomialPrim)
+        , ("typeOf", typeOfPrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -160,6 +166,91 @@ updateFunctionArgs = twoArgs' $ \funcVal newArgsColl ->
  where
   extractCAS (CASData cv) = return cv
   extractCAS val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+
+-- | Convert a CASValue into a list of single-term polynomials.
+-- A CASPoly is decomposed into its terms; an integer/factor becomes a singleton list;
+-- zero becomes the empty list. Used by the parametric `poly` matcher to expose
+-- term-level decomposition to Egison code.
+casTermsPrim :: String -> PrimitiveFunc
+casTermsPrim = oneArg' $ \v -> case v of
+  CASData cv -> return . Collection . Sq.fromList . map CASData $ casValueToTerms cv
+  _ -> throwErrorWithTrace (TypeMismatch "CAS value" (Value v))
+
+casValueToTerms :: CAS.CASValue -> [CAS.CASValue]
+casValueToTerms (CAS.CASInteger 0) = []
+casValueToTerms v@(CAS.CASInteger _) = [CAS.CASPoly [CASTerm v []]]
+casValueToTerms (CAS.CASFactor sym) = [CAS.CASPoly [CASTerm (CAS.CASInteger 1) [(sym, 1)]]]
+casValueToTerms (CAS.CASPoly ts) = map (\t -> CAS.CASPoly [t]) ts
+casValueToTerms v@(CAS.CASFrac _ _) = [v]
+
+-- | Build a CASValue from a collection of single-term polynomials.
+-- Each element should be a single-term polynomial (as produced by casTerms);
+-- the result is normalized by re-running through casPlus.
+casFromTermsPrim :: String -> PrimitiveFunc
+casFromTermsPrim = oneArg' $ \v -> case v of
+  Collection seq_ -> do
+    cvs <- mapM extractCAS (toList seq_)
+    return . CASData $ foldr CAS.casPlus (CAS.CASInteger 0) cvs
+  _ -> throwErrorWithTrace (TypeMismatch "collection of CAS values" (Value v))
+ where
+  extractCAS (CASData cv) = return cv
+  extractCAS val = throwErrorWithTrace (TypeMismatch "CAS value" (Value val))
+
+-- | Extract the coefficient of a single-term CASValue.
+-- For a single-term polynomial CASPoly [CASTerm c _], returns c.
+-- For a bare integer, returns it as-is. For a bare factor, returns 1.
+termCoeffPrim :: String -> PrimitiveFunc
+termCoeffPrim = oneArg' $ \v -> case v of
+  CASData (CAS.CASPoly [CASTerm c _]) -> return $ CASData c
+  CASData (CAS.CASPoly []) -> return $ CASData (CAS.CASInteger 0)
+  CASData v0@(CAS.CASInteger _) -> return $ CASData v0
+  CASData (CAS.CASFactor _) -> return $ CASData (CAS.CASInteger 1)
+  CASData v0@(CAS.CASFrac _ _) -> return $ CASData v0
+  _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
+
+-- | Phase 8 observed type: report the most specific runtime type of a value
+-- as a string.
+typeOfPrim :: String -> PrimitiveFunc
+typeOfPrim = oneArg' $ \v -> case v of
+  CASData cv -> return $ String (T.pack (CAS.prettyTypeOf cv))
+  Tuple [] -> return $ String (T.pack "()")
+  Tuple xs -> return $ String (T.pack ("(" ++ intercalateComma (map describeValue xs) ++ ")"))
+  Collection _ -> return $ String (T.pack "Collection")
+  TensorData _ -> return $ String (T.pack "Tensor")
+  Bool _ -> return $ String (T.pack "Bool")
+  Char _ -> return $ String (T.pack "Char")
+  String _ -> return $ String (T.pack "String")
+  Float _ -> return $ String (T.pack "Float")
+  _ -> return $ String (T.pack "Any")
+ where
+  describeValue (CASData cv) = CAS.prettyTypeOf cv
+  describeValue (Bool _)     = "Bool"
+  describeValue (Char _)     = "Char"
+  describeValue (String _)   = "String"
+  describeValue (Float _)    = "Float"
+  describeValue _            = "Any"
+  intercalateComma []     = ""
+  intercalateComma [s]    = s
+  intercalateComma (s:ss) = s ++ ", " ++ intercalateComma ss
+
+-- | Extract the monomial of a single-term CASValue as a flat list of (factor, exponent) pairs.
+-- For CASPoly [CASTerm _ mono], returns mono as a Collection of Tuple [factor, integer].
+termMonomialPrim :: String -> PrimitiveFunc
+termMonomialPrim = oneArg' $ \v -> case v of
+  CASData (CAS.CASPoly [CASTerm _ mono]) -> return $ monoToCollection mono
+  CASData (CAS.CASPoly []) -> return $ Collection Sq.empty
+  CASData (CAS.CASInteger _) -> return $ Collection Sq.empty
+  CASData (CAS.CASFactor sym) -> return $ monoToCollection [(sym, 1)]
+  CASData (CAS.CASFrac _ _) -> return $ Collection Sq.empty
+  _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
+ where
+  monoToCollection :: CAS.Monomial -> EgisonValue
+  monoToCollection mono =
+    Collection . Sq.fromList $
+      map (\(sym, e) ->
+            Tuple [ CASData (CAS.CASFactor sym)
+                  , CASData (CAS.CASInteger e)
+                  ]) mono
 
 assert ::  String -> PrimitiveFunc
 assert = twoArgs' $ \label test -> do
