@@ -57,6 +57,8 @@ data EvalState = EvalState
   , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
   , patternEnv     :: PatternTypeEnv -- ^ Pattern constructor environment (for type inference)
   , patternFuncEnv :: PatternTypeEnv -- ^ Pattern function environment (for disambiguation)
+  , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
+  , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   }
 
 initialEvalState :: EvalState
@@ -68,6 +70,8 @@ initialEvalState = EvalState
   , classEnv = emptyClassEnv
   , patternEnv = emptyPatternEnv
   , patternFuncEnv = emptyPatternEnv
+  , reductionRulesCount = 0
+  , derivativeRulesCount = 0
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -96,6 +100,13 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Pattern function environment operations
   getPatternFuncEnv :: m PatternTypeEnv
   setPatternFuncEnv :: PatternTypeEnv -> m ()
+  -- Phase 7.4/7.5: reduction-rule and derivative-rule registration counts.
+  -- Counts only — full data is held by EnvBuildResult during build phase
+  -- and isn't currently threaded into the runtime state.
+  getReductionRulesCount :: m Int
+  setReductionRulesCount :: Int -> m ()
+  getDerivativeRulesCount :: m Int
+  setDerivativeRulesCount :: Int -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -164,6 +175,16 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { patternFuncEnv = env }
 
+  getReductionRulesCount = reductionRulesCount <$> get
+  setReductionRulesCount n = do
+    st <- get
+    put $ st { reductionRulesCount = n }
+
+  getDerivativeRulesCount = derivativeRulesCount <$> get
+  setDerivativeRulesCount n = do
+    st <- get
+    put $ st { derivativeRulesCount = n }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -184,6 +205,10 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setPatternEnv = lift . setPatternEnv
   getPatternFuncEnv = lift getPatternFuncEnv
   setPatternFuncEnv = lift . setPatternFuncEnv
+  getReductionRulesCount = lift getReductionRulesCount
+  setReductionRulesCount = lift . setReductionRulesCount
+  getDerivativeRulesCount = lift getDerivativeRulesCount
+  setDerivativeRulesCount = lift . setDerivativeRulesCount
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

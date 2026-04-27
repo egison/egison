@@ -143,7 +143,7 @@ instance Field Float
 class Embed a b where
   embed (x: a) : b
 
--- Identity instance: trivial embedding from a type into itself.
+-- Identity instances: a type embeds trivially into itself.
 instance Embed MathValue MathValue where
   embed x := x
 
@@ -152,6 +152,47 @@ instance Embed Float Float where
 
 instance Embed Bool Bool where
   embed x := x
+
+-- Widening instances among CAS types. Runtime values share the CASValue
+-- representation, so the bodies are simple identities — the type system
+-- tracks the static widening.
+instance Embed Integer (Frac Integer) where
+  embed x := x
+
+instance Embed Integer (Poly Integer [..]) where
+  embed x := x
+
+instance Embed Factor (Poly Integer [..]) where
+  embed x := x
+
+instance Embed (Frac Integer) (Poly (Frac Integer) [..]) where
+  embed x := x
+
+instance Embed (Poly Integer [..]) (Poly (Frac Integer) [..]) where
+  embed x := x
+
+--
+-- Coerce: explicit narrowing helpers (Phase 5.5 Step 5.5.3a)
+--
+-- The current Egison MPTC dispatch indexes only on the first instance
+-- parameter, so a single overloaded `coerce :: a -> b` cannot reliably
+-- pick between e.g. `Coerce MathValue Integer` and `Coerce MathValue
+-- (Frac Integer)` based on the call-site annotation. As a workaround,
+-- we expose per-target plain functions. Each performs the runtime
+-- structural check and falls through to `undefined` on failure.
+--
+
+def coerceToInteger (x : MathValue) : Integer :=
+  if isPureInteger x then x else undefined
+
+def coerceToFracInteger (x : MathValue) : Frac Integer :=
+  if isPureFraction x then x else undefined
+
+def coerceFracToInteger (x : Frac Integer) : Integer :=
+  if isPureInteger x then x else undefined
+
+def coercePolyToInteger (x : Poly Integer [..]) : Integer :=
+  if isPureInteger x then x else undefined
 
 --
 -- Utility

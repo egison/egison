@@ -99,6 +99,14 @@ data TopExpr
     -- Maybe String: rule name (Nothing = auto rule)
     -- RuleLevel:    where the LHS pattern binds (term/poly/frac)
     -- Expr Expr:    LHS pattern, RHS expression
+  | DeclareDerivative String Expr
+    -- ^ Derivative declaration (Phase 6.3 of type-cas design).
+    -- e.g.  declare derivative sin = cos
+    --       declare derivative log = \x -> 1 / x
+    -- String: name of the function whose derivative is being declared (must
+    --         have been introduced by `declare mathfunc` in a future Phase 6+
+    --         iteration; for now we just track the registration).
+    -- Expr:   the derivative-as-an-expression (typically a function or lambda)
  deriving Show
 
 -- | Where in the CASValue tree a `declare rule` LHS pattern binds.

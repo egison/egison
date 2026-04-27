@@ -16,6 +16,19 @@ class Differentiable a where
 instance Differentiable MathValue where
   partialDiff f x := ∂/∂' f x
 
+-- Concrete CAS instances. Runtime values share the CASValue representation,
+-- so each instance simply delegates to ∂/∂'. The static type-class machinery
+-- still records the static type of the input, which lets future Embed-aware
+-- elaboration pick the correct dispatch.
+instance Differentiable Factor where
+  partialDiff f x := ∂/∂' f x
+
+instance Differentiable (Frac MathValue) where
+  partialDiff f x := ∂/∂' f x
+
+instance Differentiable (Poly MathValue [..]) where
+  partialDiff f x := ∂/∂' f x
+
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
   tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)
   

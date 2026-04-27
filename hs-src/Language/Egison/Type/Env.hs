@@ -219,6 +219,9 @@ instantiate (Forall vs cs t) counter =
     substVar old new (TIORef t') = TIORef (substVar old new t')
     substVar _ _ TPort = TPort
     substVar _ _ TAny = TAny
+    substVar _ _ TFactor = TFactor
+    substVar old new (TFrac t') = TFrac (substVar old new t')
+    substVar old new (TPoly t' ss) = TPoly (substVar old new t') ss
 
 --------------------------------------------------------------------------------
 -- Class Environment

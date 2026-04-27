@@ -225,6 +225,11 @@ desugarTopExpr (DeclareRule _ruleName _level _lhs _rhs) =
   -- is not yet wired in, so we accept the declaration and discard it for now.
   -- A future Phase 7.5 step will register the rule into the reduction environment.
   return Nothing
+desugarTopExpr (DeclareDerivative _name _rhs) =
+  -- Phase 6.3: parser/AST only. The derivative environment (DerivativeEnv)
+  -- is not yet wired in, so we accept the declaration and discard it. A
+  -- future iteration will plumb it through `Differentiable Factor`.
+  return Nothing
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern

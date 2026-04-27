@@ -73,6 +73,9 @@ instance Pretty TopExpr where
                      FracRuleLevel -> pretty "frac"
     in pretty "declare" <+> pretty "rule" <+> nameDoc <+> levelDoc <+>
        pretty lhs <+> pretty "=" <+> pretty rhs
+  pretty (DeclareDerivative name rhs) =
+    pretty "declare" <+> pretty "derivative" <+> pretty name <+>
+    pretty "=" <+> pretty rhs
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where

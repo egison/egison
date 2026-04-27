@@ -92,6 +92,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
       <|> declareRuleExpr
+      <|> declareDerivativeExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
@@ -541,6 +542,29 @@ declareRuleExpr = try $ do
 extractRuleSides :: Expr -> Maybe (Expr, Expr)
 extractRuleSides (InfixExpr op lhs rhs) | repr op == "=" = Just (lhs, rhs)
 extractRuleSides _ = Nothing
+
+-- | Parse a `declare derivative` declaration (Phase 6.3 of type-cas).
+--
+--   declare derivative sin = cos
+--   declare derivative log = \x -> 1 / x
+--
+-- Same body-splitting trick as `declare rule`: the body is parsed as a single
+-- expression with `=` as a top-level binary operator, then the LHS is required
+-- to be a single identifier (the function name) and the RHS is kept as the
+-- derivative expression.
+declareDerivativeExpr :: Parser TopExpr
+declareDerivativeExpr = try $ do
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "derivative"
+    then fail "Expected 'derivative' after 'declare'"
+    else return ()
+  body <- exprWithoutWhere
+  case extractRuleSides body of
+    Just (VarExpr name, rhs) -> return $ DeclareDerivative name rhs
+    Just (_, _) ->
+      fail "expected `declare derivative <name> = <expr>` (LHS must be a plain identifier)"
+    Nothing -> fail "expected `declare derivative <name> = <expr>`"
 
 defineExpr :: Parser TopExpr
 defineExpr = try defineWithType <|> defineWithoutType

@@ -29,6 +29,7 @@ import qualified Database.SQLite3 as SQLite
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection   (makeICollection)
+import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
 import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
@@ -89,6 +90,11 @@ primitives =
         , ("typeOf", typeOfPrim)
         , ("inspect", inspectPrim)
         , ("differentialClosed", differentialClosedPrim)
+        , ("isInPolyAtoms", isInPolyAtomsPrim)
+        , ("isPureInteger", isPureIntegerPrim)
+        , ("isPureFraction", isPureFractionPrim)
+        , ("numReductionRules", numReductionRulesPrim)
+        , ("numDerivativeRules", numDerivativeRulesPrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -209,6 +215,64 @@ termCoeffPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASFactor _) -> return $ CASData (CAS.CASInteger 1)
   CASData v0@(CAS.CASFrac _ _) -> return $ CASData v0
   _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
+
+-- | Phase 7.4/7.5: report the number of `declare rule` declarations seen by
+-- the env-builder. The rule data itself is held in EnvBuildResult; here we
+-- only expose the count so users can confirm registration worked.
+numReductionRulesPrim :: String -> PrimitiveFunc
+numReductionRulesPrim _ args = case args of
+  [] -> do
+    n <- getReductionRulesCount
+    return $ toEgison (fromIntegral n :: Integer)
+  [Tuple []] -> do
+    n <- getReductionRulesCount
+    return $ toEgison (fromIntegral n :: Integer)
+  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+
+-- | Phase 6.3: report the number of `declare derivative` declarations seen.
+numDerivativeRulesPrim :: String -> PrimitiveFunc
+numDerivativeRulesPrim _ args = case args of
+  [] -> do
+    n <- getDerivativeRulesCount
+    return $ toEgison (fromIntegral n :: Integer)
+  [Tuple []] -> do
+    n <- getDerivativeRulesCount
+    return $ toEgison (fromIntegral n :: Integer)
+  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+
+-- | Phase 5.5: runtime check that all atoms in a CAS value belong to the
+-- given allowed-atom-name list. Used by user-level coerce-style helpers.
+-- Atom names are pretty-printed (e.g. "x", "sqrt 2"), matched as strings.
+isInPolyAtomsPrim :: String -> PrimitiveFunc
+isInPolyAtomsPrim = twoArgs $ \v allowedC ->
+  case (v, allowedC) of
+    (CASData cv, Collection allowedSeq) -> do
+      allowedNames <- mapM extractName (toList allowedSeq)
+      let valueAtoms = CAS.casAtomSet cv
+      return $ Bool (all (`elem` allowedNames) valueAtoms)
+    _ -> throwErrorWithTrace (TypeMismatch "CAS value and string list" (Value v))
+ where
+  extractName (String s) = return (T.unpack s)
+  extractName _          = throwErrorWithTrace (TypeMismatch "string atom name" (Value v))
+  v = CASData (CAS.CASInteger 0)  -- unused placeholder for the error path
+
+-- | Phase 5.5: check if a CASValue is a pure integer (no atoms / fractions).
+isPureIntegerPrim :: String -> PrimitiveFunc
+isPureIntegerPrim = oneArg' $ \v -> case v of
+  CASData (CAS.CASInteger _)  -> return $ Bool True
+  CASData (CAS.CASPoly [])    -> return $ Bool True   -- canonical zero
+  CASData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger _) []]) -> return $ Bool True
+  CASData _                   -> return $ Bool False
+  _                           -> return $ Bool False
+
+-- | Phase 5.5: check if a CASValue is a pure rational (Frac of integers).
+isPureFractionPrim :: String -> PrimitiveFunc
+isPureFractionPrim = oneArg' $ \v -> case v of
+  CASData (CAS.CASInteger _) -> return $ Bool True
+  CASData (CAS.CASFrac (CAS.CASInteger _) (CAS.CASInteger _)) -> return $ Bool True
+  CASData (CAS.CASPoly []) -> return $ Bool True
+  CASData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger _) []]) -> return $ Bool True
+  _ -> return $ Bool False
 
 -- | Phase 8: differential closure check.
 -- Returns True iff the output value's atom set is a subset of the input's,

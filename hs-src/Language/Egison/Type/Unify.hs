@@ -130,6 +130,25 @@ unifyG _ _ _ TString TString = ok
 unifyG _ _ _ TInt TMathValue = ok
 unifyG _ _ _ TMathValue TInt = ok
 
+-- Phase 5.5 (simplified subtype unification): all CAS-family types
+-- (Factor / Frac / Poly) unify with MathValue and with TInt (=MathValue).
+-- This is the "every CAS type is a subtype of MathValue" relationship from
+-- the design's type-inclusion graph. The runtime values are all CASValue
+-- so this is sound at the value level; full Embed/coerce machinery (with
+-- runtime checks) is still pending.
+unifyG _ _ _ TMathValue TFactor   = ok
+unifyG _ _ _ TFactor    TMathValue = ok
+unifyG _ _ _ TInt        TFactor   = ok
+unifyG _ _ _ TFactor     TInt      = ok
+unifyG _ _ _ TMathValue (TFrac _)  = ok
+unifyG _ _ _ (TFrac _)  TMathValue = ok
+unifyG _ _ _ TInt       (TFrac _)  = ok
+unifyG _ _ _ (TFrac _)  TInt       = ok
+unifyG _ _ _ TMathValue (TPoly _ _) = ok
+unifyG _ _ _ (TPoly _ _) TMathValue = ok
+unifyG _ _ _ TInt        (TPoly _ _) = ok
+unifyG _ _ _ (TPoly _ _) TInt        = ok
+
 -- Type variables: delegated to mode-specific handler
 unifyG mode ce cs (TVar v) t = unifyVarG mode ce cs v t
 unifyG mode ce cs t (TVar v) = unifyVarG mode ce cs v t

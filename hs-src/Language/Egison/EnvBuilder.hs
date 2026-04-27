@@ -46,6 +46,15 @@ data EnvBuildResult = EnvBuildResult
   , ebrConstructorEnv :: ConstructorEnv  -- ^ Data constructor information
   , ebrPatternConstructorEnv :: PatternConstructorEnv  -- ^ Pattern constructor information
   , ebrPatternTypeEnv :: PatternTypeEnv  -- ^ Pattern function information
+  -- Phase 7.4/7.5: collected `declare rule` declarations. Stored as the raw
+  -- (name, level, lhs, rhs) tuple. Rule application is not yet wired into
+  -- normalization; this field exists so the data round-trips through env
+  -- building and is available for inspection / future Phase 7.5 code.
+  , ebrReductionRules :: [(Maybe String, RuleLevel, Expr, Expr)]
+  -- Phase 6.3: collected `declare derivative` declarations. Maps function
+  -- name -> derivative expression. Wiring into `Differentiable Factor` is
+  -- still pending; for now, just the registration list.
+  , ebrDerivativeRules :: [(String, Expr)]
   } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -64,6 +73,8 @@ buildEnvironments exprs = do
         , ebrConstructorEnv = HashMap.empty
         , ebrPatternConstructorEnv = emptyPatternEnv
         , ebrPatternTypeEnv = emptyPatternEnv
+        , ebrReductionRules = []
+        , ebrDerivativeRules = []
         }
   
   -- Process each top-level expression to collect declarations
@@ -242,10 +253,19 @@ processTopExpr result topExpr = case topExpr of
     return result { ebrTypeEnv = typeEnv' }
 
   -- 8. Reduction Rule Declarations (from DeclareRule, Phase 7.4)
-  -- The parser accepts the rule but the reduction-rule machinery is not yet
-  -- wired into casNormalize, so we currently just no-op. A future Phase 7.5
-  -- step will register the rule into the reduction environment.
-  DeclareRule {} -> return result
+  -- The parser accepts the rule and we now stash the (name, level, lhs, rhs)
+  -- tuple in `ebrReductionRules` for later inspection / Phase 7.5 use.
+  -- Application during `casNormalize` is still pending.
+  DeclareRule mname level lhs rhs ->
+    return result { ebrReductionRules = ebrReductionRules result ++
+                                          [(mname, level, lhs, rhs)] }
+
+  -- 9. Derivative Declarations (from DeclareDerivative, Phase 6.3)
+  -- Stash the (name, expr) pair in `ebrDerivativeRules`. Wiring into
+  -- `Differentiable Factor`'s connection rule is still pending.
+  DeclareDerivative name rhs ->
+    return result { ebrDerivativeRules = ebrDerivativeRules result ++
+                                            [(name, rhs)] }
 
 --------------------------------------------------------------------------------
 -- Helper Functions
