@@ -41,6 +41,8 @@ module Language.Egison.Math.CAS
     , casDenominator
     -- * Observed type (Phase 8)
     , prettyTypeOf
+    , casAtomSet
+    , casDifferentialClosed
     -- * Normalization
     , casNormalize
     , casNormalizePoly
@@ -246,6 +248,38 @@ joinObservedTypes [] = "Integer"
 joinObservedTypes ts
   | all (== head ts) ts = head ts
   | otherwise = "MathValue"
+
+-- | Phase 8 differential closure: collect the set of atoms (as their canonical
+-- pretty form) appearing in a CASValue's monomials, recursing into nested
+-- coefficients. The result is a sorted list of unique atom names.
+casAtomSet :: CASValue -> [String]
+casAtomSet (CASInteger _) = []
+casAtomSet (CASFactor sym) = [prettySymbolExpr sym]
+casAtomSet (CASPoly terms) =
+  let atomNames = concat
+        [ map (prettySymbolExpr . fst) mono ++ casAtomSet coeff
+        | CASTerm coeff mono <- terms
+        ]
+  in unique (sortBy compare atomNames)
+  where
+    unique [] = []
+    unique (x:xs) = x : unique (dropWhile (== x) xs)
+casAtomSet (CASFrac n d) =
+  let combined = casAtomSet n ++ casAtomSet d
+  in unique (sortBy compare combined)
+  where
+    unique [] = []
+    unique (x:xs) = x : unique (dropWhile (== x) xs)
+
+-- | Check whether differentiation preserved the atom set of the input.
+-- Used by the `differentialClosed` primitive: the result is true iff the
+-- atom set of `output` is a subset of that of `input` (no new atoms
+-- introduced by `∂/∂`).
+casDifferentialClosed :: CASValue -> CASValue -> Bool
+casDifferentialClosed input output =
+  let inA  = casAtomSet input
+      outA = casAtomSet output
+  in all (`elem` inA) outA
 
 -- | Collect distinct atom names from a list of CASTerm monomials.
 -- Returns a sorted list of pretty atom forms (`x`, `sin x`, etc.).

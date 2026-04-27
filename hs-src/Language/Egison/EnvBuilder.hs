@@ -87,53 +87,65 @@ processTopExpr result topExpr = case topExpr of
     
     return result { ebrTypeEnv = typeEnv', ebrConstructorEnv = ctorEnv' }
   
-  -- 2. Type Class Definitions (from ClassDeclExpr)
-  ClassDeclExpr (ClassDecl className [typeParam] superClasses methods) -> do
+  -- 2. Type Class Definitions (from ClassDeclExpr).
+  -- Supports any number of type parameters (single-param `class Eq a` and
+  -- multi-param `class Embed a b` go through the same path). Methods are still
+  -- registered against the *first* parameter for backward compatibility with
+  -- existing single-param infrastructure (Phase 5.5 multi-param-aware
+  -- elaboration is a separate task).
+  ClassDeclExpr (ClassDecl className typeParams superClasses methods) | not (null typeParams) -> do
     let classEnv = ebrClassEnv result
         typeEnv = ebrTypeEnv result
-        tyVar = TyVar typeParam
-        
+        tyVars = map TyVar typeParams
+        primaryTyVar = head tyVars
+
         -- Extract superclass names from ConstraintExprs
         superNames = map extractConstraintName superClasses
-        
+
         -- Build method list with types
         methodsWithTypes = map extractMethodWithType methods
-        
+
         -- Create ClassInfo
         -- Note: Use qualified name to avoid ambiguity with ClassDecl.classMethods
         classInfo = Types.ClassInfo
           { Types.classSupers = superNames
-          , Types.classParam = tyVar
+          , Types.classParams = tyVars
           , Types.classMethods = methodsWithTypes
           }
-        
+
         -- Register class
         classEnv' = addClass className classInfo classEnv
-        
+
         -- Register each class method to type environment
-        typeEnv' = foldl (registerClassMethod tyVar className) typeEnv methods
-    
+        typeEnv' = foldl (registerClassMethod primaryTyVar className) typeEnv methods
+
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
-  
-  ClassDeclExpr _ -> 
-    -- Unsupported class declaration format (multiple type parameters, etc.)
+
+  ClassDeclExpr _ ->
+    -- Class with no type parameters is rejected.
     return result
   
-  -- 3. Instance Definitions (from InstanceDeclExpr)
+  -- 3. Instance Definitions (from InstanceDeclExpr).
+  -- Multi-param-friendly: instance declarations may carry one or more
+  -- types (`instance Embed Integer (Frac Integer) where ...`). All of them
+  -- are stored in `instTypes`; the legacy `instType` accessor reads the head.
   InstanceDeclExpr (InstanceDecl context className instTypes methods) -> do
     let classEnv = ebrClassEnv result
         typeEnv = ebrTypeEnv result
-        
-        -- Get the main instance type
-        mainInstType = case instTypes of
+
+        -- Convert all instance types
+        instanceTypeList = map typeExprToType instTypes
+
+        -- Get the primary instance type (head) for backward compatibility
+        mainInstType = case instanceTypeList of
           []    -> TAny
-          (t:_) -> typeExprToType t
-        
+          (t:_) -> t
+
         -- Create InstanceInfo
         instInfo = Types.InstanceInfo
           { Types.instContext = map constraintToInternal context
           , Types.instClass = className
-          , Types.instType = mainInstType
+          , Types.instTypes = instanceTypeList
           , Types.instMethods = []  -- Methods are handled during desugaring/evaluation
           }
         
@@ -228,6 +240,12 @@ processTopExpr result topExpr = case topExpr of
         -- Add each symbol to the type environment
         typeEnv' = foldr (\name env -> extendEnv (stringToVar name) scheme env) typeEnv names
     return result { ebrTypeEnv = typeEnv' }
+
+  -- 8. Reduction Rule Declarations (from DeclareRule, Phase 7.4)
+  -- The parser accepts the rule but the reduction-rule machinery is not yet
+  -- wired into casNormalize, so we currently just no-op. A future Phase 7.5
+  -- step will register the rule into the reduction environment.
+  DeclareRule {} -> return result
 
 --------------------------------------------------------------------------------
 -- Helper Functions
@@ -338,6 +356,11 @@ registerInstanceMethods className instType instConstraints methods classEnv type
     substituteTypeVar oldVar newType = go
       where
         go TInt = TInt
+        go TMathValue = TMathValue
+        go TPolyExpr = TPolyExpr
+        go TTermExpr = TTermExpr
+        go TSymbolExpr = TSymbolExpr
+        go TIndexExpr = TIndexExpr
         go TFloat = TFloat
         go TBool = TBool
         go TChar = TChar
@@ -353,7 +376,11 @@ registerInstanceMethods className instType instConstraints methods classEnv type
         go (TFun t1 t2) = TFun (go t1) (go t2)
         go (TIO t) = TIO (go t)
         go (TIORef t) = TIORef (go t)
+        go TPort = TPort
         go TAny = TAny
+        go TFactor = TFactor
+        go (TFrac t) = TFrac (go t)
+        go (TPoly t ss) = TPoly (go t) ss
 
 -- | Extract method name from ClassMethod
 extractMethodName :: ClassMethod -> String

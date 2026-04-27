@@ -15,11 +15,11 @@ module Language.Egison.Type.Pretty
 
 import           Data.List                  (intercalate)
 
-import           Language.Egison.AST        (TypeExpr (..), SymbolSetExpr(..))
+import           Language.Egison.AST        (TypeExpr (..), SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
 import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..), TyVar (..), Type (..),
-                                             TypeScheme (..), SymbolSet(..))
+                                             TypeScheme (..), SymbolSet(..), prettyTypeAtomValue)
 
 -- | Pretty print a Type
 prettyType :: Type -> String
@@ -61,7 +61,7 @@ prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbol
 
 -- | Pretty print a SymbolSet
 prettySymbolSet :: SymbolSet -> String
-prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
 prettySymbolSet SymbolSetOpen          = "[..]"
 prettySymbolSet (SymbolSetVar (TyVar v)) = v
 
@@ -168,7 +168,13 @@ prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettyS
 
 -- | Pretty print a SymbolSetExpr
 prettySymbolSetExpr :: SymbolSetExpr -> String
-prettySymbolSetExpr (SSEClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+prettySymbolSetExpr (SSEClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomExpr syms) ++ "]"
+  where
+    prettyTypeAtomExpr (TAEName s)        = s
+    prettyTypeAtomExpr (TAEInt n)         = show n
+    prettyTypeAtomExpr (TAEApp fn args)   = unwords (fn : map prettyAtomExprArg args)
+    prettyAtomExprArg a@(TAEApp _ _) = "(" ++ prettyTypeAtomExpr a ++ ")"
+    prettyAtomExprArg a              = prettyTypeAtomExpr a
 prettySymbolSetExpr SSEOpen          = "[..]"
 
 -- | Pretty print an atomic TypeExpr

@@ -11,19 +11,24 @@ This module defines the type system for Egison.
 module Language.Egison.Type.Types
   ( Type(..)
   , SymbolSet(..)
+  , TypeAtom(..)
+  , prettyTypeAtomValue
   , TypeScheme(..)
   , TyVar(..)
   , TensorShape(..)
   , ShapeDimType(..)
   , Constraint(..)
   , ClassInfo(..)
+  , classParam
   , InstanceInfo(..)
+  , instType
   , freshTyVar
   , freeTyVars
   , isTensorType
   , isScalarType
   , isCASType
   , isSubsetSymbolSet
+  , typeAtomExprToTypeAtom
   , typeToName
   , typeConstructorName
   , sanitizeMethodName
@@ -39,7 +44,7 @@ import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
-import           Language.Egison.AST        (TypeExpr(..), SymbolSetExpr(..))
+import           Language.Egison.AST        (TypeExpr(..), SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Index ()
 
 -- | Type variable
@@ -60,12 +65,36 @@ data TensorShape
   | ShapeUnknown              -- ^ To be inferred
   deriving (Eq, Ord, Show, Generic, Hashable)
 
+-- | A type-level atom inside a closed symbol set.
+-- Mirrors `TypeAtomExpr` from the AST; conversion is handled by
+-- `typeAtomExprToTypeAtom`.
+data TypeAtom
+  = TANameAtom String             -- ^ A plain identifier, e.g. `x`, `i`
+  | TAApplyAtom String [TypeAtom] -- ^ A function applied to atom args, e.g. `sin x`
+  | TAIntAtom  Integer            -- ^ An integer literal in atom position
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
+-- | Pretty print a TypeAtom in canonical form.
+prettyTypeAtomValue :: TypeAtom -> String
+prettyTypeAtomValue (TANameAtom s)        = s
+prettyTypeAtomValue (TAIntAtom n)         = show n
+prettyTypeAtomValue (TAApplyAtom fn args) = unwords (fn : map prettyAtomArg args)
+  where
+    prettyAtomArg a@(TAApplyAtom _ _) = "(" ++ prettyTypeAtomValue a ++ ")"
+    prettyAtomArg a                   = prettyTypeAtomValue a
+
+-- | Convert an AST-level atom to a Type-level atom (1-to-1 correspondence).
+typeAtomExprToTypeAtom :: TypeAtomExpr -> TypeAtom
+typeAtomExprToTypeAtom (TAEName s)       = TANameAtom s
+typeAtomExprToTypeAtom (TAEInt n)        = TAIntAtom n
+typeAtomExprToTypeAtom (TAEApp fn args)  = TAApplyAtom fn (map typeAtomExprToTypeAtom args)
+
 -- | Symbol set for polynomial types
 -- Used to specify the indeterminates in a polynomial type
 data SymbolSet
-  = SymbolSetClosed [String]  -- ^ Fixed symbol set, e.g., [x, y] in Poly Integer [x, y]
-  | SymbolSetOpen             -- ^ Open symbol set, e.g., [..] in Poly Integer [..]
-  | SymbolSetVar TyVar        -- ^ Symbol set variable (for unification with open sets)
+  = SymbolSetClosed [TypeAtom]  -- ^ Fixed symbol set, e.g., [x, y, sqrt 2]
+  | SymbolSetOpen               -- ^ Open symbol set, e.g., [..] in Poly Integer [..]
+  | SymbolSetVar TyVar          -- ^ Symbol set variable (for unification with open sets)
   deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Egison types
@@ -117,17 +146,31 @@ data Constraint = Constraint
 -- | Information about a type class
 data ClassInfo = ClassInfo
   { classSupers  :: [String]           -- ^ Superclass names
-  , classParam   :: TyVar              -- ^ Type parameter (e.g., 'a' in "class Eq a")
+  , classParams  :: [TyVar]            -- ^ Type parameters (e.g. ['a'] in "class Eq a"; ['a','b'] in "class Embed a b")
   , classMethods :: [(String, Type)]   -- ^ Method names and their types
   } deriving (Eq, Show, Generic)
+
+-- | Backward-compatible accessor for the first (or only) class parameter.
+-- Many existing call sites assume a single-parameter class; multi-param classes
+-- (Phase 5.5 Embed) need to call `classParams` directly.
+classParam :: ClassInfo -> TyVar
+classParam ci = case classParams ci of
+  (p:_) -> p
+  []    -> error "classParam: class with no type parameters"
 
 -- | Information about a type class instance
 data InstanceInfo = InstanceInfo
   { instContext :: [Constraint]        -- ^ Instance context (e.g., "Eq a" in "{Eq a} Eq [a]")
   , instClass   :: String              -- ^ Class name
-  , instType    :: Type                -- ^ Instance type
+  , instTypes   :: [Type]              -- ^ Instance types (e.g. [Integer] or [Integer, Frac Integer] for multi-param)
   , instMethods :: [(String, ())]      -- ^ Method implementations (placeholder for now)
   } deriving (Eq, Show, Generic)
+
+-- | Backward-compatible accessor for the first (or only) instance type.
+instType :: InstanceInfo -> Type
+instType ii = case instTypes ii of
+  (t:_) -> t
+  []    -> error "instType: instance with no types"
 
 -- | Generate a fresh type variable with a given prefix
 freshTyVar :: String -> Int -> TyVar
@@ -216,9 +259,13 @@ typeToName TFactor = "Factor"
 typeToName (TFrac t) = "Frac" ++ typeToName t
 typeToName (TPoly t ss) = "Poly" ++ typeToName t ++ symbolSetToName ss
   where
-    symbolSetToName (SymbolSetClosed syms) = concatMap ('_':) syms
+    -- Render atoms into a flat slug, e.g. [sqrt 2, x] -> "_sqrt_2_x".
+    -- Spaces are replaced with underscores so the slug is a valid identifier
+    -- piece for dictionary lookup.
+    symbolSetToName (SymbolSetClosed syms) = concatMap (\a -> '_' : sanitize (prettyTypeAtomValue a)) syms
     symbolSetToName SymbolSetOpen = "_Open"
     symbolSetToName (SymbolSetVar (TyVar v)) = "_" ++ v
+    sanitize = map (\c -> if c == ' ' || c == '(' || c == ')' then '_' else c)
 typeToName _ = "Unknown"
 
 -- | Get the type constructor name only, without type parameters
@@ -307,7 +354,8 @@ typeExprToType TEFactor = TFactor
 typeExprToType (TEFrac t) = TFrac (typeExprToType t)
 typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSet ss)
   where
-    symbolSetExprToSymbolSet (SSEClosed syms) = SymbolSetClosed syms
+    symbolSetExprToSymbolSet (SSEClosed atoms) =
+      SymbolSetClosed (map typeAtomExprToTypeAtom atoms)
     symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
 
 -- | Normalize inductive type names to primitive types if applicable

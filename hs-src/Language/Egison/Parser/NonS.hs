@@ -91,6 +91,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> LoadFile <$> (reserved "loadFile" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
+      <|> declareRuleExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
@@ -497,6 +498,50 @@ declareSymbolExpr = try $ do
     typeAtomSimple
   return $ DeclareSymbol names mType
 
+-- | Parse a `declare rule` declaration.
+--
+--   declare rule auto term i^2 = -1
+--   declare rule trig_pythagorean poly (sin $x)^2 + (cos #x)^2 = 1
+--   declare rule rationalize_sqrt frac $x / (sqrt $y) = x * sqrt y / y
+--
+-- Form: `declare rule [auto|<name>] [term|poly|frac] <lhs> = <rhs>`.
+--
+-- Parsing strategy: `=` is a regular binary operator in expr, so the whole
+-- `<lhs> = <rhs>` is captured as a single InfixExpr node, which we then split
+-- into LHS and RHS.
+declareRuleExpr :: Parser TopExpr
+declareRuleExpr = try $ do
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "rule"
+    then fail "Expected 'rule' after 'declare'"
+    else return ()
+  -- Parse `auto` or a rule name (lowercase identifier)
+  qualifier <- lowerId
+  let ruleName = if qualifier == "auto" then Nothing else Just qualifier
+  -- Parse rule level: term / poly / frac
+  levelName <- lowerId
+  level <- case levelName of
+    "term" -> return TermRuleLevel
+    "poly" -> return PolyRuleLevel
+    "frac" -> return FracRuleLevel
+    other  -> fail ("Expected term/poly/frac after rule level, got: " ++ other)
+  -- Parse the body expression. The `=` between LHS and RHS appears as a
+  -- top-level InfixExpr "=" (or BinaryOpExpr) in the parsed expression.
+  -- Use `exprWithoutWhere` to avoid consuming a trailing `where` clause
+  -- that might belong to subsequent declarations.
+  body <- exprWithoutWhere
+  case extractRuleSides body of
+    Just (lhs, rhs) -> return $ DeclareRule ruleName level lhs rhs
+    Nothing         -> fail "expected `<lhs> = <rhs>` after rule level"
+
+-- | Split a parsed expression at the top-level `=` operator, returning the LHS
+-- and RHS sub-expressions. Returns `Nothing` if the expression does not have
+-- `=` at its top level.
+extractRuleSides :: Expr -> Maybe (Expr, Expr)
+extractRuleSides (InfixExpr op lhs rhs) | repr op == "=" = Just (lhs, rhs)
+extractRuleSides _ = Nothing
+
 defineExpr :: Parser TopExpr
 defineExpr = try defineWithType <|> defineWithoutType
   where
@@ -751,33 +796,31 @@ polyTypeExpr = do
 -- | Parse a symbol set expression
 -- Either [..] for open, or [x, y, sqrt 2, sin x, ...] for closed.
 -- Closed slots accept simple identifiers as well as function-applied forms
--- like `sqrt 2`, `sin x`, which are normalized to a space-separated string.
+-- like `sqrt 2`, `sin x`. Each atom is parsed into a structured `TypeAtomExpr`.
 symbolSetExpr :: Parser SymbolSetExpr
 symbolSetExpr = brackets $ openSymbolSet <|> closedSymbolSet
   where
     -- [..] - open symbol set
     openSymbolSet = SSEOpen <$ symbol ".."
     -- [x, y, sqrt 2, ...] - closed symbol set with atom expressions.
-    -- Each atom is normalized to a string for now (Phase 1.5 stub);
-    -- a future revision will replace [String] with a structured atom type.
-    closedSymbolSet = SSEClosed <$> atomName `sepBy` symbol ","
-    -- An atom name is either a simple lowercase identifier (`x`) or a
-    -- function application with simple-name / integer arguments (`sqrt 2`,
-    -- `sin x`). Nested atoms (`sqrt (x + 1)`) are not yet supported.
-    atomName :: Parser String
-    atomName = lexeme $ do
+    closedSymbolSet = SSEClosed <$> atomExpr `sepBy` symbol ","
+    -- An atom is either a simple lowercase identifier (`x`) or a function
+    -- applied to simple-name / integer arguments (`sqrt 2`, `sin x`).
+    -- Nested atoms with parens or arithmetic are not yet supported.
+    atomExpr :: Parser TypeAtomExpr
+    atomExpr = lexeme $ do
       hd <- atomIdent
       args <- many (try (some (char ' ') >> atomArg))
-      return $ if null args then hd else unwords (hd : args)
+      return $ if null args then TAEName hd else TAEApp hd args
     atomIdent :: Parser String
     atomIdent = do
       c <- lowerChar
       cs <- many identChar
       return (c : cs)
-    atomArg :: Parser String
-    atomArg = atomIdent <|> atomNumber
-    atomNumber :: Parser String
-    atomNumber = some digitChar
+    atomArg :: Parser TypeAtomExpr
+    atomArg = (TAEName <$> atomIdent) <|> (TAEInt <$> atomInteger)
+    atomInteger :: Parser Integer
+    atomInteger = read <$> some digitChar
 
 typeVarIdent :: Parser String
 typeVarIdent = lexeme $ do

@@ -24,7 +24,7 @@ import           Data.List                  (intercalate)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
-import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..))
+import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..), prettyTypeAtomValue)
 
 -- | Source location information
 data SourceLocation = SourceLocation
@@ -239,7 +239,7 @@ prettyType TFactor = "Factor"
 prettyType (TFrac t) = "Frac " ++ prettyType t
 prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
   where
-    prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " syms ++ "]"
+    prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
     prettySymbolSet SymbolSetOpen = "[..]"
     prettySymbolSet (SymbolSetVar (TyVar v)) = v
 

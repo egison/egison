@@ -133,6 +133,27 @@ instance Ring Float
 instance Field Float
 
 --
+-- Embed type class (Phase 5.5)
+--
+-- Two-parameter class for explicit value-level coercion between types.
+-- The runtime `embed x` returns `x` reinterpreted at the target type. The
+-- static type checker does not auto-insert these calls yet (that requires
+-- elaboration); users call `embed` explicitly when they need the conversion.
+--
+class Embed a b where
+  embed (x: a) : b
+
+-- Identity instance: trivial embedding from a type into itself.
+instance Embed MathValue MathValue where
+  embed x := x
+
+instance Embed Float Float where
+  embed x := x
+
+instance Embed Bool Bool where
+  embed x := x
+
+--
 -- Utility
 --
 

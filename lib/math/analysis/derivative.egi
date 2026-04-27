@@ -4,6 +4,18 @@
 --
 --
 
+-- Phase 6.3 (preparatory): single-param type class for differentiation.
+-- Each instance defines how a value of type `a` is differentiated against a
+-- given symbol. The result is a generic `MathValue`. Concrete CAS types
+-- (`Poly`, `Frac`, `Term`) can specialize this class with closed-form rules
+-- once Embed/coerce elaboration lands; for now we provide a single fallback
+-- via `MathValue` that delegates to the existing `∂/∂'` algorithm.
+class Differentiable a where
+  partialDiff (f: a) (x: MathValue) : MathValue
+
+instance Differentiable MathValue where
+  partialDiff f x := ∂/∂' f x
+
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
   tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)
   

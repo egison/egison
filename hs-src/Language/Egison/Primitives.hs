@@ -87,6 +87,8 @@ primitives =
         , ("termCoeff", termCoeffPrim)
         , ("termMonomial", termMonomialPrim)
         , ("typeOf", typeOfPrim)
+        , ("inspect", inspectPrim)
+        , ("differentialClosed", differentialClosedPrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -207,6 +209,50 @@ termCoeffPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASFactor _) -> return $ CASData (CAS.CASInteger 1)
   CASData v0@(CAS.CASFrac _ _) -> return $ CASData v0
   _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
+
+-- | Phase 8: differential closure check.
+-- Returns True iff the output value's atom set is a subset of the input's,
+-- i.e. ∂/∂ did not introduce any new atoms. Used to label results that
+-- stayed in the same Poly Integer [atoms] sub-ring.
+differentialClosedPrim :: String -> PrimitiveFunc
+differentialClosedPrim = twoArgs $ \input output ->
+  case (input, output) of
+    (CASData iv, CASData ov) ->
+      return $ Bool (CAS.casDifferentialClosed iv ov)
+    _ -> throwErrorWithTrace (TypeMismatch "two CAS values" (Value input))
+
+-- | Phase 8: print the value alongside its observed type for REPL inspection.
+-- Returns a string of the form "value : observed-type".
+inspectPrim :: String -> PrimitiveFunc
+inspectPrim = oneArg' $ \v -> case v of
+  CASData cv ->
+    return $ String (T.pack (CAS.prettyCAS cv ++ " : " ++ CAS.prettyTypeOf cv))
+  Bool b ->
+    return $ String (T.pack (show b ++ " : Bool"))
+  Char c ->
+    return $ String (T.pack (show c ++ " : Char"))
+  String s ->
+    return $ String (T.pack (show s ++ " : String"))
+  Float f ->
+    return $ String (T.pack (show f ++ " : Float"))
+  Tuple [] ->
+    return $ String (T.pack "() : ()")
+  Tuple xs -> do
+    descs <- mapM describeOne xs
+    let valStr = "(" ++ intercalateComma (map fst descs) ++ ")"
+        tyStr  = "(" ++ intercalateComma (map snd descs) ++ ")"
+    return $ String (T.pack (valStr ++ " : " ++ tyStr))
+  _ -> return $ String (T.pack "<value> : Any")
+ where
+  describeOne (CASData cv) = return (CAS.prettyCAS cv, CAS.prettyTypeOf cv)
+  describeOne (Bool b)     = return (show b, "Bool")
+  describeOne (Char c)     = return (show c, "Char")
+  describeOne (String s)   = return (show s, "String")
+  describeOne (Float f)    = return (show f, "Float")
+  describeOne _            = return ("<value>", "Any")
+  intercalateComma []     = ""
+  intercalateComma [s]    = s
+  intercalateComma (s:ss) = s ++ ", " ++ intercalateComma ss
 
 -- | Phase 8 observed type: report the most specific runtime type of a value
 -- as a string.

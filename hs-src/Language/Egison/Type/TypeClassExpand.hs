@@ -48,7 +48,7 @@ import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), Instanc
                                              lookupInstances, lookupClass, lookupEnv)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), typeToName, typeConstructorName,
-                                            sanitizeMethodName, freeTyVars)
+                                            sanitizeMethodName, freeTyVars, instType, classParam)
 import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 -- ============================================================================

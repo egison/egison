@@ -9,7 +9,7 @@ module Language.Egison.Type.Instance
   ( findMatchingInstanceForType
   ) where
 
-import           Language.Egison.Type.Types (Type(..), TyVar(..), InstanceInfo(..), freeTyVars)
+import           Language.Egison.Type.Types (Type(..), TyVar(..), InstanceInfo(..), instType, freeTyVars)
 import           Language.Egison.Type.Unify (unifyStrict)
 
 -- | Find a matching instance for a given target type

@@ -9,6 +9,7 @@ This module defines the syntax of Egison.
 
 module Language.Egison.AST
   ( TopExpr (..)
+  , RuleLevel (..)
   , ConstantExpr (..)
   , Expr (..)
   , Pattern (..)
@@ -36,6 +37,7 @@ module Language.Egison.AST
   -- Type annotations
   , TypeExpr (..)
   , SymbolSetExpr (..)
+  , TypeAtomExpr (..)
   , TensorShapeExpr (..)
   , ShapeDim (..)
   , TensorIndexExpr (..)
@@ -90,7 +92,21 @@ data TopExpr
     -- e.g., declare symbol a11, a12, a21, a22
     --       declare symbol x, y, z : Float
     -- [String]: symbol names, Maybe TypeExpr: optional type (defaults to Integer)
+  | DeclareRule (Maybe String) RuleLevel Expr Expr
+    -- ^ Reduction rule declaration (Phase 7.4 of type-cas design).
+    -- e.g.  declare rule auto term i^2 = -1
+    --       declare rule trig_pythagorean poly (sin $x)^2 + (cos #x)^2 = 1
+    -- Maybe String: rule name (Nothing = auto rule)
+    -- RuleLevel:    where the LHS pattern binds (term/poly/frac)
+    -- Expr Expr:    LHS pattern, RHS expression
  deriving Show
+
+-- | Where in the CASValue tree a `declare rule` LHS pattern binds.
+data RuleLevel
+  = TermRuleLevel  -- ^ inside a CASTerm monomial (e.g. i^2 = -1)
+  | PolyRuleLevel  -- ^ inside a CASPoly term-list  (e.g. (sin x)^2 + (cos x)^2 = 1)
+  | FracRuleLevel  -- ^ on a CASFrac  numerator/denominator
+  deriving (Show, Eq)
 
 -- | Type class declaration
 -- e.g., class Eq a where ...
@@ -458,9 +474,19 @@ data TypeExpr
 
 -- | Symbol set expression for polynomial types
 data SymbolSetExpr
-  = SSEClosed [String]                 -- ^ Fixed symbol set, e.g., [x, y]
-  | SSEOpen                            -- ^ Open symbol set, [..]
+  = SSEClosed [TypeAtomExpr]            -- ^ Fixed symbol set, e.g., [x, y, sqrt 2]
+  | SSEOpen                             -- ^ Open symbol set, [..]
   deriving (Show, Eq)
+
+-- | A single atom inside a closed symbol set: either a plain identifier
+-- (`x`, `i`), or a function applied to atom arguments (`sqrt 2`, `sin x`).
+-- This is the AST level (parser output); the Type level uses a similar
+-- structure (`TypeAtom` in Type.Types).
+data TypeAtomExpr
+  = TAEName String                      -- ^ Plain symbol/identifier
+  | TAEApp String [TypeAtomExpr]        -- ^ Function applied to atom arguments
+  | TAEInt Integer                      -- ^ Integer literal in atom position
+  deriving (Show, Eq, Ord)
 
 -- | Tensor shape expression
 data TensorShapeExpr

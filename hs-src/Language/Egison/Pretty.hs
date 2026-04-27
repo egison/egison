@@ -63,6 +63,16 @@ instance Pretty TopExpr where
                     Just typeExpr -> pretty ":" <+> pretty typeExpr
                     Nothing -> emptyDoc
     in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> typeDoc
+  pretty (DeclareRule mname level lhs rhs) =
+    let nameDoc  = case mname of
+                     Nothing -> pretty "auto"
+                     Just n  -> pretty n
+        levelDoc = case level of
+                     TermRuleLevel -> pretty "term"
+                     PolyRuleLevel -> pretty "poly"
+                     FracRuleLevel -> pretty "frac"
+    in pretty "declare" <+> pretty "rule" <+> nameDoc <+> levelDoc <+>
+       pretty lhs <+> pretty "=" <+> pretty rhs
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where

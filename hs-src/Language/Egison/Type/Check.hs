@@ -79,6 +79,8 @@ builtinTypes = concat
       , ("termCoeff", Forall [] [] $ TFun TMathValue TMathValue)
       , ("termMonomial", Forall [] [] $ TFun TMathValue (TCollection (TTuple [TMathValue, TMathValue])))
       , ("typeOf", forallA $ TFun (TVar a) TString)
+      , ("inspect", forallA $ TFun (TVar a) TString)
+      , ("differentialClosed", Forall [] [] $ TFun TMathValue (TFun TMathValue TBool))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)

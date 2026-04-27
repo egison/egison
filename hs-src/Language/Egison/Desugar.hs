@@ -220,6 +220,11 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
              Just texpr -> typeExprToType texpr
              Nothing    -> typeExprToType TEInt
   return . Just $ IDeclareSymbol names (Just ty)
+desugarTopExpr (DeclareRule _ruleName _level _lhs _rhs) =
+  -- Phase 7.4: parser/AST only. The reduction-rule machinery (`casNormalizeWithRules`)
+  -- is not yet wired in, so we accept the declaration and discard it for now.
+  -- A future Phase 7.5 step will register the rule into the reduction environment.
+  return Nothing
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern

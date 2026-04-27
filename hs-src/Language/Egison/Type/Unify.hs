@@ -28,6 +28,7 @@ import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
                                               Constraint(..), SymbolSet(..))
 import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, InstanceInfo(..), emptyClassEnv)
+import           Language.Egison.Type.Types  (instType)
 
 -- | Unification errors
 data UnifyError
