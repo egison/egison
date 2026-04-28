@@ -284,7 +284,7 @@ unifyVarStrict classEnv constraints v t
   | TVar v == t = Right emptySubst
   | otherwise = case t of
       TTensor elemType ->
-        let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
+        let varConstraints = filter (\c -> TVar v `elem` constraintTypes c) constraints
         in if null varConstraints
            then occursCheckAndBind v t
            else if all (hasInstanceForTensorType classEnv elemType) varConstraints
@@ -299,7 +299,7 @@ unifyVarConstraintAware classEnv constraints v t
   | TVar v == t = Right (emptySubst, False)
   | otherwise = case t of
       TTensor elemType ->
-        let varConstraints = filter (\(Constraint _ constraintType) -> constraintType == TVar v) constraints
+        let varConstraints = filter (\c -> TVar v `elem` constraintTypes c) constraints
         in if null varConstraints
            then fmap (\s -> (s, False)) $ occursCheckAndBind v t
            else if all (hasInstanceForTensorType classEnv elemType) varConstraints

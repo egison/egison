@@ -31,7 +31,7 @@
 | 3 | `ScalarData → CASValue` 置換 | ✅ 完了 (既存) | - |
 | 4 | プリミティブパターン | ✅ 完了 (既存) | - |
 | 5 | パラメトリックマッチャー | ✅ 完了 | 60, 62, 63 |
-| 5.5 | Embed/Coerce | 🟡 簡易版で動作 ([4.1](#41-cas-subtype-unification-による-embed-elaboration-の代替) 参照) | 73, 75, 77, 78, 81 |
+| 5.5 | Embed/Coerce | ✅ Multi-param dispatch で完成 (`Coerce MathValue (Frac Integer)` 等が結果型ディスパッチで動く) | 73, 75, 77, 78, 81, 104 |
 | 6.1-6.2 | `expandAll`/`substitute` | ✅ 既存実装で動作 | 65 |
 | 6.3 | `∂/∂` (Differentiable) | ✅ 完了 (`partialDiff` が `chainPartialDiff` 経由で declared derivative を自動 dispatch) | 74, 76, 91, 93, 94, 103 |
 | 6.3 part 5 | `declare mathfunc` | ✅ 完了 | 90, 91 |
@@ -46,7 +46,7 @@
 | 7.5+ | **term-level recursive + factor-containment 適用** | ✅ 完了 (built-in `casRewriteI` 等が無くても算術恒等式が動く) | 97, 98 |
 | 7.6 | `simplify ... using ...` | ✅ literal LHS で完了 | 85 |
 | 8 | 観察型 `typeOf` / `inspect` / `differentialClosed` | ✅ 完了 (REPL 統合は別途) | 68, 71 |
-| - | multi-param TC infrastructure | 🟡 受理のみ動作 ([2.1](#21-multi-param-型クラス-dispatch) 参照) | 72 |
+| - | multi-param TC dispatch (Coerce 等) | ✅ 完了 ([2.1](#21-multi-param-型クラス-dispatch--完了-2026-04) 参照) | 72, 104 |
 
 凡例: ✅ 設計通り完了 / 🟡 動作するが妥協あり / ❌ 未実装または既知のバグ
 
@@ -56,47 +56,44 @@
 
 実装時に「**設計通りに動かす**ためには大きな改修が必要」と判断した項目。
 
-### 2.1 Multi-param 型クラス dispatch
+### 2.1 Multi-param 型クラス dispatch ✅ 完了 (2026-04)
 
 **設計意図**: `class Embed a b where embed :: a -> b` や `class Coerce a b where coerce :: a -> b` のような複数型引数のクラスを定義し、結果型 `b` で適切な instance を選ぶ。
 
-**実装した範囲**:
-- `ClassInfo.classParams :: [TyVar]`、`InstanceInfo.instTypes :: [Type]` にリスト化済
-- AST/パーサ/EnvBuilder は `class Embed a b where ...` / `instance Embed T1 T2 where ...` を受理 (`mini-test/72-multiparam-class.egi` 通過)
+**実装** (2026-04):
 
-**詰まりの本質**: ディスパッチャ (`Type/Instance.hs:findMatchingInstanceForType`) が**単一の Type しか受け取らない**:
+1. **`Constraint` を `[Type]` に拡張** (`Type/Types.hs`):
+   - `data Constraint = Constraint { constraintClass :: String, constraintTypes :: [Type] }`
+   - `constraintType :: Constraint -> Type` を後方互換アクセサとして提供 (= `head . constraintTypes`)
+   - 影響範囲: 9 ファイル、約 100 箇所のパターンマッチ・構築点を機械的に更新
 
-```haskell
-findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo
-findMatchingInstanceForType targetType instances = go instances
-  where
-    go (inst:rest) =
-      case unifyStrict (instType inst) targetType of  -- ← instType (head のみ)
-        Right _ -> Just inst
-        Left _  -> go rest
-```
+2. **`findMatchingInstanceForTypes :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo`** (`Type/Instance.hs`):
+   - 各 instance の全 instTypes と target を pairwise に unifyStrict
+   - 全 type が unify する instance のみ選ぶ
 
-呼び出し側 (`Type/TypeClassExpand.hs`) も同様で、第一引数の型しかディスパッチに渡さない。
+3. **EnvBuilder で全 class type vars を constraint に積む** (`EnvBuilder.hs:registerClassMethod`):
+   - `class Coerce a b where coerce (x: a) : b` から `forall a b. Coerce a b => a -> b` を生成
+   - 旧: 第一型のみ (`forall a. Coerce a => ...`)
 
-**具体例**:
+4. **Desugar で multi-type instance に unique な dictionary 名を生成** (`Desugar.hs`):
+   - `Coerce MathValue Integer` → `coerceMathValueInteger`
+   - `Coerce MathValue (Frac Integer)` → `coerceMathValueFracInteger`
+   - 旧: 第一型のみで命名 → 同一名で衝突していた
 
+5. **TypeClassExpand のディスパッチを多型対応** (`Type/TypeClassExpand.hs`):
+   - `resolveDictionaryForConstraint`、`resolveDictionaryArgWithDepth`、`tryResolveMethodCall` 等で **常に** `findMatchingInstanceForTypes` を使用 (single/multi 経路を統合)
+   - 旧 `findMatchingInstanceForType` への呼び出しは Type/Infer.hs の Tensor 関連の局所コード以外撤去 (head-only 検索は multi-param で誤った instance を返す危険があるため)
+
+**動作確認** (`mini-test/104-multiparam-coerce.egi`):
 ```egison
-instance Coerce MathValue Integer where ...        -- (1)
-instance Coerce MathValue (Frac Integer) where ... -- (2)
+instance Coerce MathValue Integer where ...
+instance Coerce MathValue (Frac Integer) where ...
 
-def f : Frac Integer := coerce (1 / 2)
--- 期待: 結果型 Frac Integer で (2) を選ぶ
--- 実際: 第一引数 MathValue で (1) を選ぶ → isPureInteger (1/2) = False → undefined
+def n : Integer       := coerce (1 + 2)        -- 3 (Integer instance)
+def f : Frac Integer  := coerce (1 / 2)        -- 1/2 (Frac instance)
 ```
 
-**回避策(現状)**: per-target plain function を提供する:
-```egison
-def coerceToInteger (x : MathValue) : Integer := ...
-def coerceToFracInteger (x : MathValue) : Frac Integer := ...
-```
-`mini-test/81-coerce-class.egi` で動作確認。
-
-**真の修正**: § 7.1 を参照。
+`81-coerce-class.egi` の per-target 関数による回避策はもう不要 (旧テストとして残置)。
 
 ### 2.2 `partialDiff` を `chainPartialDiff` に委譲する統合 ✅ 完了 (2026-04)
 
@@ -364,17 +361,16 @@ Workaround として動作するが直感的でない。
 
 § 2 で挙げた真の詰まり項目を解くための具体的な道筋。
 
-### 7.1 Multi-param TC dispatch の改修
+### 7.1 Multi-param TC dispatch の改修 ✅ 完了 (2026-04)
 
-**スコープ**:
-1. `findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo` を `findMatchingInstanceForTypes :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo` に変更 ✅ 追加済 (Type/Instance.hs)
-2. **`Constraint` を `[Type]` に拡張** — 現在 `Constraint String Type` (単一型のみ) なので、multi-param クラスの2つめ以降の型引数を保持できない
-3. 呼び出し側 (`Type/TypeClassExpand.hs`、`Type/Infer.hs`) で **結果型を含む型情報をディスパッチに渡す**
-4. これは型推論の流れに影響する。call-site で結果型が決まっていない場合 (例: `let r = coerce x in ...` で r が未注釈) は ambiguous instance としてエラーにするか、Haskell 的な **ambiguity check** を実装する
+§2.1 を参照。Step 1〜5 すべて実装済:
+1. ✅ `findMatchingInstanceForTypes` (Type/Instance.hs)
+2. ✅ `Constraint` の `[Type]` 化 (Type/Types.hs ほか 9 ファイル)
+3. ✅ EnvBuilder が全 class type vars を constraint に乗せる
+4. ✅ Desugar が unique な dictionary 名を生成
+5. ✅ TypeClassExpand が multi-type 経路でディスパッチ
 
-**影響範囲**: `Type/Instance.hs` (済) → `Type/Types.hs` (Constraint 拡張)、`Type/TypeClassExpand.hs`、`Type/Infer.hs` ほか Constraint を使う全箇所。深い改修。
-
-**現状**: 1 のみ完了。残りは未着手。
+未対応: 結果型未確定の場合の ambiguity check (Haskell の `Ambiguous type variable` 相当)。現状は最初に見つかった instance が選ばれる。実用上は型注釈で曖昧性を解消できるので問題は出にくい。
 
 **設計上の選択肢**:
 - (A) 結果型未確定の場合はエラー (Haskell の `Ambiguous type variable` 相当)
@@ -506,3 +502,4 @@ Phase 7.2 (旧版) の見積 「2週間〜1ヶ月」が **3-5 日に短縮**。H
 
 - 2026-04-28: 初版。Phase 1.5 / 5 / 5.5 (簡易) / 6.3 / 7.4-7.6 / 8 の実装後の状態を記録
 - 2026-04-29: Phase A (pattern LHS) / Phase A.5 (sub-expression rule application) を実装。§2.2 (`partialDiff` の `chainPartialDiff` 統合) 修正、`f 3 + f 4` の dispatch bug 修正、§4.2 forward reference warning 修正。`$ ^ $` を mathValue matcher に追加。§3.2 ApplyN は実装しない方針に確定。
+- 2026-04-29: §2.1 Multi-param TC dispatch 完了。`Constraint` を `[Type]` に拡張、`findMatchingInstanceForTypes` を整備、EnvBuilder/Desugar/TypeClassExpand を multi-type 対応に更新。`Coerce MathValue Integer` と `Coerce MathValue (Frac Integer)` が結果型注釈で正しくディスパッチされるようになった。

@@ -192,8 +192,8 @@ instantiate (Forall vs cs t) counter =
   in (substCs, substType, counter + length vs)
   where
     substConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
-    substConstraint vars (Constraint cls ty) =
-      Constraint cls (foldr (\(old, new) acc -> substVar old new acc) ty vars)
+    substConstraint vars (Constraint cls tys) =
+      Constraint cls (map (\ty -> foldr (\(old, new) acc -> substVar old new acc) ty vars) tys)
     substVar :: TyVar -> Type -> Type -> Type
     substVar _ _ TInt = TInt
     substVar _ _ TMathValue = TMathValue

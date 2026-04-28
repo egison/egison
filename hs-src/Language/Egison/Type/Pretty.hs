@@ -109,7 +109,7 @@ prettyConstraintsAlt cs  = "{" ++ intercalate ", " (map prettyConstraint cs) ++ 
 
 -- | Pretty print a single constraint
 prettyConstraint :: Constraint -> String
-prettyConstraint (Constraint cls ty) = cls ++ " " ++ prettyTypeAtom ty
+prettyConstraint (Constraint cls tys) = cls ++ concatMap (\t -> " " ++ prettyTypeAtom t) tys
 
 -- | Pretty print a TensorShape
 prettyTensorShape :: TensorShape -> String

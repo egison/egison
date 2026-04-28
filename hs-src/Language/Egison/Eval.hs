@@ -508,7 +508,7 @@ dumpEnvironment typeEnv classEnv ctorEnv patternCtorEnv patternEnv = do
       else forM_ allInstances $ \(className, instInfo) -> do
         let contextStr = if null (Types.instContext instInfo)
               then ""
-              else let showConstraint (Types.Constraint cls ty) = cls ++ " " ++ prettyType ty
+              else let showConstraint (Types.Constraint cls tys) = cls ++ concatMap (\t -> " " ++ prettyType t) tys
                    in intercalate ", " (map showConstraint (Types.instContext instInfo)) ++ " => "
         putStrLn $ "  instance " ++ contextStr ++ className ++ " " ++ prettyType (Types.instType instInfo)
     putStrLn ""

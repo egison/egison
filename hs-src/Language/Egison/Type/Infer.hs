@@ -187,7 +187,12 @@ expandSuperclasses classEnv = go []
       | otherwise =
           let supers = case lookupClass (constraintClass c) classEnv of
                 Nothing -> []
-                Just info -> map (\superName -> Constraint superName (constraintType c))
+                -- Superclasses inherit ALL the type arguments from the subclass
+                -- (e.g. `class AddSemigroup a` superclassed by `class AddMonoid a`).
+                -- This generalizes correctly to multi-param classes if the
+                -- superclass has the same type-parameter arity (which is the
+                -- common case in Egison).
+                Just info -> map (\superName -> Constraint superName (constraintTypes c))
                                  (classSupers info)
           in go (seen ++ [c]) (supers ++ rest)
 
@@ -295,25 +300,23 @@ resolveConstraintsInTIExpr classEnv subst (TIExpr (Forall vars constraints ty) n
   in TIExpr (Forall vars resolvedConstraints ty) resolvedNode
 
 resolveConstraintWithInstances :: ClassEnv -> Subst -> Constraint -> Constraint
-resolveConstraintWithInstances classEnv subst (Constraint className tyVar) =
-  let resolvedType = applySubst subst tyVar
+resolveConstraintWithInstances classEnv subst (Constraint className tyArgs) =
+  let resolvedTypes = map (applySubst subst) tyArgs
       instances = lookupInstances className classEnv
-  in case resolvedType of
+      -- For multi-param constraints we apply Tensor unwrapping to the principal
+      -- (first) type only; secondary types are passed through. This matches the
+      -- existing semantics for single-param classes.
+      resolvedFirst = case resolvedTypes of (t:_) -> t; [] -> TAny
+      adjustFirst newFirst = case resolvedTypes of
+                               (_:rest) -> newFirst : rest
+                               []       -> [newFirst]
+  in case resolvedFirst of
        TTensor elemType ->
-         -- For Tensor types, search for an instance
-         case findMatchingInstanceForType resolvedType instances of
-           Just _ -> 
-             -- If Tensor itself has an instance, use it
-             Constraint className resolvedType
-           Nothing -> 
-             -- If Tensor has no instance, use the element type's constraint
-             -- This assumes tensorMap will apply element-wise
-             -- Use element type's constraint even if no instance is found for it
-             -- (Error will be detected in a later phase)
-             Constraint className elemType
-       _ -> 
-         -- For non-Tensor types, simply apply the substitution
-         Constraint className resolvedType
+         case findMatchingInstanceForType resolvedFirst instances of
+           Just _  -> Constraint className resolvedTypes
+           Nothing -> Constraint className (adjustFirst elemType)
+       _ ->
+         Constraint className resolvedTypes
 
 -- | Extend the environment temporarily
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
@@ -452,7 +455,7 @@ simplifyTensorConstraints classEnv = map simplifyConstraint
         Nothing -> False
     
     simplifyConstraint :: Constraint -> Constraint
-    simplifyConstraint (Constraint cls ty) = Constraint cls (unwrapTensorInType cls ty)
+    simplifyConstraint (Constraint cls tys) = Constraint cls (map (unwrapTensorInType cls) tys)
       where
         unwrapTensorInType :: String -> Type -> Type
         unwrapTensorInType cls' ty0 = case ty0 of
@@ -494,9 +497,9 @@ applySubstSchemeWithClassEnv classEnv (Subst m) (Forall vs cs t) =
       foldr (adjustForConstraint env substMap) substMap constraints
 
     adjustForConstraint :: ClassEnv -> Map.Map TyVar Type -> Constraint -> Map.Map TyVar Type -> Map.Map TyVar Type
-    adjustForConstraint env originalSubst (Constraint cls constraintType) currentSubst =
-      -- Get all type variables in the constraint type
-      let constraintVars = Set.toList $ freeTyVars constraintType
+    adjustForConstraint env originalSubst (Constraint cls constraintTys) currentSubst =
+      -- Get all type variables across all constraint types (multi-param-friendly).
+      let constraintVars = Set.toList $ Set.unions (map freeTyVars constraintTys)
       in foldr (adjustVarForClass env cls originalSubst) currentSubst constraintVars
 
     adjustVarForClass :: ClassEnv -> String -> Map.Map TyVar Type -> TyVar -> Map.Map TyVar Type -> Map.Map TyVar Type
@@ -561,8 +564,8 @@ applySubstWithConstraintsM s@(Subst m) t = do
       foldr (adjustForConstraint env substMap) substMap cs
 
     adjustForConstraint :: ClassEnv -> Map.Map TyVar Type -> Constraint -> Map.Map TyVar Type -> Map.Map TyVar Type
-    adjustForConstraint env originalSubst (Constraint cls constraintType) currentSubst =
-      let constraintVars = Set.toList $ freeTyVars constraintType
+    adjustForConstraint env originalSubst (Constraint cls constraintTys) currentSubst =
+      let constraintVars = Set.toList $ Set.unions (map freeTyVars constraintTys)
       in foldr (adjustVarForClass env cls originalSubst) currentSubst constraintVars
 
     adjustVarForClass :: ClassEnv -> String -> Map.Map TyVar Type -> TyVar -> Map.Map TyVar Type -> Map.Map TyVar Type
@@ -2731,8 +2734,12 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
           deduplicatedConstraints = nub simplifiedFuncConstraints
           -- Filter out constraints on concrete types (only keep constraints on type variables)
           -- This prevents constraints like {Num (Tensor t0)} from appearing in result types
-          isTypeVarConstraint (Constraint _ (TVar _)) = True
-          isTypeVarConstraint _ = False
+          -- Multi-param-aware: keep constraints if at least one of the type
+          -- arguments is still a type variable (these still need dictionary
+          -- threading at higher up).
+          isTypeVarConstraint c = any isTypeVarType (constraintTypes c)
+          isTypeVarType (TVar _) = True
+          isTypeVarType _        = False
           typeVarConstraints = filter isTypeVarConstraint deduplicatedConstraints
           -- Result constraints: functions (partial applications) keep constraints,
           -- but values (fully applied) don't need them
@@ -3172,8 +3179,9 @@ inferITopExpr topExpr = case topExpr of
         let updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
             -- Filter out constraints on concrete types (non-type-variables)
             -- Concrete constraints don't need to be generalized since the type is already determined
-            isTypeVarConstraint (Constraint _ (TVar _)) = True
-            isTypeVarConstraint _ = False
+            isTypeVarConstraint c = any isTypeVarType' (constraintTypes c)
+            isTypeVarType' (TVar _) = True
+            isTypeVarType' _        = False
             -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
             generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
 
@@ -3243,8 +3251,9 @@ inferITopExpr topExpr = case topExpr of
             classEnv <- getClassEnv
             let updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
                 -- Filter out constraints on concrete types (non-type-variables)
-                isTypeVarConstraint (Constraint _ (TVar _)) = True
-                isTypeVarConstraint _ = False
+                isTypeVarConstraint c = any isTypeVarT (constraintTypes c)
+                isTypeVarT (TVar _) = True
+                isTypeVarT _        = False
                 -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
                 generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
 

@@ -128,7 +128,7 @@ processTopExpr result topExpr = case topExpr of
         classEnv' = addClass className classInfo classEnv
 
         -- Register each class method to type environment
-        typeEnv' = foldl (registerClassMethod primaryTyVar className) typeEnv methods
+        typeEnv' = foldl (registerClassMethod tyVars className) typeEnv methods
 
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
 
@@ -314,15 +314,18 @@ registerConstructor typeName typeParams resultType (typeEnv, ctorEnv)
   
   return (typeEnv', ctorEnv')
 
--- | Register a class method to the type environment
-registerClassMethod :: TyVar -> String -> TypeEnv -> ClassMethod -> TypeEnv
-registerClassMethod tyVar className typeEnv (ClassMethod methName params retType _defaultImpl) =
+-- | Register a class method to the type environment.
+-- The constraint carries ALL class type parameters (multi-param-friendly).
+-- For `class Coerce a b where coerce (x: a) : b`, the method is registered
+-- with `forall a b. Coerce a b => a -> b`.
+registerClassMethod :: [TyVar] -> String -> TypeEnv -> ClassMethod -> TypeEnv
+registerClassMethod tyVars className typeEnv (ClassMethod methName params retType _defaultImpl) =
   let paramTypes = map typedParamToType params
       methodType = foldr TFun (typeExprToType retType) paramTypes
-      
-      -- Method has constrained type: ClassName a => methodType
-      constraint = Types.Constraint className (TVar tyVar)
-      typeScheme = Types.Forall [tyVar] [constraint] methodType
+      -- Constraint with all class type params (single-param classes still
+      -- produce a singleton list).
+      constraint = Types.Constraint className (map TVar tyVars)
+      typeScheme = Types.Forall tyVars [constraint] methodType
   in
     extendEnv (stringToVar methName) typeScheme typeEnv
 
@@ -432,12 +435,13 @@ extractMethodWithType (ClassMethod name params retType _) =
 extractConstraintName :: ConstraintExpr -> String
 extractConstraintName (ConstraintExpr clsName _) = clsName
 
--- | Convert ConstraintExpr to internal Constraint
+-- | Convert ConstraintExpr to internal Constraint.
+-- Multi-param classes (e.g. `Coerce a b`) carry all class type parameters.
 constraintToInternal :: ConstraintExpr -> Types.Constraint
 constraintToInternal (ConstraintExpr clsName tyExprs) =
-  Types.Constraint clsName (case tyExprs of 
-    [] -> TAny
-    (t:_) -> typeExprToType t)
+  Types.Constraint clsName (case tyExprs of
+    [] -> [TAny]
+    _  -> map typeExprToType tyExprs)
 
 -- | Register a single pattern constructor
 registerPatternConstructor :: String -> [String] -> Type 

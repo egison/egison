@@ -902,8 +902,8 @@ prettyConstraintsDoc cs =
 
 -- Helper function to pretty print a single constraint as Doc
 prettyConstraintDoc :: Types.Constraint -> Doc ann
-prettyConstraintDoc (Types.Constraint className tyArg) = 
-  pretty className <+> prettyTypeDoc tyArg
+prettyConstraintDoc (Types.Constraint className tyArgs) =
+  pretty className <> hsep (map (\t -> space <> prettyTypeDoc t) tyArgs)
 
 -- Helper function to pretty print Type as Doc
 prettyTypeDoc :: Types.Type -> Doc ann

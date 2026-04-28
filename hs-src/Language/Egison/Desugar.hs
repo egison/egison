@@ -137,9 +137,14 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
   if null instTypes
     then return Nothing
     else do
-      -- Use type constructor name only (without type parameters)
-      -- e.g., "Collection" not "Collectiona" for [a]
-      let instTypeName = typeConstructorName (typeExprToType (head instTypes))
+      -- Multi-param-friendly: concatenate type-constructor names of ALL instance
+      -- types so two instances of the same class with different type-tuples get
+      -- distinct dictionary names. e.g.:
+      --   Coerce MathValue Integer       → "coerceMathValueInteger"
+      --   Coerce MathValue (Frac Integer) → "coerceMathValueFrac"
+      -- For single-param classes the result equals the existing single-name form.
+      let instTypeNames = map (typeConstructorName . typeExprToType) instTypes
+          instTypeName  = concat instTypeNames
       -- Generate individual method definitions with constraint parameters
       methodDefs <- mapM (desugarInstanceMethod constraints classNm instTypeName) methods
       -- Generate dictionary definition with superclass references

@@ -18,6 +18,8 @@ module Language.Egison.Type.Types
   , TensorShape(..)
   , ShapeDimType(..)
   , Constraint(..)
+  , constraintType  -- backward-compat: head of constraintTypes
+  , mkConstraint    -- backward-compat: build single-type constraint
   , ClassInfo(..)
   , classParam
   , InstanceInfo(..)
@@ -137,11 +139,27 @@ tMathValue = TInt
 data TypeScheme = Forall [TyVar] [Constraint] Type
   deriving (Eq, Show, Generic)
 
--- | Type class constraint, e.g., "Eq a"
+-- | Type class constraint. May carry multiple type arguments for
+-- multi-param classes (e.g. `Coerce a b` → `Constraint "Coerce" [a, b]`).
+-- Single-param classes use a one-element list.
 data Constraint = Constraint
   { constraintClass :: String  -- ^ Class name, e.g., "Eq"
-  , constraintType  :: Type    -- ^ Type argument, e.g., TVar "a"
+  , constraintTypes :: [Type]  -- ^ Type arguments. For single-param classes,
+                                -- a singleton list `[t]`. For multi-param, all
+                                -- class type parameters in declaration order.
   } deriving (Eq, Show, Generic)
+
+-- | Backward-compat accessor: returns the first (or only) constraint type.
+-- Use this where the call site assumes a single-param class.
+constraintType :: Constraint -> Type
+constraintType c = case constraintTypes c of
+  (t:_) -> t
+  []    -> error "constraintType: constraint with no types"
+
+-- | Backward-compat smart constructor for single-param constraints.
+-- New multi-param call sites should use `Constraint cls [t1, t2, ...]` directly.
+mkConstraint :: String -> Type -> Constraint
+mkConstraint cls ty = Constraint cls [ty]
 
 -- | Information about a type class
 data ClassInfo = ClassInfo

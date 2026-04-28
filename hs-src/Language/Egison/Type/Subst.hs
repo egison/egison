@@ -93,7 +93,7 @@ applySubstScheme (Subst m) (Forall vs cs t) =
 
 -- | Apply a substitution to a constraint
 applySubstConstraint :: Subst -> Constraint -> Constraint
-applySubstConstraint s (Constraint cls ty) = Constraint cls (applySubst s ty)
+applySubstConstraint s (Constraint cls tys) = Constraint cls (map (applySubst s) tys)
 
 -- | Index substitution: mapping from index variables to indices
 newtype SubstIndex = SubstIndex { unSubstIndex :: Map IndexTyVar Index }
