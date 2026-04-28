@@ -90,6 +90,8 @@ builtinTypes = concat
       , ("derivativeNames", Forall [] [] $ TFun (TTuple []) (TCollection TString))
       , ("hasReductionRule", Forall [] [] $ TFun TString TBool)
       , ("hasDerivativeRule", Forall [] [] $ TFun TString TBool)
+      , ("applyTermRule", Forall [] [] $
+          TFun TMathValue (TFun TMathValue (TFun TMathValue TMathValue)))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)

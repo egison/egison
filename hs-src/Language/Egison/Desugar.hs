@@ -220,7 +220,7 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
              Just texpr -> typeExprToType texpr
              Nothing    -> typeExprToType TEInt
   return . Just $ IDeclareSymbol names (Just ty)
-desugarTopExpr (DeclareRule mname _level lhs rhs) = do
+desugarTopExpr (DeclareRule mname level lhs rhs) = do
   -- Phase 7.5 (literal-only application): emit a top-level lambda that
   -- compares the input to the rule's LHS (evaluated as an Egison expression)
   -- and returns the RHS on match, otherwise the input unchanged.
@@ -236,29 +236,131 @@ desugarTopExpr (DeclareRule mname _level lhs rhs) = do
   -- yet supported. Named rules become callable as `rule.<name> v`. Auto
   -- rules each get a fresh `autoRule.<n>` slot so multiple auto rules can
   -- coexist; iteration is the user's responsibility for now.
-  lhsI <- desugar lhs
-  rhsI <- desugar rhs
-  let body = ILambdaExpr Nothing [stringToVar "v"]
-              (IIfExpr
-                 (IApplyExpr (IVarExpr "=")
-                            [IVarExpr "v", lhsI])
-                 rhsI
-                 (IVarExpr "v"))
-  varName <- case mname of
-               Just n  -> return ("rule." ++ n)
-               Nothing -> do
-                 fr <- fresh
-                 -- `fresh` returns a string like "$_3"; sanitize.
-                 return ("autoRule." ++ filter (\c -> c /= '$' && c /= '_') fr)
-  return . Just $ IDefine (stringToVar varName) body
+  -- The rule body uses un-normalized arithmetic operators (i.+, i.*, ...)
+  -- to avoid infinite recursion: each evaluation of `p^2` would otherwise
+  -- call `mathNormalize` which iterates the rules, including this one,
+  -- which would re-evaluate `p^2`...
+  --
+  -- The lambda parameter is named with a fresh internal identifier
+  -- (`__rule_input.<n>`) to avoid shadowing user symbols. If the parameter
+  -- were named `v` and the user wrote `declare rule auto term v^2 = 0`, the
+  -- rule LHS `v^2` would refer to the lambda parameter (the runtime value)
+  -- rather than the global symbol `v`, causing the rule to never match.
+  fr <- fresh
+  let paramName = "__rule_input." ++ filter (\c -> c /= '$' && c /= '_') fr
+  lhsI <- unNormalizeOps <$> desugar lhs
+  rhsI <- unNormalizeOps <$> desugar rhs
+  -- For `term` rules, apply recursively to each term/monomial inside the value
+  -- (so `(1+i)*(1-i)` simplifies to `2` even without a built-in casRewriteI).
+  -- For `poly`/`frac` rules, fall back to top-level structural equality.
+  let body = case level of
+        TermRuleLevel ->
+          ILambdaExpr Nothing [stringToVar paramName]
+            (IApplyExpr (IVarExpr "applyTermRule")
+                        [lhsI, rhsI, IVarExpr paramName])
+        _ ->
+          ILambdaExpr Nothing [stringToVar paramName]
+            (IIfExpr
+               (IApplyExpr (IVarExpr "=")
+                          [IVarExpr paramName, lhsI])
+               rhsI
+               (IVarExpr paramName))
+  case mname of
+    Just n -> do
+      -- Named rule: emit `def rule.<n> := <body>` only.
+      let varName = "rule." ++ n
+      return . Just $ IDefine (stringToVar varName) body
+    Nothing -> do
+      -- Auto rule (Phase 7.5): emit two definitions:
+      --   1. `def autoRule.<idx> := <body>` (the rule lambda)
+      --   2. `def mathNormalize := \v -> iterateRules [autoRule.0, ..., autoRule.<idx>]
+      --                                              (mathNormalizeBuiltin v)`
+      -- Use a deterministic counter (length of accumulated names) so the
+      -- emitted name is predictable across the desugar pass.
+      prevAutoNames <- getAutoRuleVarNames
+      let idx        = length prevAutoNames
+          autoVar    = "autoRule." ++ show idx
+          allAutoVars = prevAutoNames ++ [autoVar]
+      appendAutoRuleVarName autoVar
+      mathNormBody <- buildMathNormalizeRedef allAutoVars
+      return . Just $ IDefineMany
+        [ (stringToVar autoVar, body)
+        , (stringToVar "mathNormalize", mathNormBody)
+        ]
+  where
+    -- Build the body of the redefined `mathNormalize`:
+    --   \v -> iterateRules [autoRule.0, ..., autoRule.N] (mathNormalizeBuiltin v)
+    buildMathNormalizeRedef :: [String] -> EvalM IExpr
+    buildMathNormalizeRedef autoVars = do
+      let rulesList = ICollectionExpr $ map IVarExpr autoVars
+          mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
+          iterCall = IApplyExpr (IVarExpr "iterateRules") [rulesList, mathBuiltinCall]
+      return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
 desugarTopExpr (DeclareDerivative name rhs) = do
-  -- Phase 6.3 part 4: emit a top-level definition `deriv.<name> := <rhs>`.
-  -- The dot-notation identifier (`deriv.sin`, `deriv.log`, ...) is a single
-  -- valid Egison identifier, so user code can refer to the derivative
-  -- directly by name. This is a stop-gap until `Differentiable Factor`
-  -- learns to pick up the registered derivative automatically.
+  -- Phase 6.3 part 4-6: emit
+  --   def deriv.<name> := <rhs>
+  --   def chainPartialDiff := \v dx ->
+  --       match v as mathValue with
+  --         | apply1 #<n_1> $a -> deriv.<n_1> a *' partialDiff a dx
+  --         ...
+  --         | apply1 #<n_k> $a -> deriv.<n_k> a *' partialDiff a dx
+  --         | _ -> ∂/∂' v dx
+  --   where n_1..n_k are *all* the derivative names seen so far (including
+  --   <name>). Each declare derivative redefines `chainPartialDiff` with the
+  --   broader pattern set; Egison's name shadowing lets the latest
+  --   definition win.
   rhsI <- desugar rhs
-  return . Just $ IDefine (stringToVar ("deriv." ++ name)) rhsI
+  -- Get the names of all derivatives registered so far (from EnvBuilder).
+  prevNames <- getDerivativeRuleNames
+  -- The current declaration's name might or might not be in `prevNames`
+  -- depending on the order EnvBuilder vs Desugar. Be defensive — include it.
+  let allNames = prevNames ++ [n | n <- [name], notElem n prevNames]
+  -- Build the chainPartialDiff body: a lambda over (v, dx) with a match.
+  -- Hand-build the IExpr tree.
+  let derivBinding = (stringToVar ("deriv." ++ name), rhsI)
+  chainBindingI <- buildChainPartialDiff allNames
+  let chainBinding = (stringToVar "chainPartialDiff", chainBindingI)
+  return . Just $ IDefineMany [derivBinding, chainBinding]
+  where
+    -- Build:
+    --   \v dx -> match v as mathValue with
+    --              | apply1 #<n1> $a -> deriv.<n1> a *' partialDiff a dx
+    --              ...
+    --              | _ -> ∂/∂' v dx
+    --
+    -- We desugar a synthetic Egison expression rather than hand-building
+    -- the IExpr tree, since match patterns and `apply1 #` are easier at
+    -- the surface level.
+    buildChainPartialDiff :: [String] -> EvalM IExpr
+    buildChainPartialDiff names = do
+      -- Recursive arm: deriv.<n> a *' chainPartialDiff a dx.
+      -- Using chainPartialDiff (not partialDiff) recursively lets nested
+      -- mathfunc applications like f(g(x)) dispatch correctly: the inner
+      -- call hits the apply1 #g pattern.
+      let mkClause n =
+            ( InductivePat "apply1"
+                 [ ValuePat (VarExpr n)
+                 , PatVar "a"
+                 ]
+            , InfixExpr (Op "*'" 7 InfixL False)
+                 (ApplyExpr (VarExpr ("deriv." ++ n)) [VarExpr "a"])
+                 (ApplyExpr (VarExpr "chainPartialDiff")
+                            [VarExpr "a", VarExpr "dx"])
+            )
+          fallbackClause =
+            ( WildCard
+            , ApplyExpr (VarExpr "∂/∂'") [VarExpr "v", VarExpr "dx"]
+            )
+          matchExpr = MatchExpr BFSMode
+                        (VarExpr "v")
+                        (VarExpr "mathValue")
+                        (map mkClause names ++ [fallbackClause])
+          lambda = LambdaExpr
+                     [ Arg (APPatVar (VarWithIndices "v" []))
+                     , Arg (APPatVar (VarWithIndices "dx" []))
+                     ]
+                     matchExpr
+      desugar lambda
 desugarTopExpr (DeclareMathFunc name _mType) = do
   -- Phase 6.3 part 5: emit a wrapper function that quotes the symbol on
   -- application:  def <name> (x : MathValue) : MathValue := '<name> x
@@ -269,6 +371,69 @@ desugarTopExpr (DeclareMathFunc name _mType) = do
                                    [VarExpr "x"])
   bodyI <- desugar body
   return . Just $ IDefine (stringToVar name) bodyI
+
+-- | Replace normalizing arithmetic operators (`+`, `-`, `*`, `/`, `^`) with
+-- their **primitive** Haskell-level counterparts. Used by `declare rule auto`
+-- to avoid infinite recursion:
+--
+-- The lib's un-normalized operators (`+'`, `-'`, etc.) are direct aliases of
+-- `i.+`/`i.-`/etc. But the lib's `power'` (used by `^'`) iterates via
+-- `take`/`foldl`, which use `-` (subtraction) on Integer. Subtraction at the
+-- MathValue level dispatches to `minusForMathValue`, which calls
+-- `mathNormalize`, creating a cycle:
+--   `mathNormalize` → rule body → `power' p 2` → `take 2 ...` → `n - 1`
+--   → `mathNormalize` → ...
+--
+-- Bypassing this requires using the primitives **directly** in the rule body.
+-- For `^` (power), the primitive `i.power` only works on integer arguments,
+-- so we instead expand `x ^ n` (where `n` is a positive integer literal) into
+-- repeated `i.* x x ... x` calls. This works for symbolic CAS values.
+unNormalizeOps :: IExpr -> IExpr
+unNormalizeOps e = case e of
+  -- Special case: `x ^ n` where n is a literal positive integer.
+  -- Expand to nested i.* (works for symbolic CAS values).
+  IApplyExpr (IVarExpr "^")
+             [base, IConstantExpr (IntegerExpr n)]
+    | n >= 1 ->
+        let base' = unNormalizeOps base
+            mulPrim = IVarExpr "i.*"
+            go 1 = base'
+            go k = IApplyExpr mulPrim [base', go (k - 1)]
+        in go n
+  IApplyExpr (IVarExpr nm) args
+    | Just nm' <- lookup nm opTable ->
+        IApplyExpr (IVarExpr nm') (map unNormalizeOps args)
+  IApplyExpr f args ->
+    IApplyExpr (unNormalizeOps f) (map unNormalizeOps args)
+  ILambdaExpr mn vs body ->
+    ILambdaExpr mn vs (unNormalizeOps body)
+  IIfExpr c t f ->
+    IIfExpr (unNormalizeOps c) (unNormalizeOps t) (unNormalizeOps f)
+  ILetExpr bindings body ->
+    ILetExpr [(p, unNormalizeOps b) | (p, b) <- bindings] (unNormalizeOps body)
+  ITupleExpr es ->
+    ITupleExpr (map unNormalizeOps es)
+  ICollectionExpr es ->
+    ICollectionExpr (map unNormalizeOps es)
+  IConsExpr a b ->
+    IConsExpr (unNormalizeOps a) (unNormalizeOps b)
+  IJoinExpr a b ->
+    IJoinExpr (unNormalizeOps a) (unNormalizeOps b)
+  IInductiveDataExpr nm es ->
+    IInductiveDataExpr nm (map unNormalizeOps es)
+  IQuoteSymbolExpr e' ->
+    IQuoteSymbolExpr (unNormalizeOps e')
+  -- Other constructors: leave as-is (including IVarExpr, IConstantExpr,
+  -- patterns, matcher refs, etc.). They don't contain operators.
+  _ -> e
+  where
+    opTable :: [(String, String)]
+    opTable =
+      [ ("+", "i.+")
+      , ("-", "i.-")
+      , ("*", "i.*")
+      , ("/", "i./")
+      ]
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern

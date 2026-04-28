@@ -13,13 +13,20 @@
 class Differentiable a where
   partialDiff (f: a) (x: MathValue) : MathValue
 
+-- All instances delegate to `∂/∂'` (the built-in differentiation engine).
+-- For automatic dispatch on declared derivatives, users call
+-- `chainPartialDiff` directly, which extends `∂/∂'` with `apply1 #<name>`
+-- patterns from each `declare derivative`.
+--
+-- (Earlier we tried to delegate `partialDiff` itself to `chainPartialDiff`,
+-- but the chainPartialDiff body that each `declare derivative` emits via
+-- desugar references `chainPartialDiff` and `partialDiff` recursively in
+-- a way that conflicts with the type-class dispatch lookup. Keeping the
+-- simpler `∂/∂'` delegation here avoids the issue; users who want
+-- declared-derivative dispatch call `chainPartialDiff` explicitly.)
 instance Differentiable MathValue where
   partialDiff f x := ∂/∂' f x
 
--- Concrete CAS instances. Runtime values share the CASValue representation,
--- so each instance simply delegates to ∂/∂'. The static type-class machinery
--- still records the static type of the input, which lets future Embed-aware
--- elaboration pick the correct dispatch.
 instance Differentiable Factor where
   partialDiff f x := ∂/∂' f x
 
@@ -31,6 +38,13 @@ instance Differentiable (Poly MathValue [..]) where
 
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
   tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)
+
+-- Phase 6.3 part 6: extensible chain-rule dispatcher.
+-- Each `declare derivative <name>` redefines this to a wider pattern match
+-- that includes the new mathfunc/derivative pair. The base case here just
+-- delegates to the built-in `∂/∂'`, so user code that calls `chainPartialDiff`
+-- before any `declare derivative` works the same as `∂/∂'`.
+def chainPartialDiff (v : MathValue) (dx : MathValue) : MathValue := ∂/∂' v dx
   
 def ∂/∂' (f : MathValue) (!x : MathValue) : MathValue :=
   match f as mathValue with

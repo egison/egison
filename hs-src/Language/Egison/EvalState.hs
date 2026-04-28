@@ -61,6 +61,9 @@ data EvalState = EvalState
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
   , derivativeRuleNames  :: [String] -- ^ Names of declared derivatives (the function names)
+  , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
+                                       --   Accumulated as `declare rule auto` declarations are desugared,
+                                       --   used to rebuild `mathNormalize` to apply each rule in sequence.
   }
 
 initialEvalState :: EvalState
@@ -76,6 +79,7 @@ initialEvalState = EvalState
   , derivativeRulesCount = 0
   , reductionRuleNames = []
   , derivativeRuleNames = []
+  , autoRuleVarNames = []
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -115,6 +119,11 @@ class (Applicative m, Monad m) => MonadEval m where
   setReductionRuleNames :: [String] -> m ()
   getDerivativeRuleNames :: m [String]
   setDerivativeRuleNames :: [String] -> m ()
+  -- Phase 7.5: auto-rule full var names (e.g. "autoRule.0", "autoRule.1").
+  -- Used to rebuild `mathNormalize` per `declare rule auto`.
+  getAutoRuleVarNames :: m [String]
+  setAutoRuleVarNames :: [String] -> m ()
+  appendAutoRuleVarName :: String -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -203,6 +212,14 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { derivativeRuleNames = ns }
 
+  getAutoRuleVarNames = autoRuleVarNames <$> get
+  setAutoRuleVarNames ns = do
+    st <- get
+    put $ st { autoRuleVarNames = ns }
+  appendAutoRuleVarName n = do
+    st <- get
+    put $ st { autoRuleVarNames = autoRuleVarNames st ++ [n] }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -231,6 +248,9 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setReductionRuleNames = lift . setReductionRuleNames
   getDerivativeRuleNames = lift getDerivativeRuleNames
   setDerivativeRuleNames = lift . setDerivativeRuleNames
+  getAutoRuleVarNames = lift getAutoRuleVarNames
+  setAutoRuleVarNames = lift . setAutoRuleVarNames
+  appendAutoRuleVarName = lift . appendAutoRuleVarName
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

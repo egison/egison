@@ -100,6 +100,7 @@ primitives =
         , ("derivativeNames", derivativeNamesPrim)
         , ("hasReductionRule", hasReductionRulePrim)
         , ("hasDerivativeRule", hasDerivativeRulePrim)
+        , ("applyTermRule", applyTermRulePrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -220,6 +221,88 @@ termCoeffPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASFactor _) -> return $ CASData (CAS.CASInteger 1)
   CASData v0@(CAS.CASFrac _ _) -> return $ CASData v0
   _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
+
+-- | Phase B: term-level rule application primitive.
+--
+-- Given a `term`-level rule with LHS `<lhsValue>` (typically a single-monomial
+-- value like `i^2`, with implicit coefficient 1) and RHS `<rhsValue>`, apply
+-- the rule recursively to each term inside `<input>`. For each term:
+--   - If the term's monomial equals LHS's monomial, replace the term with
+--     `coeff × rhsValue` (where coeff is the term's coefficient).
+--   - Otherwise, keep the term as-is.
+-- The result is the sum of all (possibly-transformed) terms.
+--
+-- This makes user `declare rule auto term LHS = RHS` declarations recurse
+-- into polynomial terms, so e.g. `(1+i)*(1-i) = 1 - i^2` simplifies to `2`
+-- when the rule `i^2 = -1` is registered, even without a built-in
+-- `casRewriteI` rule.
+applyTermRulePrim :: String -> PrimitiveFunc
+applyTermRulePrim = threeArgs' $ \lhsV rhsV inputV ->
+  case (lhsV, rhsV, inputV) of
+    (CASData lhs, CASData rhs, CASData input) ->
+      return $ CASData $ applyTermRuleCAS lhs rhs input
+    _ -> throwErrorWithTrace (TypeMismatch "CAS values" (Value lhsV))
+
+-- | The actual term-level rule application logic at the CASValue level.
+--
+-- Containment matching: the LHS monomial is treated as a *factor* of the
+-- target term's monomial. If the target contains LHS as a sub-factor, we
+-- replace one occurrence of LHS with RHS. With `iterateRules` calling this
+-- repeatedly to fixpoint, higher powers like `u^4` reduce as `u^4 → -u^2 →
+-- 1` for the rule `u^2 = -1`.
+applyTermRuleCAS :: CAS.CASValue -> CAS.CASValue -> CAS.CASValue -> CAS.CASValue
+applyTermRuleCAS lhsValue rhsValue input =
+  case extractLhsMonomial lhsValue of
+    Nothing -> input  -- Can't extract a monomial from LHS → can't apply
+    Just lhsMono -> transformValue lhsMono rhsValue input
+  where
+    -- Extract the monomial part of a single-coefficient-1 term value.
+    extractLhsMonomial :: CAS.CASValue -> Maybe CAS.Monomial
+    extractLhsMonomial (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) mono]) = Just mono
+    extractLhsMonomial (CAS.CASFactor sym) = Just [(sym, 1)]
+    extractLhsMonomial _ = Nothing
+
+    -- Apply to a value, recursing into Frac numerator/denominator.
+    transformValue :: CAS.Monomial -> CAS.CASValue -> CAS.CASValue -> CAS.CASValue
+    transformValue lhsMono rhs (CAS.CASPoly terms) =
+      foldr CAS.casPlus (CAS.CASInteger 0)
+            (map (transformTerm lhsMono rhs) terms)
+    transformValue lhsMono rhs (CAS.CASFrac n d) =
+      CAS.casFrac (transformValue lhsMono rhs n) d
+    transformValue _ _ v = v
+
+    -- Apply to a single term: if the term's monomial contains LHS as a
+    -- factor, replace that factor with RHS. Otherwise keep the term.
+    transformTerm :: CAS.Monomial -> CAS.CASValue -> CAS.CASTerm -> CAS.CASValue
+    transformTerm [] _rhs (CAS.CASTerm coeff mono) =
+      -- LHS is the empty monomial (constant 1). Don't transform terms here
+      -- (avoid replacing every term with rhs); the user should use a
+      -- poly-level rule for constant replacement.
+      CAS.CASPoly [CAS.CASTerm coeff mono]
+    transformTerm lhsMono rhs (CAS.CASTerm coeff mono) =
+      case monomialContains lhsMono mono of
+        Just remaining ->
+          -- coeff × rhs × (remaining monomial)
+          let remTerm = CAS.CASPoly [CAS.CASTerm coeff remaining]
+          in CAS.casMult remTerm rhs
+        Nothing ->
+          CAS.CASPoly [CAS.CASTerm coeff mono]
+
+    -- Check if `lhsMono` is contained in `target` as a sub-factor. If so,
+    -- return the remaining monomial (target minus lhsMono). Otherwise Nothing.
+    -- Each (sym, exp) in lhsMono must be matched by (sym, exp') in target
+    -- with exp' >= exp.
+    monomialContains :: CAS.Monomial -> CAS.Monomial -> Maybe CAS.Monomial
+    monomialContains [] target = Just target
+    monomialContains ((sym, expL) : rest) target =
+      case lookup sym target of
+        Just expT | expT >= expL ->
+          -- Subtract: keep all entries except (sym, _), then add (sym, expT-expL)
+          -- if the remaining exponent is positive
+          let target' = [(s, e) | (s, e) <- target, s /= sym]
+                     ++ [(sym, expT - expL) | expT > expL]
+          in monomialContains rest target'
+        _ -> Nothing
 
 -- | Phase 7.4/7.5: report the number of `declare rule` declarations seen by
 -- the env-builder. The rule data itself is held in EnvBuildResult; here we

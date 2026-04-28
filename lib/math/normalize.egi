@@ -4,7 +4,16 @@
 --
 --
 
-def mathNormalize (x: MathValue) : MathValue :=
+-- Phase 7.5: built-in normalization (sin/cos/rtu rewriting + Haskell-level
+-- casRewriteSymbol). The user-facing `mathNormalize` is defined as an alias
+-- that desugar can override per-`declare rule auto`. The override pattern is:
+--
+--   def mathNormalize := \v -> iterateRules [autoRule.0, ...] (mathNormalizeBuiltin v)
+--
+-- This way the lib's existing rewrite logic stays effective while also
+-- applying user-declared auto rules on each `mathNormalize` call (which is
+-- triggered by every `+`/`*`/`/` operation on MathValue, see arithmetic.egi).
+def mathNormalizeBuiltin (x: MathValue) : MathValue :=
   if isInteger x
     then x
     else match (containFunction1 rtu x, containFunction1 sin x || containFunction1 cos x) as (bool, bool) with
@@ -12,6 +21,8 @@ def mathNormalize (x: MathValue) : MathValue :=
            | (#True, #False)  -> rewriteRuleForRtu (symbolNormalize x)
            | (#False, #True)  -> rewriteRuleForSinAndCos (symbolNormalize x)
            | (#True, #True)  -> rewriteRuleForSinAndCos (rewriteRuleForRtu (symbolNormalize x))
+
+def mathNormalize (x: MathValue) : MathValue := mathNormalizeBuiltin x
 
 --
 -- rtu
