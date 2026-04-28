@@ -93,6 +93,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
       <|> declareRuleExpr
       <|> declareDerivativeExpr
+      <|> declareMathFuncExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
@@ -566,6 +567,27 @@ declareDerivativeExpr = try $ do
       fail "expected `declare derivative <name> = <expr>` (LHS must be a plain identifier)"
     Nothing -> fail "expected `declare derivative <name> = <expr>`"
 
+-- | Parse a `declare mathfunc` declaration (Phase 6.3 part 5).
+--
+--   declare mathfunc sin
+--   declare mathfunc sqrt : MathValue -> MathValue
+--
+-- Generates a wrapper function that quotes the symbol on application,
+-- so user-level expressions can call it like a regular function.
+declareMathFuncExpr :: Parser TopExpr
+declareMathFuncExpr = try $ do
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "mathfunc"
+    then fail "Expected 'mathfunc' after 'declare'"
+    else return ()
+  name <- lowerId
+  -- Optional type annotation, parsed but currently unused
+  mType <- optional $ try $ do
+    _ <- symbol ":"
+    typeAtomSimple
+  return $ DeclareMathFunc name mType
+
 defineExpr :: Parser TopExpr
 defineExpr = try defineWithType <|> defineWithoutType
   where
@@ -883,9 +905,23 @@ exprInOp =
    <|> algebraicDataMatcherExpr
    <|> tensorExpr
    <|> functionExpr
+   <|> simplifyUsingExpr
    <|> refsExpr
    <|> atomOrApplyExpr
    <?> "expression"
+
+-- | Parse `simplify <expr> using <rule_name>` (Phase 7.6 skeleton).
+-- Body is parsed as `exprWithoutWhere` so the trailing `using <name>` is
+-- captured separately. The runtime semantics is a no-op for now (returns the
+-- evaluated expression unchanged) — the rule application engine will
+-- replace this stub.
+simplifyUsingExpr :: Parser Expr
+simplifyUsingExpr = try $ do
+  reserved "simplify"
+  body <- exprWithoutWhere
+  reserved "using"
+  ruleName <- lowerId
+  return $ SimplifyUsingExpr body ruleName
 
 -- Also parses exprInOp
 opExpr :: Parser Expr
@@ -1750,6 +1786,8 @@ lowerReservedWords =
   , "infixl"
   , "infixr"
   , "infix"
+  , "simplify"
+  , "using"
   ]
 
 --

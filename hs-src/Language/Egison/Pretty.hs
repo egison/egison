@@ -76,6 +76,11 @@ instance Pretty TopExpr where
   pretty (DeclareDerivative name rhs) =
     pretty "declare" <+> pretty "derivative" <+> pretty name <+>
     pretty "=" <+> pretty rhs
+  pretty (DeclareMathFunc name mType) =
+    let typeDoc = case mType of
+                    Nothing -> emptyDoc
+                    Just t  -> pretty ":" <+> pretty t
+    in pretty "declare" <+> pretty "mathfunc" <+> pretty name <+> typeDoc
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where

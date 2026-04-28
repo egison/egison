@@ -29,7 +29,8 @@ import qualified Database.SQLite3 as SQLite
 
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection   (makeICollection)
-import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount)
+import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount,
+                                                    getReductionRuleNames, getDerivativeRuleNames)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
 import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
@@ -95,6 +96,10 @@ primitives =
         , ("isPureFraction", isPureFractionPrim)
         , ("numReductionRules", numReductionRulesPrim)
         , ("numDerivativeRules", numDerivativeRulesPrim)
+        , ("ruleNames", ruleNamesPrim)
+        , ("derivativeNames", derivativeNamesPrim)
+        , ("hasReductionRule", hasReductionRulePrim)
+        , ("hasDerivativeRule", hasDerivativeRulePrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -239,6 +244,44 @@ numDerivativeRulesPrim _ args = case args of
     n <- getDerivativeRulesCount
     return $ toEgison (fromIntegral n :: Integer)
   _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+
+-- | List the names of all named reduction rules (auto rules excluded).
+ruleNamesPrim :: String -> PrimitiveFunc
+ruleNamesPrim _ args = case args of
+  [] -> do
+    ns <- getReductionRuleNames
+    return $ Collection $ Sq.fromList $ map (String . T.pack) ns
+  [Tuple []] -> do
+    ns <- getReductionRuleNames
+    return $ Collection $ Sq.fromList $ map (String . T.pack) ns
+  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+
+-- | List the function names that have a registered derivative.
+derivativeNamesPrim :: String -> PrimitiveFunc
+derivativeNamesPrim _ args = case args of
+  [] -> do
+    ns <- getDerivativeRuleNames
+    return $ Collection $ Sq.fromList $ map (String . T.pack) ns
+  [Tuple []] -> do
+    ns <- getDerivativeRuleNames
+    return $ Collection $ Sq.fromList $ map (String . T.pack) ns
+  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+
+-- | Check whether a named reduction rule is registered.
+hasReductionRulePrim :: String -> PrimitiveFunc
+hasReductionRulePrim = oneArg' $ \v -> case v of
+  String s -> do
+    ns <- getReductionRuleNames
+    return $ Bool (T.unpack s `elem` ns)
+  _ -> throwErrorWithTrace (TypeMismatch "string rule name" (Value v))
+
+-- | Check whether a function name has a registered derivative.
+hasDerivativeRulePrim :: String -> PrimitiveFunc
+hasDerivativeRulePrim = oneArg' $ \v -> case v of
+  String s -> do
+    ns <- getDerivativeRuleNames
+    return $ Bool (T.unpack s `elem` ns)
+  _ -> throwErrorWithTrace (TypeMismatch "string function name" (Value v))
 
 -- | Phase 5.5: runtime check that all atoms in a CAS value belong to the
 -- given allowed-atom-name list. Used by user-level coerce-style helpers.

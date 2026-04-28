@@ -195,6 +195,21 @@ def coercePolyToInteger (x : Poly Integer [..]) : Integer :=
   if isPureInteger x then x else undefined
 
 --
+-- Rule application combinators (Phase 7.5 helper)
+--
+-- `applyRules` runs each rule once, left-to-right. `iterateRules` runs
+-- the chain repeatedly until the value stops changing (fixed point).
+-- Users hand-build the rule list from `rule.<name>` references.
+--
+
+def applyRules {a} (rules : [a -> a]) (v : a) : a :=
+  foldl (\acc r -> r acc) v rules
+
+def iterateRules {Eq a} (rules : [a -> a]) (v : a) : a :=
+  let v' := applyRules rules v
+   in if v == v' then v else iterateRules rules v'
+
+--
 -- Utility
 --
 

@@ -220,16 +220,55 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
              Just texpr -> typeExprToType texpr
              Nothing    -> typeExprToType TEInt
   return . Just $ IDeclareSymbol names (Just ty)
-desugarTopExpr (DeclareRule _ruleName _level _lhs _rhs) =
-  -- Phase 7.4: parser/AST only. The reduction-rule machinery (`casNormalizeWithRules`)
-  -- is not yet wired in, so we accept the declaration and discard it for now.
-  -- A future Phase 7.5 step will register the rule into the reduction environment.
-  return Nothing
-desugarTopExpr (DeclareDerivative _name _rhs) =
-  -- Phase 6.3: parser/AST only. The derivative environment (DerivativeEnv)
-  -- is not yet wired in, so we accept the declaration and discard it. A
-  -- future iteration will plumb it through `Differentiable Factor`.
-  return Nothing
+desugarTopExpr (DeclareRule mname _level lhs rhs) = do
+  -- Phase 7.5 (literal-only application): emit a top-level lambda that
+  -- compares the input to the rule's LHS (evaluated as an Egison expression)
+  -- and returns the RHS on match, otherwise the input unchanged.
+  --
+  --   declare rule auto term i^2 = -1
+  --   ⇒  def autoRule.<fresh> := \v -> if v = i^2 then -1 else v
+  --
+  -- For named rules:
+  --   declare rule trigPyth poly ('sin x)^2 + ('cos x)^2 = 1
+  --   ⇒  def rule.trigPyth := \v -> if v = ('sin x)^2 + ('cos x)^2 then 1 else v
+  --
+  -- This handles literal LHS only; pattern variables (`$x`, `#x`) are NOT
+  -- yet supported. Named rules become callable as `rule.<name> v`. Auto
+  -- rules each get a fresh `autoRule.<n>` slot so multiple auto rules can
+  -- coexist; iteration is the user's responsibility for now.
+  lhsI <- desugar lhs
+  rhsI <- desugar rhs
+  let body = ILambdaExpr Nothing [stringToVar "v"]
+              (IIfExpr
+                 (IApplyExpr (IVarExpr "=")
+                            [IVarExpr "v", lhsI])
+                 rhsI
+                 (IVarExpr "v"))
+  varName <- case mname of
+               Just n  -> return ("rule." ++ n)
+               Nothing -> do
+                 fr <- fresh
+                 -- `fresh` returns a string like "$_3"; sanitize.
+                 return ("autoRule." ++ filter (\c -> c /= '$' && c /= '_') fr)
+  return . Just $ IDefine (stringToVar varName) body
+desugarTopExpr (DeclareDerivative name rhs) = do
+  -- Phase 6.3 part 4: emit a top-level definition `deriv.<name> := <rhs>`.
+  -- The dot-notation identifier (`deriv.sin`, `deriv.log`, ...) is a single
+  -- valid Egison identifier, so user code can refer to the derivative
+  -- directly by name. This is a stop-gap until `Differentiable Factor`
+  -- learns to pick up the registered derivative automatically.
+  rhsI <- desugar rhs
+  return . Just $ IDefine (stringToVar ("deriv." ++ name)) rhsI
+desugarTopExpr (DeclareMathFunc name _mType) = do
+  -- Phase 6.3 part 5: emit a wrapper function that quotes the symbol on
+  -- application:  def <name> (x : MathValue) : MathValue := '<name> x
+  -- The parser builds `'name x` as `ApplyExpr (QuoteSymbolExpr (VarExpr name)) [VarExpr x]`,
+  -- so we mirror that structure here.
+  let body = LambdaExpr [Arg (APPatVar (VarWithIndices "x" []))]
+                        (ApplyExpr (QuoteSymbolExpr (VarExpr name))
+                                   [VarExpr "x"])
+  bodyI <- desugar body
+  return . Just $ IDefine (stringToVar name) bodyI
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern
@@ -629,6 +668,14 @@ desugar (FunctionExpr args) = return $ IFunctionExpr args
 
 -- Type annotation is erased at runtime
 desugar (TypeAnnotation expr _typeExpr) = desugar expr
+
+-- `simplify <expr> using <ruleName>` (Phase 7.6).
+-- Desugars to a direct call of the registered rule lambda:
+--   simplify e using r  ⇒  rule.r e
+-- The rule lambda was emitted by `desugarTopExpr (DeclareRule (Just r) ...)`.
+desugar (SimplifyUsingExpr body ruleName) = do
+  bodyI <- desugar body
+  return $ IApplyExpr (IVarExpr ("rule." ++ ruleName)) [bodyI]
 
 -- Typed lambda is desugared to regular lambda
 desugar (TypedLambdaExpr params _retType body) = do

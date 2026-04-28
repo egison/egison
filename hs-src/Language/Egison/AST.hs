@@ -103,10 +103,17 @@ data TopExpr
     -- ^ Derivative declaration (Phase 6.3 of type-cas design).
     -- e.g.  declare derivative sin = cos
     --       declare derivative log = \x -> 1 / x
-    -- String: name of the function whose derivative is being declared (must
-    --         have been introduced by `declare mathfunc` in a future Phase 6+
-    --         iteration; for now we just track the registration).
+    -- String: name of the function whose derivative is being declared
+    --         (typically introduced by `declare mathfunc` first).
     -- Expr:   the derivative-as-an-expression (typically a function or lambda)
+  | DeclareMathFunc String (Maybe TypeExpr)
+    -- ^ Math function declaration (Phase 6.3 part 5).
+    -- e.g.  declare mathfunc sin
+    --       declare mathfunc sqrt : MathValue -> MathValue
+    -- Desugars to a wrapper function that quotes the symbol:
+    --   def <name> (x : MathValue) : MathValue := '<name> x
+    -- Combined with `declare derivative`, this gives the user a callable
+    -- function and a registered derivative under one umbrella.
  deriving Show
 
 -- | Where in the CASValue tree a `declare rule` LHS pattern binds.
@@ -249,6 +256,7 @@ data Expr
   | FunctionExpr [String]
 
   | TypeAnnotation Expr TypeExpr  -- ^ Expression with type annotation (expr : type)
+  | SimplifyUsingExpr Expr String -- ^ Phase 7.6: `simplify <expr> using <ruleName>`. Skeleton: parser only — runtime semantics will appear when the rule-application engine lands.
   deriving Show
 
 data VarWithIndices = VarWithIndices String [VarIndex]

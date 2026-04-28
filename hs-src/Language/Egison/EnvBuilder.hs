@@ -267,6 +267,11 @@ processTopExpr result topExpr = case topExpr of
     return result { ebrDerivativeRules = ebrDerivativeRules result ++
                                             [(name, rhs)] }
 
+  -- 10. Math function declarations (Phase 6.3 part 5).
+  -- The body is generated at desugar time (a wrapper function); env-builder
+  -- has nothing to do here.
+  DeclareMathFunc {} -> return result
+
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------

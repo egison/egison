@@ -220,13 +220,21 @@ buildAndMergeEnvironments exprs opts = do
   setPatternEnv mergedPatternEnv
   setPatternFuncEnv mergedPatternFuncEnv
 
-  -- Phase 7.4/7.5/6.3: surface declaration counts to the runtime so that
-  -- inspection primitives (`numReductionRules`, `numDerivativeRules`) can
-  -- read them. The full data is in EnvBuildResult and not yet plumbed.
+  -- Phase 7.4/7.5/6.3: surface declaration counts and names to the runtime
+  -- so that inspection primitives (`numReductionRules`, `ruleNames`,
+  -- `numDerivativeRules`, `derivativeNames`) can read them. The full data
+  -- (LHS/RHS Exprs) is in EnvBuildResult and not yet plumbed; only counts
+  -- and names propagate.
   prevR <- getReductionRulesCount
   setReductionRulesCount (prevR + length (ebrReductionRules envResult))
   prevD <- getDerivativeRulesCount
   setDerivativeRulesCount (prevD + length (ebrDerivativeRules envResult))
+  prevRNames <- getReductionRuleNames
+  setReductionRuleNames (prevRNames ++
+    [ n | (Just n, _, _, _) <- ebrReductionRules envResult ])
+  prevDNames <- getDerivativeRuleNames
+  setDerivativeRuleNames (prevDNames ++
+    [ n | (n, _) <- ebrDerivativeRules envResult ])
 
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
     registerConstructor ctorName ctorInfo

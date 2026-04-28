@@ -59,6 +59,8 @@ data EvalState = EvalState
   , patternFuncEnv :: PatternTypeEnv -- ^ Pattern function environment (for disambiguation)
   , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
+  , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
+  , derivativeRuleNames  :: [String] -- ^ Names of declared derivatives (the function names)
   }
 
 initialEvalState :: EvalState
@@ -72,6 +74,8 @@ initialEvalState = EvalState
   , patternFuncEnv = emptyPatternEnv
   , reductionRulesCount = 0
   , derivativeRulesCount = 0
+  , reductionRuleNames = []
+  , derivativeRuleNames = []
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -107,6 +111,10 @@ class (Applicative m, Monad m) => MonadEval m where
   setReductionRulesCount :: Int -> m ()
   getDerivativeRulesCount :: m Int
   setDerivativeRulesCount :: Int -> m ()
+  getReductionRuleNames :: m [String]
+  setReductionRuleNames :: [String] -> m ()
+  getDerivativeRuleNames :: m [String]
+  setDerivativeRuleNames :: [String] -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -185,6 +193,16 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { derivativeRulesCount = n }
 
+  getReductionRuleNames = reductionRuleNames <$> get
+  setReductionRuleNames ns = do
+    st <- get
+    put $ st { reductionRuleNames = ns }
+
+  getDerivativeRuleNames = derivativeRuleNames <$> get
+  setDerivativeRuleNames ns = do
+    st <- get
+    put $ st { derivativeRuleNames = ns }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -209,6 +227,10 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setReductionRulesCount = lift . setReductionRulesCount
   getDerivativeRulesCount = lift getDerivativeRulesCount
   setDerivativeRulesCount = lift . setDerivativeRulesCount
+  getReductionRuleNames = lift getReductionRuleNames
+  setReductionRuleNames = lift . setReductionRuleNames
+  getDerivativeRuleNames = lift getDerivativeRuleNames
+  setDerivativeRuleNames = lift . setDerivativeRuleNames
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m
