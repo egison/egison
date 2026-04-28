@@ -26,19 +26,21 @@
 | Phase | 内容 | 状態 | 関連 mini-test |
 |---|---|---|---|
 | 1 | `CASValue` 基盤 | ✅ 完了 (既存) | - |
-| 1.5 | `SymbolSet` の `TypeAtom` 化 | ✅ 完了 (`Apply1〜4 → ApplyN` のみ保留) | 67, 69, 80 |
+| 1.5 | `SymbolSet` の `TypeAtom` 化 | ✅ 完了 (`Apply1〜4 → ApplyN` は実装しない方針) | 67, 69, 80 |
 | 2 | 型システムへの統合 | ✅ 完了 | 75 |
 | 3 | `ScalarData → CASValue` 置換 | ✅ 完了 (既存) | - |
 | 4 | プリミティブパターン | ✅ 完了 (既存) | - |
 | 5 | パラメトリックマッチャー | ✅ 完了 | 60, 62, 63 |
 | 5.5 | Embed/Coerce | 🟡 簡易版で動作 ([4.1](#41-cas-subtype-unification-による-embed-elaboration-の代替) 参照) | 73, 75, 77, 78, 81 |
 | 6.1-6.2 | `expandAll`/`substitute` | ✅ 既存実装で動作 | 65 |
-| 6.3 | `∂/∂` (Differentiable) | 🟡 部分動作 ([2.2](#22-partialdiff-を-chainpartialdiff-に委譲する統合) 参照) | 74, 76, 91, 93, 94 |
+| 6.3 | `∂/∂` (Differentiable) | ✅ 完了 (`partialDiff` が `chainPartialDiff` 経由で declared derivative を自動 dispatch) | 74, 76, 91, 93, 94, 103 |
 | 6.3 part 5 | `declare mathfunc` | ✅ 完了 | 90, 91 |
 | 6.3 part 6 | `chainPartialDiff` ディスパッチャ | ✅ 完了 | 93, 94 |
 | 6.5 | `Sd` (積分) | ❌ pre-existing バグ ([5.7](#57-sd-integration-の-lib-バグ) 参照) | - |
 | 7.4 | `declare rule` 構文 | ✅ 完了 | 70, 83 |
-| 7.5 | rule 適用エンジン | 🟡 literal LHS のみ ([3.1](#31-pattern-variable-を含む-rule-lhs) 参照) | 87, 89 |
+| 7.5 | rule 適用エンジン (literal LHS) | ✅ 完了 (`applyTermRule`、factor containment 付き) | 87, 89 |
+| 7.5 | rule 適用エンジン (pattern LHS、`$x`/`#x`) | ✅ 完了 (Phase A) | 99, 100 |
+| 7.5+ | pattern LHS の sub-expression 再帰 (Phase A.5) | ✅ 完了 (`mapPolyAll`/`mapTermAll`/`mapFracAll`) | 101, 102 |
 | 7.5 | rule combinator (`applyRules` / `iterateRules`) | ✅ 完了 | 89 |
 | 7.5 | **auto-rule 自動適用 (mathNormalize 再生成)** | ✅ 完了 | 95, 96 |
 | 7.5+ | **term-level recursive + factor-containment 適用** | ✅ 完了 (built-in `casRewriteI` 等が無くても算術恒等式が動く) | 97, 98 |
@@ -96,36 +98,21 @@ def coerceToFracInteger (x : MathValue) : Frac Integer := ...
 
 **真の修正**: § 7.1 を参照。
 
-### 2.2 `partialDiff` を `chainPartialDiff` に委譲する統合
+### 2.2 `partialDiff` を `chainPartialDiff` に委譲する統合 ✅ 完了 (2026-04)
 
 **設計意図**: `Differentiable` 型クラスの `partialDiff` インスタンスが、`declare derivative` で登録された関数を自動的に拾う。
 
-**実装した範囲**:
-- `chainPartialDiff` という拡張可能ディスパッチャを desugar が生成 (`mini-test/93-chain-partial-diff.egi` 通過)
-- `declare derivative <name>` ごとに `chainPartialDiff` が再定義され、`apply1 #<name>` パターンが追加される
-- 直接 `chainPartialDiff (f x) x` と呼ぶと declared derivative が動く
+**経緯**:
+- 当初 `partialDiff f x := chainPartialDiff f x` に書くと runtime エラー `Expected CASData, but found: "partialDiff"` が発生していた
+- 同根のバグ (`f 3 + f 4` の `"plus"` エラー) を調査して、`declare mathfunc` が型環境にシグネチャを登録していなかったことが原因と判明
+- EnvBuilder で mathfunc に `MathValue -> MathValue` 型シグネチャを登録するよう修正
+- これにより `partialDiff` instance も `chainPartialDiff` 委譲で正しく動作するようになった
 
-**詰まりの本質**: `Differentiable` インスタンスを `partialDiff f x := chainPartialDiff f x` に書き換えると、runtime エラーが発生:
-
-```
-Evaluation error: Expected CASData, but found: "partialDiff"
-  stack trace: Var "z" [], Var "<stdin>" []
-```
-
-「文字列 `"partialDiff"` が CASData の代わりに渡された」というメッセージ。
-推測: 型クラス・メソッドの辞書ルックアップ (`__methodPartialDiff` 的な仕組み) と、user による `chainPartialDiff` の再定義の名前解決順が衝突している可能性。`TypeClassExpand.hs` の生成コードを精査する必要がある。
-
-**回避策(現状)**: instance は `∂/∂'` に委譲し、ユーザーが declared derivative を使いたい場合は `chainPartialDiff` を明示的に呼ぶ:
-
-```egison
-declare mathfunc f
-declare derivative f = \z -> 2 * z
-
-partialDiff (f x) x      -- ∂/∂' に落ちて hardcoded 規則のみ → 正しくない結果
-chainPartialDiff (f x) x -- → 2 * x ✓
-```
-
-**真の修正**: § 7.2 を参照。
+**実装** (2026-04):
+- `hs-src/Language/Egison/EnvBuilder.hs`: `DeclareMathFunc` を `processTopExpr` で型環境に登録 (`f : MathValue -> MathValue`)
+- `lib/math/analysis/derivative.egi`: 全 `Differentiable` instance が `chainPartialDiff` 経由に
+- 動作: `partialDiff (f x) x = 2 * x` (declared derivative `f' = 2*z` を自動 dispatch)
+- テスト: `mini-test/103-partialdiff-auto-dispatch.egi`
 
 ### 2.3 `casNormalize` への auto-rule 自動適用 (✅ 完了 — 2026-04-28)
 
@@ -180,7 +167,7 @@ applyTermRule lhsValue rhsValue input =
 
 **残課題**:
 - LHS が constant-only (例: `term 7 = 42`) の場合、term-level recursive 適用ではマッチしない (poly-level rule を使う必要がある)
-- pattern variable LHS (`(sin $x)^2 = ...`) は引き続き Phase A (LHS Pattern 化) が必要
+- pattern variable LHS が動作するのは **top-level match のみ**。`dbl 7 + 0` (top-level Apply1) はマッチするが、 `dbl 3 + dbl 4` のような sub-expression にはマッチしない (within-term/within-poly recursion は次の Phase で対応)
 
 **設計書 (旧) (Phase 7.2) は次のような変更を要求していた**:
 
@@ -202,7 +189,7 @@ casNormalizeWithRules :: ReductionEnv -> CASValue -> EvalM CASValue
 
 ## 3. 破壊的変更を要する保留項目
 
-### 3.1 Pattern variable を含む rule LHS
+### 3.1 Pattern variable を含む rule LHS ✅ Phase A + Phase A.5 実装済
 
 **設計意図**:
 ```egison
@@ -212,26 +199,47 @@ declare rule auto term (sqrt $y)^2 = y
 
 `$x` (パターン変数バインディング) と `#x` (値参照) を LHS に書ける。
 
-**現状**: literal LHS のみ動作。`i^2 = -1` のような **パターン変数なしの式**は CAS 正規化のおかげで `i*i` などにも match (構造的等価)。
+**実装** (Phase A, 2026-04):
+- AST 変更: `DeclareRule (Maybe String) RuleLevel Pattern Expr` (旧: `Expr Expr`)
+- 専用 LHS parser `ruleLhsPattern` (`hs-src/Language/Egison/Parser/NonS.hs`):
+  - **auto-quoting**: bare lowercase ident と integer literal は `ValuePat` に自動変換 — `i^2 = -1` のような既存構文がそのまま動く
+  - `$x` → `PatVar`, `#expr` → `ValuePat`
+  - `apply1`/`apply2`/`term`/`frac`/`poly`/`plus`/`mult`/`symbol`/`quote`/`func`/`sub`/`sup`/`user` (mathExpr matcher constructors) は `InductivePat` として扱う
+  - juxtaposition `f $x` は `PApplyPat` (関数呼び出しパターン)
+- desugar 分岐 (`hs-src/Language/Egison/Desugar.hs`):
+  - `patternHasPatVar`: PatVar の有無で path を選択
+  - **literal path** (PatVar なし): `patternToLiteralExpr` で Pattern → Expr 変換し、既存の `applyTermRule` ルートを使用
+  - **pattern path** (PatVar あり): `translateToMatcherPattern` で `f $x` → `apply1 #f $x` に変換し、`\v -> match v as <matcher> with | <pat> -> <rhs> | _ -> v` を生成。
+- 動作例 (`mini-test/99-rule-pattern-vars.egi`, `mini-test/100-auto-rule-patvars.egi`):
+  - `declare rule extractSin poly sin $x = x`
+  - `declare rule sameArgs poly sin (cos $a) + cos (sin #a) = a`
+  - `declare rule auto poly dbl $x = x + x` (auto rule with PatVar)
 
-**詰まりの本質**: 現状の `declareRuleExpr` は LHS を `expr` で parse する。expression context で `$y` は `AnonParamExpr` (`$1`/`$2`...) しか想定しておらず、`$y` のような identifier-postfix は parse できない。試すと silent な誤解釈 (`$` 演算子のような扱い) になる。
+**実装** (Phase A.5: sub-expression recursion, 2026-04):
+- Haskell プリミティブ追加 (`hs-src/Language/Egison/Primitives.hs`):
+  - `mapPolyAll : (MathValue -> MathValue) -> MathValue -> MathValue`
+  - `mapTermAll : (MathValue -> MathValue) -> MathValue -> MathValue`
+  - `mapFracAll : (MathValue -> MathValue) -> MathValue -> MathValue`
+  - 各プリミティブは MathValue ツリーをボトムアップで走査し、`Apply1-4`/`Quote`/`FunctionData` の引数 (内側 MathValue) に再帰下降。各ノードで rule を fixpoint まで適用 (`applyRuleFix`)。
+  - `descendCASNoCoef`: 構造再帰のヘルパー。term の coefficient slot は内部表現なので走査対象外 (= rule は適用しない)。Apply args/Quote/Function args/Symbol indices などユーザー可視の MathValue 子要素のみ再帰。
+  - 命名注: lib に既存の `mapPoly`/`mapTerm`/`mapFrac` (frac の n/d split 系) と区別するため、新プリミティブは `*All` サフィックス付き。
+- desugar の pattern-LHS path 更新: 生成 lambda が `\v -> mapXAll <oneStep> v` の形になり、サブ式まで rule が浸透。
+- `-` 演算子を `reservedPatternOp` に追加 (parser 受理のみ、matcher の `$ - $` clause は将来対応)。
+- 動作例 (`mini-test/101-pattern-rule-subexpr.egi`):
+  - `dbl (dbl 3) → 12` (cascading reduction)
+  - `f (dbl 3) → f 6` (recursion into Apply1 arg)
+  - `x + f (dbl 5) → x + f 10`
 
-**真の修正には**: LHS の parse を `pattern` parser に切り替える必要がある。これに伴い:
-- `i^2` のような literal は pattern context では `#i^#2` (value-pattern) と書く必要が出る
-- 既存 mini-test 70/87/88/89 等の syntax 変更
-- AST 変更: `DeclareRule (Maybe String) RuleLevel Pattern Expr` (今は `Expr Expr`)
+**残課題**:
+- `(sqrt $a)^2 = a` のような LHS は ✅ 動作する (mathValue matcher に `$ ^ $` clause を追加済)
+- `1-u` 等の `-` パターン: parser は受理するが、対応する `$ - $` matcher clause が無いため runtime で fail する。 必要なら lib 側で追加可能。
+- 名前衝突回避のため新プリミティブが `mapTermAll` 等になった (lib 既存の `mapTerm` は frac の numerator/denominator を分けて map する別関数)。将来的に lib の同名関数を整理して `mapTerm`/`mapPoly`/`mapFrac` に戻すことも検討可能。
 
-**判断**: 影響大なので保留。design 通りの完全実装には必要。
-
-### 3.2 `Apply1〜Apply4` → `ApplyN`
+### 3.2 `Apply1〜Apply4` → `ApplyN` (実装しない方針)
 
 **設計意図**: `SymbolExpr` の `Apply1 a` ... `Apply4 a b c d` を `ApplyN MathFuncRef [CASValue]` に一般化。任意 arity の math function を表現可能に。
 
-**現状**: 4 構成子のまま。
-
-**詰まりの本質**: 純粋に作業量。広範囲のパターン (Layer 1/2)、既存テスト、各 Apply ケース、`Differentiable Factor` の dispatch、`extractSymbolExpr` 等の helper をまとめる必要。
-
-**判断**: ユーザー合意の上で保留。`declare mathfunc` を含めて一気に実施する方が効率的。
+**判断 (2026-04)**: **実装しない**。現状の Apply1〜4 で実用的な arity (4変数まで) はカバーでき、5変数以上の math function は実用上ほぼ無い。一般化のための広範囲リファクタ (Layer 1/2 のパターン、各 Apply ケース、`Differentiable Factor` dispatch、`extractSymbolExpr` 等のヘルパー) のコストに対するベネフィットが小さい。
 
 ---
 
@@ -251,22 +259,13 @@ declare rule auto term (sqrt $y)^2 = y
 - 非 CAS 型同士の `embed` (例: `Maybe Int` への wrap)
 - elaboration が必要な意味論を持つ Embed (現状は identity-only body)
 
-### 4.2 `chainPartialDiff` の前方参照
+### 4.2 `chainPartialDiff` の前方参照 ✅ 修正済 (2026-04)
 
-**実装**: 各 `declare derivative <name>` の desugar が `chainPartialDiff` を再定義する。生成される body は **これまで宣言されたすべての `f`/`g`/`deriv.f`/`deriv.g` を参照する**:
+**経緯**: かつて各 `declare derivative <name>` の desugar が、EnvBuilder が事前収集した「全 derivative names」を参照して `chainPartialDiff` を再定義していたため、最初の宣言時点でまだ未定義の `deriv.<later>` を参照し warning が出ていた。
 
-```egison
-def chainPartialDiff := \v dx -> match v as mathValue with
-  | apply1 #f $a -> deriv.f a *' chainPartialDiff a dx
-  | apply1 #g $a -> deriv.g a *' chainPartialDiff a dx
-  | _ -> ∂/∂' v dx
-```
+**修正**: `derivativesDesugared` フィールドを `EvalState` に追加し、desugar が一つ宣言を処理するたびに append。`chainPartialDiff` の再定義は「現在まで desugared 済み」の名前のみ参照するようになった。
 
-最初の `declare derivative` の時点で、まだ宣言されていない後続の `g`/`deriv.g` を参照することがある。
-
-**動作する理由**: `recursiveBindAll` (Phase 8 の binding 段階) が全 def を相互再帰的にバインドするので、参照はランタイムで解決される。
-
-**副作用**: 型推論時には forward reference が解決されず、"Unbound variable 'g' (assuming type 'Any')" のような **警告**が出る。Cosmetic だが分かりにくい。
+実装: `hs-src/Language/Egison/EvalState.hs`, `hs-src/Language/Egison/Desugar.hs`。動作上の semantics は変わらず (最終的な `chainPartialDiff` は最後に上書きされるので全 derivative を含む)、warning だけが消える。
 
 ### 4.3 名前付き rule のみが auto-apply 可能
 
@@ -368,11 +367,14 @@ Workaround として動作するが直感的でない。
 ### 7.1 Multi-param TC dispatch の改修
 
 **スコープ**:
-1. `findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo` を `findMatchingInstanceForTypes :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo` に変更
-2. 呼び出し側 (`Type/TypeClassExpand.hs`、`Type/Infer.hs`) で **結果型を含む型情報をディスパッチに渡す**
-3. これは型推論の流れに影響する。call-site で結果型が決まっていない場合 (例: `let r = coerce x in ...` で r が未注釈) は ambiguous instance としてエラーにするか、Haskell 的な **ambiguity check** を実装する
+1. `findMatchingInstanceForType :: Type -> [InstanceInfo] -> Maybe InstanceInfo` を `findMatchingInstanceForTypes :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo` に変更 ✅ 追加済 (Type/Instance.hs)
+2. **`Constraint` を `[Type]` に拡張** — 現在 `Constraint String Type` (単一型のみ) なので、multi-param クラスの2つめ以降の型引数を保持できない
+3. 呼び出し側 (`Type/TypeClassExpand.hs`、`Type/Infer.hs`) で **結果型を含む型情報をディスパッチに渡す**
+4. これは型推論の流れに影響する。call-site で結果型が決まっていない場合 (例: `let r = coerce x in ...` で r が未注釈) は ambiguous instance としてエラーにするか、Haskell 的な **ambiguity check** を実装する
 
-**影響範囲**: `Type/Instance.hs`、`Type/TypeClassExpand.hs`、`Type/Infer.hs`。深い改修。
+**影響範囲**: `Type/Instance.hs` (済) → `Type/Types.hs` (Constraint 拡張)、`Type/TypeClassExpand.hs`、`Type/Infer.hs` ほか Constraint を使う全箇所。深い改修。
+
+**現状**: 1 のみ完了。残りは未着手。
 
 **設計上の選択肢**:
 - (A) 結果型未確定の場合はエラー (Haskell の `Ambiguous type variable` 相当)
@@ -503,3 +505,4 @@ Phase 7.2 (旧版) の見積 「2週間〜1ヶ月」が **3-5 日に短縮**。H
 ## 改訂履歴
 
 - 2026-04-28: 初版。Phase 1.5 / 5 / 5.5 (簡易) / 6.3 / 7.4-7.6 / 8 の実装後の状態を記録
+- 2026-04-29: Phase A (pattern LHS) / Phase A.5 (sub-expression rule application) を実装。§2.2 (`partialDiff` の `chainPartialDiff` 統合) 修正、`f 3 + f 4` の dispatch bug 修正、§4.2 forward reference warning 修正。`$ ^ $` を mathValue matcher に追加。§3.2 ApplyN は実装しない方針に確定。

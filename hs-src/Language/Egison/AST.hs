@@ -92,13 +92,13 @@ data TopExpr
     -- e.g., declare symbol a11, a12, a21, a22
     --       declare symbol x, y, z : Float
     -- [String]: symbol names, Maybe TypeExpr: optional type (defaults to Integer)
-  | DeclareRule (Maybe String) RuleLevel Expr Expr
+  | DeclareRule (Maybe String) RuleLevel Pattern Expr
     -- ^ Reduction rule declaration (Phase 7.4 of type-cas design).
     -- e.g.  declare rule auto term i^2 = -1
     --       declare rule trig_pythagorean poly (sin $x)^2 + (cos #x)^2 = 1
-    -- Maybe String: rule name (Nothing = auto rule)
-    -- RuleLevel:    where the LHS pattern binds (term/poly/frac)
-    -- Expr Expr:    LHS pattern, RHS expression
+    -- Maybe String:  rule name (Nothing = auto rule)
+    -- RuleLevel:     where the LHS pattern binds (term/poly/frac)
+    -- Pattern Expr:  LHS pattern (with $x/#x), RHS expression
   | DeclareDerivative String Expr
     -- ^ Derivative declaration (Phase 6.3 of type-cas design).
     -- e.g.  declare derivative sin = cos
@@ -436,6 +436,7 @@ reservedPatternOp =
   [ Op "++" 5 InfixR False
   , Op "*:" 5 InfixL False
   , Op "+" 7 InfixR False
+  , Op "-" 7 InfixL False  -- subtraction in rule LHS, e.g. `1 - $x`
   , Op "*" 8 InfixR False
   , Op "/" 8 InfixN False
   , Op "^" 9 InfixN False

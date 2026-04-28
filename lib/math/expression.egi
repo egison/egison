@@ -66,6 +66,15 @@ def mathValue : Matcher MathValue :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, xs)]
         | _ -> []
+    | $ ^ $ as (mathValue, integer) with
+        -- Single-factor monomial decomposition `x ^ n`. Matches a single-term
+        -- polynomial with one factor `(x, n)`. Useful in rule LHS like
+        -- `(sqrt $a) ^ 2 = a`, which then desugars to a top-level `^` pattern
+        -- without needing the explicit `term _ ((..., 2) :: [])` form.
+        | $tgt ->
+            match tgt as mathValue with
+              | term _ (($x, $n) :: []) -> [(x, n)]
+              | _ -> []
     | mult $ $ as (integer, multExpr) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
@@ -570,3 +579,7 @@ def L./ (xs: [MathValue]) (ys: [MathValue]) : ([MathValue], [MathValue]) :=
       | ($y :: $yrs, $x :: $xrs) ->
         let (zs, rs) := L./ (map2 (-) (take (length yrs) xrs) (map (* (x / y)) yrs) ++ drop (length yrs) xrs) ys
          in (x / y :: zs, rs)
+
+-- Phase A.5 primitives `mapPolyAll`, `mapTermAll`, `mapFracAll` are
+-- registered in `Type/Check.hs`, so they're known to the type system
+-- without needing forwarder definitions here.

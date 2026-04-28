@@ -528,18 +528,20 @@ declareRuleExpr = try $ do
     "poly" -> return PolyRuleLevel
     "frac" -> return FracRuleLevel
     other  -> fail ("Expected term/poly/frac after rule level, got: " ++ other)
-  -- Parse the body expression. The `=` between LHS and RHS appears as a
-  -- top-level InfixExpr "=" (or BinaryOpExpr) in the parsed expression.
-  -- Use `exprWithoutWhere` to avoid consuming a trailing `where` clause
-  -- that might belong to subsequent declarations.
-  body <- exprWithoutWhere
-  case extractRuleSides body of
-    Just (lhs, rhs) -> return $ DeclareRule ruleName level lhs rhs
-    Nothing         -> fail "expected `<lhs> = <rhs>` after rule level"
+  -- Parse LHS as a Pattern with auto-quoting (so `i^2` works as ValuePat-only,
+  -- and `(sin $x)^2` parses with the `$x` correctly bound).
+  lhs <- ruleLhsPattern
+  -- The separator `=` between LHS pattern and RHS expression
+  _ <- try (operator "=")
+  -- Parse RHS as a normal Expr; use `exprWithoutWhere` to avoid eating a
+  -- trailing `where` that belongs to subsequent declarations.
+  rhs <- exprWithoutWhere
+  return $ DeclareRule ruleName level lhs rhs
 
 -- | Split a parsed expression at the top-level `=` operator, returning the LHS
 -- and RHS sub-expressions. Returns `Nothing` if the expression does not have
--- `=` at its top level.
+-- `=` at its top level. Used by `declare derivative` (whose LHS is a plain
+-- identifier so we can keep parsing it as an Expr).
 extractRuleSides :: Expr -> Maybe (Expr, Expr)
 extractRuleSides (InfixExpr op lhs rhs) | repr op == "=" = Just (lhs, rhs)
 extractRuleSides _ = Nothing
@@ -1424,6 +1426,67 @@ atomPattern' = WildCard <$  symbol "_"
            <|> seqPattern
            <|> LaterPatVar <$ symbol "@"
            <?> "atomic pattern"
+
+-- | Parse a `declare rule` LHS as a Pattern, with auto-quoting:
+--   - bare lowercase identifiers and integer literals become `ValuePat`-wrapped
+--     Exprs (so existing rules like `i^2 = -1` continue to work),
+--   - `$x`           → PatVar "x" (binds variable x),
+--   - `#expr`        → ValuePat expr (references existing bindings),
+--   - `_`            → WildCard,
+--   - infix `+ * / ^` work as InfixPat via patternOps,
+--   - juxtaposition `f a b` becomes either InductivePat (when `f` is a known
+--     mathExpr matcher constructor like `apply1`, `term`, `frac`, ...) or
+--     PApplyPat (when `f` is a value reference, e.g. `sin`).
+ruleLhsPattern :: Parser Pattern
+ruleLhsPattern = do
+  ops <- gets patternOps
+  makeExprParser ruleLhsApply (makePatternTable ops)
+  <?> "rule LHS pattern"
+
+ruleLhsApply :: Parser Pattern
+ruleLhsApply = do
+  first <- ruleLhsAtom
+  args  <- many (try ruleLhsAtom)
+  return $ case args of
+    [] -> first
+    _  -> case first of
+      InductivePat n []    -> InductivePat n args
+      ValuePat funcExpr    -> PApplyPat funcExpr args
+      _                     -> first
+
+ruleLhsAtom :: Parser Pattern
+ruleLhsAtom =
+       (WildCard <$ try (symbol "_" <* notFollowedBy alphaNumChar))
+   <|> (PatVar <$> patVarLiteral)                         -- $x
+   <|> (ValuePat <$> (char '#' >> atomExpr))              -- #expr
+   <|> (ValuePat . QuoteSymbolExpr
+          <$> try (char '\'' >> atomExpr'))               -- 'name (auto-quoted)
+   <|> ruleLhsConstantOrIdent                              -- 42, x, sin (auto-quote)
+   <|> parens ruleLhsPattern                               -- (...)
+   <?> "rule LHS atom"
+
+ruleLhsConstantOrIdent :: Parser Pattern
+ruleLhsConstantOrIdent =
+       (ValuePat . ConstantExpr <$> try numericExpr)      -- 42, -1, 3.14
+   <|> ruleLhsLowerIdent
+
+ruleLhsLowerIdent :: Parser Pattern
+ruleLhsLowerIdent = do
+  name <- lowerId
+  return $ if name `elem` mathExprMatcherConstructors
+              then InductivePat name []
+              else ValuePat (VarExpr name)
+
+-- | Hardcoded list of mathExpr/mathValue matcher constructor names. Identifiers
+-- in this list are treated as pattern constructors (InductivePat); all other
+-- bare lowercase identifiers in a rule LHS are auto-quoted as ValuePat.
+mathExprMatcherConstructors :: [String]
+mathExprMatcherConstructors =
+  [ "frac", "poly", "plus", "term", "mult", "symbol"
+  , "apply1", "apply2", "apply3", "apply4"
+  , "quote", "func"
+  , "sub", "sup", "user"
+  ]
 
 ppPattern :: Parser PrimitivePatPattern
 ppPattern = PPInductivePat <$> lowerId <*> many ppAtom

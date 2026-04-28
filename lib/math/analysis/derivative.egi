@@ -13,28 +13,21 @@
 class Differentiable a where
   partialDiff (f: a) (x: MathValue) : MathValue
 
--- All instances delegate to `∂/∂'` (the built-in differentiation engine).
--- For automatic dispatch on declared derivatives, users call
--- `chainPartialDiff` directly, which extends `∂/∂'` with `apply1 #<name>`
--- patterns from each `declare derivative`.
---
--- (Earlier we tried to delegate `partialDiff` itself to `chainPartialDiff`,
--- but the chainPartialDiff body that each `declare derivative` emits via
--- desugar references `chainPartialDiff` and `partialDiff` recursively in
--- a way that conflicts with the type-class dispatch lookup. Keeping the
--- simpler `∂/∂'` delegation here avoids the issue; users who want
--- declared-derivative dispatch call `chainPartialDiff` explicitly.)
+-- All instances delegate to `chainPartialDiff`, which extends `∂/∂'` with
+-- `apply1 #<name>` patterns from each `declare derivative`. This means that
+-- `partialDiff (f x) y` (with f registered via `declare derivative`)
+-- automatically picks up the user's declared derivative.
 instance Differentiable MathValue where
-  partialDiff f x := ∂/∂' f x
+  partialDiff f x := chainPartialDiff f x
 
 instance Differentiable Factor where
-  partialDiff f x := ∂/∂' f x
+  partialDiff f x := chainPartialDiff f x
 
 instance Differentiable (Frac MathValue) where
-  partialDiff f x := ∂/∂' f x
+  partialDiff f x := chainPartialDiff f x
 
 instance Differentiable (Poly MathValue [..]) where
-  partialDiff f x := ∂/∂' f x
+  partialDiff f x := chainPartialDiff f x
 
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
   tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)

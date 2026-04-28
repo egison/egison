@@ -50,7 +50,7 @@ data EnvBuildResult = EnvBuildResult
   -- (name, level, lhs, rhs) tuple. Rule application is not yet wired into
   -- normalization; this field exists so the data round-trips through env
   -- building and is available for inspection / future Phase 7.5 code.
-  , ebrReductionRules :: [(Maybe String, RuleLevel, Expr, Expr)]
+  , ebrReductionRules :: [(Maybe String, RuleLevel, Pattern, Expr)]
   -- Phase 6.3: collected `declare derivative` declarations. Maps function
   -- name -> derivative expression. Wiring into `Differentiable Factor` is
   -- still pending; for now, just the registration list.
@@ -268,9 +268,19 @@ processTopExpr result topExpr = case topExpr of
                                             [(name, rhs)] }
 
   -- 10. Math function declarations (Phase 6.3 part 5).
-  -- The body is generated at desugar time (a wrapper function); env-builder
-  -- has nothing to do here.
-  DeclareMathFunc {} -> return result
+  -- Register the function's type signature so the inference engine knows
+  -- `f : MathValue -> MathValue` (the wrapper body that quotes the symbol).
+  -- Without this, binary operations like `f 3 + f 4` infer `Any + Any` and
+  -- the type-class `+` dispatch fails (returning the method-name string
+  -- "plus" where a CASData was expected).
+  DeclareMathFunc name mTypeExpr -> do
+    let ty = case mTypeExpr of
+               Just texpr -> typeExprToType texpr
+               Nothing    -> TFun TInt TInt   -- default: MathValue -> MathValue
+        scheme = Forall [] [] ty
+        typeEnv = ebrTypeEnv result
+        typeEnv' = extendEnv (stringToVar name) scheme typeEnv
+    return result { ebrTypeEnv = typeEnv' }
 
 --------------------------------------------------------------------------------
 -- Helper Functions

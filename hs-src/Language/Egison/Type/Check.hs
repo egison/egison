@@ -92,6 +92,14 @@ builtinTypes = concat
       , ("hasDerivativeRule", Forall [] [] $ TFun TString TBool)
       , ("applyTermRule", Forall [] [] $
           TFun TMathValue (TFun TMathValue (TFun TMathValue TMathValue)))
+      -- Phase A.5 deep-traversal primitives.
+      -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
+      , ("mapPolyAll", Forall [] [] $
+          TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
+      , ("mapTermAll", Forall [] [] $
+          TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
+      , ("mapFracAll", Forall [] [] $
+          TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)

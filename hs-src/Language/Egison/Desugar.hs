@@ -220,63 +220,48 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
              Just texpr -> typeExprToType texpr
              Nothing    -> typeExprToType TEInt
   return . Just $ IDeclareSymbol names (Just ty)
-desugarTopExpr (DeclareRule mname level lhs rhs) = do
-  -- Phase 7.5 (literal-only application): emit a top-level lambda that
-  -- compares the input to the rule's LHS (evaluated as an Egison expression)
-  -- and returns the RHS on match, otherwise the input unchanged.
+desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
+  -- Phase 7.5 (literal LHS) + Phase A (pattern variables `$x`, `#x`).
   --
   --   declare rule auto term i^2 = -1
-  --   ⇒  def autoRule.<fresh> := \v -> if v = i^2 then -1 else v
+  --   ⇒  def autoRule.<fresh> := \v -> applyTermRule i^2 (-1) v
   --
-  -- For named rules:
-  --   declare rule trigPyth poly ('sin x)^2 + ('cos x)^2 = 1
-  --   ⇒  def rule.trigPyth := \v -> if v = ('sin x)^2 + ('cos x)^2 then 1 else v
+  -- With pattern variables (Phase A):
+  --   declare rule trigPyth poly (sin $x)^2 + (cos #x)^2 = 1
+  --   ⇒  def rule.trigPyth := \v -> match v as mathExpr with
+  --                                  | (apply1 #sin $x)^2 + (apply1 #cos #x)^2 -> 1
+  --                                  | _ -> v
   --
-  -- This handles literal LHS only; pattern variables (`$x`, `#x`) are NOT
-  -- yet supported. Named rules become callable as `rule.<name> v`. Auto
-  -- rules each get a fresh `autoRule.<n>` slot so multiple auto rules can
-  -- coexist; iteration is the user's responsibility for now.
-  -- The rule body uses un-normalized arithmetic operators (i.+, i.*, ...)
-  -- to avoid infinite recursion: each evaluation of `p^2` would otherwise
-  -- call `mathNormalize` which iterates the rules, including this one,
-  -- which would re-evaluate `p^2`...
-  --
-  -- The lambda parameter is named with a fresh internal identifier
-  -- (`__rule_input.<n>`) to avoid shadowing user symbols. If the parameter
-  -- were named `v` and the user wrote `declare rule auto term v^2 = 0`, the
-  -- rule LHS `v^2` would refer to the lambda parameter (the runtime value)
-  -- rather than the global symbol `v`, causing the rule to never match.
+  -- Strategy:
+  --   - If the LHS pattern contains no PatVar, take the literal-LHS path:
+  --     reconstruct an Expr from the pattern and use `applyTermRule` so
+  --     monomial-containment matching keeps working for term-level rules.
+  --   - Otherwise, emit a `match v as <matcher> with | <pat> -> <rhs> | _ -> v`
+  --     lambda. The user's surface syntax `f $x` (PApplyPat) is translated
+  --     to `apply1 #f $x` so it matches mathExpr's matcher constructors.
   fr <- fresh
   let paramName = "__rule_input." ++ filter (\c -> c /= '$' && c /= '_') fr
-  lhsI <- unNormalizeOps <$> desugar lhs
   rhsI <- unNormalizeOps <$> desugar rhs
-  -- For `term` rules, apply recursively to each term/monomial inside the value
-  -- (so `(1+i)*(1-i)` simplifies to `2` even without a built-in casRewriteI).
-  -- For `poly`/`frac` rules, fall back to top-level structural equality.
-  let body = case level of
-        TermRuleLevel ->
-          ILambdaExpr Nothing [stringToVar paramName]
-            (IApplyExpr (IVarExpr "applyTermRule")
-                        [lhsI, rhsI, IVarExpr paramName])
-        _ ->
-          ILambdaExpr Nothing [stringToVar paramName]
-            (IIfExpr
-               (IApplyExpr (IVarExpr "=")
-                          [IVarExpr paramName, lhsI])
-               rhsI
-               (IVarExpr paramName))
+  body <- if patternHasPatVar lhsPat
+            then buildPatternRuleBody paramName level lhsPat rhsI
+            else case patternToLiteralExpr lhsPat of
+                   Just lhsExpr -> do
+                     lhsI <- unNormalizeOps <$> desugar lhsExpr
+                     buildLiteralRuleBody paramName level lhsI rhsI
+                   Nothing ->
+                     throwError $ Default
+                       "declare rule LHS must be either a literal expression \
+                       \or a pattern containing pattern variables ($x)."
   case mname of
     Just n -> do
       -- Named rule: emit `def rule.<n> := <body>` only.
       let varName = "rule." ++ n
       return . Just $ IDefine (stringToVar varName) body
     Nothing -> do
-      -- Auto rule (Phase 7.5): emit two definitions:
+      -- Auto rule: emit two definitions:
       --   1. `def autoRule.<idx> := <body>` (the rule lambda)
-      --   2. `def mathNormalize := \v -> iterateRules [autoRule.0, ..., autoRule.<idx>]
+      --   2. `def mathNormalize := \v -> iterateRules [autoRule.0, ...]
       --                                              (mathNormalizeBuiltin v)`
-      -- Use a deterministic counter (length of accumulated names) so the
-      -- emitted name is predictable across the desugar pass.
       prevAutoNames <- getAutoRuleVarNames
       let idx        = length prevAutoNames
           autoVar    = "autoRule." ++ show idx
@@ -296,6 +281,65 @@ desugarTopExpr (DeclareRule mname level lhs rhs) = do
           mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
           iterCall = IApplyExpr (IVarExpr "iterateRules") [rulesList, mathBuiltinCall]
       return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
+
+    -- Literal LHS path: \v -> applyTermRule lhs rhs v  (term-level)
+    --                or \v -> if v = lhs then rhs else v  (poly/frac)
+    buildLiteralRuleBody :: String -> RuleLevel -> IExpr -> IExpr -> EvalM IExpr
+    buildLiteralRuleBody paramName lvl lhsI rhsI = case lvl of
+      TermRuleLevel ->
+        return $ ILambdaExpr Nothing [stringToVar paramName]
+                   (IApplyExpr (IVarExpr "applyTermRule")
+                               [lhsI, rhsI, IVarExpr paramName])
+      _ ->
+        return $ ILambdaExpr Nothing [stringToVar paramName]
+                   (IIfExpr
+                      (IApplyExpr (IVarExpr "=")
+                                 [IVarExpr paramName, lhsI])
+                      rhsI
+                      (IVarExpr paramName))
+
+    -- Pattern-variable LHS path: emit a sub-expression-aware rule.
+    -- The rule's "one step" lambda matches the user's pattern at a single
+    -- value node (returning RHS on match, input otherwise). This single-step
+    -- rule is then wrapped with the structural traversal primitive
+    -- corresponding to the rule level:
+    --   TermRuleLevel → mapTerm  (apply to each term/monomial)
+    --   PolyRuleLevel → mapPoly  (apply at each (sub-)polynomial)
+    --   FracRuleLevel → mapFrac  (apply at each (sub-)fraction)
+    -- These primitives recurse into Apply1-4 / Quote / Function arguments
+    -- automatically, so the rule fires at any sub-expression and iterates to
+    -- a fixpoint at each visited node.
+    buildPatternRuleBody :: String -> RuleLevel -> Pattern -> IExpr -> EvalM IExpr
+    buildPatternRuleBody paramName lvl pat rhsI = do
+      -- Use a separate fresh inner-arg name so the inner match is independent
+      -- from the outer lambda parameter.
+      frInner <- fresh
+      let innerArg = "__rule_step." ++ filter (\c -> c /= '$' && c /= '_') frInner
+          translated = translateToMatcherPattern pat
+          mapPrim = case lvl of
+            TermRuleLevel -> "mapTermAll"
+            PolyRuleLevel -> "mapPolyAll"
+            FracRuleLevel -> "mapFracAll"
+          -- Inner one-step lambda built as Egison surface for desugar to handle
+          -- the match-clause shape; we patch the RHS afterwards with rhsI.
+          matchExpr = MatchExpr BFSMode
+                        (VarExpr innerArg)
+                        (VarExpr "mathExpr")
+                        [(translated, ConstantExpr UndefinedExpr),
+                         (WildCard,   VarExpr innerArg)]
+      matchI <- desugar matchExpr
+      let patchedMatchI = patchFirstMatchRhs matchI rhsI
+          oneStepLambda = ILambdaExpr Nothing [stringToVar innerArg] patchedMatchI
+          mapCall       = IApplyExpr (IVarExpr mapPrim)
+                                     [oneStepLambda, IVarExpr paramName]
+      return $ ILambdaExpr Nothing [stringToVar paramName] mapCall
+
+    -- Replace the first match clause's body in an IMatchExpr with the given
+    -- IExpr. (We placeholder-desugar the match with `undefined`, then patch.)
+    patchFirstMatchRhs :: IExpr -> IExpr -> IExpr
+    patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest)) newBody =
+      IMatchExpr m tgt mtcher ((p, newBody) : rest)
+    patchFirstMatchRhs e _ = e
 desugarTopExpr (DeclareDerivative name rhs) = do
   -- Phase 6.3 part 4-6: emit
   --   def deriv.<name> := <rhs>
@@ -310,13 +354,15 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --   broader pattern set; Egison's name shadowing lets the latest
   --   definition win.
   rhsI <- desugar rhs
-  -- Get the names of all derivatives registered so far (from EnvBuilder).
-  prevNames <- getDerivativeRuleNames
-  -- The current declaration's name might or might not be in `prevNames`
-  -- depending on the order EnvBuilder vs Desugar. Be defensive — include it.
-  let allNames = prevNames ++ [n | n <- [name], notElem n prevNames]
+  -- Use only derivatives desugared *up to and including* this one, so the
+  -- emitted chainPartialDiff body doesn't forward-reference `deriv.<later>`
+  -- bindings. EnvBuilder pre-populates `derivativeRuleNames` with all names,
+  -- but for code generation we want each declaration to reference only the
+  -- names that have already been emitted.
+  prevDesugared <- getDerivativesDesugared
+  let allNames = prevDesugared ++ [name | name `notElem` prevDesugared]
+  appendDerivativeDesugared name
   -- Build the chainPartialDiff body: a lambda over (v, dx) with a match.
-  -- Hand-build the IExpr tree.
   let derivBinding = (stringToVar ("deriv." ++ name), rhsI)
   chainBindingI <- buildChainPartialDiff allNames
   let chainBinding = (stringToVar "chainPartialDiff", chainBindingI)
@@ -371,6 +417,84 @@ desugarTopExpr (DeclareMathFunc name _mType) = do
                                    [VarExpr "x"])
   bodyI <- desugar body
   return . Just $ IDefine (stringToVar name) bodyI
+
+-- | Detect whether a Pattern has any PatVar at any depth.
+patternHasPatVar :: Pattern -> Bool
+patternHasPatVar (PatVar _)        = True
+patternHasPatVar (ValuePat _)      = False
+patternHasPatVar WildCard          = False
+patternHasPatVar (PredPat _)       = False
+patternHasPatVar ContPat           = False
+patternHasPatVar LaterPatVar       = False
+patternHasPatVar (NotPat p)        = patternHasPatVar p
+patternHasPatVar (AndPat a b)      = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar (OrPat a b)       = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar (ForallPat a b)   = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar (TuplePat ps)     = any patternHasPatVar ps
+patternHasPatVar (InductivePat _ ps)            = any patternHasPatVar ps
+patternHasPatVar (InductiveOrPApplyPat _ ps)    = any patternHasPatVar ps
+patternHasPatVar (InfixPat _ a b)  = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar (IndexedPat p _)  = patternHasPatVar p
+patternHasPatVar (LetPat _ p)      = patternHasPatVar p
+patternHasPatVar (LoopPat _ _ a b) = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar (PApplyPat _ ps)  = any patternHasPatVar ps
+patternHasPatVar (DApplyPat p ps)  = patternHasPatVar p || any patternHasPatVar ps
+patternHasPatVar (VarPat _)        = False
+patternHasPatVar (SeqConsPat a b)  = patternHasPatVar a || patternHasPatVar b
+patternHasPatVar SeqNilPat         = False
+
+-- | Convert a literal pattern (no PatVar) back to an Expr so we can desugar
+-- it via the existing applyTermRule path. Returns Nothing if the pattern
+-- contains constructs that don't have an Expr equivalent.
+patternToLiteralExpr :: Pattern -> Maybe Expr
+patternToLiteralExpr (ValuePat e)         = Just e
+patternToLiteralExpr (InfixPat op a b)    = do
+  ae <- patternToLiteralExpr a
+  be <- patternToLiteralExpr b
+  return $ InfixExpr op ae be
+patternToLiteralExpr (PApplyPat f args)   = do
+  argExprs <- mapM patternToLiteralExpr args
+  return $ ApplyExpr f argExprs
+patternToLiteralExpr (TuplePat ps)        = do
+  es <- mapM patternToLiteralExpr ps
+  return $ TupleExpr es
+patternToLiteralExpr (InductivePat _ _)   = Nothing
+patternToLiteralExpr WildCard             = Nothing
+patternToLiteralExpr (PatVar _)           = Nothing
+patternToLiteralExpr _                    = Nothing
+
+-- | Translate a user-written rule LHS pattern into a pattern that uses
+-- mathExpr/multExpr matcher constructors. Specifically, surface syntax
+-- `f $x` (PApplyPat with a VarExpr/QuoteSymbolExpr function) is rewritten
+-- to `apply1 #f $x` (InductivePat using mathExpr's apply1 clause).
+translateToMatcherPattern :: Pattern -> Pattern
+translateToMatcherPattern p = case p of
+  PApplyPat funcExpr args ->
+    let funcName = case funcExpr of
+                     VarExpr n                   -> Just n
+                     QuoteSymbolExpr (VarExpr n) -> Just n
+                     _                            -> Nothing
+        translatedArgs = map translateToMatcherPattern args
+    in case (funcName, length translatedArgs) of
+         (Just _, 1) ->
+           InductivePat "apply1" (ValuePat funcExpr : translatedArgs)
+         (Just _, 2) ->
+           InductivePat "apply2" (ValuePat funcExpr : translatedArgs)
+         (Just _, 3) ->
+           InductivePat "apply3" (ValuePat funcExpr : translatedArgs)
+         (Just _, 4) ->
+           InductivePat "apply4" (ValuePat funcExpr : translatedArgs)
+         _ -> PApplyPat funcExpr translatedArgs
+  InfixPat op a b ->
+    InfixPat op (translateToMatcherPattern a) (translateToMatcherPattern b)
+  InductivePat n args ->
+    InductivePat n (map translateToMatcherPattern args)
+  TuplePat ps -> TuplePat (map translateToMatcherPattern ps)
+  AndPat a b  -> AndPat (translateToMatcherPattern a) (translateToMatcherPattern b)
+  OrPat a b   -> OrPat (translateToMatcherPattern a) (translateToMatcherPattern b)
+  NotPat q    -> NotPat (translateToMatcherPattern q)
+  IndexedPat q es -> IndexedPat (translateToMatcherPattern q) es
+  _ -> p
 
 -- | Replace normalizing arithmetic operators (`+`, `-`, `*`, `/`, `^`) with
 -- their **primitive** Haskell-level counterparts. Used by `declare rule auto`

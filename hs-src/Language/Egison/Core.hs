@@ -38,6 +38,9 @@ module Language.Egison.Core
     , recursiveBindPatFuncs
     , recursiveBindAll
     , makeBindings'
+    -- * Function application (used by primitives that take user closures)
+    , applyRef
+    , applyObj
     -- * Pattern matching
     , patternMatch
     ) where

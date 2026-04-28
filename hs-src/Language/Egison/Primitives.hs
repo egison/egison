@@ -13,6 +13,7 @@ module Language.Egison.Primitives
   ) where
 
 import           Control.Monad                     (forM)
+import           Control.Monad.Except              (throwError)
 import           Control.Monad.IO.Class            (liftIO)
 
 import           Data.IORef
@@ -27,8 +28,10 @@ import qualified Data.Vector                       as V
 import qualified Database.SQLite3 as SQLite
  --}  -- for 'egison-sqlite'
 
+import           Language.Egison.Core              (applyRef)
 import           Language.Egison.Data
 import           Language.Egison.Data.Collection   (makeICollection)
+import           Language.Egison.Data.Utils        (newEvaluatedObjectRef)
 import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount,
                                                     getReductionRuleNames, getDerivativeRuleNames)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
@@ -101,6 +104,9 @@ primitives =
         , ("hasReductionRule", hasReductionRulePrim)
         , ("hasDerivativeRule", hasDerivativeRulePrim)
         , ("applyTermRule", applyTermRulePrim)
+        , ("mapPolyAll", mapPolyPrim)
+        , ("mapTermAll", mapTermPrim)
+        , ("mapFracAll", mapFracPrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -303,6 +309,123 @@ applyTermRuleCAS lhsValue rhsValue input =
                      ++ [(sym, expT - expL) | expT > expL]
           in monomialContains rest target'
         _ -> Nothing
+
+-- | Phase A.5: structural traversal primitives `mapPoly`, `mapTerm`, `mapFrac`.
+-- Each takes a user closure `f : MathValue -> MathValue` and a CAS value, and
+-- recursively applies `f` at the corresponding granularity, descending into
+-- sub-MathValues inside Apply1-4 / Quote / Function / Symbol indices.
+--
+-- - mapFrac f v : applies f at every Frac node (every MathValue is a Frac)
+-- - mapPoly f v : applies f at every (sub-)polynomial; same nodes as mapFrac
+--                 since a MathValue with denom=1 is also a poly. Useful when
+--                 the user's pattern targets a poly shape (e.g. `$a + $b`).
+-- - mapTerm f v : applies f to each *term* of every poly, lifting each term
+--                 to a single-term MathValue before passing to f.
+--
+-- All variants iterate `f` at each visited node until a fixpoint (no change).
+-- Traversal is bottom-up: deeper sub-expressions are reduced first.
+mapPolyPrim :: String -> PrimitiveFunc
+mapPolyPrim _ args = case args of
+  [funcVal, CASData v] -> CASData <$> mapPolyCAS funcVal v
+  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+
+mapTermPrim :: String -> PrimitiveFunc
+mapTermPrim _ args = case args of
+  [funcVal, CASData v] -> CASData <$> mapTermCAS funcVal v
+  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+
+mapFracPrim :: String -> PrimitiveFunc
+mapFracPrim _ args = case args of
+  [funcVal, CASData v] -> CASData <$> mapFracCAS funcVal v
+  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+
+-- | Apply a user closure to a CAS value, returning the resulting CAS value.
+applyRuleClosure :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
+applyRuleClosure f cv = do
+  ref <- newEvaluatedObjectRef (Value (CASData cv))
+  result <- applyRef nullEnv (Value f) [ref]
+  case result of
+    Value (CASData cv') -> return cv'
+    other -> throwError $ Default $ "rule must return a CAS value, but got: " ++ show other
+
+-- | Apply rule until fixpoint (CAS values become equal across iterations).
+applyRuleFix :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
+applyRuleFix f cv = do
+  cv' <- applyRuleClosure f cv
+  if cv' == cv then return cv else applyRuleFix f cv'
+
+-- | mapPoly / mapFrac: traverse, apply at each (sub-)MathValue node.
+-- Sub-recursion is gated on the outer "structure" of the value: we recurse
+-- into Apply1-4/Quote/FunctionData arguments (which are user-visible
+-- MathValue sub-expressions) and into Frac numerator/denominator. We do NOT
+-- recurse into a term's *coefficient* slot, because that's an internal
+-- representation detail (e.g. `2*x` has coef 2 sitting next to the monomial
+-- `x`; the user's rule would otherwise be applied to bare integer 2).
+mapFracCAS :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
+mapFracCAS = mapPolyCAS
+
+mapPolyCAS :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
+mapPolyCAS f v = do
+  v' <- descendCASNoCoef (mapPolyCAS f) v
+  applyRuleFix f v'
+
+-- | mapTerm: traverse, apply at each Term (lifted to single-term MathValue).
+mapTermCAS :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
+mapTermCAS f v = do
+  v' <- descendCASNoCoef (mapTermCAS f) v
+  case v' of
+    CAS.CASPoly terms -> do
+      newTerms <- mapM (\t -> applyRuleFix f (CAS.CASPoly [t])) terms
+      return $ foldr CAS.casPlus (CAS.CASInteger 0) newTerms
+    _ -> applyRuleFix f v'
+
+-- | Variant of descendCAS that does NOT recurse into term coefficients.
+-- Used by mapPoly/mapTerm/mapFrac: the coefficient is a raw integer scalar
+-- representing multiplicity, not a user-rewriteable sub-expression.
+descendCASNoCoef :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASValue -> EvalM CAS.CASValue
+descendCASNoCoef _ v@(CAS.CASInteger _) = return v
+descendCASNoCoef recur (CAS.CASFactor sym) = CAS.casNormalize . CAS.CASFactor <$> descendSymbol recur sym
+descendCASNoCoef recur (CAS.CASPoly terms) = (CAS.casNormalize . CAS.CASPoly) <$> mapM (descendTermNoCoef recur) terms
+descendCASNoCoef recur (CAS.CASFrac n d) = CAS.casFrac <$> recur n <*> recur d
+
+descendTermNoCoef :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASTerm -> EvalM CAS.CASTerm
+descendTermNoCoef recur (CAS.CASTerm coef factors) = do
+  factors' <- mapM (\(sym, e) -> (\s -> (s, e)) <$> descendSymbol recur sym) factors
+  return $ CAS.CASTerm coef factors'
+
+-- | Recurse into sub-CASValues inside the structure of a CASValue.
+-- Calls `recur` on each immediate sub-MathValue (in Apply args, Quote, Function,
+-- and the coefficient slot of each term). Does NOT call f on the value itself.
+-- The reconstructed value is re-normalized via casNormalize so that downstream
+-- pattern matching sees canonical form (the matcher relies on Frac (Plus ...)
+-- shape, which raw `CASPoly` constructors may not satisfy after edits).
+descendCAS :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASValue -> EvalM CAS.CASValue
+descendCAS _ v@(CAS.CASInteger _) = return v
+descendCAS recur (CAS.CASFactor sym) = CAS.casNormalize . CAS.CASFactor <$> descendSymbol recur sym
+descendCAS recur (CAS.CASPoly terms) = (CAS.casNormalize . CAS.CASPoly) <$> mapM (descendTerm recur) terms
+descendCAS recur (CAS.CASFrac n d) = CAS.casFrac <$> recur n <*> recur d
+
+descendTerm :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASTerm -> EvalM CAS.CASTerm
+descendTerm recur (CAS.CASTerm coef factors) = do
+  -- The coefficient is itself a CASValue (can be a nested poly): recurse.
+  coef' <- recur coef
+  factors' <- mapM (\(sym, e) -> (\s -> (s, e)) <$> descendSymbol recur sym) factors
+  return $ CAS.CASTerm coef' factors'
+
+descendSymbol :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.SymbolExpr -> EvalM CAS.SymbolExpr
+descendSymbol recur (CAS.Symbol sid name idxs) = do
+  idxs' <- mapM (traverse recur) idxs
+  return $ CAS.Symbol sid name idxs'
+-- Apply1-4: recurse only on the *arguments*; the function slot holds a
+-- symbolic reference that is not itself a rewrite target.
+descendSymbol recur (CAS.Apply1 fn a) = CAS.Apply1 fn <$> recur a
+descendSymbol recur (CAS.Apply2 fn a b) = CAS.Apply2 fn <$> recur a <*> recur b
+descendSymbol recur (CAS.Apply3 fn a b c) = CAS.Apply3 fn <$> recur a <*> recur b <*> recur c
+descendSymbol recur (CAS.Apply4 fn a b c d) = CAS.Apply4 fn <$> recur a <*> recur b <*> recur c <*> recur d
+descendSymbol recur (CAS.Quote v) = CAS.Quote <$> recur v
+-- FunctionData: name is the symbolic function reference, args are MathValue args.
+descendSymbol recur (CAS.FunctionData name args) = CAS.FunctionData name <$> mapM recur args
+descendSymbol _ s@(CAS.QuoteFunction _) = return s
 
 -- | Phase 7.4/7.5: report the number of `declare rule` declarations seen by
 -- the env-builder. The rule data itself is held in EnvBuildResult; here we

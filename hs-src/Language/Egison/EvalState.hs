@@ -64,6 +64,10 @@ data EvalState = EvalState
   , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
                                        --   Accumulated as `declare rule auto` declarations are desugared,
                                        --   used to rebuild `mathNormalize` to apply each rule in sequence.
+  , derivativesDesugared :: [String] -- ^ Phase 6.3: derivative names desugared so far (in declaration order).
+                                       --   Each `declare derivative` redefines `chainPartialDiff` using only
+                                       --   the names *up to and including* itself, avoiding forward references
+                                       --   to derivatives declared later (which would emit warnings).
   }
 
 initialEvalState :: EvalState
@@ -80,6 +84,7 @@ initialEvalState = EvalState
   , reductionRuleNames = []
   , derivativeRuleNames = []
   , autoRuleVarNames = []
+  , derivativesDesugared = []
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -124,6 +129,12 @@ class (Applicative m, Monad m) => MonadEval m where
   getAutoRuleVarNames :: m [String]
   setAutoRuleVarNames :: [String] -> m ()
   appendAutoRuleVarName :: String -> m ()
+  -- Phase 6.3: derivative names already desugared (in declaration order).
+  -- Lets each `declare derivative` see only the derivatives that come at or
+  -- before it, avoiding forward references in the generated chainPartialDiff.
+  getDerivativesDesugared :: m [String]
+  setDerivativesDesugared :: [String] -> m ()
+  appendDerivativeDesugared :: String -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -220,6 +231,14 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { autoRuleVarNames = autoRuleVarNames st ++ [n] }
 
+  getDerivativesDesugared = derivativesDesugared <$> get
+  setDerivativesDesugared ns = do
+    st <- get
+    put $ st { derivativesDesugared = ns }
+  appendDerivativeDesugared n = do
+    st <- get
+    put $ st { derivativesDesugared = derivativesDesugared st ++ [n] }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -251,6 +270,9 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   getAutoRuleVarNames = lift getAutoRuleVarNames
   setAutoRuleVarNames = lift . setAutoRuleVarNames
   appendAutoRuleVarName = lift . appendAutoRuleVarName
+  getDerivativesDesugared = lift getDerivativesDesugared
+  setDerivativesDesugared = lift . setDerivativesDesugared
+  appendDerivativeDesugared = lift . appendDerivativeDesugared
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m
