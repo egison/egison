@@ -31,7 +31,7 @@ module Language.Egison.Type.TypeClassExpand
   ) where
 
 import           Data.Char                  (toLower)
-import           Data.List                  (find, isPrefixOf)
+import           Data.List                  (isPrefixOf)
 import           Data.Maybe                 (mapMaybe)
 import           Data.Text                  (pack)
 import           Control.Monad              (mplus)
@@ -40,13 +40,12 @@ import qualified Data.Set                   as Set
 import           Language.Egison.AST        (ConstantExpr(..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), IExpr(..), stringToVar,
+import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringToVar,
                                              Index(..), tiExprType, tiScheme, tiExprNode,
                                              TIPattern(..), TIPatternNode(..), TILoopRange(..),
                                              mapTIExprChildren)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
-import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName, typeConstructorName,
                                             sanitizeMethodName, freeTyVars, instType, instTypes, classParam)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes)
@@ -485,8 +484,7 @@ expandTypeClassMethodsT tiExpr = do
                       -- Concrete type: find matching instance using all
                       -- constraint types (single-param classes pass [t]).
                       let instances = lookupInstances className classEnv'
-                          mInst = findMatchingInstanceForTypes tyArgs instances
-                      case mInst of
+                      case findMatchingInstanceForTypes tyArgs instances of
                         Just inst -> do
                           -- Found instance: eta-expand with concrete dictionary
                           typeEnv <- getTypeEnv
@@ -783,8 +781,7 @@ expandTypeClassMethodsT tiExpr = do
         _ -> do
           -- Concrete type: find matching instance using all constraint types.
           let instances = lookupInstances className classEnv
-              mInst = findMatchingInstanceForTypes tyArgs instances
-          case mInst of
+          case findMatchingInstanceForTypes tyArgs instances of
             Just inst -> do
               -- Found instance: generate dictionary name (e.g., "numInteger", "eqCollection")
               let instTypeName = concatMap typeConstructorName (instTypes inst)
@@ -1209,17 +1206,13 @@ applyConcreteConstraintDictionaries expr = do
     resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
     resolveDictionaryForConstraint classEnv constraint@(Constraint className tyArgs) = do
       -- Normalize TInt to TMathValue for instance matching
-      -- Integer and MathValue are the same type in Egison
+      -- (Integer and MathValue share runtime representation in Egison).
       let normalizeType t = case t of
                               TInt -> TMathValue
-                              _ -> t
+                              _    -> t
           normalizedTypes = map normalizeType tyArgs
-          normalizedFirst = case normalizedTypes of
-                              (t:_) -> t
-                              []    -> TAny
-      let instances = lookupInstances className classEnv
-          mInst = findMatchingInstanceForTypes normalizedTypes instances
-      case mInst of
+          instances = lookupInstances className classEnv
+      case findMatchingInstanceForTypes normalizedTypes instances of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
           let instTypeName = concatMap typeConstructorName (instTypes inst)

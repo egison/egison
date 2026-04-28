@@ -19,7 +19,6 @@ module Language.Egison.Type.Types
   , ShapeDimType(..)
   , Constraint(..)
   , constraintType  -- backward-compat: head of constraintTypes
-  , mkConstraint    -- backward-compat: build single-type constraint
   , ClassInfo(..)
   , classParam
   , InstanceInfo(..)
@@ -149,17 +148,13 @@ data Constraint = Constraint
                                 -- class type parameters in declaration order.
   } deriving (Eq, Show, Generic)
 
--- | Backward-compat accessor: returns the first (or only) constraint type.
--- Use this where the call site assumes a single-param class.
+-- | Accessor for the principal (first) constraint type.
+-- For single-param classes this is the only type. Multi-param call sites
+-- that need the full type list should use `constraintTypes` directly.
 constraintType :: Constraint -> Type
 constraintType c = case constraintTypes c of
   (t:_) -> t
   []    -> error "constraintType: constraint with no types"
-
--- | Backward-compat smart constructor for single-param constraints.
--- New multi-param call sites should use `Constraint cls [t1, t2, ...]` directly.
-mkConstraint :: String -> Type -> Constraint
-mkConstraint cls ty = Constraint cls [ty]
 
 -- | Information about a type class
 data ClassInfo = ClassInfo
