@@ -140,6 +140,10 @@ unifyG _ _ _ TMathValue TFactor   = ok
 unifyG _ _ _ TFactor    TMathValue = ok
 unifyG _ _ _ TInt        TFactor   = ok
 unifyG _ _ _ TFactor     TInt      = ok
+unifyG _ _ _ TMathValue (TTerm _)  = ok
+unifyG _ _ _ (TTerm _)  TMathValue = ok
+unifyG _ _ _ TInt       (TTerm _)  = ok
+unifyG _ _ _ (TTerm _)  TInt       = ok
 unifyG _ _ _ TMathValue (TFrac _)  = ok
 unifyG _ _ _ (TFrac _)  TMathValue = ok
 unifyG _ _ _ TInt       (TFrac _)  = ok
@@ -204,6 +208,9 @@ unifyG _ _ _ TPort TPort = ok
 
 -- CAS types
 unifyG _ _ _ TFactor TFactor = ok
+
+unifyG mode ce cs (TTerm t1) (TTerm t2) =
+  unifyNormalized mode ce cs t1 t2
 
 unifyG mode ce cs (TFrac t1) (TFrac t2) =
   unifyNormalized mode ce cs t1 t2

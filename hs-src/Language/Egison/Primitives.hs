@@ -37,6 +37,8 @@ import           Language.Egison.EvalState         (getReductionRulesCount, getD
 import           Language.Egison.IExpr             (Index (..), stringToVar)
 import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
+import qualified Language.Egison.Type.Pretty as TP
+import qualified Language.Egison.Type.RuntimeType as RT
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
 import           Language.Egison.Primitives.String
@@ -92,6 +94,7 @@ primitives =
         , ("termCoeff", termCoeffPrim)
         , ("termMonomial", termMonomialPrim)
         , ("typeOf", typeOfPrim)
+        , ("runtimeType", runtimeTypePrim)
         , ("inspect", inspectPrim)
         , ("differentialClosed", differentialClosedPrim)
         , ("isInPolyAtoms", isInPolyAtomsPrim)
@@ -591,6 +594,14 @@ typeOfPrim = oneArg' $ \v -> case v of
   intercalateComma []     = ""
   intercalateComma [s]    = s
   intercalateComma (s:ss) = s ++ ", " ++ intercalateComma ss
+
+-- | Shallow runtime type used for runtime-type dispatch.
+-- Returns the type as a string (rendered via Type.Pretty.prettyType).
+-- See design/runtime-type-dispatch.md for the depth-2 design.
+runtimeTypePrim :: String -> PrimitiveFunc
+runtimeTypePrim = oneArg' $ \v -> case v of
+  CASData cv -> return $ String (T.pack (TP.prettyType (RT.runtimeTypeOfCAS cv)))
+  _          -> return $ String (T.pack "Any")
 
 -- | Extract the monomial of a single-term CASValue as a flat list of (factor, exponent) pairs.
 -- For CASPoly [CASTerm _ mono], returns mono as a Collection of Tuple [factor, integer].

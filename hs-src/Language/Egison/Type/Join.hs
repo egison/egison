@@ -50,12 +50,24 @@ joinTypes TInt (TFrac t) = Right (TFrac (joinCoeff TInt t))
 joinTypes (TFrac t) TInt = Right (TFrac (joinCoeff t TInt))
 joinTypes TInt (TPoly t ss) = Right (TPoly (joinCoeff TInt t) ss)
 joinTypes (TPoly t ss) TInt = Right (TPoly (joinCoeff t TInt) ss)
+joinTypes TInt (TTerm t) = Right (TTerm (joinCoeff TInt t))
+joinTypes (TTerm t) TInt = Right (TTerm (joinCoeff t TInt))
 joinTypes TInt TFactor = Right TFactor
 joinTypes TFactor TInt = Right TFactor
 
 -- Factor joins
 joinTypes TFactor (TPoly t ss) = Right (TPoly (joinCoeff TInt t) ss)
 joinTypes (TPoly t ss) TFactor = Right (TPoly (joinCoeff t TInt) ss)
+joinTypes TFactor (TTerm t) = Right (TTerm (joinCoeff TInt t))
+joinTypes (TTerm t) TFactor = Right (TTerm (joinCoeff t TInt))
+
+-- Term joins
+joinTypes (TTerm t1) (TTerm t2) = Right (TTerm (joinCoeff t1 t2))
+joinTypes (TTerm t) (TPoly pt ss) =
+  -- Term a with Poly b [S] -> Poly (join a b) [S] (Term is single-monomial Poly)
+  Right (TPoly (joinCoeff t pt) ss)
+joinTypes (TPoly pt ss) (TTerm t) =
+  Right (TPoly (joinCoeff pt t) ss)
 
 -- Frac joins
 joinTypes (TFrac t1) (TFrac t2) = Right (TFrac (joinCoeff t1 t2))
@@ -64,6 +76,10 @@ joinTypes (TFrac t) (TPoly pt ss) =
   Right (TFrac (TPoly (joinCoeff t pt) ss))
 joinTypes (TPoly pt ss) (TFrac t) =
   Right (TFrac (TPoly (joinCoeff pt t) ss))
+joinTypes (TFrac t) (TTerm pt) =
+  Right (TFrac (TTerm (joinCoeff t pt)))
+joinTypes (TTerm pt) (TFrac t) =
+  Right (TFrac (TTerm (joinCoeff pt t)))
 
 -- Poly joins - most complex case
 joinTypes (TPoly t1 ss1) (TPoly t2 ss2) =
@@ -103,6 +119,7 @@ extractCoeff :: Type -> Type
 extractCoeff TInt = TInt
 extractCoeff (TFrac t) = TFrac t
 extractCoeff TFactor = TInt
+extractCoeff (TTerm t) = t
 extractCoeff (TPoly t _) = t
 extractCoeff _ = TAny
 
@@ -138,26 +155,42 @@ symbolSetSubset (SymbolSetVar _) _ = True  -- Assume vars are subset (will be re
 symbolSetSubset _ (SymbolSetVar _) = True
 
 -- | Check if one type is a subtype of another in the CAS lattice.
+-- The CAS hierarchy is (more specific → more general):
+--   Integer ⊂ Factor ⊂ Term a ⊂ Poly a [s] ⊂ Frac a ⊂ MathValue
+-- Nested types are covariant within depth ≤ 2.
 isSubtype :: Type -> Type -> Bool
 
 -- Reflexivity
 isSubtype t1 t2 | t1 == t2 = True
 
--- Integer is subtype of many types
+-- Integer subtypes
 isSubtype TInt (TFrac TInt) = True
 isSubtype TInt TFactor = True
+isSubtype TInt (TTerm TInt) = True
 isSubtype TInt (TPoly TInt _) = True
 isSubtype TInt TMathValue = True
 
 -- Factor subtypes
+isSubtype TFactor (TTerm TInt) = True
 isSubtype TFactor (TPoly TInt _) = True
+isSubtype TFactor (TFrac TInt) = True
+isSubtype TFactor TMathValue = True
 
--- Frac subtypes
-isSubtype (TFrac t1) (TFrac t2) = isSubtype t1 t2
+-- Term subtypes
+isSubtype (TTerm t1) (TTerm t2) = isSubtype t1 t2
+isSubtype (TTerm t1) (TPoly t2 _) = isSubtype t1 t2
+isSubtype (TTerm t1) (TFrac t2) = isSubtype t1 t2
+isSubtype (TTerm _) TMathValue = True
 
 -- Poly subtypes
 isSubtype (TPoly t1 ss1) (TPoly t2 ss2) =
   isSubtype t1 t2 && symbolSetSubset ss1 ss2
+isSubtype (TPoly t1 _) (TFrac t2) = isSubtype t1 t2
+isSubtype (TPoly _ _) TMathValue = True
+
+-- Frac subtypes
+isSubtype (TFrac t1) (TFrac t2) = isSubtype t1 t2
+isSubtype (TFrac _) TMathValue = True
 
 -- Any is supertype of everything
 isSubtype _ TAny = True

@@ -72,6 +72,7 @@ applySubst _ TPort            = TPort
 applySubst _ TAny             = TAny
 -- New CAS types
 applySubst _ TFactor          = TFactor
+applySubst s (TTerm t)         = TTerm (applySubst s t)
 applySubst s (TFrac t)         = TFrac (applySubst s t)
 applySubst s (TPoly t ss)     = TPoly (applySubst s t) (applySubstSymbolSet s ss)
 

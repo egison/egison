@@ -124,6 +124,7 @@ data Type
   | TAny                              -- ^ Any type (for gradual typing)
   -- New CAS types (Phase 2)
   | TFactor                           -- ^ Factor type (atomic mathematical factor from quote ')
+  | TTerm Type                         -- ^ Term type, e.g., Term Integer = monomials over Integer
   | TFrac Type                         -- ^ Frac type, e.g., Frac Integer = rationals
   | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
@@ -215,6 +216,7 @@ freeTyVars TPort            = Set.empty
 freeTyVars TAny             = Set.empty
 -- New CAS types
 freeTyVars TFactor          = Set.empty
+freeTyVars (TTerm t)         = freeTyVars t
 freeTyVars (TFrac t)         = freeTyVars t
 freeTyVars (TPoly t ss)     = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
   where
@@ -231,9 +233,10 @@ isTensorType _           = False
 isScalarType :: Type -> Bool
 isScalarType = not . isTensorType
 
--- | Check if a type is a CAS type (Factor, Div, or Poly)
+-- | Check if a type is a CAS type (Factor, Term, Frac, or Poly)
 isCASType :: Type -> Bool
 isCASType TFactor     = True
+isCASType (TTerm _)    = True
 isCASType (TFrac _)    = True
 isCASType (TPoly _ _) = True
 isCASType _           = False
@@ -269,6 +272,7 @@ typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
 typeToName (TTensor t) = "Tensor" ++ typeToName t
 typeToName TFactor = "Factor"
+typeToName (TTerm t) = "Term" ++ typeToName t
 typeToName (TFrac t) = "Frac" ++ typeToName t
 typeToName (TPoly t ss) = "Poly" ++ typeToName t ++ symbolSetToName ss
   where
@@ -310,6 +314,7 @@ typeConstructorName TPort = "Port"
 typeConstructorName TAny = "Any"
 -- New CAS types
 typeConstructorName TFactor = "Factor"
+typeConstructorName (TTerm _) = "Term"
 typeConstructorName (TFrac _) = "Frac"
 typeConstructorName (TPoly _ _) = "Poly"
 
@@ -364,6 +369,7 @@ typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
 -- New CAS types
 typeExprToType TEFactor = TFactor
+typeExprToType (TETerm t) = TTerm (typeExprToType t)
 typeExprToType (TEFrac t) = TFrac (typeExprToType t)
 typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSet ss)
   where
@@ -384,6 +390,7 @@ normalizeInductiveTypes (TInductive name []) = case name of
   _            -> TInductive name []
 -- Normalize Div to TFrac
 normalizeInductiveTypes (TInductive "Frac" [t]) = TFrac (normalizeInductiveTypes t)
+normalizeInductiveTypes (TInductive "Term" [t]) = TTerm (normalizeInductiveTypes t)
 -- Convert TInductive "Vector", "Matrix", and "DiffForm" to Tensor (they are aliases)
 normalizeInductiveTypes (TInductive "Vector" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive "Matrix" [t]) = TTensor (normalizeInductiveTypes t)
@@ -398,6 +405,7 @@ normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
 normalizeInductiveTypes (TTensor t) = TTensor (normalizeInductiveTypes t)
 -- New CAS types
+normalizeInductiveTypes (TTerm t) = TTerm (normalizeInductiveTypes t)
 normalizeInductiveTypes (TFrac t) = TFrac (normalizeInductiveTypes t)
 normalizeInductiveTypes (TPoly t ss) = TPoly (normalizeInductiveTypes t) ss
 normalizeInductiveTypes t = t  -- Other types remain unchanged

@@ -138,6 +138,7 @@ Library
                    Language.Egison.Type.Unify
                    Language.Egison.Type.Instance
                    Language.Egison.Type.Pretty
+                   Language.Egison.Type.RuntimeType
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -Wall -Wno-name-shadowing -Wno-incomplete-patterns

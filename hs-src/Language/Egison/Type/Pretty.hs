@@ -56,6 +56,7 @@ prettyType TPort            = "Port"
 prettyType TAny             = "_"
 -- New CAS types
 prettyType TFactor          = "Factor"
+prettyType (TTerm t)         = "Term " ++ prettyTypeAtom t
 prettyType (TFrac t)         = "Frac " ++ prettyTypeAtom t
 prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 

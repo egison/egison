@@ -48,11 +48,23 @@ import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), Instanc
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName, typeConstructorName,
                                             sanitizeMethodName, freeTyVars, instType, instTypes, classParam)
-import           Language.Egison.Type.Instance (findMatchingInstanceForTypes)
+import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
+                                                  findMostSpecificInstanceForTypes)
 
 -- ============================================================================
 -- Helper Functions (shared across the module)
 -- ============================================================================
+
+-- | Dispatch helper: prefer the most-specific instance via subtype partial
+-- order; fall back to the first unifying instance if specificity returns
+-- an ambiguity error or no match. This keeps backward compatibility while
+-- enabling deterministic specialization (see design/runtime-type-dispatch.md
+-- §4).
+findInstanceForDispatch :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo
+findInstanceForDispatch tys insts =
+  case findMostSpecificInstanceForTypes tys insts of
+    Right inst -> Just inst
+    Left _     -> findMatchingInstanceForTypes tys insts
 
 -- | Extract type variable substitutions from instance type and actual type
 -- Example: [a] -> [[Integer]] gives [(a, [Integer])]
@@ -484,7 +496,7 @@ expandTypeClassMethodsT tiExpr = do
                       -- Concrete type: find matching instance using all
                       -- constraint types (single-param classes pass [t]).
                       let instances = lookupInstances className classEnv'
-                      case findMatchingInstanceForTypes tyArgs instances of
+                      case findInstanceForDispatch tyArgs instances of
                         Just inst -> do
                           -- Found instance: eta-expand with concrete dictionary
                           typeEnv <- getTypeEnv
@@ -729,6 +741,18 @@ expandTypeClassMethodsT tiExpr = do
             _ -> do
               -- Concrete type: find matching instance for the ownerClass.
               -- Use full-list dispatch (multi-param-aware).
+              -- NOTE: this site keeps the legacy first-unifying-match dispatch
+              -- intentionally. Switching to most-specific here surfaces a
+              -- subtle interaction with `mathValue` pattern matching inside
+              -- `Differentiable` instance bodies — the more-specific
+              -- `Poly MathValue [..]` instance gets picked for a single-term
+              -- polynomial, and although the body now uses `diffSingleTerm`
+              -- (Phase 6), the recursive `partialDiff` inside
+              -- `diffTermProduct` re-dispatches and produces 0 instead of
+              -- the correct derivative. Until that is understood the safe
+              -- choice for direct method calls is the LIFO order which
+              -- consistently picks `Differentiable MathValue` (the broad
+              -- switchboard).
               let instances = lookupInstances ownerClass classEnv'
               case findMatchingInstanceForTypes actualTypes instances of
                 Just inst -> do
@@ -781,7 +805,7 @@ expandTypeClassMethodsT tiExpr = do
         _ -> do
           -- Concrete type: find matching instance using all constraint types.
           let instances = lookupInstances className classEnv
-          case findMatchingInstanceForTypes tyArgs instances of
+          case findInstanceForDispatch tyArgs instances of
             Just inst -> do
               -- Found instance: generate dictionary name (e.g., "numInteger", "eqCollection")
               let instTypeName = concatMap typeConstructorName (instTypes inst)
@@ -1212,7 +1236,7 @@ applyConcreteConstraintDictionaries expr = do
                               _    -> t
           normalizedTypes = map normalizeType tyArgs
           instances = lookupInstances className classEnv
-      case findMatchingInstanceForTypes normalizedTypes instances of
+      case findInstanceForDispatch normalizedTypes instances of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
           let instTypeName = concatMap typeConstructorName (instTypes inst)

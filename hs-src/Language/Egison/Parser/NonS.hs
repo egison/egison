@@ -751,6 +751,7 @@ typeAtomSimple =
   <|> try diffFormTypeExpr
   -- New CAS types
   <|> try factorTypeExpr
+  <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
@@ -776,6 +777,7 @@ typeAtom =
   <|> try diffFormTypeExpr
   -- New CAS types
   <|> try factorTypeExpr
+  <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
@@ -825,6 +827,14 @@ diffFormTypeExpr = do
 -- | Parse Factor type
 factorTypeExpr :: Parser TypeExpr
 factorTypeExpr = TEFactor <$ reserved "Factor"
+
+-- | Parse Term type (e.g., Term Integer)
+-- A Term is a single monomial: coefficient × monomial.
+termTypeExpr :: Parser TypeExpr
+termTypeExpr = do
+  _ <- reserved "Term"
+  innerType <- typeAtomOrParenType
+  return $ TETerm innerType
 
 -- | Parse Frac type (e.g., Frac Integer)
 fracTypeExpr :: Parser TypeExpr
@@ -879,7 +889,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Frac", "Poly"]
+    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Term", "Frac", "Poly"]
 
 expr :: Parser Expr
 expr = do
