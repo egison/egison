@@ -350,14 +350,16 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --   def deriv.<name> := <rhs>
   --   def chainPartialDiff := \v dx ->
   --       match v as mathValue with
-  --         | apply1 #<n_1> $a -> deriv.<n_1> a *' partialDiff a dx
+  --         | apply1 #<n_1> $a -> deriv.<n_1> a *' chainPartialDiff a dx
   --         ...
-  --         | apply1 #<n_k> $a -> deriv.<n_k> a *' partialDiff a dx
-  --         | _ -> ∂/∂' v dx
+  --         | apply1 #<n_k> $a -> deriv.<n_k> a *' chainPartialDiff a dx
+  --         | _ -> chainPartialDiffBuiltin v dx
   --   where n_1..n_k are *all* the derivative names seen so far (including
   --   <name>). Each declare derivative redefines `chainPartialDiff` with the
   --   broader pattern set; Egison's name shadowing lets the latest
-  --   definition win.
+  --   definition win. The fallback uses `chainPartialDiffBuiltin` (defined in
+  --   lib/math/analysis/derivative.egi and never redefined) so the
+  --   recursion through nested mathfuncs terminates.
   rhsI <- desugar rhs
   -- Use only derivatives desugared *up to and including* this one, so the
   -- emitted chainPartialDiff body doesn't forward-reference `deriv.<later>`
@@ -375,9 +377,9 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   where
     -- Build:
     --   \v dx -> match v as mathValue with
-    --              | apply1 #<n1> $a -> deriv.<n1> a *' partialDiff a dx
+    --              | apply1 #<n1> $a -> deriv.<n1> a *' chainPartialDiff a dx
     --              ...
-    --              | _ -> ∂/∂' v dx
+    --              | _ -> chainPartialDiffBuiltin v dx
     --
     -- We desugar a synthetic Egison expression rather than hand-building
     -- the IExpr tree, since match patterns and `apply1 #` are easier at
@@ -400,7 +402,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
             )
           fallbackClause =
             ( WildCard
-            , ApplyExpr (VarExpr "∂/∂'") [VarExpr "v", VarExpr "dx"]
+            , ApplyExpr (VarExpr "chainPartialDiffBuiltin") [VarExpr "v", VarExpr "dx"]
             )
           matchExpr = MatchExpr BFSMode
                         (VarExpr "v")

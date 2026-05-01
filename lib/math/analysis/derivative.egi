@@ -4,87 +4,112 @@
 --
 --
 
--- Phase 6.3 (preparatory): single-param type class for differentiation.
--- Each instance defines how a value of type `a` is differentiated against a
--- given symbol. The result is a generic `MathValue`. Concrete CAS types
--- (`Poly`, `Frac`, `Term`) can specialize this class with closed-form rules
--- once Embed/coerce elaboration lands; for now we provide a single fallback
--- via `MathValue` that delegates to the existing `∂/∂'` algorithm.
+-- Differentiable type class. Each CAS shape's instance owns its own
+-- structural decomposition rule. Recursive sub-calls go through
+-- `partialDiff` (the typeclass method) so runtime-type dispatch picks the
+-- right instance again — and the dispatch is O(1) thanks to
+-- IRuntimeDispatch reusing the already-evaluated argument (see
+-- `evalExprShallow env (IRuntimeDispatch ...)` in Core.hs).
+--
+-- We don't write an explicit `instance Differentiable MathValue`: the
+-- compiler emits `IRuntimeDispatch` for that case, picking the right
+-- concrete instance below from the runtime CAS shape.
 class Differentiable a where
   partialDiff (f: a) (x: MathValue) : MathValue
 
--- All instances delegate to `chainPartialDiff`, which extends `∂/∂'` with
--- `apply1 #<name>` patterns from each `declare derivative`. This means that
--- `partialDiff (f x) y` (with f registered via `declare derivative`)
--- automatically picks up the user's declared derivative.
---
--- Phase 3 (runtime-type dispatch): we no longer write an explicit
--- `instance Differentiable MathValue`. When a value's static type is
--- `MathValue` the compiler emits `IRuntimeDispatch` which inspects the
--- runtime CAS shape and picks the most specific concrete instance below.
 instance Differentiable Factor where
+  -- Atomic factors: dispatched to chainPartialDiff which handles
+  -- symbol / apply1 / quote / func cases.
   partialDiff f x := chainPartialDiff f x
 
-instance Differentiable (Frac MathValue) where
-  partialDiff f x := chainPartialDiff f x
+instance Differentiable (Term MathValue) where
+  -- Single-monomial term shape, plus atomic symbol cases (a bare
+  -- symbol like `x` has runtime type `Term Integer`).
+  partialDiff f x := match f as mathValue with
+    | #x -> 1
+    | ?isSymbol -> 0
+    | apply1 _ _ -> chainPartialDiff f x
+    | apply2 _ _ _ -> chainPartialDiff f x
+    | apply3 _ _ _ _ -> chainPartialDiff f x
+    | apply4 _ _ _ _ _ -> chainPartialDiff f x
+    | quote _ -> chainPartialDiff f x
+    | func _ _ -> chainPartialDiff f x
+    | #0 -> 0
+    | _ * #1 -> 0
+    | #1 * $fx ^ $n -> n * fx ^ (n - 1) * partialDiff fx x
+    | $a * $fx ^ $n * $r -> a * partialDiff (fx ^' n) x * r + a * fx ^' n * partialDiff r x
+    | _ -> 0
 
 instance Differentiable (Poly MathValue [..]) where
-  partialDiff f x := chainPartialDiff f x
+  -- Polynomial: sum of per-term derivatives.
+  partialDiff f x := match f as mathValue with
+    | poly $ts -> sum (map 1#(partialDiff $1 x) ts)
+    | _ -> chainPartialDiff f x
+
+instance Differentiable (Frac MathValue) where
+  -- Quotient rule.
+  partialDiff f x := match f as mathValue with
+    | $p1 / $p2 ->
+        let p1' := partialDiff p1 x
+            p2' := partialDiff p2 x
+         in (p1' * p2 - p2' * p1) / p2 ^ 2
+    | _ -> chainPartialDiff f x
+
+-- ---------------------------------------------------------------------------
+-- Top-level differentiation operator (∂/∂) and the chain dispatcher.
+-- ---------------------------------------------------------------------------
+
+-- partialDiffMV is a top-level def whose static type (MathValue ->
+-- MathValue -> MathValue) is concrete, so the `partialDiff` inside gets
+-- expanded by the typeclass machinery (IRuntimeDispatch) at this
+-- definition site. Inlining it as an anonymous lambda inside `∂/∂` would
+-- leave the partialDiff call in a context whose static type is still
+-- polymorphic by the time TypeClassExpand sees it.
+def partialDiffMV (f : MathValue) (x : MathValue) : MathValue := partialDiff f x
 
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
-  tensorMap2 (\f x -> ∂/∂' f x) f (flipIndices x)
+  tensorMap2 partialDiffMV f (flipIndices x)
 
--- Phase 6.3 part 6: extensible chain-rule dispatcher.
--- Each `declare derivative <name>` redefines this to a wider pattern match
--- that includes the new mathfunc/derivative pair. The base case here just
--- delegates to the built-in `∂/∂'`, so user code that calls `chainPartialDiff`
--- before any `declare derivative` works the same as `∂/∂'`.
-def chainPartialDiff (v : MathValue) (dx : MathValue) : MathValue := ∂/∂' v dx
-  
-def ∂/∂' (f : MathValue) (!x : MathValue) : MathValue :=
-  match f as mathValue with
+-- chainPartialDiff is the user-facing dispatcher for "non-decomposable"
+-- shapes — atomic symbols, built-in apply1 derivatives, function
+-- expressions and quotes. It does NOT handle term / poly / frac shapes
+-- (those have their own typeclass instances above). Each
+-- `declare derivative <name>` redefines this var to add new apply1
+-- branches before falling back to `chainPartialDiffBuiltin` (which is
+-- never redefined), so user-declared derivatives win over the built-in
+-- cases without infinite recursion.
+def chainPartialDiff (v : MathValue) (dx : MathValue) : MathValue :=
+  chainPartialDiffBuiltin v dx
+
+def chainPartialDiffBuiltin (v : MathValue) (dx : MathValue) : MathValue :=
+  match v as mathValue with
     -- symbol
-    | #x -> 1
+    | #dx -> 1
     | ?isSymbol -> 0
     -- function expression
     | func _ $args ->
-       sum (map2 (\s r -> (userRefs f [s]) * ∂/∂' r x) (between 1 (length args)) args)
-    -- function application
-    | (apply1 #exp $g) -> exp g * ∂/∂' g x
-    | (apply1 #log $g) -> 1 / g * ∂/∂' g x
-    | (apply1 #sqrt $g) -> 1 / (2 * sqrt g) * ∂/∂' g x
-    --| (apply2 (^) $g $h) -> f * ∂/∂' (log g * h) x
-    | (apply1 #cos $g) -> (- sin g) * ∂/∂' g x
-    | (apply1 #sin $g) -> cos g * ∂/∂' g x
-    --| (apply1 #arccos $g) -> 1 / sqrt (1 - g ^ 2) * ∂/∂' g x
-    -- | apply1 $g $a1 ->
-    --   `((userRefs g [1]) a1) * ∂/∂' a1 x
-    -- | apply2 $g $a1 $a2 ->
-    --   `((userRefs g [1]) a1 a2) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2) * ∂/∂' a2 x
-    -- | apply3 $g $a1 $a2 $a3 ->
-    --   `((userRefs g [1]) a1 a2 a3) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2 a3) * ∂/∂' a2 x + `((userRefs g [3]) a1 a2 a3) * ∂/∂' a3 x
-    -- | apply4 $g $a1 $a2 $a3 $a4 ->
-    --   `((userRefs g [1]) a1 a2 a3 a4) * ∂/∂' a1 x + `((userRefs g [2]) a1 a2 a3 a4) * ∂/∂' a2 x + `((userRefs g [3]) a1 a2 a3 a4) * ∂/∂' a3 x + `((userRefs g [4]) a1 a2 a3 a4) * ∂/∂' a4 x
+       sum (map2 (\s r -> (userRefs v [s]) * partialDiff r dx) (between 1 (length args)) args)
+    -- function application (built-in derivatives)
+    | (apply1 #exp $g) -> exp g * partialDiff g dx
+    | (apply1 #log $g) -> 1 / g * partialDiff g dx
+    | (apply1 #sqrt $g) -> 1 / (2 * sqrt g) * partialDiff g dx
+    | (apply1 #cos $g) -> (- sin g) * partialDiff g dx
+    | (apply1 #sin $g) -> cos g * partialDiff g dx
     -- quote
     | quote $g ->
-      let g' := ∂/∂' g x
+      let g' := partialDiff g dx
        in if isMonomial g'
             then g'
             else let d := foldl1 (\a b -> (gcdForMathValue a b)) (fromPoly g')
                   in d *' (mapPoly (/' d) g')
-    -- term (constant)
-    | #0 -> 0
-    | _ * #1 -> 0
-    -- term (multiplication)
-    | #1 * $fx ^ $n -> n * fx ^ (n - 1) * ∂/∂' fx x
-    | $a * $fx ^ $n * $r -> a * ∂/∂' (fx ^' n) x * r + a * fx ^' n * ∂/∂' r x
-    -- polynomial
-    | poly $ts -> sum (map 1#(∂/∂' $1 x) ts)
-    -- quotient
-    | $p1 / $p2 ->
-      let p1' := ∂/∂' p1 x
-          p2' := ∂/∂' p2 x
-       in (p1' * p2 - p2' * p1) / p2 ^ 2
+    -- everything else: 0 (term / poly / frac shapes are caught earlier
+    -- by the type-class instances; only truly atomic non-symbol values
+    -- fall through here, which is rare and safely treated as constants).
+    | _ -> 0
+
+-- ---------------------------------------------------------------------------
+-- Aliases.
+-- ---------------------------------------------------------------------------
 
 def d/d : MathValue -> MathValue -> MathValue := ∂/∂
 
@@ -96,12 +121,12 @@ def nabla : Tensor MathValue -> Vector MathValue -> Tensor MathValue := ∇
 
 def grad : Tensor MathValue -> Vector MathValue -> Tensor MathValue := ∇
 
-def taylorExpansion (f: MathValue) (x: MathValue) (a: MathValue) : [MathValue] := 
+def taylorExpansion (f: MathValue) (x: MathValue) (a: MathValue) : [MathValue] :=
   multivariateTaylorExpansion f [|x|] [|a|]
 
 def maclaurinExpansion (f: MathValue) (x: MathValue) : [MathValue] := taylorExpansion f x 0
 
-def multivariateTaylorExpansion (f: MathValue) (xs: Vector MathValue) (ys: Vector MathValue) 
+def multivariateTaylorExpansion (f: MathValue) (xs: Vector MathValue) (ys: Vector MathValue)
   : [MathValue] :=
   withSymbols [h]
     let hs := generateTensor (\[x] -> h_x) (tensorShape xs)

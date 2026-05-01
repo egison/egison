@@ -614,7 +614,16 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
     [] ->
       throwError $ Default $
         "runtime dispatch: no arguments for " ++ className ++ "." ++ methodName
-    (firstArg : _) -> do
+    (firstArg : restArgs) -> do
+      -- Evaluate the first argument exactly once. We cannot re-emit
+      -- `IApplyExpr (IIndexedExpr (IVarExpr dictName)) args` here because
+      -- `IApplyExpr` re-thunks every IExpr arg, which would re-evaluate
+      -- `firstArg` from scratch (defeating the work we already did to
+      -- compute its CAS shape). For deeply nested recursive partialDiff
+      -- calls (e.g. tensor-Christoffel), that doubling compounds and
+      -- causes orders-of-magnitude slowdown. So we reuse the WHNFData by
+      -- wrapping it in an evaluated ObjectRef and call `applyRef`
+      -- directly with cached ref + thunked rest args.
       firstWhnf <- evalExprShallow env firstArg
       cv <- case firstWhnf of
         Value (CASData c) -> return c
@@ -623,11 +632,13 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
       let rt = RT.runtimeTypeOfCAS cv
       case findBestRuntimeCandidate rt candidates of
         Just dictName -> do
-          -- Reuse the standard hash-indexed dictionary access path.
-          let dictExpr   = IVarExpr dictName
-              methodKey  = IConstantExpr (StringExpr (T.pack methodName))
-              dictAccess = IIndexedExpr False dictExpr [Sub methodKey]
-          evalExprShallow env (IApplyExpr dictAccess args)
+          -- Look up the dictionary and index it with the method name —
+          -- once, not via re-emitted IExpr.
+          dictWhnf   <- evalExprShallow env (IVarExpr dictName)
+          methodWhnf <- refHash dictWhnf [String (T.pack methodName)]
+          firstRef   <- newEvaluatedObjectRef firstWhnf
+          restRefs   <- mapM (newThunkRef env) restArgs
+          applyRef env methodWhnf (firstRef : restRefs) >>= removeDF
         Nothing ->
           throwError $ Default $
             "runtime dispatch: no matching instance for "
