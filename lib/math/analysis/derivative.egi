@@ -20,17 +20,31 @@ class Differentiable a where
 instance Differentiable Factor where
   partialDiff f x := chainPartialDiff f x
 
+-- Predicate: true for shapes that the term-decomposition patterns
+-- (`#1 * $fx^$n` etc.) would otherwise match incorrectly. We delegate
+-- these to `chainPartialDiff` instead, which routes them through
+-- `declare derivative`-defined apply1 rules (or the built-in func/quote
+-- handling in `chainPartialDiffBuiltin`).
+def isAtomicFactor (mexpr: MathValue) : Bool :=
+  match mexpr as mathValue with
+    | apply1 _ _ -> True
+    | apply2 _ _ _ -> True
+    | apply3 _ _ _ _ -> True
+    | apply4 _ _ _ _ _ -> True
+    | quote _ -> True
+    | func _ _ -> True
+    | _ -> False
+
 instance Differentiable (Term MathValue) where
-  -- Single-monomial term shape, plus atomic symbol cases.
+  -- Single-monomial term shape. The atomic short-circuits (`#x`, `?isSymbol`)
+  -- come FIRST so the term-decomposition patterns below (`#1 * $fx^$n`,
+  -- `$a * $fx^$n * $r`) don't recursively match a single-symbol value and
+  -- loop. `?isAtomicFactor` covers apply1-4 / quote / func, which would
+  -- also be misclassified as `#1 * $fx^$n` by the matcher.
   partialDiff f x := match f as mathValue with
     | #x -> 1
     | ?isSymbol -> 0
-    | apply1 _ _ -> chainPartialDiff f x
-    | apply2 _ _ _ -> chainPartialDiff f x
-    | apply3 _ _ _ _ -> chainPartialDiff f x
-    | apply4 _ _ _ _ _ -> chainPartialDiff f x
-    | quote _ -> chainPartialDiff f x
-    | func _ _ -> chainPartialDiff f x
+    | ?isAtomicFactor -> chainPartialDiff f x
     | #0 -> 0
     | _ * #1 -> 0
     | #1 * $fx ^ $n -> n * fx ^ (n - 1) * partialDiff fx x
@@ -88,20 +102,18 @@ def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
 def chainPartialDiff (v : MathValue) (dx : MathValue) : MathValue :=
   chainPartialDiffBuiltin v dx
 
+-- chainPartialDiffBuiltin handles the shapes that don't have their own
+-- type-class instance: function expressions and quote nodes. apply1
+-- cases are dispatched first by the redefined `chainPartialDiff` via
+-- `declare derivative` rules; symbols are filtered upstream by Term
+-- inst's `#dx`/`?isSymbol` short-circuits. Everything else returns 0
+-- (treated as a constant, which is the correct conservative answer for
+-- truly opaque values).
 def chainPartialDiffBuiltin (v : MathValue) (dx : MathValue) : MathValue :=
   match v as mathValue with
-    -- symbol
-    | #dx -> 1
-    | ?isSymbol -> 0
     -- function expression
     | func _ $args ->
        sum (map2 (\s r -> (userRefs v [s]) * partialDiff r dx) (between 1 (length args)) args)
-    -- (apply1 derivatives are handled by `declare derivative` below; the
-    -- redefined `chainPartialDiff` matches them before falling back here.
-    -- For unknown apply1 (mathfunc with no declared derivative), we fall
-    -- through to `_ -> 0` which is conservative — the `n_th derivative`
-    -- of an unknown function is left as 0 rather than introducing an
-    -- ungrounded symbol).
     -- quote
     | quote $g ->
       let g' := partialDiff g dx
@@ -109,9 +121,6 @@ def chainPartialDiffBuiltin (v : MathValue) (dx : MathValue) : MathValue :=
             then g'
             else let d := foldl1 (\a b -> (gcdForMathValue a b)) (fromPoly g')
                   in d *' (mapPoly (/' d) g')
-    -- everything else: 0 (term / poly / frac shapes are caught earlier
-    -- by the type-class instances; only truly atomic non-symbol values
-    -- fall through here, which is rare and safely treated as constants).
     | _ -> 0
 
 -- ---------------------------------------------------------------------------
