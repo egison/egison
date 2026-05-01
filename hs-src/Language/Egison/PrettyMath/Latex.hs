@@ -17,7 +17,9 @@ showMathValue (Atom a xs) = a ++ showMathValueScript xs
 showMathValue (Partial f xs) = "\\frac{" ++ convertToPartial (f, length xs) ++ "}{" ++ showPartial xs ++ "}"
  where
   showPartial :: [MathValue] -> String
-  showPartial xs = let lx = elemCount xs in convertToPartial2 (head lx) ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" (tail lx)
+  showPartial xs = case elemCount xs of
+    []      -> ""
+    (l:lx)  -> convertToPartial2 l ++ foldr (\x acc -> " " ++ convertToPartial2 x ++ acc) "" lx
 
   convertToPartial :: (MathValue, Int) -> String
   convertToPartial (x, 1) = "\\partial " ++ showMathValue x

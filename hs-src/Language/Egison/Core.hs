@@ -62,9 +62,7 @@ import qualified Data.Sequence                   as Sq
 import           Data.Traversable                (mapM)
 
 import qualified Data.HashMap.Lazy               as HL
-import qualified Data.HashMap.Strict             as HashMap
 import qualified Data.Vector                     as V
-import           Data.Text                       (Text)
 import qualified Data.Text                       as T
 
 import           Language.Egison.Data
@@ -74,7 +72,6 @@ import           Language.Egison.EvalState       (MonadEval (..), mLabelFuncName
 import           Language.Egison.IExpr
 import           Language.Egison.MList
 import           Language.Egison.Match
-import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.RState
 import           Language.Egison.Tensor
@@ -141,10 +138,10 @@ evalExprShallow env (IQuoteSymbolExpr expr) =
         Just ref -> do
           val <- evalRef ref
           case val of
-            Value func@(Func _ _ _ _) ->
+            Value (Func _ _ _ _) ->
               -- Quote the function object itself
               return $ Value (quoteFunctionCASData val)
-            Value func@(MemoizedFunc _ _ _ _) ->
+            Value (MemoizedFunc _ _ _ _) ->
               -- Quote the memoized function object itself
               return $ Value (quoteFunctionCASData val)
             Value (CASData _) -> return val
@@ -158,7 +155,7 @@ evalExprShallow env (IQuoteSymbolExpr expr) =
 
 evalExprShallow env (IVarExpr name) =
   case refVar env (Var name []) of
-    Nothing | isUpper (head name) ->
+    Nothing | (c:_) <- name, isUpper c ->
       return $ Value (InductiveData name [])
     Nothing  -> return $ Value (symbolCASData "" name)
     Just ref -> evalRef ref
@@ -768,7 +765,7 @@ applyRef _ (Value (IOFunc m)) refs = do
   case args of
     [Value World] -> m
     arg : _       -> throwErrorWithTrace (TypeMismatch "world" arg)
-applyRef _ (Value (CASData cv@(CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData sym args, 1)]]))) refs = do
+applyRef _ (Value (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData sym args, 1)]]))) refs = do
   newArgs <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   newCASVals <- mapM (\arg -> case arg of
     CASData c -> return c
@@ -785,7 +782,7 @@ applyRef _ (Value (CASData fn@(CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ sy
   return $ Value $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.makeApplyExpr fn mExprs, 1)]]
 -- QuoteFunction pattern: ('fact 3) should create Apply1 fact 3
 -- The quoted function object is stored in QuoteFunction
-applyRef env (Value (CASData fn@(CASPoly [CASTerm (CASInteger 1) [(CAS.QuoteFunction funcWHNF, 1)]]))) refs = do
+applyRef _env (Value (CASData fn@(CASPoly [CASTerm (CASInteger 1) [(CAS.QuoteFunction _funcWHNF, 1)]]))) refs = do
   args <- mapM (\ref -> evalRef ref >>= evalWHNF) refs
   mExprs <- mapM (\arg -> case arg of
                             CASData c -> return c
@@ -1321,7 +1318,7 @@ symbolToCASValue sym = CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
 
 -- Helper: Convert CASTerm to CASValue
 termToCASValue :: CAS.CASTerm -> CASValue
-termToCASValue t@(CAS.CASTerm coeff []) = coeff  -- Constant term: return coefficient directly
+termToCASValue (CAS.CASTerm coeff []) = coeff  -- Constant term: return coefficient directly
 termToCASValue t = CAS.CASPoly [t]
 
 -- Helper: Extract SymbolExpr from CASValue if it's a single-symbol single-term polynomial

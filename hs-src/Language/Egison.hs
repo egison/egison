@@ -22,7 +22,7 @@ module Language.Egison
        , version
       ) where
 
-import           Control.Monad.Reader       (asks, local)
+import           Control.Monad.Reader       (asks)
 import           Control.Monad.State
 
 import           Data.Version

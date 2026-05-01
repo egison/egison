@@ -551,7 +551,7 @@ applySubstToTIExprM s tiExpr = do
 -- This is a monadic version that retrieves ClassEnv and constraints from the Infer monad
 -- and adjusts the substitution based on type class constraints before applying it
 applySubstWithConstraintsM :: Subst -> Type -> Infer Type
-applySubstWithConstraintsM s@(Subst m) t = do
+applySubstWithConstraintsM (Subst m) t = do
   classEnv <- getClassEnv
   constraints <- gets inferConstraints
   -- Adjust substitution based on constraints using the same logic as applySubstSchemeWithClassEnv
@@ -850,7 +850,6 @@ inferIExprWithContext expr ctx = case expr of
   
   -- Variables
   IVarExpr name -> do
-    let exprCtx = withExpr (prettyStr expr) ctx
     -- Variables starting with ":::" are treated as Any type without warning
     if ":::" `isPrefixOf` name
       then do
@@ -3113,7 +3112,6 @@ extractIBindingsFromPattern pat ty = case pat of
 inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
-    varName <- return $ extractNameFromVar var
     env <- getEnv
     -- Check if there's an explicit type signature in the environment
     -- (added by EnvBuilder from DefineWithType)
@@ -3228,7 +3226,6 @@ inferITopExpr topExpr = case topExpr of
     return (Just (TIDefineMany bindingsTI), combinedSubst)
     where
       inferBinding env (var, expr) = do
-        let varName = extractNameFromVar var
         -- Check if there's an existing type signature
         case lookupEnv var env of
           Just existingScheme -> do

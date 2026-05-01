@@ -492,11 +492,6 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
                 -- Unlift the function type to get the scalar version
                 unliftedFuncType = unliftFunctionType funcType
                 unliftedFunc = TIExpr (Forall tvs funcConstraints unliftedFuncType) (tiExprNode func')
-                -- Get the result type after applying to tensor arguments
-                resultType = case funcType of
-                  TFun _ (TFun _ res) -> TTensor res  -- Lifting scalar result to Tensor
-                  _ -> funcType  -- Fallback
-                tensorMap2WedgeScheme = Forall [] cs resultType
             return $ TITensorMap2WedgeExpr unliftedFunc arg1 arg2
           else
             -- Keep WedgeApply for tensor functions or non-binary functions

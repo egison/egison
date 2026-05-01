@@ -46,8 +46,8 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringT
                                              mapTIExprChildren)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
-import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName, typeConstructorName,
-                                            sanitizeMethodName, freeTyVars, instType, instTypes, classParam)
+import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeConstructorName,
+                                            sanitizeMethodName, freeTyVars, instType, classParam)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)
 
@@ -206,12 +206,6 @@ expandTypeClassMethodsT tiExpr = do
   -- Use expandTIExprWithConstraints which handles constraint clearing
   expandTIExprWithConstraints classEnv tiExpr
   where
-    -- Expand TIExprNode with constraint information from TypeScheme
-    -- Note: Constraints from parent are not propagated - each node uses its own constraints
-    expandTIExprNodeWithConstraints :: ClassEnv -> TypeScheme -> TIExprNode -> EvalM TIExprNode
-    expandTIExprNodeWithConstraints classEnv' (Forall _vars _constraints _ty) node =
-      expandTIExprNode classEnv' node
-
     -- Expand TIExprNode without parent constraints
     -- Each child expression uses only its own constraints from type inference
     expandTIExprNode :: ClassEnv -> TIExprNode -> EvalM TIExprNode
@@ -1036,7 +1030,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             case lookupEnv (stringToVar varName) typeEnv of
               Just (Forall _ varConstraints _) | not (null varConstraints) -> do
                 -- Check which constraints from varConstraints match parent constraints cs
-                let (Forall _ exprConstraints exprType) = tiScheme expr
+                let (Forall _ exprConstraints _) = tiScheme expr
                     matchingConstraints = filter (\(Constraint eName eType) ->
                           any (\(Constraint pName pType) ->
                             eName == pName && eType == pType) cs) exprConstraints
@@ -1098,12 +1092,11 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     
     -- Replace method calls in TIExprNode
     replaceMethodCallsInNode :: ClassEnv -> [Constraint] -> [Constraint] -> Type -> TIExprNode -> EvalM TIExprNode
-    replaceMethodCallsInNode env cs exprConstraints exprType node = case node of
+    replaceMethodCallsInNode env cs _exprConstraints exprType node = case node of
       -- Standalone method reference: eta-expand with superclass chain access
       TIVarExpr methodName -> do
         case findConstraintForMethodWithPath env methodName cs of
           Just (constraint, ownerClass, path) -> do
-            typeEnv <- getTypeEnv
             let tyArg = constraintType constraint
                 dictParam = constraintToDictParam constraint
                 arity = getMethodArity exprType
@@ -1133,7 +1126,6 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           TIVarExpr methodName -> do
             case findConstraintForMethodWithPath env methodName cs of
               Just (constraint, ownerClass, path) -> do
-                typeEnv <- getTypeEnv
                 let dictParam = constraintToDictParam constraint
                     tyArg = constraintType constraint
                     dictExpr = TIExpr (Forall [] [] (THash TString TAny)) (TIVarExpr dictParam)
@@ -1253,7 +1245,7 @@ applyConcreteConstraintDictionaries expr = do
     -- Resolve dictionary for a concrete constraint.
     -- Multi-param classes use full-list dispatch; single-param falls back.
     resolveDictionaryForConstraint :: ClassEnv -> Constraint -> EvalM TIExpr
-    resolveDictionaryForConstraint classEnv constraint@(Constraint className tyArgs) = do
+    resolveDictionaryForConstraint classEnv (Constraint className tyArgs) = do
       -- Normalize TInt to TMathValue for instance matching
       -- (Integer and MathValue share runtime representation in Egison).
       let normalizeType t = case t of

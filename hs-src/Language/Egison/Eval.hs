@@ -36,7 +36,7 @@ module Language.Egison.Eval
   ) where
 
 import           Control.Monad              (foldM, forM_, when)
-import           Data.List                  (intercalate, partition)
+import           Data.List                  (intercalate)
 import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
@@ -46,7 +46,6 @@ import           Language.Egison.AST
 import           Language.Egison.CmdOptions
 import           Language.Egison.Core
 import           Language.Egison.Data
-import           Language.Egison.Data.Utils     (newEvaluatedObjectRef)
 import           Language.Egison.Desugar (desugarExpr, desugarTopExpr, desugarTopExprs)
 import           Language.Egison.EnvBuilder (buildEnvironments, EnvBuildResult(..))
 import           Language.Egison.EvalState  (MonadEval (..), ConstructorEnv, PatternConstructorEnv)

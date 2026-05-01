@@ -78,7 +78,7 @@ import qualified Data.Sequence                    as Sq
 import qualified Data.Vector                      as V
 
 import           Data.List                        (intercalate, sortOn)
-import           Data.Text                        (Text, pack, unpack)
+import           Data.Text                        (Text, unpack)
 import           Text.Show.Unicode                (ushow)
 
 import           Data.Ratio

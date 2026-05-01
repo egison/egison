@@ -38,7 +38,7 @@ import           Language.Egison.IExpr
 import           Language.Egison.RState
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.Type.Env   (lookupClass, ClassInfo(..))
-import           Language.Egison.Type.Types (sanitizeMethodName, typeToName, typeConstructorName, 
+import           Language.Egison.Type.Types (sanitizeMethodName, typeConstructorName,
                                              typeExprToType, capitalizeFirst, lowerFirst, TyVar(..))
 
 

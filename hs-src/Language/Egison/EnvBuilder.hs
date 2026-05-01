@@ -21,21 +21,18 @@ module Language.Egison.EnvBuilder
   ) where
 
 import           Control.Monad              (foldM)
-import           Control.Monad.Except       (throwError)
-import           Control.Monad.State
-import           Data.Char                  (toUpper, toLower)
 import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
-import           Language.Egison.IExpr      (Var(..), Index(..), stringToVar)
+import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..), TensorShape(..),
-                                             ClassInfo, InstanceInfo, freeTyVars, typeToName, sanitizeMethodName, typeExprToType,
+import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
+                                             freeTyVars, sanitizeMethodName, typeExprToType,
                                              capitalizeFirst, lowerFirst)
 import qualified Data.Set as Set
 
@@ -108,7 +105,6 @@ processTopExpr result topExpr = case topExpr of
     let classEnv = ebrClassEnv result
         typeEnv = ebrTypeEnv result
         tyVars = map TyVar typeParams
-        primaryTyVar = head tyVars
 
         -- Extract superclass names from ConstraintExprs
         superNames = map extractConstraintName superClasses
@@ -164,10 +160,12 @@ processTopExpr result topExpr = case topExpr of
         classEnv' = addInstance className instInfo classEnv
         
         -- Register method type signatures for generated methods
-        -- This prevents "Unbound variable" warnings during type inference
-        -- Pass the instance context (constraints) to include in method types
-        typeEnv' = registerInstanceMethods className mainInstType (map constraintToInternal context) methods classEnv' typeEnv
-    
+        -- This prevents "Unbound variable" warnings during type inference.
+        -- Pass the full instance type list so the registered names match the
+        -- ones Desugar emits (e.g. `embedMathValueMathValueEmbed`,
+        -- `embedMathValueMathValue` for `instance Embed MathValue MathValue`).
+        typeEnv' = registerInstanceMethods className mainInstType instanceTypeList (map constraintToInternal context) methods classEnv' typeEnv
+
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
   
   -- 4. Type Signature Collection (from Define, DefineWithType)
@@ -330,31 +328,37 @@ registerClassMethod tyVars className typeEnv (ClassMethod methName params retTyp
     extendEnv (stringToVar methName) typeScheme typeEnv
 
 -- | Register type signatures for instance methods (generated during desugaring)
--- This prevents "Unbound variable" warnings during type inference
-registerInstanceMethods :: String -> Type -> [Constraint] -> [InstanceMethod] -> ClassEnv -> TypeEnv -> TypeEnv
-registerInstanceMethods className instType instConstraints methods classEnv typeEnv =
+-- This prevents "Unbound variable" warnings during type inference.
+--
+-- Names must match Desugar's `desugarInstanceMethod` / `makeDictDef`, which
+-- concatenate the type-constructor name of EVERY instance type (multi-param
+-- friendly): e.g. `instance Embed MathValue MathValue` →
+-- `embedMathValueMathValueEmbed` (method) and `embedMathValueMathValue`
+-- (dictionary).
+registerInstanceMethods :: String -> Type -> [Type] -> [Constraint] -> [InstanceMethod] -> ClassEnv -> TypeEnv -> TypeEnv
+registerInstanceMethods className instType instTypeList instConstraints methods classEnv typeEnv =
   case lookupClass className classEnv of
     Nothing -> typeEnv  -- Class not found, skip
-    Just classInfo -> 
+    Just classInfo ->
       -- Register each instance method
-      let typeEnv' = foldr (registerInstanceMethod className instType instConstraints classInfo) typeEnv methods
-      
+      let typeEnv' = foldr (registerInstanceMethod className instType instTypeList instConstraints classInfo) typeEnv methods
+
           -- Also register the dictionary itself
-          -- e.g., eqCollection : {Eq a} Hash String ([a] -> [a] -> Bool)
-          typeName' = Types.typeConstructorName instType
-          dictName = lowerFirst className ++ typeName'
-          
+          -- e.g., embedMathValueMathValue : Hash String (MathValue -> MathValue)
+          instTypeName = concatMap Types.typeConstructorName instTypeList
+          dictName = lowerFirst className ++ instTypeName
+
           -- Build dictionary type: Hash String (method type)
           -- All methods should have the same general shape, so we use the first one
           dictValueType = case methods of
             [] -> TAny
-            _ -> case lookup (instanceMethodName (head methods)) (Types.classMethods classInfo) of
+            (m:_) -> case lookup (instanceMethodName m) (Types.classMethods classInfo) of
               Nothing -> TAny
               Just methodType ->
                 let tyVar = Types.classParam classInfo
                     substitutedType = substituteTypeVar tyVar instType methodType
                 in substitutedType
-          
+
           dictType = THash TString dictValueType
           freeVars = Set.toList (freeTyVars dictType)
           dictScheme = Types.Forall freeVars instConstraints dictType
@@ -363,26 +367,26 @@ registerInstanceMethods className instType instConstraints methods classEnv type
   where
     instanceMethodName :: InstanceMethod -> String
     instanceMethodName (InstanceMethod name _ _) = name
-    
-    registerInstanceMethod :: String -> Type -> [Constraint] -> Types.ClassInfo -> InstanceMethod -> TypeEnv -> TypeEnv
-    registerInstanceMethod clsName instTy constraints classInfo (InstanceMethod methName _params _body) env =
+
+    registerInstanceMethod :: String -> Type -> [Type] -> [Constraint] -> Types.ClassInfo -> InstanceMethod -> TypeEnv -> TypeEnv
+    registerInstanceMethod clsName instTy instTyList constraints classInfo (InstanceMethod methName _params _body) env =
       -- Find the method in the class definition
       case lookup methName (Types.classMethods classInfo) of
         Nothing -> env  -- Method not in class definition, skip
-        Just methodType -> 
-          -- Substitute type variable with instance type
+        Just methodType ->
+          -- Substitute type variable with instance type (use first type for the method body type)
           let tyVar = Types.classParam classInfo
               substitutedType = substituteTypeVar tyVar instTy methodType
-              
-              -- Generate method name using type constructor name only (no type parameters)
-              -- e.g., "eqCollectionEq" not "eqCollectionaEq"
-              typeName' = Types.typeConstructorName instTy
+
+              -- Generate method name from ALL instance types (matching Desugar)
+              -- e.g., "embedMathValueMathValueEmbed" for instance Embed MathValue MathValue
+              instTypeName = concatMap Types.typeConstructorName instTyList
               sanitizedName = sanitizeMethodName methName
-              generatedMethodName = lowerFirst clsName ++ typeName' ++ capitalizeFirst sanitizedName
-              
+              generatedMethodName = lowerFirst clsName ++ instTypeName ++ capitalizeFirst sanitizedName
+
               -- Extract free type variables from the substituted type
               freeVars = Set.toList (freeTyVars substitutedType)
-              
+
               -- Create type scheme with constraints from the instance context
               -- e.g., {Eq a} [a] -> [a] -> Bool for instance {Eq a} Eq [a]
               typeScheme = Types.Forall freeVars constraints substitutedType

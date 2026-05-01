@@ -94,7 +94,7 @@ casRewriteW = mapCASPolys g . mapCASTerms f
                CASTerm coeff ((Symbol "" "w" [], k `mod` 3) : xss) |]
       , [mc| _ -> term |]
       ]
-  g ts@(poly) =
+  g _ts@(poly) =
     match dfs poly (Multiset CASTermM)
       [ [mc| casTerm' $a ((casSymbol #"w", #2) : $mr) :
              casTerm' $b ((casSymbol #"w", #1) : #mr) : $pr ->

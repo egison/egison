@@ -17,7 +17,6 @@ import           Control.Monad.Except              (throwError)
 import           Control.Monad.IO.Class            (liftIO)
 
 import           Data.IORef
-import           Data.List                         (lookup)
 import           Data.Foldable                     (toList)
 
 import qualified Data.Sequence                     as Sq
@@ -35,7 +34,6 @@ import           Language.Egison.Data.Utils        (newEvaluatedObjectRef)
 import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount,
                                                     getReductionRuleNames, getDerivativeRuleNames)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
-import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
@@ -327,17 +325,20 @@ applyTermRuleCAS lhsValue rhsValue input =
 mapPolyPrim :: String -> PrimitiveFunc
 mapPolyPrim _ args = case args of
   [funcVal, CASData v] -> CASData <$> mapPolyCAS funcVal v
-  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+  (a:_) -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value a))
+  []    -> throwError $ Default "mapPolyAll: no arguments"
 
 mapTermPrim :: String -> PrimitiveFunc
 mapTermPrim _ args = case args of
   [funcVal, CASData v] -> CASData <$> mapTermCAS funcVal v
-  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+  (a:_) -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value a))
+  []    -> throwError $ Default "mapTermAll: no arguments"
 
 mapFracPrim :: String -> PrimitiveFunc
 mapFracPrim _ args = case args of
   [funcVal, CASData v] -> CASData <$> mapFracCAS funcVal v
-  _ -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value (head args)))
+  (a:_) -> throwErrorWithTrace (TypeMismatch "function and CAS value" (Value a))
+  []    -> throwError $ Default "mapFracAll: no arguments"
 
 -- | Apply a user closure to a CAS value, returning the resulting CAS value.
 applyRuleClosure :: EgisonValue -> CAS.CASValue -> EvalM CAS.CASValue
@@ -438,7 +439,7 @@ numReductionRulesPrim _ args = case args of
   [Tuple []] -> do
     n <- getReductionRulesCount
     return $ toEgison (fromIntegral n :: Integer)
-  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+  (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
 -- | Phase 6.3: report the number of `declare derivative` declarations seen.
 numDerivativeRulesPrim :: String -> PrimitiveFunc
@@ -449,7 +450,7 @@ numDerivativeRulesPrim _ args = case args of
   [Tuple []] -> do
     n <- getDerivativeRulesCount
     return $ toEgison (fromIntegral n :: Integer)
-  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+  (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
 -- | List the names of all named reduction rules (auto rules excluded).
 ruleNamesPrim :: String -> PrimitiveFunc
@@ -460,7 +461,7 @@ ruleNamesPrim _ args = case args of
   [Tuple []] -> do
     ns <- getReductionRuleNames
     return $ Collection $ Sq.fromList $ map (String . T.pack) ns
-  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+  (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
 -- | List the function names that have a registered derivative.
 derivativeNamesPrim :: String -> PrimitiveFunc
@@ -471,7 +472,7 @@ derivativeNamesPrim _ args = case args of
   [Tuple []] -> do
     ns <- getDerivativeRuleNames
     return $ Collection $ Sq.fromList $ map (String . T.pack) ns
-  _  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value (head args)))
+  (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
 -- | Check whether a named reduction rule is registered.
 hasReductionRulePrim :: String -> PrimitiveFunc

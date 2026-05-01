@@ -42,7 +42,6 @@ import qualified Control.Egison             as M
 import           Language.Egison.Data
 import           Language.Egison.Data.Utils
 import           Language.Egison.IExpr      (Index (..), extractSupOrSubIndex)
-import           Language.Egison.Math
 import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.RState
 

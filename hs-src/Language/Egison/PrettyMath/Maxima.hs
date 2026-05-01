@@ -49,4 +49,4 @@ showMathValueArg :: [MathValue] -> String
 showMathValueArg []            = ""
 showMathValueArg [Tensor _ []] = "undefined"
 showMathValueArg [a]           = showMathValue a
-showMathValueArg lvs           = showMathValue (head lvs) ++ ", " ++ showMathValueArg (tail lvs)
+showMathValueArg (lv:lvs)      = showMathValue lv ++ ", " ++ showMathValueArg lvs

@@ -1325,13 +1325,13 @@ numericExpr = try negativeFloatLiteral
     -- Parse negative number literals (-1, -2.5, etc.)
     -- Only recognize as negative literal if there's no space after '-'
     negativeFloatLiteral = lexeme $ do
-      char '-'
+      _ <- char '-'
       notFollowedBy spaceChar
       n <- L.float
       return $ FloatExpr (negate n)
-    
+
     negativeIntegerLiteral = lexeme $ do
-      char '-'
+      _ <- char '-'
       notFollowedBy spaceChar
       n <- L.decimal
       return $ IntegerExpr (negate n)

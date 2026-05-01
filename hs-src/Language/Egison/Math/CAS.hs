@@ -244,10 +244,10 @@ prettyTypeOf (CASFrac n d) =
 -- | Pretty join of observed types of multiple coefficients. The simple rule:
 -- if all are equal, use that. Otherwise widen to the broadest seen.
 joinObservedTypes :: [String] -> String
-joinObservedTypes [] = "Integer"
-joinObservedTypes ts
-  | all (== head ts) ts = head ts
-  | otherwise = "MathValue"
+joinObservedTypes []     = "Integer"
+joinObservedTypes (t:ts)
+  | all (== t) ts = t
+  | otherwise     = "MathValue"
 
 -- | Phase 8 differential closure: collect the set of atoms (as their canonical
 -- pretty form) appearing in a CASValue's monomials, recursing into nested

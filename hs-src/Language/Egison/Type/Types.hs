@@ -129,11 +129,6 @@ data Type
   | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
 
--- | Type alias: MathValue = Integer in Egison
--- Both names refer to the same type (TInt)
-tMathValue :: Type
-tMathValue = TInt
-
 -- | Type scheme for polymorphic types (∀a. C a => Type)
 -- Includes type constraints for type class support
 data TypeScheme = Forall [TyVar] [Constraint] Type

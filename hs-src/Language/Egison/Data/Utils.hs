@@ -95,13 +95,13 @@ showIndexPattern = map showIndex
 showIndexValues :: [Index EgisonValue] -> [String]
 showIndexValues = map showIndexValue
   where
-    showIndexValue (Sub val) = "_<val>"
-    showIndexValue (Sup val) = "~<val>"
-    showIndexValue (SupSub val) = "~_<val>"
-    showIndexValue (User val) = "@<val>"
-    showIndexValue (DF id n) = "_df-" ++ show id ++ "-" ++ show n
-    showIndexValue (MultiSub val s _) = "_(..." ++ show s ++ "...)"
-    showIndexValue (MultiSup val s _) = "~(..." ++ show s ++ "...)"
+    showIndexValue (Sub _val) = "_<val>"
+    showIndexValue (Sup _val) = "~<val>"
+    showIndexValue (SupSub _val) = "~_<val>"
+    showIndexValue (User _val) = "@<val>"
+    showIndexValue (DF idn n) = "_df-" ++ show idn ++ "-" ++ show n
+    showIndexValue (MultiSub _val s _) = "_(..." ++ show s ++ "...)"
+    showIndexValue (MultiSup _val s _) = "~(..." ++ show s ++ "...)"
 
 pmIndices :: [Index (Maybe Var)] -> [Index EgisonValue] -> EvalM [Binding]
 pmIndices [] [] = return []

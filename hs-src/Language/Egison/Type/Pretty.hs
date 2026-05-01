@@ -94,7 +94,7 @@ prettyTypeScheme (Forall [] cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
 prettyTypeScheme (Forall vs [] t) =
   "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyType t
-prettyTypeScheme (Forall vs cs t) =
+prettyTypeScheme (Forall _vs cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
 
 -- | Pretty print constraints (old format: "Eq a, Ord b")
