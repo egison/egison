@@ -66,6 +66,22 @@ findInstanceForDispatch tys insts =
     Right inst -> Just inst
     Left _     -> findMatchingInstanceForTypes tys insts
 
+-- | Build the candidate list for `TIRuntimeDispatch` from a class's
+-- instance list. Each candidate is the instance's principal type paired
+-- with the dictionary variable name that holds the instance dictionary.
+-- The MathValue instance itself is filtered out so the runtime dispatcher
+-- never selects "self" (which would loop). Single-param classes only —
+-- multi-param dispatch keeps using static specificity.
+runtimeDispatchCandidates :: [InstanceInfo] -> [(Type, String)]
+runtimeDispatchCandidates instances =
+  [ (instType inst, dictName)
+  | inst <- instances
+  , length (instTypes inst) == 1
+  , instType inst /= TMathValue
+  , let dictName = lowerFirst (instClass inst) ++
+                   concatMap typeConstructorName (instTypes inst)
+  ]
+
 -- | Extract type variable substitutions from instance type and actual type
 -- Example: [a] -> [[Integer]] gives [(a, [Integer])]
 extractTypeSubstitutions :: Type -> Type -> [(TyVar, Type)]
@@ -430,7 +446,12 @@ expandTypeClassMethodsT tiExpr = do
         return $ TIWedgeApplyExpr func' args'
       
       TIFunctionExpr names -> return $ TIFunctionExpr names  -- Built-in function, no expansion needed
-    
+
+      -- Runtime dispatch: traverse args; class/method/candidates are already resolved.
+      TIRuntimeDispatch className methodName candidates args -> do
+        args' <- mapM (expandTIExprWithConstraints classEnv') args
+        return $ TIRuntimeDispatch className methodName candidates args'
+
     -- Helper: expand a TIExpr using only its own constraints
     -- Parent constraints are not passed to avoid constraint accumulation
     expandTIExprWithConstraints :: ClassEnv -> TIExpr -> EvalM TIExpr
@@ -741,39 +762,43 @@ expandTypeClassMethodsT tiExpr = do
             _ -> do
               -- Concrete type: find matching instance for the ownerClass.
               -- Use full-list dispatch (multi-param-aware).
-              -- NOTE: this site keeps the legacy first-unifying-match dispatch
-              -- intentionally. Switching to most-specific here surfaces a
-              -- subtle interaction with `mathValue` pattern matching inside
-              -- `Differentiable` instance bodies — the more-specific
-              -- `Poly MathValue [..]` instance gets picked for a single-term
-              -- polynomial, and although the body now uses `diffSingleTerm`
-              -- (Phase 6), the recursive `partialDiff` inside
-              -- `diffTermProduct` re-dispatches and produces 0 instead of
-              -- the correct derivative. Until that is understood the safe
-              -- choice for direct method calls is the LIFO order which
-              -- consistently picks `Differentiable MathValue` (the broad
-              -- switchboard).
               let instances = lookupInstances ownerClass classEnv'
-              case findMatchingInstanceForTypes actualTypes instances of
-                Just inst -> do
-                  let instTypeName = concatMap typeConstructorName (instTypes inst)
-                      dictName = lowerFirst ownerClass ++ instTypeName
-                      methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
-                      methodScheme = Forall [] [] methodType
-                  dictExprBase <- if null (instContext inst)
-                    then return $ TIExpr (Forall [] [] dictHashType) (TIVarExpr dictName)
-                    else do
-                      let dictFuncType = TFun (THash TString TAny) dictHashType
-                          dictFuncExpr = TIExpr (Forall [] [] dictFuncType) (TIVarExpr dictName)
-                          substitutedConstraints = substituteInstanceConstraints (instType inst) actualType (instContext inst)
-                      dictArgs <- mapM (resolveDictionaryArg classEnv') substitutedConstraints
-                      return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
-                  let indexExpr = TIExpr (Forall [] [] TString)
-                                        (TIConstantExpr (StringExpr (pack methodKey)))
-                      dictAccess = TIExpr methodScheme $
-                                   TIIndexedExpr False dictExprBase [Sub indexExpr]
-                  return $ Just $ TIApplyExpr dictAccess expandedArgs
-                Nothing -> return Nothing
+              -- Phase 3: if the dispatch target is TMathValue and there is
+              -- no explicit `instance Class MathValue`, defer to runtime
+              -- dispatch via `TIRuntimeDispatch`. This lets users write only
+              -- specific (Frac/Poly/Term/Factor) instances and have the
+              -- compiler pick the right one based on the value's CAS shape.
+              let mathValueInstanceExists =
+                    any (\inst -> instTypes inst == [TMathValue]) instances
+                  shouldRuntimeDispatch =
+                    actualType == TMathValue
+                      && not mathValueInstanceExists
+                      && not (null (runtimeDispatchCandidates instances))
+              if shouldRuntimeDispatch then do
+                let candidates = runtimeDispatchCandidates instances
+                return $ Just $
+                  TIRuntimeDispatch ownerClass methodKey candidates expandedArgs
+              else
+                case findMatchingInstanceForTypes actualTypes instances of
+                  Just inst -> do
+                    let instTypeName = concatMap typeConstructorName (instTypes inst)
+                        dictName = lowerFirst ownerClass ++ instTypeName
+                        methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
+                        methodScheme = Forall [] [] methodType
+                    dictExprBase <- if null (instContext inst)
+                      then return $ TIExpr (Forall [] [] dictHashType) (TIVarExpr dictName)
+                      else do
+                        let dictFuncType = TFun (THash TString TAny) dictHashType
+                            dictFuncExpr = TIExpr (Forall [] [] dictFuncType) (TIVarExpr dictName)
+                            substitutedConstraints = substituteInstanceConstraints (instType inst) actualType (instContext inst)
+                        dictArgs <- mapM (resolveDictionaryArg classEnv') substitutedConstraints
+                        return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
+                    let indexExpr = TIExpr (Forall [] [] TString)
+                                          (TIConstantExpr (StringExpr (pack methodKey)))
+                        dictAccess = TIExpr methodScheme $
+                                     TIIndexedExpr False dictExprBase [Sub indexExpr]
+                    return $ Just $ TIApplyExpr dictAccess expandedArgs
+                  Nothing -> return Nothing
     
     -- Substitute type variables in instance constraints based on actual type
     -- e.g., for instance {Eq a} Eq [a] matched with [[Integer]]

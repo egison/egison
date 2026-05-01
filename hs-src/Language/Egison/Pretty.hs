@@ -846,6 +846,11 @@ prettyTIExprNode node = case node of
     pretty "matcher" <+> vsep (map prettyPatDef patDefs)
     where prettyPatDef (pat, expr, _bindings) = pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
 
+  TIRuntimeDispatch className methodName _candidates args ->
+    pretty "<runtime-dispatch" <+> pretty className <> pretty "."
+        <> pretty methodName <> pretty ">"
+      <+> hsep (map prettyTIExprWithType args)
+
 instance Pretty TITopExpr where
   pretty (TIDefine scheme var tiexpr) =
     let typeStr = prettyTypeScheme scheme

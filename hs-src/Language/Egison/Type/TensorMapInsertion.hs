@@ -504,6 +504,11 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       
       TIFunctionExpr names -> return $ TIFunctionExpr names
 
+      -- Runtime dispatch: traverse arguments, leave class/method/candidates intact.
+      TIRuntimeDispatch className methodName candidates args -> do
+        args' <- mapM (insertTensorMapsWithConstraints env cs) args
+        return $ TIRuntimeDispatch className methodName candidates args'
+
 -- | Helper to insert tensorMaps in a TIExpr with constraints
 -- IMPORTANT: Merges context constraints with expression's own constraints
 -- This is critical for polymorphic functions where the constraint (e.g., {Num t0})

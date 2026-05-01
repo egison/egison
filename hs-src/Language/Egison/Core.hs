@@ -79,6 +79,8 @@ import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.RState
 import           Language.Egison.Tensor
 import           Language.Egison.Type.Types      (Type(..))
+import qualified Language.Egison.Type.RuntimeType as RT
+import           Language.Egison.Type.Join       (isSubtype)
 
 -- | Get the Type of an EgisonValue
 -- Used for type class method dispatch
@@ -601,6 +603,53 @@ evalExprShallow env (ITensorMap2WedgeExpr fnExpr t1Expr t2Expr) = do
 evalExprShallow env (IPatternFuncExpr paramNames body) =
   -- Create a PatternFunc value, capturing the current environment
   return $ Value (PatternFunc env paramNames body)
+
+-- Runtime-type dispatch (Phase 3 of design/runtime-type-dispatch.md).
+-- TypeClassExpand emits this node when a type-class method is called on a
+-- value whose static type is `MathValue` and no explicit
+-- `instance Class MathValue` exists. We:
+--   1. evaluate the first argument to get the CAS value
+--   2. compute its shallow runtime type
+--   3. pick the dictionary for the most specific candidate
+--   4. construct the equivalent dictionary-indexed application and evaluate.
+evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
+  case args of
+    [] ->
+      throwError $ Default $
+        "runtime dispatch: no arguments for " ++ className ++ "." ++ methodName
+    (firstArg : _) -> do
+      firstWhnf <- evalExprShallow env firstArg
+      cv <- case firstWhnf of
+        Value (CASData c) -> return c
+        _ -> throwErrorWithTrace
+               (TypeMismatch ("CASData (for " ++ className ++ "." ++ methodName ++ " runtime dispatch)") firstWhnf)
+      let rt = RT.runtimeTypeOfCAS cv
+      case findBestRuntimeCandidate rt candidates of
+        Just dictName -> do
+          -- Reuse the standard hash-indexed dictionary access path.
+          let dictExpr   = IVarExpr dictName
+              methodKey  = IConstantExpr (StringExpr (T.pack methodName))
+              dictAccess = IIndexedExpr False dictExpr [Sub methodKey]
+          evalExprShallow env (IApplyExpr dictAccess args)
+        Nothing ->
+          throwError $ Default $
+            "runtime dispatch: no matching instance for "
+              ++ className ++ " on value of runtime type " ++ show rt
+  where
+    -- Pick the dictionary name whose instance type is the most specific
+    -- supertype of `target`. Mirrors `findMostSpecificInstance` in
+    -- Type.Instance, but specialised to (Type, dictName) pairs.
+    findBestRuntimeCandidate :: Type -> [(Type, String)] -> Maybe String
+    findBestRuntimeCandidate target cands =
+      case filter (\(t, _) -> isSubtype target t) cands of
+        []        -> Nothing
+        [(_, dn)] -> Just dn
+        cs        ->
+          let isMostSpec (t, _) =
+                all (\(t', _) -> t == t' || isSubtype t t') cs
+          in case filter isMostSpec cs of
+               [(_, dn)] -> Just dn
+               _         -> Nothing  -- ambiguous
 
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 

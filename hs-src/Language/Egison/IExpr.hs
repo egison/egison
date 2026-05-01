@@ -112,6 +112,18 @@ data IExpr
   | IFlipIndicesExpr IExpr
   | IFunctionExpr [String]
   | IPatternFuncExpr [String] IPattern  -- Pattern function: parameter names and pattern body
+  -- Runtime-type dispatch: select an instance dictionary by inspecting the
+  -- runtime CAS shape of the first argument. Emitted by TypeClassExpand when
+  -- a method is called on a value whose static type is `MathValue` and no
+  -- explicit `instance Class MathValue` exists. The (Type, String) list
+  -- carries the candidate instance types together with their dictionary
+  -- variable names; lookup happens at evaluation time. See
+  -- design/runtime-type-dispatch.md.
+  | IRuntimeDispatch
+      String          -- class name (e.g. "Differentiable")
+      String          -- method name (e.g. "partialDiff")
+      [(Type, String)] -- candidates: (instance type, dict var name)
+      [IExpr]         -- arguments (first one is the dispatch value)
   deriving Show
 
 type IBindingExpr = (IPrimitiveDataPattern, IExpr)
@@ -325,6 +337,12 @@ data TIExprNode
   
   -- Function reference
   | TIFunctionExpr [String]
+  -- Runtime-type dispatch: see `IRuntimeDispatch` in IExpr above.
+  | TIRuntimeDispatch
+      String           -- class name
+      String           -- method name
+      [(Type, String)] -- (instance type, dict var name) candidates
+      [TIExpr]         -- arguments (first one is the dispatch value)
   deriving Show
 
 -- | Typed binding expression
@@ -397,6 +415,8 @@ stripType (TIExpr _ node) = case node of
   TITransposeExpr perm tensor -> ITransposeExpr (stripType perm) (stripType tensor)
   TIFlipIndicesExpr tensor -> IFlipIndicesExpr (stripType tensor)
   TIFunctionExpr names -> IFunctionExpr names
+  TIRuntimeDispatch className methodName candidates args ->
+    IRuntimeDispatch className methodName candidates (map stripType args)
   where
     stripTypeBinding :: TIBindingExpr -> IBindingExpr
     stripTypeBinding (pat, expr) = (pat, stripType expr)
@@ -553,6 +573,10 @@ mapTIExprChildren f node = case node of
   -- Indexed
   TIIndexedExpr ov expr idxs ->
     TIIndexedExpr ov (f expr) (fmap f <$> idxs)
+
+  -- Runtime dispatch: traverse arguments only; class/method/candidates are metadata
+  TIRuntimeDispatch cls m cands args ->
+    TIRuntimeDispatch cls m cands (map f args)
   where
     mapBind g  = map (\(p, e) -> (p, g e))
     mapClause g = map (\(p, e) -> (p, g e))

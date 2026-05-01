@@ -17,9 +17,11 @@ class Differentiable a where
 -- `apply1 #<name>` patterns from each `declare derivative`. This means that
 -- `partialDiff (f x) y` (with f registered via `declare derivative`)
 -- automatically picks up the user's declared derivative.
-instance Differentiable MathValue where
-  partialDiff f x := chainPartialDiff f x
-
+--
+-- Phase 3 (runtime-type dispatch): we no longer write an explicit
+-- `instance Differentiable MathValue`. When a value's static type is
+-- `MathValue` the compiler emits `IRuntimeDispatch` which inspects the
+-- runtime CAS shape and picks the most specific concrete instance below.
 instance Differentiable Factor where
   partialDiff f x := chainPartialDiff f x
 

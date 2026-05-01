@@ -706,6 +706,9 @@ applySubstToTIExprNode s node = case node of
   TITensorContractExpr tensor ->
     TITensorContractExpr (applySubstToTIExpr s tensor)
 
+  TIRuntimeDispatch className methodName candidates args ->
+    TIRuntimeDispatch className methodName candidates (map (applySubstToTIExpr s) args)
+
 -- | Apply a substitution to a TIExprNode recursively with ClassEnv awareness
 applySubstToTIExprNodeWithClassEnv :: ClassEnv -> Subst -> TIExprNode -> TIExprNode
 applySubstToTIExprNodeWithClassEnv env s node = case node of
@@ -825,6 +828,9 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
 
   TITensorContractExpr tensor ->
     TITensorContractExpr (applySubstToTIExprWithClassEnv env s tensor)
+
+  TIRuntimeDispatch className methodName candidates args ->
+    TIRuntimeDispatch className methodName candidates (map (applySubstToTIExprWithClassEnv env s) args)
 
 -- | Infer type for IExpr
 -- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
