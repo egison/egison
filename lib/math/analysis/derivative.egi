@@ -18,33 +18,20 @@ class Differentiable a where
   partialDiff (f: a) (x: MathValue) : MathValue
 
 instance Differentiable Factor where
-  partialDiff f x := chainPartialDiff f x
-
--- Predicate: true for shapes that the term-decomposition patterns
--- (`#1 * $fx^$n` etc.) would otherwise match incorrectly. We delegate
--- these to `chainPartialDiff` instead, which routes them through
--- `declare derivative`-defined apply1 rules (or the built-in func/quote
--- handling in `chainPartialDiffBuiltin`).
-def isAtomicFactor (mexpr: MathValue) : Bool :=
-  match mexpr as mathValue with
-    | apply1 _ _ -> True
-    | apply2 _ _ _ -> True
-    | apply3 _ _ _ _ -> True
-    | apply4 _ _ _ _ _ -> True
-    | quote _ -> True
-    | func _ _ -> True
-    | _ -> False
+  -- Atomic shapes: a single symbol, apply1-4, quote, or func.
+  -- Reachable via static dispatch from Term inst's `$fx` (typed Factor through
+  -- the `^` pattern's `as (factor, integer)` signature). Symbols short-circuit
+  -- here; apply / quote / func delegate to the chain dispatcher.
+  partialDiff f x := match f as factor with
+    | #x -> 1
+    | symbol _ _ -> 0
+    | _ -> chainPartialDiff f x
 
 instance Differentiable (Term MathValue [..]) where
-  -- Single-monomial term shape. The atomic short-circuits (`#x`, `?isSymbol`)
-  -- come FIRST so the term-decomposition patterns below (`#1 * $fx^$n`,
-  -- `$a * $fx^$n * $r`) don't recursively match a single-symbol value and
-  -- loop. `?isAtomicFactor` covers apply1-4 / quote / func, which would
-  -- also be misclassified as `#1 * $fx^$n` by the matcher.
+  -- The `^` constructor in `inductive pattern MathValue` is `(^) Factor Integer`,
+  -- so `$fx` is statically Factor and `partialDiff fx x` dispatches at compile
+  -- time to the Factor instance. No need for in-body atomic short-circuits.
   partialDiff f x := match f as mathValue with
-    | #x -> 1
-    | ?isSymbol -> 0
-    | ?isAtomicFactor -> chainPartialDiff f x
     | #0 -> 0
     | _ * #1 -> 0
     | #1 * $fx ^ $n -> n * fx ^ (n - 1) * partialDiff fx x

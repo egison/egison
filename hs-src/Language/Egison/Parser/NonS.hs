@@ -227,6 +227,7 @@ inductiveTypeAtom =
   <|> TEBool    <$ reserved "Bool"
   <|> TEChar    <$ reserved "Char"
   <|> TEString  <$ reserved "String"
+  <|> TEFactor  <$ reserved "Factor"
   <|> TEList    <$> brackets typeExpr
   <|> TEVar     <$> typeNameIdent     -- Uppercase type names (Nat, Tree, etc.)
   <|> TEVar     <$> inductiveTypeVar  -- Short lowercase type variables

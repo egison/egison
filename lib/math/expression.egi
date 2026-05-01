@@ -13,7 +13,7 @@ inductive pattern MathValue :=
   | mult Integer MathValue
   | (+) MathValue MathValue
   | (*) MathValue MathValue
-  | (^) MathValue Integer
+  | (^) Factor Integer
   | symbol String [IndexExpr]
   | apply1 (MathValue -> MathValue) MathValue
   | apply2 (MathValue -> MathValue -> MathValue) MathValue MathValue
@@ -66,11 +66,11 @@ def mathValue : Matcher MathValue :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, xs)]
         | _ -> []
-    | $ ^ $ as (mathValue, integer) with
+    | $ ^ $ as (factor, integer) with
         -- Single-factor monomial decomposition `x ^ n`. Matches a single-term
-        -- polynomial with one factor `(x, n)`. Useful in rule LHS like
-        -- `(sqrt $a) ^ 2 = a`, which then desugars to a top-level `^` pattern
-        -- without needing the explicit `term _ ((..., 2) :: [])` form.
+        -- polynomial with one factor `(x, n)`. The base `$x` is bound with the
+        -- `factor` matcher, so its static type is Factor — recursive calls
+        -- like `partialDiff $x` then dispatch statically to the Factor instance.
         | $tgt ->
             match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
@@ -120,16 +120,17 @@ def mathValue : Matcher MathValue :=
 
 def multExpr : Matcher MathValue :=
   matcher
-    | ($ ^ $) * $ as (mathValue, integer, multExpr) with
+    | ($ ^ $) * $ as (factor, integer, multExpr) with
         | $tgt ->
             matchAll tgt as mathValue with
               | term _ (($x, $n) :: $rs) -> (x, n, product' (map (\(x, n) -> x ^' n) rs))
-    | $ ^ $ as (mathValue, integer) with
+    | $ ^ $ as (factor, integer) with
         | $tgt ->
             match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
               | _ -> []
     | $ * $ as (mathValue, multExpr) with
+        -- First slot is `x ^' n` — for n > 1 this is no longer a Factor, so keep mathValue.
         | $tgt ->
             matchAll tgt as mathValue with
               | term _ (($x, $n) :: $rs) -> (x ^' n, product' (map (\(x, n) -> x ^' n) rs))
@@ -147,7 +148,47 @@ def termExpr : Matcher MathValue := mathValue
 
 def symbol : Matcher MathValue := mathValue
 
-def factor : Matcher MathValue := mathValue
+-- factor: matcher for atomic CAS shapes (single symbol, apply1-4, quote, func).
+-- Returns Matcher Factor so that pattern variables bound through this matcher
+-- get the static type Factor — enabling compile-time dispatch to the
+-- `Differentiable Factor` instance from inside Term/Poly instances when the
+-- pattern signature is `as (factor, integer)` (e.g. `$fx ^ $n`).
+def factor : Matcher Factor :=
+  matcher
+    | symbol $ $ as (something, list indexExpr) with
+        | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
+            [(v, js)]
+        | _ -> []
+    | apply1 $ $ as (something, mathValue) with
+        | Frac (Plus [Term 1 [(Apply1 $v $a1, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1)]
+        | _ -> []
+    | apply2 $ $ $ as (something, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply2 $v $a1 $a2, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2)]
+        | _ -> []
+    | apply3 $ $ $ $ as (something, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply3 $v $a1 $a2 $a3, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3)]
+        | _ -> []
+    | apply4 $ $ $ $ $ as (something, mathValue, mathValue, mathValue, mathValue) with
+        | Frac (Plus [Term 1 [(Apply4 $v $a1 $a2 $a3 $a4, 1)]]) (Plus [Term 1 []]) ->
+            [(v, a1, a2, a3, a4)]
+        | _ -> []
+    | quote $ as (mathValue) with
+        | Frac (Plus [Term 1 [(Quote $mexpr, 1)]]) (Plus [Term 1 []]) ->
+            [mexpr]
+        | _ -> []
+    | func $ $ as (mathValue, list mathValue) with
+        | Frac
+            (Plus [Term 1 [(Function $name $args, 1)]])
+            (Plus [Term 1 []]) ->
+            [(name, args)]
+        | _ -> []
+    | #$val as () with
+        | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+        | $tgt -> [tgt]
 
 -- Phase 5 Step 5.1-5.3: parametric matchers `term`, `poly`, `frac`.
 -- They share the same runtime behavior as `mathValue` but the coefficient
