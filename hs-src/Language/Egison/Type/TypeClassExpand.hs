@@ -764,8 +764,14 @@ expandTypeClassMethodsT tiExpr = do
               -- compiler pick the right one based on the value's CAS shape.
               let mathValueInstanceExists =
                     any (\inst -> instTypes inst == [TMathValue]) instances
+                  -- TInt is an alias for TMathValue in Egison's CAS layer
+                  -- (see typeToName / typeConstructorName which map both to
+                  -- "MathValue"). Treat TInt as MathValue for runtime
+                  -- dispatch purposes so `declare symbol`-typed values
+                  -- (which surface as TInt) trigger IRuntimeDispatch.
+                  isMathValueLike t = t == TMathValue || t == TInt
                   shouldRuntimeDispatch =
-                    actualType == TMathValue
+                    isMathValueLike actualType
                       && not mathValueInstanceExists
                       && not (null (runtimeDispatchCandidates instances))
               if shouldRuntimeDispatch then do
@@ -773,7 +779,7 @@ expandTypeClassMethodsT tiExpr = do
                 return $ Just $
                   TIRuntimeDispatch ownerClass methodKey candidates expandedArgs
               else
-                case findMatchingInstanceForTypes actualTypes instances of
+                case findInstanceForDispatch actualTypes instances of
                   Just inst -> do
                     let instTypeName = concatMap typeConstructorName (instTypes inst)
                         dictName = lowerFirst ownerClass ++ instTypeName
