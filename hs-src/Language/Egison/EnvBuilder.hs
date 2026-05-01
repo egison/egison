@@ -233,7 +233,6 @@ processTopExpr result topExpr = case topExpr of
   
   -- Other expressions don't contribute to environment building
   Define {} -> return result
-  DefineWithType {} -> return result
   Test {} -> return result
   Execute {} -> return result
   LoadFile {} -> return result  -- Should not appear after expandLoads
@@ -424,10 +423,6 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
         go (TTerm t) = TTerm (go t)
         go (TFrac t) = TFrac (go t)
         go (TPoly t ss) = TPoly (go t) ss
-
--- | Extract method name from ClassMethod
-extractMethodName :: ClassMethod -> String
-extractMethodName (ClassMethod name _ _ _) = name
 
 -- | Extract method name and type from ClassMethod
 extractMethodWithType :: ClassMethod -> (String, Type)

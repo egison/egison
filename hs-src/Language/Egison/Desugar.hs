@@ -1194,7 +1194,8 @@ extractIndexExpr (Userscript x)   = x
 extractIndexExpr _                = error "extractIndexExpr: Not supported"
 
 isExtendedIndice :: VarIndex -> Bool
-isExtendedIndice VSubscript{}       = False
-isExtendedIndice VSuperscript{}     = False
-isExtendedIndice (VGroupScripts xs) = isExtendedIndice (head xs)
-isExtendedIndice _                  = True
+isExtendedIndice VSubscript{}            = False
+isExtendedIndice VSuperscript{}          = False
+isExtendedIndice (VGroupScripts (x:_))   = isExtendedIndice x
+isExtendedIndice (VGroupScripts [])      = True
+isExtendedIndice _                       = True

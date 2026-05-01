@@ -97,12 +97,6 @@ prettyTypeScheme (Forall vs [] t) =
 prettyTypeScheme (Forall _vs cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
 
--- | Pretty print constraints (old format: "Eq a, Ord b")
-prettyConstraints :: [Constraint] -> String
-prettyConstraints []  = ""
-prettyConstraints [c] = prettyConstraint c
-prettyConstraints cs  = "(" ++ intercalate ", " (map prettyConstraint cs) ++ ")"
-
 -- | Pretty print constraints (new format: "{Eq a, Ord b}")
 prettyConstraintsAlt :: [Constraint] -> String
 prettyConstraintsAlt []  = ""

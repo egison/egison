@@ -720,10 +720,17 @@ newApplyObjThunk env fn objs = Thunk $ applyObj env fn objs
 newApplyObjThunkRef :: Env -> WHNFData -> [Object] -> EvalM ObjectRef
 newApplyObjThunkRef env fn objs = liftIO . newIORef $ newApplyObjThunk env fn objs
 
+-- | Helper for applyRef: check if a tensor WHNFData has shape rank exactly
+-- one greater than its index count (= one DF-pending dimension). Other
+-- WHNFData shapes return False so we never use a partial pattern match.
+isTensorWithDFOne :: WHNFData -> Bool
+isTensorWithDFOne (ITensor (Tensor s _ i)) = length s - length i == 1
+isTensorWithDFOne _                        = False
+
 applyRef :: Env -> WHNFData -> [ObjectRef] -> EvalM WHNFData
 applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
   tds <- mapM evalRef refs
-  if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
+  if length s1 > length i1 && all isTensorWithDFOne tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -736,7 +743,7 @@ applyRef env (Value (TensorData (Tensor s1 t1 i1))) refs = do
     else throwError $ Default "applyObj"
 applyRef env (ITensor (Tensor s1 t1 i1)) refs = do
   tds <- mapM evalRef refs
-  if length s1 > length i1 && all (\(ITensor (Tensor s _ i)) -> length s - length i == 1) tds
+  if length s1 > length i1 && all isTensorWithDFOne tds
     then do
       symId <- fresh
       let argnum = length tds
@@ -1015,17 +1022,23 @@ processMState state =
         _    -> return MNil
     (0, MState e l s b [MAtom (IForallPat p1 p2) m t], MState{ mTrees = trees }) -> do
       states <- processMStatesAllDFSForall (msingleton (MState e l (ForallPatContext [] []:s) b [MAtom p1 m t]))
-      statess' <- mmap (\(MState e' l' (ForallPatContext ms ts:s') b' []) -> do
-                            let mat' = makeTuple ms
-                            tgt' <- makeITuple ts
-                            processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))) states
+      statess' <- mmap (\ms_state -> case ms_state of
+                            MState e' l' (ForallPatContext ms ts:s') b' [] -> do
+                              let mat' = makeTuple ms
+                              tgt' <- makeITuple ts
+                              processMStatesAllDFSForall (msingleton (MState e' l' (ForallPatContext [] []:s') b' [MAtom p2 tgt' mat']))
+                            _ -> error "processMState (forall): unexpected MState shape (invariant violation)")
+                       states
       b <- mAny (\case
                    MNil -> return True
                    _    -> return False) statess'
       if b
         then return MNil
 --        else return MNil
-        else do nstatess <- mmap (mmap (\(MState e' l' (ForallPatContext [] []:s') b' []) -> return $ MState e' l' s' b' trees)) statess'
+        else do nstatess <- mmap (mmap (\ms_state -> case ms_state of
+                                            MState e' l' (ForallPatContext [] []:s') b' [] -> return $ MState e' l' s' b' trees
+                                            _ -> error "processMState (forall): unexpected nstate shape (invariant violation)"))
+                                  statess'
                 mconcat nstatess
     _ -> processMState' state
  where
@@ -1293,11 +1306,6 @@ bindPrimitiveDataPattern pdp ref = do
   case r of
     Nothing      -> throwErrorWithTrace PrimitiveMatchFailure
     Just binding -> return binding
-
--- Check if pattern is a pattern variable
-isPatternVar :: IPrimitiveDataPattern -> Bool
-isPatternVar (PDPatVar _) = True
-isPatternVar _            = False
 
 -- Helper: Extract function object from CASValue if it contains QuoteFunction
 extractFunctionObjectCAS :: CASValue -> WHNFData

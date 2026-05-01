@@ -5,8 +5,10 @@ Licence     : MIT
 This module defines the type system for Egison.
 -}
 
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE DeriveAnyClass       #-}
+{-# LANGUAGE DerivingStrategies   #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.Egison.Type.Types
   ( Type(..)
@@ -50,7 +52,8 @@ import           Language.Egison.Type.Index ()
 
 -- | Type variable
 newtype TyVar = TyVar String
-  deriving (Eq, Ord, Show, Generic, Hashable)
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype Hashable
 
 -- | Shape dimension (can be concrete or variable)
 data ShapeDimType

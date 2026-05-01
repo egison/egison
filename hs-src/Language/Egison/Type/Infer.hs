@@ -204,16 +204,6 @@ getConstraints = inferConstraints <$> get
 clearConstraints :: Infer ()
 clearConstraints = modify $ \st -> st { inferConstraints = [] }
 
--- | Run an action with local constraint tracking
-withLocalConstraints :: Infer a -> Infer (a, [Constraint])
-withLocalConstraints action = do
-  oldConstraints <- getConstraints
-  clearConstraints
-  result <- action
-  newConstraints <- getConstraints
-  modify $ \st -> st { inferConstraints = oldConstraints }
-  return (result, newConstraints)
-
 -- | Check if we're in permissive mode
 isPermissive :: Infer Bool
 isPermissive = cfgPermissive . inferConfig <$> get
@@ -274,17 +264,9 @@ setEnv env = modify $ \st -> st { inferEnv = env }
 getPatternEnv :: Infer PatternTypeEnv
 getPatternEnv = inferPatternEnv <$> get
 
--- | Set the pattern type environment
-setPatternEnv :: PatternTypeEnv -> Infer ()
-setPatternEnv penv = modify $ \st -> st { inferPatternEnv = penv }
-
 -- | Get the current pattern function environment (for disambiguation)
 getPatternFuncEnv :: Infer PatternTypeEnv
 getPatternFuncEnv = inferPatternFuncEnv <$> get
-
--- | Set the pattern function environment
-setPatternFuncEnv :: PatternTypeEnv -> Infer ()
-setPatternFuncEnv penv = modify $ \st -> st { inferPatternFuncEnv = penv }
 
 -- | Get the current class environment
 getClassEnv :: Infer ClassEnv
@@ -466,19 +448,6 @@ simplifyTensorConstraints classEnv = map simplifyConstraint
             | otherwise              -> ty0           -- No instance for either, keep original
           _ -> ty0
 
--- | Simplify Tensor constraints in a type scheme
--- During type inference, keep type variables unquantified (Forall [])
--- Quantification only happens at let/def boundaries
-simplifyTensorConstraintsInScheme :: ClassEnv -> TypeScheme -> TypeScheme
-simplifyTensorConstraintsInScheme classEnv (Forall tvs cs ty) =
-  let cs' = simplifyTensorConstraints classEnv cs
-  in Forall tvs cs' ty
-
--- | Simplify Tensor constraints in a TIExpr
-simplifyTensorConstraintsInTIExpr :: ClassEnv -> TIExpr -> TIExpr
-simplifyTensorConstraintsInTIExpr classEnv (TIExpr scheme node) =
-  TIExpr (simplifyTensorConstraintsInScheme classEnv scheme) node
-
 -- | Apply a substitution to a type scheme with class environment awareness
 -- This adjusts the substitution based on type class constraints:
 -- When {Num t0} t0 -> t0 is unified with Tensor t1, if Num (Tensor t1) has no instance,
@@ -522,13 +491,6 @@ applySubstSchemeWithClassEnv classEnv (Subst m) (Forall vs cs t) =
     unwrapTensorCompletely :: Type -> Type
     unwrapTensorCompletely (TTensor inner) = unwrapTensorCompletely inner
     unwrapTensorCompletely ty = ty
-
--- | Apply a substitution to a TIExpr, updating both the type scheme and all subexpressions
-applySubstToTIExpr :: Subst -> TIExpr -> TIExpr
-applySubstToTIExpr s (TIExpr scheme node) =
-  let updatedScheme = applySubstScheme s scheme
-      updatedNode = applySubstToTIExprNode s node
-  in TIExpr updatedScheme updatedNode
 
 -- | Apply a substitution to a TIExpr with ClassEnv awareness
 -- This adjusts the substitution based on type class constraints
@@ -585,129 +547,6 @@ applySubstWithConstraintsM (Subst m) t = do
     unwrapTensorCompletely :: Type -> Type
     unwrapTensorCompletely (TTensor inner) = unwrapTensorCompletely inner
     unwrapTensorCompletely ty = ty
-
--- | Apply a substitution to a TIExprNode recursively
-applySubstToTIExprNode :: Subst -> TIExprNode -> TIExprNode
-applySubstToTIExprNode s node = case node of
-  TIConstantExpr c -> TIConstantExpr c
-  TIVarExpr name -> TIVarExpr name
-  
-  TILambdaExpr mVar params body ->
-    TILambdaExpr mVar params (applySubstToTIExpr s body)
-  
-  TIApplyExpr func args ->
-    TIApplyExpr (applySubstToTIExpr s func) (map (applySubstToTIExpr s) args)
-  
-  TITupleExpr exprs ->
-    TITupleExpr (map (applySubstToTIExpr s) exprs)
-  
-  TICollectionExpr exprs ->
-    TICollectionExpr (map (applySubstToTIExpr s) exprs)
-  
-  TIConsExpr h t ->
-    TIConsExpr (applySubstToTIExpr s h) (applySubstToTIExpr s t)
-  
-  TIJoinExpr l r ->
-    TIJoinExpr (applySubstToTIExpr s l) (applySubstToTIExpr s r)
-  
-  TIIfExpr cond thenE elseE ->
-    TIIfExpr (applySubstToTIExpr s cond) (applySubstToTIExpr s thenE) (applySubstToTIExpr s elseE)
-  
-  TILetExpr bindings body ->
-    TILetExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
-              (applySubstToTIExpr s body)
-  
-  TILetRecExpr bindings body ->
-    TILetRecExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
-                 (applySubstToTIExpr s body)
-  
-  TISeqExpr e1 e2 ->
-    TISeqExpr (applySubstToTIExpr s e1) (applySubstToTIExpr s e2)
-  
-  TIInductiveDataExpr name exprs ->
-    TIInductiveDataExpr name (map (applySubstToTIExpr s) exprs)
-  
-  TIMatcherExpr patDefs ->
-    TIMatcherExpr (map (\(pat, expr, bindings) -> (pat, applySubstToTIExpr s expr, bindings)) patDefs)
-  
-  TIMatchExpr mode target matcher clauses ->
-    TIMatchExpr mode 
-                (applySubstToTIExpr s target)
-                (applySubstToTIExpr s matcher)
-                (map (\(pat, body) -> (pat, applySubstToTIExpr s body)) clauses)
-  
-  TIMatchAllExpr mode target matcher clauses ->
-    TIMatchAllExpr mode
-                   (applySubstToTIExpr s target)
-                   (applySubstToTIExpr s matcher)
-                   (map (\(pat, body) -> (pat, applySubstToTIExpr s body)) clauses)
-  
-  TIMemoizedLambdaExpr params body ->
-    TIMemoizedLambdaExpr params (applySubstToTIExpr s body)
-  
-  TIDoExpr bindings body ->
-    TIDoExpr (map (\(pat, expr) -> (pat, applySubstToTIExpr s expr)) bindings)
-             (applySubstToTIExpr s body)
-  
-  TICambdaExpr var body ->
-    TICambdaExpr var (applySubstToTIExpr s body)
-  
-  TIWithSymbolsExpr syms body ->
-    TIWithSymbolsExpr syms (applySubstToTIExpr s body)
-  
-  TIQuoteExpr e ->
-    TIQuoteExpr (applySubstToTIExpr s e)
-  
-  TIQuoteSymbolExpr e ->
-    TIQuoteSymbolExpr (applySubstToTIExpr s e)
-  
-  TIIndexedExpr override base indices ->
-    TIIndexedExpr override (applySubstToTIExpr s base) (fmap (applySubstToTIExpr s) <$> indices)
-  
-  TISubrefsExpr override base ref ->
-    TISubrefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
-  
-  TISuprefsExpr override base ref ->
-    TISuprefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
-  
-  TIUserrefsExpr override base ref ->
-    TIUserrefsExpr override (applySubstToTIExpr s base) (applySubstToTIExpr s ref)
-  
-  TIWedgeApplyExpr func args ->
-    TIWedgeApplyExpr (applySubstToTIExpr s func) (map (applySubstToTIExpr s) args)
-  
-  TIFunctionExpr names ->
-    TIFunctionExpr names
-  
-  TIVectorExpr exprs ->
-    TIVectorExpr (map (applySubstToTIExpr s) exprs)
-  
-  TIHashExpr pairs ->
-    TIHashExpr (map (\(k, v) -> (applySubstToTIExpr s k, applySubstToTIExpr s v)) pairs)
-  
-  TIGenerateTensorExpr func shape ->
-    TIGenerateTensorExpr (applySubstToTIExpr s func) (applySubstToTIExpr s shape)
-  
-  TITensorExpr shape elems ->
-    TITensorExpr (applySubstToTIExpr s shape) (applySubstToTIExpr s elems)
-  
-  TITransposeExpr perm tensor ->
-    TITransposeExpr (applySubstToTIExpr s perm) (applySubstToTIExpr s tensor)
-  
-  TIFlipIndicesExpr tensor ->
-    TIFlipIndicesExpr (applySubstToTIExpr s tensor)
-  
-  TITensorMapExpr func tensor ->
-    TITensorMapExpr (applySubstToTIExpr s func) (applySubstToTIExpr s tensor)
-  
-  TITensorMap2Expr func t1 t2 ->
-    TITensorMap2Expr (applySubstToTIExpr s func) (applySubstToTIExpr s t1) (applySubstToTIExpr s t2)
-  
-  TITensorContractExpr tensor ->
-    TITensorContractExpr (applySubstToTIExpr s tensor)
-
-  TIRuntimeDispatch className methodName candidates args ->
-    TIRuntimeDispatch className methodName candidates (map (applySubstToTIExpr s) args)
 
 -- | Apply a substitution to a TIExprNode recursively with ClassEnv awareness
 applySubstToTIExprNodeWithClassEnv :: ClassEnv -> Subst -> TIExprNode -> TIExprNode

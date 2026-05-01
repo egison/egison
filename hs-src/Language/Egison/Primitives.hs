@@ -400,19 +400,6 @@ descendTermNoCoef recur (CAS.CASTerm coef factors) = do
 -- The reconstructed value is re-normalized via casNormalize so that downstream
 -- pattern matching sees canonical form (the matcher relies on Frac (Plus ...)
 -- shape, which raw `CASPoly` constructors may not satisfy after edits).
-descendCAS :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASValue -> EvalM CAS.CASValue
-descendCAS _ v@(CAS.CASInteger _) = return v
-descendCAS recur (CAS.CASFactor sym) = CAS.casNormalize . CAS.CASFactor <$> descendSymbol recur sym
-descendCAS recur (CAS.CASPoly terms) = (CAS.casNormalize . CAS.CASPoly) <$> mapM (descendTerm recur) terms
-descendCAS recur (CAS.CASFrac n d) = CAS.casFrac <$> recur n <*> recur d
-
-descendTerm :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.CASTerm -> EvalM CAS.CASTerm
-descendTerm recur (CAS.CASTerm coef factors) = do
-  -- The coefficient is itself a CASValue (can be a nested poly): recurse.
-  coef' <- recur coef
-  factors' <- mapM (\(sym, e) -> (\s -> (s, e)) <$> descendSymbol recur sym) factors
-  return $ CAS.CASTerm coef' factors'
-
 descendSymbol :: (CAS.CASValue -> EvalM CAS.CASValue) -> CAS.SymbolExpr -> EvalM CAS.SymbolExpr
 descendSymbol recur (CAS.Symbol sid name idxs) = do
   idxs' <- mapM (traverse recur) idxs

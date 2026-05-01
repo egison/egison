@@ -110,25 +110,33 @@ pmIndices (MultiSub (Just a) s (Just e):xs) vs = do
   let l = fromIntegral (length vs1)
   eRef <- newEvaluatedObjectRef (Value (toEgison l))
   let hash = (IIntHash HL.empty)
-  hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash (zip [s..(s + l - 1)] (map (\(Sub v) -> Value v) vs1)) 
+  hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash
+                (zip [s..(s + l - 1)]
+                     (map subValue vs1))
   aRef <- newEvaluatedObjectRef hash
   bs <- pmIndices xs vs2
   return ((a, aRef) : (e, eRef) : bs)
  where
   isSub (Sub _) = True
   isSub _       = False
+  subValue (Sub v) = Value v
+  subValue idx     = error ("pmIndices: expected Sub index, got: " ++ show idx)
 pmIndices (MultiSup (Just a) s (Just e):xs) vs = do
   let (vs1, vs2) = span isSup vs
   let l = fromIntegral (length vs1)
   eRef <- newEvaluatedObjectRef (Value (toEgison l))
   let hash = (IIntHash HL.empty)
-  hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash (zip [s..(s + l - 1)] (map (\(Sup v) -> Value v) vs1)) 
+  hash <- foldM (\hash (i, v) -> updateHash [i] v hash) hash
+                (zip [s..(s + l - 1)]
+                     (map supValue vs1))
   aRef <- newEvaluatedObjectRef hash
   bs <- pmIndices xs vs2
   return ((a, aRef) : (e, eRef) : bs)
  where
   isSup (Sup _) = True
   isSup _       = False
+  supValue (Sup v) = Value v
+  supValue idx     = error ("pmIndices: expected Sup index, got: " ++ show idx)
 
 pmIndices (x:xs) (v:vs) = do
   bs <- pmIndex x v

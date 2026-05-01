@@ -141,11 +141,16 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { funcNameStack = name : funcNameStack st }
     return ()
-  topFuncName = head . funcNameStack <$> get
+  topFuncName = do
+    stack <- funcNameStack <$> get
+    case stack of
+      (x:_) -> return x
+      []    -> error "topFuncName: function name stack is empty"
   popFuncName = do
     st <- get
-    put $ st { funcNameStack = tail $ funcNameStack st }
-    return ()
+    case funcNameStack st of
+      (_:rest) -> put st { funcNameStack = rest }
+      []       -> error "popFuncName: function name stack is empty"
   getFuncNameStack = funcNameStack <$> get
   
   getInstanceEnv = instanceEnv <$> get

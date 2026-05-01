@@ -290,7 +290,10 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
   rts' <- zipWithM (tProduct f) rts1 rts2
-  let ret = Tensor (cns ++ tShape (head rts')) (V.concat (map tToVector rts')) (cjs ++ tIndex (head rts'))
+  let firstRT = case rts' of
+                  (r:_) -> r
+                  []    -> error "tProduct: rts' empty (impossible)"
+  let ret = Tensor (cns ++ tShape firstRT) (V.concat (map tToVector rts')) (cjs ++ tIndex firstRT)
   tTranspose (uniq (tDiagIndex (js1 ++ js2))) ret >>= removeDFFromTensor
  where
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
@@ -351,7 +354,10 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
                               rt2 <- tIntRef is t2'
                               tProduct f rt1 rt2)
                    (enumTensorIndices cns1)
-      let ret = Tensor (cns1 ++ tShape (head rts')) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex (head rts'))
+      let firstRT = case rts' of
+                      (r:_) -> r
+                      []    -> error "tDiag: rts' empty (impossible)"
+      let ret = Tensor (cns1 ++ tShape firstRT) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex firstRT)
       tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret >>= removeDFFromTensor
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])

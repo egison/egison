@@ -78,7 +78,7 @@ import qualified Data.Sequence                    as Sq
 import qualified Data.Vector                      as V
 
 import           Data.List                        (intercalate, sortOn)
-import           Data.Text                        (Text, unpack)
+import           Data.Text                        (Text)
 import           Text.Show.Unicode                (ushow)
 
 import           Data.Ratio
@@ -159,11 +159,6 @@ getSymId val = case val of
   CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId _ _, _)]]) -> symId
   _ -> error "getSymId: not a symbol"
 
-getSymName :: EgisonValue -> String
-getSymName val = case val of
-  CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ name [], 1)]]) -> name
-  _ -> error "getSymName: not a symbol"
-
 -- | Create a symbol CASValue
 symbolCASData :: String -> String -> EgisonValue
 symbolCASData symId name = CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name [], 1)]]
@@ -188,10 +183,6 @@ applyCASData fn args = CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.makeApply
 extractCASValue :: EgisonValue -> EvalM CASValue
 extractCASValue (CASData cv) = return cv
 extractCASValue val          = throwErrorWithTrace (TypeMismatch "math expression" (Value val))
-
-extractString :: EgisonValue -> EvalM String
-extractString (String t) = return (unpack t)
-extractString val        = throwErrorWithTrace (TypeMismatch "string" (Value val))
 
 -- New-syntax version of EgisonValue pretty printer.
 -- TODO(momohatt): Don't make it a show instance of EgisonValue.

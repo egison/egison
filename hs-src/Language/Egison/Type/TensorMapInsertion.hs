@@ -483,17 +483,16 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
                 isNonTensorType param1 && isNonTensorType param2
               _ -> False
 
-        if isScalarFunction && length args' == 2
-          then do
+        case (isScalarFunction, args') of
+          (True, [arg1, arg2]) -> do
             -- Insert tensorMap2Wedge for binary scalar functions
-            let [arg1, arg2] = args'
-                -- Preserve the function's original scheme with its constraints
+            let -- Preserve the function's original scheme with its constraints
                 (Forall tvs funcConstraints _) = tiScheme func'
                 -- Unlift the function type to get the scalar version
                 unliftedFuncType = unliftFunctionType funcType
                 unliftedFunc = TIExpr (Forall tvs funcConstraints unliftedFuncType) (tiExprNode func')
             return $ TITensorMap2WedgeExpr unliftedFunc arg1 arg2
-          else
+          _ ->
             -- Keep WedgeApply for tensor functions or non-binary functions
             return $ TIWedgeApplyExpr func' args'
       
