@@ -31,8 +31,9 @@ runtimeTypeOfCAS (CASInteger _) = TInt
 runtimeTypeOfCAS (CASFactor _)  = TFactor
 runtimeTypeOfCAS (CASPoly [])   = TInt
 runtimeTypeOfCAS (CASPoly [CASTerm c []]) | isCASInteger c = TInt
-runtimeTypeOfCAS (CASPoly [CASTerm coef _]) =
-  TTerm (shallowTypeOfCAS coef)
+runtimeTypeOfCAS (CASPoly [term@(CASTerm coef _)]) =
+  let atoms = extractAtomsAsTypeAtoms [term]
+  in TTerm (shallowTypeOfCAS coef) (SymbolSetClosed atoms)
 runtimeTypeOfCAS (CASPoly terms) =
   let coefType = shallowJoinCoefs terms
       atoms    = extractAtomsAsTypeAtoms terms

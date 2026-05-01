@@ -828,13 +828,14 @@ diffFormTypeExpr = do
 factorTypeExpr :: Parser TypeExpr
 factorTypeExpr = TEFactor <$ reserved "Factor"
 
--- | Parse Term type (e.g., Term Integer)
--- A Term is a single monomial: coefficient × monomial.
+-- | Parse Term type (e.g., Term Integer [x] or Term Integer [..])
+-- A Term is a single monomial: coefficient × monomial over the given atom set.
 termTypeExpr :: Parser TypeExpr
 termTypeExpr = do
   _ <- reserved "Term"
   innerType <- typeAtomOrParenType
-  return $ TETerm innerType
+  symbolSet <- symbolSetExpr
+  return $ TETerm innerType symbolSet
 
 -- | Parse Frac type (e.g., Frac Integer)
 fracTypeExpr :: Parser TypeExpr

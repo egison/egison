@@ -236,13 +236,15 @@ prettyType TPort = "Port"
 prettyType TAny = "_"
 -- New CAS types
 prettyType TFactor = "Factor"
-prettyType (TTerm t) = "Term " ++ prettyType t
+prettyType (TTerm t ss) = "Term " ++ prettyType t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t) = "Frac " ++ prettyType t
 prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
-  where
-    prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
-    prettySymbolSet SymbolSetOpen = "[..]"
-    prettySymbolSet (SymbolSetVar (TyVar v)) = v
+
+-- | Pretty print a SymbolSet (local helper for type errors)
+prettySymbolSet :: SymbolSet -> String
+prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
+prettySymbolSet SymbolSetOpen = "[..]"
+prettySymbolSet (SymbolSetVar (TyVar v)) = v
 
 -- | Pretty print a tensor shape
 prettyShape :: TensorShape -> String

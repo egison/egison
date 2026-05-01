@@ -420,7 +420,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
         go TPort = TPort
         go TAny = TAny
         go TFactor = TFactor
-        go (TTerm t) = TTerm (go t)
+        go (TTerm t ss) = TTerm (go t) ss
         go (TFrac t) = TFrac (go t)
         go (TPoly t ss) = TPoly (go t) ss
 

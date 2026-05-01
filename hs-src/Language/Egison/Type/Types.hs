@@ -127,7 +127,7 @@ data Type
   | TAny                              -- ^ Any type (for gradual typing)
   -- New CAS types (Phase 2)
   | TFactor                           -- ^ Factor type (atomic mathematical factor from quote ')
-  | TTerm Type                         -- ^ Term type, e.g., Term Integer = monomials over Integer
+  | TTerm Type SymbolSet               -- ^ Term type, e.g., Term Integer [x] = monomials over Integer with atom set [x]
   | TFrac Type                         -- ^ Frac type, e.g., Frac Integer = rationals
   | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
@@ -214,13 +214,15 @@ freeTyVars TPort            = Set.empty
 freeTyVars TAny             = Set.empty
 -- New CAS types
 freeTyVars TFactor          = Set.empty
-freeTyVars (TTerm t)         = freeTyVars t
+freeTyVars (TTerm t ss)      = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
 freeTyVars (TFrac t)         = freeTyVars t
 freeTyVars (TPoly t ss)     = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
-  where
-    freeTyVarsSymbolSet (SymbolSetClosed _) = Set.empty
-    freeTyVarsSymbolSet SymbolSetOpen       = Set.empty
-    freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
+
+-- | Free type variables in a SymbolSet (used by both Term and Poly).
+freeTyVarsSymbolSet :: SymbolSet -> Set TyVar
+freeTyVarsSymbolSet (SymbolSetClosed _) = Set.empty
+freeTyVarsSymbolSet SymbolSetOpen       = Set.empty
+freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool
@@ -234,7 +236,7 @@ isScalarType = not . isTensorType
 -- | Check if a type is a CAS type (Factor, Term, Frac, or Poly)
 isCASType :: Type -> Bool
 isCASType TFactor     = True
-isCASType (TTerm _)    = True
+isCASType (TTerm _ _) = True
 isCASType (TFrac _)    = True
 isCASType (TPoly _ _) = True
 isCASType _           = False
@@ -270,18 +272,20 @@ typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
 typeToName (TTensor t) = "Tensor" ++ typeToName t
 typeToName TFactor = "Factor"
-typeToName (TTerm t) = "Term" ++ typeToName t
+typeToName (TTerm t ss) = "Term" ++ typeToName t ++ symbolSetToName ss
 typeToName (TFrac t) = "Frac" ++ typeToName t
 typeToName (TPoly t ss) = "Poly" ++ typeToName t ++ symbolSetToName ss
-  where
-    -- Render atoms into a flat slug, e.g. [sqrt 2, x] -> "_sqrt_2_x".
-    -- Spaces are replaced with underscores so the slug is a valid identifier
-    -- piece for dictionary lookup.
-    symbolSetToName (SymbolSetClosed syms) = concatMap (\a -> '_' : sanitize (prettyTypeAtomValue a)) syms
-    symbolSetToName SymbolSetOpen = "_Open"
-    symbolSetToName (SymbolSetVar (TyVar v)) = "_" ++ v
-    sanitize = map (\c -> if c == ' ' || c == '(' || c == ')' then '_' else c)
 typeToName _ = "Unknown"
+
+-- | Render a SymbolSet into a flat name slug for dictionary lookup.
+-- E.g. [sqrt 2, x] -> "_sqrt_2_x", [..] -> "_Open".
+symbolSetToName :: SymbolSet -> String
+symbolSetToName (SymbolSetClosed syms) =
+  concatMap (\a -> '_' : sanitize (prettyTypeAtomValue a)) syms
+  where
+    sanitize = map (\c -> if c == ' ' || c == '(' || c == ')' then '_' else c)
+symbolSetToName SymbolSetOpen = "_Open"
+symbolSetToName (SymbolSetVar (TyVar v)) = "_" ++ v
 
 -- | Get the type constructor name only, without type parameters
 -- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
@@ -312,7 +316,7 @@ typeConstructorName TPort = "Port"
 typeConstructorName TAny = "Any"
 -- New CAS types
 typeConstructorName TFactor = "Factor"
-typeConstructorName (TTerm _) = "Term"
+typeConstructorName (TTerm _ _) = "Term"
 typeConstructorName (TFrac _) = "Frac"
 typeConstructorName (TPoly _ _) = "Poly"
 
@@ -367,13 +371,15 @@ typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
 -- New CAS types
 typeExprToType TEFactor = TFactor
-typeExprToType (TETerm t) = TTerm (typeExprToType t)
+typeExprToType (TETerm t ss) = TTerm (typeExprToType t) (symbolSetExprToSymbolSet ss)
 typeExprToType (TEFrac t) = TFrac (typeExprToType t)
 typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSet ss)
-  where
-    symbolSetExprToSymbolSet (SSEClosed atoms) =
-      SymbolSetClosed (map typeAtomExprToTypeAtom atoms)
-    symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
+
+-- | Convert AST-level SymbolSetExpr to internal SymbolSet.
+symbolSetExprToSymbolSet :: SymbolSetExpr -> SymbolSet
+symbolSetExprToSymbolSet (SSEClosed atoms) =
+  SymbolSetClosed (map typeAtomExprToTypeAtom atoms)
+symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
 
 -- | Normalize inductive type names to primitive types if applicable
 -- This is used to convert TInductive "MathValue" [] to TMathValue, etc.
@@ -388,7 +394,7 @@ normalizeInductiveTypes (TInductive name []) = case name of
   _            -> TInductive name []
 -- Normalize Div to TFrac
 normalizeInductiveTypes (TInductive "Frac" [t]) = TFrac (normalizeInductiveTypes t)
-normalizeInductiveTypes (TInductive "Term" [t]) = TTerm (normalizeInductiveTypes t)
+normalizeInductiveTypes (TInductive "Term" [t]) = TTerm (normalizeInductiveTypes t) SymbolSetOpen
 -- Convert TInductive "Vector", "Matrix", and "DiffForm" to Tensor (they are aliases)
 normalizeInductiveTypes (TInductive "Vector" [t]) = TTensor (normalizeInductiveTypes t)
 normalizeInductiveTypes (TInductive "Matrix" [t]) = TTensor (normalizeInductiveTypes t)
@@ -403,7 +409,7 @@ normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
 normalizeInductiveTypes (TTensor t) = TTensor (normalizeInductiveTypes t)
 -- New CAS types
-normalizeInductiveTypes (TTerm t) = TTerm (normalizeInductiveTypes t)
+normalizeInductiveTypes (TTerm t ss) = TTerm (normalizeInductiveTypes t) ss
 normalizeInductiveTypes (TFrac t) = TFrac (normalizeInductiveTypes t)
 normalizeInductiveTypes (TPoly t ss) = TPoly (normalizeInductiveTypes t) ss
 normalizeInductiveTypes t = t  -- Other types remain unchanged

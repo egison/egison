@@ -485,7 +485,7 @@ data TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a
   -- New CAS types (Phase 2)
   | TEFactor                           -- ^ Factor type (atomic mathematical factor)
-  | TETerm TypeExpr                     -- ^ Term type, e.g., Term Integer (single monomial)
+  | TETerm TypeExpr SymbolSetExpr      -- ^ Term type, e.g., Term Integer [x] (single monomial over the given atoms)
   | TEFrac TypeExpr                     -- ^ Frac type, e.g., Frac Integer
   | TEPoly TypeExpr SymbolSetExpr      -- ^ Poly type, e.g., Poly Integer [x, y]
   deriving (Show, Eq)

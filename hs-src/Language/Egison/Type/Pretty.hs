@@ -56,7 +56,7 @@ prettyType TPort            = "Port"
 prettyType TAny             = "_"
 -- New CAS types
 prettyType TFactor          = "Factor"
-prettyType (TTerm t)         = "Term " ++ prettyTypeAtom t
+prettyType (TTerm t ss)      = "Term " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t)         = "Frac " ++ prettyTypeAtom t
 prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 
@@ -158,6 +158,7 @@ prettyTypeExpr (TEConstrained cs t) = prettyConstraintExprs cs ++ " " ++ prettyT
     prettyConstraintExpr _ = "..."  -- TODO: implement constraint printing
 -- New CAS types
 prettyTypeExpr TEFactor = "Factor"
+prettyTypeExpr (TETerm t ss) = "Term " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
 prettyTypeExpr (TEFrac t) = "Frac " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
 

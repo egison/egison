@@ -35,7 +35,7 @@ def isAtomicFactor (mexpr: MathValue) : Bool :=
     | func _ _ -> True
     | _ -> False
 
-instance Differentiable (Term MathValue) where
+instance Differentiable (Term MathValue [..]) where
   -- Single-monomial term shape. The atomic short-circuits (`#x`, `?isSymbol`)
   -- come FIRST so the term-decomposition patterns below (`#1 * $fx^$n`,
   -- `$a * $fx^$n * $r`) don't recursively match a single-symbol value and

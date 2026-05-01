@@ -220,7 +220,7 @@ instantiate (Forall vs cs t) counter =
     substVar _ _ TPort = TPort
     substVar _ _ TAny = TAny
     substVar _ _ TFactor = TFactor
-    substVar old new (TTerm t') = TTerm (substVar old new t')
+    substVar old new (TTerm t' ss) = TTerm (substVar old new t') ss
     substVar old new (TFrac t') = TFrac (substVar old new t')
     substVar old new (TPoly t' ss) = TPoly (substVar old new t') ss
 

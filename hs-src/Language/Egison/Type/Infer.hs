@@ -238,7 +238,13 @@ freshenOpenSymbolSets ty = case ty of
     t' <- freshenOpenSymbolSets t
     return $ TPoly t' ss
   TFrac t -> TFrac <$> freshenOpenSymbolSets t
-  TTerm t -> TTerm <$> freshenOpenSymbolSets t
+  TTerm t SymbolSetOpen -> do
+    t' <- freshenOpenSymbolSets t
+    freshSS <- freshSymbolSetVar
+    return $ TTerm t' freshSS
+  TTerm t ss -> do
+    t' <- freshenOpenSymbolSets t
+    return $ TTerm t' ss
   -- Recursive cases
   TTuple ts -> TTuple <$> mapM freshenOpenSymbolSets ts
   TCollection t -> TCollection <$> freshenOpenSymbolSets t
