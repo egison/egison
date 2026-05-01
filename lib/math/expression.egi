@@ -7,11 +7,11 @@
 inductive pattern MathValue :=
   | frac MathValue MathValue
   | (/) MathValue MathValue
-  | plus [MathValue]
-  | poly [MathValue]
+  | plus [(Term MathValue [..])]
+  | poly [(Term MathValue [..])]
   | term Integer [(MathValue, Integer)]
   | mult Integer MathValue
-  | (+) MathValue MathValue
+  | (+) (Term MathValue [..]) MathValue
   | (*) MathValue MathValue
   | (^) Factor Integer
   | symbol String [IndexExpr]
@@ -51,13 +51,16 @@ def mathValue : Matcher MathValue :=
     | $ / $ as (mathValue, mathValue) with
         | Frac $p1 $p2 -> [(p1, p2)]
         | _ -> []
-    | poly $ as (multiset mathValue) with
+    | poly $ as (multiset (term mathValue)) with
+        -- Each element is statically Term MathValue [..], so `partialDiff $t x`
+        -- in the body dispatches to the Term instance at compile time.
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
         | _ -> []
-    | plus $ as (multiset mathValue) with
+    | plus $ as (multiset (term mathValue)) with
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
         | _ -> []
-    | $ + $ as (mathValue, mathValue) with
+    | $ + $ as (term mathValue, mathValue) with
+        -- LHS is a single Term (statically), RHS is the rest of the polynomial.
         | Frac (Plus $ts) (Plus [Term 1 []]) ->
             matchAll ts as multiset something with
               | $t :: $tss -> (t, sum' tss)
@@ -202,7 +205,7 @@ def factor : Matcher Factor :=
 -- This keeps `match (3 * x) as poly integer with | term $c _ -> c` working
 -- without requiring callers to coerce manually.
 
-def term {a} (m: Matcher a) : Matcher MathValue :=
+def term {a} (m: Matcher a) : Matcher (Term a [..]) :=
   matcher
     | term $ $ as (m, assocMultiset mathValue) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]

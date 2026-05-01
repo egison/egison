@@ -38,18 +38,11 @@ instance Differentiable (Term MathValue [..]) where
     | $a * $fx ^ $n * $r -> a * partialDiff (fx ^' n) x * r + a * fx ^' n * partialDiff r x
     | _ -> 0
 
--- Helper for the Poly instance: sum of per-term derivatives. Lifted to a
--- top-level def with concrete `(ts: [MathValue]) (x: MathValue): MathValue`
--- so the `partialDiff` call inside its `1#(...)` lambda gets concrete-type
--- expansion (IRuntimeDispatch). Inlining the same expression in the
--- instance body leaves `$1`'s type polymorphic at the point TypeClassExpand
--- sees the inner `partialDiff` call, and the dispatch falls through to the
--- TVar dictionary-parameter path which is wrong here.
-def diffPolyTerms (ts: [MathValue]) (x: MathValue) : MathValue :=
-  sum (map 1#(partialDiff $1 x) ts)
-
 instance Differentiable (Poly MathValue [..]) where
-  -- Polynomial: sum of per-term derivatives.
+  -- Polynomial: sum of per-term derivatives. The `poly` constructor in
+  -- `inductive pattern MathValue` is `poly [Term MathValue [..]]`, so each
+  -- `$t` has static type `Term MathValue [..]` and `partialDiff t x` dispatches
+  -- to the Term instance at compile time — no runtime dispatch needed.
   partialDiff f x := match f as mathValue with
     | poly $ts -> sum (map (\t -> partialDiff t x) ts)
     | _ -> chainPartialDiff f x
