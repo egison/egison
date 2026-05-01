@@ -386,10 +386,14 @@ desugarTopExpr (DeclareDerivative name rhs) = do
     -- the surface level.
     buildChainPartialDiff :: [String] -> EvalM IExpr
     buildChainPartialDiff names = do
-      -- Recursive arm: deriv.<n> a *' chainPartialDiff a dx.
-      -- Using chainPartialDiff (not partialDiff) recursively lets nested
-      -- mathfunc applications like f(g(x)) dispatch correctly: the inner
-      -- call hits the apply1 #g pattern.
+      -- Recursive arm: deriv.<n> a *' partialDiff a dx.
+      -- The recursive sub-call uses `partialDiff` (the typeclass method)
+      -- so that the argument's runtime CAS shape decides which Differentiable
+      -- instance handles it: this lets `partialDiff (sin (x^2)) x` decompose
+      -- into `cos (x^2) * partialDiff (x^2) x = cos (x^2) * 2 x` correctly,
+      -- because `partialDiff (x^2) x` dispatches to the Term instance.
+      -- Nested mathfunc applications still work because partialDiff for
+      -- Factor (apply1 _ _) routes through chainPartialDiff again.
       let mkClause n =
             ( InductivePat "apply1"
                  [ ValuePat (VarExpr n)
@@ -397,7 +401,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
                  ]
             , InfixExpr (Op "*'" 7 InfixL False)
                  (ApplyExpr (VarExpr ("deriv." ++ n)) [VarExpr "a"])
-                 (ApplyExpr (VarExpr "chainPartialDiff")
+                 (ApplyExpr (VarExpr "partialDiff")
                             [VarExpr "a", VarExpr "dx"])
             )
           fallbackClause =
