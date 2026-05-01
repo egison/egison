@@ -57,6 +57,7 @@ def gcdForMathValue (x: MathValue) (y: MathValue) : MathValue :=
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
       gcd' (i.abs a) (i.abs b) *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
+    | _ -> 1  -- fallback when neither is in term form (e.g., level-3/4 raw poly after tower fix)
 
 def gcd' (x: Integer) (y: Integer) : Integer :=
   match (x, y) as (integer, integer) with

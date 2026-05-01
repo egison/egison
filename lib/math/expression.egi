@@ -483,7 +483,8 @@ def containSymbol (x: MathValue) (mexpr: MathValue) : Bool :=
               | apply3 _ $a1 $a2 $a3 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3 || containSymbol x a4
               | _ -> False)
-            xs)
+            xs
+      | _ -> False)
 
 def containFunction1 (f : MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
@@ -496,7 +497,8 @@ def containFunction1 (f : MathValue -> MathValue) (mexpr: MathValue) : Bool :=
               | apply2 _ $a1 $a2 -> containFunction1 f a1 || containFunction1 f a2
               | apply3 _ $a1 $a2 $a3 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction1 f a1 || containFunction1 f a2 || containFunction1 f a3 || containFunction1 f a4
-              | _ -> False) xs)
+              | _ -> False) xs
+      | _ -> False)
 
 def containFunction2 (f : MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
@@ -510,7 +512,8 @@ def containFunction2 (f : MathValue -> MathValue -> MathValue) (mexpr: MathValue
               | apply3 _ $a1 $a2 $a3 -> containFunction2 f a1 || containFunction2 f a2 || containFunction2 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction2 f a1 || containFunction2 f a2 || containFunction2 f a3 || containFunction2 f a4
               | _ -> False)
-            xs)
+            xs
+      | _ -> False)
 
 def containFunction3 (f : MathValue -> MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
@@ -524,7 +527,8 @@ def containFunction3 (f : MathValue -> MathValue -> MathValue -> MathValue) (mex
               | apply3 _ $a1 $a2 $a3 -> containFunction3 f a1 || containFunction3 f a2 || containFunction3 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction3 f a1 || containFunction3 f a2 || containFunction3 f a3 || containFunction3 f a4
               | _ -> False)
-            xs)
+            xs
+      | _ -> False)
 
 def containFunction4 (f : MathValue -> MathValue -> MathValue -> MathValue -> MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
@@ -538,7 +542,8 @@ def containFunction4 (f : MathValue -> MathValue -> MathValue -> MathValue -> Ma
               | apply3 _ $a1 $a2 $a3 -> containFunction4 f a1 || containFunction4 f a2 || containFunction4 f a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containFunction4 f a1 || containFunction4 f a2 || containFunction4 f a3 || containFunction4 f a4
               | _ -> False)
-            xs)
+            xs
+      | _ -> False)
 
 --
 -- Substitute

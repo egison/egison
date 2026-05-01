@@ -589,15 +589,15 @@ casNormalizeFrac num denom =
          in if d' == 1
             then CASInteger n'
             else CASFrac (CASInteger n') (CASInteger d')
-       -- Poly / Integer: divide each coefficient by the integer
-       (CASPoly ts1, CASInteger d) ->
-         let g = casTermsGcdCoeff ts1 d
-             sign = if d < 0 then -1 else 1
-             d' = abs (d `div` g)
-             ts1' = map (\(CASTerm c m) -> CASTerm (divCoeffBy c g sign) m) ts1
-         in if d' == 1
-            then casNormalizePoly ts1'
-            else CASFrac (casNormalizePoly ts1') (CASInteger d')
+       -- Poly / Integer (constant denominator): per the type-promotion-tower
+       -- design (type-cas.md §実行時の型昇格タワー), constant denominators are
+       -- absorbed into each term's coefficient as a Frac. The result is
+       -- level 4 (Poly with Frac coefficients) instead of level 5 (Frac of
+       -- Poly), matching the canonical form for `Poly (Frac Integer) [..]`.
+       (CASPoly ts1, CASInteger d) | d /= 0 ->
+         let ts1' = map (\(CASTerm c m) ->
+                           CASTerm (casNormalizeFrac c (CASInteger d)) m) ts1
+         in casNormalizePoly ts1'
        -- Poly / Poly: try to reduce by monomial GCD
        (CASPoly ts1, CASPoly ts2) ->
          let (ts1', ts2') = simplifyPolyDiv ts1 ts2

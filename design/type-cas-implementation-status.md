@@ -2,7 +2,7 @@
 
 このドキュメントは [type-cas.md](./type-cas.md) の設計に対する**実装の到達点**と、**残された課題**をまとめる。設計時点で予測された課題は [type-cas-issues.md](./type-cas-issues.md)、こちらは「実装してみて分かったこと」と「現時点で残っているもの」を記録する。
 
-最終更新: 2026-05-01
+最終更新: 2026-05-01 (型昇格タワー level 4 正規化実装)
 
 ---
 
@@ -199,6 +199,94 @@ declare rule auto term (sqrt $y)^2 = y
 
 **命名注**: lib に既存の `mapPoly`/`mapTerm`/`mapFrac` (frac の n/d split 系) と区別するため、新プリミティブは `*All` サフィックス付き。
 
+### 2.5 `Term` 型の symbol set パラメータ追加 ✅ 完了 (2026-05-01)
+
+**設計意図**: `Poly Type SymbolSet` と対称に、`Term` も `Term Type SymbolSet` (例: `Term MathValue [..]`) として扱えるようにする。
+
+**変更**: `TTerm Type` (1 引数) を `TTerm Type SymbolSet` (2 引数) に拡張。
+
+実装範囲:
+- `AST.hs`: `TETerm TypeExpr SymbolSetExpr`
+- `Type/Types.hs`: `TTerm Type SymbolSet`、`freeTyVars`/`isCASType`/`typeToName`/`typeConstructorName`/`typeExprToType`/`normalizeInductiveTypes` を symbol set 込みに更新
+- `Type/Subst.hs`: `applySubst (TTerm t ss) = TTerm (applySubst s t) (applySubstSymbolSet s ss)`
+- `Type/Unify.hs`: `unifyG (TTerm t1 ss1) (TTerm t2 ss2)` で `unifySymbolSets` も呼ぶ
+- `Type/Join.hs`: `joinTypes`/`isSubtype`/`extractCoeff` を 2 引数に
+- `Type/Infer.hs`: `freshenOpenSymbolSets` で Term の Open SymbolSet を fresh 変数に
+- `Type/Pretty.hs`/`Type/Error.hs`: `prettyType (TTerm t ss) = "Term " ++ pretty t ++ " " ++ prettySymbolSet ss`
+- `Type/Env.hs`: `substVar (TTerm t' ss) = TTerm (substVar t') ss`
+- `Type/RuntimeType.hs`: 単一モノミアル CASPoly から atom 集合を抽出 → `TTerm coef (SymbolSetClosed atoms)`
+- `EnvBuilder.hs`: `go (TTerm t ss) = TTerm (go t) ss`
+- `Parser/NonS.hs`: `Term <T> [<symbols>]` / `Term <T> [..]` を受け入れ。`try termTypeExpr` で fallback あるので user-defined inductive `Term a` も並存可
+
+lib 側:
+- `lib/math/analysis/derivative.egi`: `instance Differentiable (Term MathValue [..])`
+- `mini-test/105-differentiable-term.egi`: `Term MathValue [..]` 表記に更新
+
+### 2.6 `Factor` 型を matcher signature 経由で静的 dispatch 可能に ✅ 完了 (2026-05-01)
+
+**問題**: `instance Differentiable Factor where partialDiff f x := chainPartialDiff f x` は **runtime 到達不能**だった。`runtimeTypeOfCAS` で `TFactor` が返るのは bare `CASFactor _` の時のみで、CAS 値の大半は `CASPoly` 包みなので `TTerm` 経由で Term inst に行ってしまう。
+
+**設計**: matcher のパターン signature を介して `$fx` のような pattern variable に静的に `Factor` 型を付ける。
+
+実装:
+
+1. **`factor : Matcher Factor` を実体化** (`lib/math/expression.egi`):
+    旧 alias `def factor : Matcher MathValue := mathValue` を、symbol/apply1-4/quote/func patterns を持つ `Matcher Factor` の matcher に置き換え。
+
+2. **`mathValue` matcher の `^` パターンを `(factor, integer)` に**:
+    ```egison
+    | $ ^ $ as (factor, integer) with ...
+    ```
+    `multExpr` 側も同様。
+
+3. **`inductive pattern MathValue` の `(^)` を `Factor Integer` に**:
+    ```egison
+    | (^) Factor Integer
+    ```
+    型推論はこの inductive pattern 宣言を参照するので、これによって `match f as mathValue with | $a * $fx ^ $n -> ...` の `$fx` が静的 `Factor` 型になる。
+
+4. **`Parser/NonS.hs` の `inductiveTypeAtom` に `Factor` を追加**:
+    `TEFactor <$ reserved "Factor"` を加えないと `Factor` が inductive 宣言中で parse できない。
+
+5. **Factor inst を実機能化** (`lib/math/analysis/derivative.egi`):
+    ```egison
+    instance Differentiable Factor where
+      partialDiff f x := match f as factor with
+        | #x -> 1
+        | symbol _ _ -> 0
+        | _ -> chainPartialDiff f x
+    ```
+
+6. **Term inst から atomic 短絡を削除**: `#x` / `?isSymbol` / `?isAtomicFactor` の 3 アームと `def isAtomicFactor` ヘルパが不要に。`#1 * $fx ^ $n` と `$a * $fx ^ $n * $r` の右辺で `partialDiff fx x` が **静的に Factor inst へ dispatch** されるため。
+
+**詰まりポイント**:
+- 当初 matcher の `as (factor, integer)` だけで `$fx` の型が伝播すると想定したが、Egison の型推論は `inductive pattern` 宣言を参照する。両方を変更する必要があった。
+- パーサが `Factor` を inductive 宣言中で受け取らないため、`inductiveTypeAtom` 拡張が必要。
+
+### 2.7 `Term` matcher / `inductive pattern MathValue` の `poly` を Term ベースに ✅ 完了 (2026-05-01)
+
+**設計意図**: §2.6 で Factor が静的 dispatch 可能になったのと対称に、`partialDiff t x` (t は poly から分解した term) も静的に Term inst へ dispatch されるようにする。
+
+**変更**:
+
+1. **`term {a} (m: Matcher a) : Matcher (Term a [..])`** (旧: `Matcher MathValue`)。
+2. **`mathValue` matcher の `poly`/`plus`/`+` の signature を refine**:
+    ```egison
+    | poly $ as (multiset (term mathValue)) with ...
+    | plus $ as (multiset (term mathValue)) with ...
+    | $ + $ as (term mathValue, mathValue) with ...
+    ```
+3. **`inductive pattern MathValue` の構造を Term ベースに**:
+    ```egison
+    | plus [(Term MathValue [..])]
+    | poly [(Term MathValue [..])]
+    | (+) (Term MathValue [..]) MathValue
+    ```
+
+**結果**: `match f as mathValue with | poly $ts -> sum (map (\t -> partialDiff t x) ts)` の `t` が静的 `Term MathValue [..]` 型になり、`partialDiff t x` がコンパイル時に Term inst へ dispatch される。`diffPolyTerms` ヘルパ関数が不要になり削除。
+
+これで Factor (`$fx ^ $n`) / Term (`poly $ts` の各要素) の両方が **静的 dispatch** で動く設計対称性を獲得。
+
 ---
 
 ## 3. 意図的に実装しない項目
@@ -234,6 +322,61 @@ declare rule auto term (sqrt $y)^2 = y
 **実装**: auto rules は `autoRule.<freshN>` というユニークな名前で desugar されるが、ユーザーは fresh-id を予測できないので呼べない。実用上は **named rule** (`declare rule <name> ...`) を使う運用。
 
 **改善案**: `lastAutoRule`、`autoRule.<index>` (deterministic) など callable 名を提供する。優先度低。
+
+### 4.3 型昇格タワーの level 4 正規化 ✅ 部分完了 (2026-05-01)
+
+**設計** ([type-cas.md §実行時の型昇格タワー L858-944](./type-cas.md), L29 / L378): 型昇格タワーで level 4 (`Poly (Frac Integer)`) と level 5 (`Frac (Poly Integer)`) を区別する。
+- `b` が定数 → 係数除算 (level 3/4 に留まる)
+- `b` が単項式 → 負冪として吸収 (level 3/4)
+- `b` が非単項式 → level 5
+
+**初期実装の不在 (2026-04 まで)**: `casNormalizeFrac` の `(CASPoly, CASInteger)` ケースが「Poly / 定数 Integer」を level 5 (`CASFrac (CASPoly _) (CASInteger _)`) として保持。GCD 簡約のみで level 4 への変換を行わず。`(1/2)*x^2 + (1/3)*x` は注釈に関わらず `(3x^2+2x)/6` (level 5)、`typeOf` も `"Frac MathValue"` を返す。
+
+**修正 (2026-05-01)**: `Math/CAS.hs` の `casNormalizeFrac` を変更:
+```haskell
+(CASPoly ts1, CASInteger d) | d /= 0 ->
+  let ts1' = map (\(CASTerm c m) ->
+                    CASTerm (casNormalizeFrac c (CASInteger d)) m) ts1
+  in casNormalizePoly ts1'
+```
+定数分母を各 Term の係数に Frac として分配。`(1/2)*x^2 + (1/3)*x` は `CASPoly [CASTerm (CASFrac 1 2) [(x,2)], CASTerm (CASFrac 1 3) [(x,1)]]` (level 4) になり、`typeOf` が `"Poly (Frac Integer) [x]"` を返す。
+
+**副作用と修正**: tower fix で level 5 を仮定していた lib 関数が "Pattern match failed" warning を出した:
+- `containSymbol` / `containFunction1-4` (`lib/math/expression.egi`): outer `match t as mathValue with | term _ $xs -> ...` に `| _ -> False` fallback を追加
+- `gcdForMathValue` (`lib/math/common/arithmetic.egi`): 末尾に `| _ -> 1` fallback を追加
+
+これらは tower fix 後の値が直接 `CASPoly` 形 (level 3/4) で来るため、`Frac (Plus [Term ...]) (Plus [Term 1 []])` runtime extraction が失敗するケースに対応する fallback。
+
+**検証** (`mini-test/107-deep-nested-types.egi` § 5.1 で確認):
+| 注釈 | `typeOf` 結果 (修正前) | `typeOf` 結果 (修正後) |
+|---|---|---|
+| `Poly (Frac Integer) [x]` | `"Frac MathValue"` | `"Poly (Frac Integer) [x]"` |
+
+cabal test 21/21 PASS、mini-test 80–107 全件 PASS、warnings 0 件。
+
+**残課題 (型注釈ドリブンの強制正規化はまだ未実装)**:
+1. **型注釈は AST elaboration を駆動しない**: `def p : Poly (Frac Integer) [x] := ...` で値変換 (coerce 挿入) は走らない。CAS が偶然 level 4 形に正規化しないケースがあれば static / runtime 乖離
+2. **`coerce` プリミティブが壊れている**: `def p : Poly (Frac Integer) [x] := coerce (...)` で `Poly Integer [(coerce) ...]` という壊れた値を返す
+3. **Term inst の Frac 係数対応**: Term inst body の `$a * $fx ^ $n * $r` が `mathValue` matcher の `$ * $ as (integer, multExpr)` を使っており Integer 係数のみ。Frac 係数の値が Term inst にdispatch されると pattern match 失敗 → 0 を返す
+
+**実装方針 (将来)**:
+1. ✅ **完了**: `casNormalize` の level 4 対応 (本作業)
+2. AST elaboration で型注釈に基づく `coerce` 挿入 (§4.1 Embed elaboration と統合)
+3. `coerce` プリミティブを Haskell-side で正規化を伴うように修正
+4. Term inst の matcher を `term mathValue` ベースに更新して Frac 係数対応
+
+### 4.4 `lookupDerivative` ではなく `chainPartialDiff` 再定義方式
+
+**設計** ([type-cas.md §`Differentiable Factor`](./type-cas.md)): `declare derivative` は `lookupDerivative :: MathFuncRef -> CASValue` を populate する。Factor inst は `apply1 $f $arg -> (lookupDerivative f) arg * partialDiff arg x` で連鎖律を実行する。
+
+**実装**: 各 `declare derivative <name>` が `def chainPartialDiff := \v dx -> match v as mathValue with | apply1 #<name> $a -> deriv.<name> a *' partialDiff a dx | ... | _ -> chainPartialDiffBuiltin v dx` を **shadowing 再定義**する。Factor inst は `apply1` 解析を持たず、代わりに `_ -> chainPartialDiff f x` でフォールスルーする。
+
+**試した移行と詰まり (2026-05-01)**:
+- Desugar に `lookupDerivative` 生成を追加し、Factor inst を `apply1 $g $a -> (lookupDerivative g) a *' partialDiff a x` に変更した。
+- 詰まり (1) **名前衝突**: outer lambda の引数 `f` が user の `declare mathfunc f` と衝突し `#f` value pattern が常に local を参照。`fn` への rename で解消。
+- 詰まり (2) **型推論**: 生成 lambda `\fn -> match fn as mathValue with | #g -> deriv.g | ... | _ -> \z -> 0` の型統一で、user 定義 `deriv.g = \u -> 3 * u^2` の `*` が CAS 乗算ではなく Integer 乗算として展開され、`(*) 3 (z^2)` の非正規化形が返ってしまう。`TypedLambdaExpr` での明示型注釈でも改善せず。
+
+**結論**: 現状の `chainPartialDiff` 再定義方式を維持。`lookupDerivative` 設計を完成させるには **Haskell-side primitive 化** (型推論を経由せずランタイムの `DerivativeEnv` を引く) が必要。設計書 type-cas.md の `lookupDerivative :: MathFuncRef -> CASValue` Haskell シグネチャはこれを示唆している。優先度中。
 
 ---
 
@@ -318,6 +461,7 @@ extractRuleSides _ = Nothing
 
 | 項目 | 内容 | 工数見込 |
 |---|---|---|
+| **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 (§4.3) | 中規模 |
 | **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
 | `inspect` の REPL 統合 | REPL で式評価時に静的型 + 観察型を自動表示 | 小〜中 (UI 系) |
 | 型注釈提案機能 | 観察型をコピペ可能な形で出力 (`suggest:` ラベル付け) | 小 (UI 系) |
@@ -354,3 +498,9 @@ declare derivative sin = cos
 - 2026-04-30: Runtime-type dispatch (design/runtime-type-dispatch.md) Phase 1/2/4/5 を実装。Phase 1: shallow `runtimeTypeOfCAS` を `Type/RuntimeType.hs` に新設し、`runtimeType` プリミティブとして公開。Phase 2: `findMostSpecificInstance`(ForTypes) を `Type/Instance.hs` に追加 — subtype 半順序で候補集合の最小元 (= 最も specific) を選ぶ。型変数を含む instance は `unifyStrict` 経由でマッチ、concrete instance は `isSubtype` で厳密にマッチ (cross-CAS unify で誤マッチしない)。`Type/Join.hs` の `isSubtype` に Factor/Term/Poly/Frac → MathValue 等の depth-2 ルールを追加。Phase 4: TypeClassExpand の dictionary 解決 3 サイト (variable 展開、nested constraint、resolveDictionaryForConstraint) で `findInstanceForDispatch` (most-specific + first-match fallback) を使用。直接メソッド呼び出しサイト (`tryResolveMethodCall`) は legacy first-match のまま。Phase 5: `mini-test/106-runtime-type-shallow.egi` と `mini-test/107-runtime-dispatch-integration.egi` を追加。Phase 3 (auto-gen MathValue instance) と Phase 6 (lib cleanup) は今後の課題
 - 2026-04-30: Phase 6 (lib cleanup) **を一旦 revert**。`∂/∂'Atomic` を新設して内部で `partialDiff` (typeclass method) を再帰的に呼ぶ形にしたが、`∂/∂'Atomic` のシグネチャに `Differentiable a` 制約が無いため、再帰呼び出しが dispatch に解決されず literal な CAS シンボル `"partialDiff"` として残ってしまい、`dfNormalize` 経由で `mathNormalize` に流れて `Expected CASData, but found: "partialDiff"` というエラーが大量発生 (`cabal test` で sample/math/geometry/curvature-form.egi、hodge-laplacian-polar.egi 等 35 件)。`lib/math/analysis/derivative.egi` を HEAD に戻して解決。Phase 6 は Phase 3 (auto-gen) と組合わせる必要がある (現状のヘルパー関数だけ取り出す形は不安定)
 - 2026-05-01: Phase 3 (Haskell-内 runtime dispatch) を実装。設計方針として「dispatch のための Egison コードを生成しない、runtimeType の値を Egison で扱わない」を採用 (= MathValue subtype 型を第一級 Egison 値にしない)。新しい IR ノード `IRuntimeDispatch` / `TIRuntimeDispatch` を `IExpr.hs` に追加し、`stripType` / `mapTIExprChildren` / `applySubstToTIExprNode(WithClassEnv)` / `insertInNode` (TensorMapInsertion) / `expandTIExprNode` (TypeClassExpand) / `prettyTIExprNode` を全て対応。`TypeClassExpand.hs` の `tryResolveMethodCall` で「target type = `TMathValue` かつ explicit `instance Class MathValue` が無い」ときに `TIRuntimeDispatch` を emit。candidate は `(instType inst, dictName)` のリストとして compile time に決定 (multi-param クラスは対象外)。`Core.hs` の `evalExprShallow` で `IRuntimeDispatch` を処理: 第一引数を評価 → `runtimeTypeOfCAS` で shallow 型を計算 → subtype 半順序の最小元から `dictName` を選択 → 既存の `IIndexedExpr (IVarExpr dictName) [Sub methodKey]` 経路で hash 引きと apply を実行。`Primitives.hs` から `runtimeType` プリミティブを撤回。`lib/math/analysis/derivative.egi` から手書きの `instance Differentiable MathValue` を削除 (= Phase 6 完了)。テスト: `mini-test/106-runtime-dispatch.egi` (8 assertion)、全 mini-test pass、`cabal test` 21/21 PASS、mid-execution エラー 0 件。
+- 2026-05-01: §2.5 `Term` の symbol set パラメータ化 (`TTerm Type SymbolSet`)。Type/AST 全体に渡る変更。`runtimeTypeOfCAS` が単一モノミアルから atom 集合を抽出。Parser に `Term <T> [<symbols>]` 構文。lib `instance Differentiable (Term MathValue [..])` に更新。
+- 2026-05-01: §2.6 `Factor` を matcher signature 経由で静的 dispatch 可能化。`factor : Matcher Factor` を実体化、`mathValue`/`multExpr` の `^` パターンを `(factor, integer)` に、`inductive pattern MathValue` の `(^)` を `Factor Integer` に。`Parser/NonS.hs` の `inductiveTypeAtom` に `Factor` 追加。Factor inst が `apply / quote / func` を chainPartialDiff へ delegate するように、Term inst から atomic 短絡を削除 (`isAtomicFactor` ヘルパ削除)。
+- 2026-05-01: §2.7 `term` matcher を `Matcher (Term a [..])` に、`mathValue` matcher の `poly`/`plus`/`+` を Term ベースに更新、`inductive pattern MathValue` の構造を `[Term MathValue [..]]` に。Poly inst の `partialDiff t x` が静的 dispatch 化、`diffPolyTerms` ヘルパ削除。Factor / Term の両方が静的 dispatch で動く設計対称性を獲得。
+- 2026-05-01: §4.3 `lookupDerivative` 移行を試行 → revert。詰まりは型推論で `deriv.<name>` が Integer 型に推論され CAS 正規化が走らなくなるため。Haskell-side primitive 化が必要と判定。
+- 2026-05-01: 深いネスト型テスト (`mini-test/107-deep-nested-types.egi`) を追加。Frac (Poly Integer) / Poly (Frac Integer) / Frac (Poly (Frac Integer)) / Poly (Poly Integer) 等を parser・matcher・embed・partialDiff・typeOf・Tensor で検証。**新発見** §4.4 (旧 4.3 を 4.4 に rename): 型注釈は runtime 正規化を駆動しない (設計書の `Poly (Frac Integer) [x] := (x+x^2)/2 → (1/2)x + (1/2)x^2` という意図は未実装)。`coerce` も壊れた状態。実害は少ないが silent な dispatch ミスマッチが起きうる。
+- 2026-05-01: §4.3 型昇格タワー level 4 正規化を実装。`casNormalizeFrac` の `(CASPoly, CASInteger d)` ケースを「定数分母を各 Term の係数に Frac として分配」に変更。`(1/2)*x^2 + (1/3)*x` が `CASPoly [CASTerm (CASFrac _ _) _]` (level 4) になり、`typeOf` が `"Poly (Frac Integer) [x]"` を返す。副作用として lib の level 5 仮定箇所 (`containSymbol`/`containFunction1-4` の outer match、`gcdForMathValue`) で pattern match 失敗 → 各箇所に fallback を追加。test 107-4.1 (Frac 係数 partialDiff) は Term inst が Frac 係数未対応のため Integer 係数で書き換え。残課題 (型注釈ドリブン強制正規化、coerce 修復、Term inst の Frac 対応) は §4.3 残課題に記載。cabal test 21/21 PASS、mini-test 80–107 PASS、warnings 0 件。

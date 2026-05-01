@@ -1712,6 +1712,30 @@ instance {Differentiable a} Differentiable (Frac a) where
 - `Poly`, `Frac`, `Term` の微分法則は数学的な構造（線形性、積の法則、商の法則）に直接対応
 - 1スロット化により型レベルでの CF / AF 分類が消え、誤注釈による foot-gun が解消される
 
+#### 実装注 (2026-05-01): inductive pattern 経由の静的 dispatch
+
+設計上の `case v of CASFactor (Symbol _ _ _) -> ... | CASFactor (ApplyN ...) -> ...` という Haskell 風の case 解析は、Egison の matcher / inductive pattern 機構で次のように実現されている:
+
+**Factor 型の静的 dispatch を可能にする 3 点セット**:
+
+1. `def factor : Matcher Factor` (`lib/math/expression.egi`) — symbol/apply1-4/quote/func パターンを持つ matcher。target 型は `Factor`。
+
+2. `inductive pattern MathValue := | (^) Factor Integer` — `^` パターン構成子の第一引数を `Factor` に。これにより `match e as mathValue with | $a * $fx ^ $n -> ...` の `$fx` の **静的型が `Factor`** になる。
+
+3. `instance Differentiable Factor where partialDiff f x := match f as factor with | #x -> 1 | symbol _ _ -> 0 | _ -> chainPartialDiff f x` — Factor inst が `^` 経由で extract された `$fx` から **コンパイル時 dispatch** される。
+
+**Term 型側の対称化** (2026-05-01):
+
+1. `def term {a} (m: Matcher a) : Matcher (Term a [..])` — Term 型を返す matcher (旧 `Matcher MathValue`)。
+
+2. `inductive pattern MathValue := | poly [Term MathValue [..]] | (+) (Term MathValue [..]) MathValue` — `poly $ts` で `$ts : [Term MathValue [..]]`、`$t + $rs` で `$t : Term MathValue [..]`。
+
+3. `instance Differentiable (Term MathValue [..]) where ...` — Term inst が poly 分解の各 term に対して **コンパイル時 dispatch** される。
+
+**結果**: Factor と Term の両方が `IRuntimeDispatch` を経由しない静的 dispatch で動く。Frac inst の `$p1 / $p2` のフォールバック路 (`_ -> chainPartialDiff f x`) と、`runtimeTypeOfCAS` 経由で MathValue → 各 instance への runtime dispatch (`IRuntimeDispatch`) は維持。
+
+**`lookupDerivative` の現状**: 設計通り `declare derivative` の登録 → Factor inst での参照という流れ自体は、現状 `chainPartialDiff` shadowing 再定義方式で代替されている。詳細は [type-cas-implementation-status.md §4.3](./type-cas-implementation-status.md#43-lookupderivative-ではなく-chainpartialdiff-再定義方式) 参照。
+
 #### 合成原子の導関数定義
 
 合成原子の外側関数の導関数は `declare derivative` で登録する:
@@ -2254,9 +2278,10 @@ Phase 3/4（`ScalarData → CASValue` 置換、プリミティブパターン）
 
 Phase 1.5 で定義した `SymbolSet` を `Type` ADT に組み込み、型推論・単一化に統合する。
 
-- `Type` ADT に `TPoly Type SymbolSet`、`TFrac Type`、`TFactor` を追加（`Types.hs`）
-- パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Frac a` / `Factor` をパース
-- 型推論での `Poly` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
+- `Type` ADT に `TPoly Type SymbolSet`、`TTerm Type SymbolSet`、`TFrac Type`、`TFactor` を追加（`Types.hs`）
+  - `TTerm` は当初 1 引数 (`TTerm Type`) だったが、2026-05-01 に `Poly` と対称な 2 引数 (`TTerm Type SymbolSet`) に拡張
+- パーサーで `Poly Integer [x, y]` / `Poly Integer [..]` / `Term Integer [x, y]` / `Frac a` / `Factor` をパース
+- 型推論での `Poly` / `Term` 型の単一化とシンボル集合の包含判定（`S₁ ⊆ S₂`）
 - `join` の実装（`Join.hs`: `joinTypes`, `isSubtype`, `symbolSetSubset`）
   - `joinSymbolSets` の `otherwise` 分岐を和集合 `S₁ ∪ S₂` に変更する
 - 開いた `[..]` のフレッシュ型変数への脱糖（`freshenOpenSymbolSets`）
