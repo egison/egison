@@ -2,7 +2,7 @@
 
 このドキュメントは [type-cas.md](./type-cas.md) の設計に対する**実装の到達点**と、**残された課題**をまとめる。設計時点で予測された課題は [type-cas-issues.md](./type-cas-issues.md)、こちらは「実装してみて分かったこと」と「現時点で残っているもの」を記録する。
 
-最終更新: 2026-05-01 (型昇格タワー level 4 正規化実装)
+最終更新: 2026-05-06 (Term 第一引数を MathValue に widening)
 
 ---
 
@@ -357,13 +357,18 @@ cabal test 21/21 PASS、mini-test 80–107 全件 PASS、warnings 0 件。
 **残課題 (型注釈ドリブンの強制正規化はまだ未実装)**:
 1. **型注釈は AST elaboration を駆動しない**: `def p : Poly (Frac Integer) [x] := ...` で値変換 (coerce 挿入) は走らない。CAS が偶然 level 4 形に正規化しないケースがあれば static / runtime 乖離
 2. **`coerce` プリミティブが壊れている**: `def p : Poly (Frac Integer) [x] := coerce (...)` で `Poly Integer [(coerce) ...]` という壊れた値を返す
-3. **Term inst の Frac 係数対応**: Term inst body の `$a * $fx ^ $n * $r` が `mathValue` matcher の `$ * $ as (integer, multExpr)` を使っており Integer 係数のみ。Frac 係数の値が Term inst にdispatch されると pattern match 失敗 → 0 を返す
+
+**当初挙げていたが解決済み (2026-05-06)**:
+- ~~Term inst の Frac 係数対応~~ — 2 段階で解決。
+  - **まず lenient PDP extraction で runtime レベルでは動作確認**: `getCASNumerator` / `getCASenominator` / `casToTerms` が level 4 値 (`CASPoly [CASTerm (CASFrac _ _) _]`) もそのまま `Frac (Plus [Term ...]) (Plus [Term 1 []])` にマッチさせる。
+  - **次に型レベルでも本質的に対応**: `inductive pattern MathValue` の `term Integer [...]` を `term MathValue [...]` に、`mult Integer MathValue` を `mult MathValue MathValue` に変更。`mathValue` matcher の `term $ $ as (integer, ...)` / `mult $ $` / `$ * $` も `(mathValue, ...)` に。これで `term $c _` パターンで `$c : MathValue` 型になり、Frac 係数が型レベルで自然に扱える。
+  - 検証: `mini-test/107-deep-nested-types.egi` § 4.1, § 4.1b で確認。`partialDiff ((1/2)*x^2 + (1/3)*x) x = (3x+1)/3`、`term $c _` extraction で `$c = 1/2` を取得。
 
 **実装方針 (将来)**:
-1. ✅ **完了**: `casNormalize` の level 4 対応 (本作業)
-2. AST elaboration で型注釈に基づく `coerce` 挿入 (§4.1 Embed elaboration と統合)
-3. `coerce` プリミティブを Haskell-side で正規化を伴うように修正
-4. Term inst の matcher を `term mathValue` ベースに更新して Frac 係数対応
+1. ✅ **完了**: `casNormalize` の level 4 対応 (2026-05-01)
+2. ✅ **完了**: Term inst の Frac 係数対応 (2026-05-06、Term 第一引数を MathValue に widening)
+3. AST elaboration で型注釈に基づく `coerce` 挿入 (§4.1 Embed elaboration と統合)
+4. `coerce` プリミティブを Haskell-side で正規化を伴うように修正
 
 ### 4.4 `lookupDerivative` ではなく `chainPartialDiff` 再定義方式
 
@@ -504,3 +509,9 @@ declare derivative sin = cos
 - 2026-05-01: §4.3 `lookupDerivative` 移行を試行 → revert。詰まりは型推論で `deriv.<name>` が Integer 型に推論され CAS 正規化が走らなくなるため。Haskell-side primitive 化が必要と判定。
 - 2026-05-01: 深いネスト型テスト (`mini-test/107-deep-nested-types.egi`) を追加。Frac (Poly Integer) / Poly (Frac Integer) / Frac (Poly (Frac Integer)) / Poly (Poly Integer) 等を parser・matcher・embed・partialDiff・typeOf・Tensor で検証。**新発見** §4.4 (旧 4.3 を 4.4 に rename): 型注釈は runtime 正規化を駆動しない (設計書の `Poly (Frac Integer) [x] := (x+x^2)/2 → (1/2)x + (1/2)x^2` という意図は未実装)。`coerce` も壊れた状態。実害は少ないが silent な dispatch ミスマッチが起きうる。
 - 2026-05-01: §4.3 型昇格タワー level 4 正規化を実装。`casNormalizeFrac` の `(CASPoly, CASInteger d)` ケースを「定数分母を各 Term の係数に Frac として分配」に変更。`(1/2)*x^2 + (1/3)*x` が `CASPoly [CASTerm (CASFrac _ _) _]` (level 4) になり、`typeOf` が `"Poly (Frac Integer) [x]"` を返す。副作用として lib の level 5 仮定箇所 (`containSymbol`/`containFunction1-4` の outer match、`gcdForMathValue`) で pattern match 失敗 → 各箇所に fallback を追加。test 107-4.1 (Frac 係数 partialDiff) は Term inst が Frac 係数未対応のため Integer 係数で書き換え。残課題 (型注釈ドリブン強制正規化、coerce 修復、Term inst の Frac 対応) は §4.3 残課題に記載。cabal test 21/21 PASS、mini-test 80–107 PASS、warnings 0 件。
+- 2026-05-06: §4.3 残課題 3 (Term inst の Frac 係数対応) は **実は問題なし** と検証。`getCASNumerator` / `getCASenominator` / `casToTerms` の lenient な PDP extraction (`Core.hs`) により、level 4 値 (`CASPoly [CASTerm (CASFrac _ _) _]`) もそのまま runtime 抽出 `Frac (Plus [Term ...]) (Plus [Term 1 []])` にマッチする。`(1/2)*x^2 + (1/3)*x` の `partialDiff` を `Poly (Frac Integer) [x]` 注釈で実行して `(3x+1)/3` を取得。test 107-4.1 を Integer 係数版から Frac 係数版に戻して動作確認。残課題は (1) AST elaboration / (2) `coerce` 修復 の 2 件に縮小。
+- 2026-05-06: Term の第一引数 (係数型) を Integer → MathValue に widening (本質的解決)。`inductive pattern MathValue` の `term Integer [...]` → `term MathValue [...]`、`mult Integer MathValue` → `mult MathValue MathValue`。`mathValue` matcher の `term $ $ as (integer, ...)` / `mult $ $` / `$ * $` を `(mathValue, ...)` に widening。これで `term $c _` パターンが `$c : MathValue` を bind し、Frac 係数が型レベルで自然に扱える (lenient PDP extraction だけでなく型推論も整合)。test 107-4.1b (`match (1/2)*x as poly (frac integer) with | poly [term $c _] -> c` で `1/2` を取得) を追加。cabal test 21/21 PASS、mini-test 63-107 全件 PASS。
+- 2026-05-06: Term widening の副次対応 — silent assertion failures を 2 件発見・修正:
+  - `gcdForMathValue` (`lib/math/common/arithmetic.egi`): `i.abs a` が Integer を要求していたところに Frac 係数が来て失敗。`isInteger a && isInteger b` チェックを追加し、非 Integer 係数の場合は GCD = 1 を返す fallback。
+  - `casNumerator` / `casDenominator` (`hs-src/Language/Egison/Math/CAS.hs`): tower fix 後の level 4 値 (`CASPoly [CASTerm (CASFrac _ _) _]`) で denominator が常に 1 を返してしまい、`sqrt` 等の `numerator * denominator` 経由の正規化が働かなくなっていた。各 Term の Frac 係数の denominator の LCM を計算して返すように拡張。`(1/2)*x^2 + (1/3)*x` の denominator は 6 (= LCM(2,3)) 等。
+  - これで `test/lib/math/algebra.egi` "q-f' - case 3" と `sample/math/number/17th-root-of-unity.egi` の `sqrt` 引数の正規形が tower fix 前と一致 (`sqrt(-10 - 2*sqrt(5))/4` 形)。warnings 完全に 0 件。

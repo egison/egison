@@ -9,8 +9,8 @@ inductive pattern MathValue :=
   | (/) MathValue MathValue
   | plus [(Term MathValue [..])]
   | poly [(Term MathValue [..])]
-  | term Integer [(MathValue, Integer)]
-  | mult Integer MathValue
+  | term MathValue [(MathValue, Integer)]
+  | mult MathValue MathValue
   | (+) (Term MathValue [..]) MathValue
   | (*) MathValue MathValue
   | (^) Factor Integer
@@ -65,7 +65,11 @@ def mathValue : Matcher MathValue :=
             matchAll ts as multiset something with
               | $t :: $tss -> (t, sum' tss)
         | _ -> []
-    | term $ $ as (integer, assocMultiset mathValue) with
+    | term $ $ as (mathValue, assocMultiset mathValue) with
+        -- Coefficient is `mathValue` (not `integer`) so that level-4 forms
+        -- with Frac coefficients (`CASTerm (CASFrac _ _) _`) are typed
+        -- correctly. Runtime PDP `Term $n $xs` extracts whatever coefficient
+        -- the CASTerm holds (Integer or Frac).
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, xs)]
         | _ -> []
@@ -78,11 +82,13 @@ def mathValue : Matcher MathValue :=
             match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
               | _ -> []
-    | mult $ $ as (integer, multExpr) with
+    | mult $ $ as (mathValue, multExpr) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []
-    | $ * $ as (integer, multExpr) with
+    | $ * $ as (mathValue, multExpr) with
+        -- Leading coefficient widened from `integer` to `mathValue` to allow
+        -- Frac coefficients in level-4 polynomial decomposition.
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []

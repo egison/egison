@@ -467,15 +467,36 @@ casPower x n
   | n > 0     = casMult x (casPower x (n - 1))
   | otherwise = casDivide (CASInteger 1) (casPower x (-n))  -- Negative power
 
--- | Get the numerator of a CASValue
+-- | Get the numerator of a CASValue.
+-- For tower-fixed level 4 polynomials (Poly with Frac coefficients),
+-- compute the LCM of coefficient denominators and return the value
+-- multiplied by it (clearing the Fracs from coefficients).
 casNumerator :: CASValue -> CASValue
 casNumerator (CASFrac num _) = num
-casNumerator x              = x  -- Non-Frac values are their own numerator
+casNumerator x@(CASPoly ts) =
+  let lcmD = polyDenominatorLCM ts
+  in if lcmD == 1
+     then x
+     else casMult x (CASInteger lcmD)
+casNumerator x              = x
 
--- | Get the denominator of a CASValue
+-- | Get the denominator of a CASValue.
+-- For tower-fixed level 4 polynomials, the denominator is the LCM of
+-- the Frac coefficients' denominators.
 casDenominator :: CASValue -> CASValue
 casDenominator (CASFrac _ denom) = denom
-casDenominator _                = CASInteger 1  -- Non-Frac values have denominator 1
+casDenominator (CASPoly ts) = CASInteger (polyDenominatorLCM ts)
+casDenominator _                = CASInteger 1
+
+-- | Compute the LCM of all denominators in a polynomial's Frac coefficients.
+-- Returns 1 if there are no Frac coefficients.
+polyDenominatorLCM :: [CASTerm] -> Integer
+polyDenominatorLCM ts =
+  let denoms = concatMap termDenoms ts
+  in if null denoms then 1 else foldl1 lcm denoms
+  where
+    termDenoms (CASTerm (CASFrac _ (CASInteger d)) _) = [abs d]
+    termDenoms _                                       = []
 
 --------------------------------------------------------------------------------
 -- Normalization
