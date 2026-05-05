@@ -90,7 +90,7 @@ module Language.Egison.Math.CAS
     , casSingleTermM
     ) where
 
-import           Data.List (sortBy, groupBy)
+import           Data.List (sortBy, groupBy, intercalate)
 import           Data.Ord (comparing)
 import           Data.Function (on)
 
@@ -169,13 +169,32 @@ prettySymbolExpr (Symbol _ s js)               = s ++ concatMap showIndex js
     showIndex (SupSub i) = "~_" ++ prettyCAS' i
     showIndex (DF _ _)   = ""
     showIndex (User i)   = "|" ++ prettyCAS' i
-prettySymbolExpr (Apply1 fn a1)                = unwords [prettyCAS' fn, prettyCAS' a1]
-prettySymbolExpr (Apply2 fn a1 a2)             = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2]
-prettySymbolExpr (Apply3 fn a1 a2 a3)          = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2, prettyCAS' a3]
-prettySymbolExpr (Apply4 fn a1 a2 a3 a4)       = unwords [prettyCAS' fn, prettyCAS' a1, prettyCAS' a2, prettyCAS' a3, prettyCAS' a4]
+prettySymbolExpr (Apply1 fn a1)                = unwords [prettyApplyFn fn, prettyApplyArg a1]
+prettySymbolExpr (Apply2 fn a1 a2)             = unwords [prettyApplyFn fn, prettyApplyArg a1, prettyApplyArg a2]
+prettySymbolExpr (Apply3 fn a1 a2 a3)          = unwords [prettyApplyFn fn, prettyApplyArg a1, prettyApplyArg a2, prettyApplyArg a3]
+prettySymbolExpr (Apply4 fn a1 a2 a3 a4)       = unwords [prettyApplyFn fn, prettyApplyArg a1, prettyApplyArg a2, prettyApplyArg a3, prettyApplyArg a4]
 prettySymbolExpr (Quote mExprs)                = "`" ++ prettyCAS' mExprs
 prettySymbolExpr (QuoteFunction whnf)          = "'" ++ maybe "<function>" id (prettyFunctionName whnf)
-prettySymbolExpr (FunctionData name args)      = unwords (prettyCAS name : map prettyCAS' args)
+prettySymbolExpr (FunctionData name args)      = unwords (prettyApplyFn name : map prettyApplyArg args)
+
+-- | Pretty print the function slot of an Apply1-4 / FunctionData. The function
+-- reference is often stored as a CASPoly wrapper around a single CASFactor
+-- (e.g. `'cos` is `CASPoly [CASTerm 1 [(QuoteFunction cos, 1)]]`); print such
+-- wrappers transparently as the underlying SymbolExpr to avoid a spurious
+-- `('cos) (θ)` rendering.
+prettyApplyFn :: CASValue -> String
+prettyApplyFn (CASFactor sym) = prettySymbolExpr sym
+prettyApplyFn (CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]) = prettySymbolExpr sym
+prettyApplyFn v = prettyCAS' v
+
+-- | Pretty print an argument to an Apply or FunctionData. Single-symbol
+-- arguments (lifted to CASPoly with coefficient 1) print without parens
+-- (e.g. `'cos θ` instead of `'cos (θ)`); composite arguments fall back to
+-- the parenthesizing `prettyCAS'`.
+prettyApplyArg :: CASValue -> String
+prettyApplyArg (CASFactor sym) = prettySymbolExpr sym
+prettyApplyArg (CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]) = prettySymbolExpr sym
+prettyApplyArg v = prettyCAS' v
 
 -- | Pretty print a CASValue (basic version for SymbolExpr Show instance)
 prettyCAS :: CASValue -> String
@@ -193,9 +212,28 @@ prettyCAS (CASPoly terms) = prettyTerms terms
     prettyTerm (CASTerm (CASInteger 1) mono) = prettyMono mono
     prettyTerm (CASTerm (CASInteger (-1)) mono) = "- " ++ prettyMono mono
     prettyTerm (CASTerm coeff mono) = prettyCAS coeff ++ " * " ++ prettyMono mono
-    prettyMono mono = unwords (map prettyPow mono)
+    -- For multi-factor monomials, use ` * ` between factors when any is a
+    -- function-application form (Apply1-4 / FunctionData), since juxtaposition
+    -- would be ambiguous with the function-call syntax `f x`. Otherwise keep
+    -- the conventional `x y` juxtaposition for plain symbols. A single factor
+    -- needs no separator nor wrapping.
+    prettyMono [single] = prettyPow single
+    prettyMono mono
+      | any (isApplyFactor . fst) mono = intercalate " * " (map prettyPow' mono)
+      | otherwise                      = unwords (map prettyPow mono)
+    -- prettyPow' wraps Apply factors in parens for clarity in the explicit-`*`
+    -- form (e.g. `('cos θ) * r`).
+    prettyPow' (sym, 1) | isApplyFactor sym = "(" ++ prettySymbolExpr sym ++ ")"
+    prettyPow' p = prettyPow p
     prettyPow (sym, 1) = prettySymbolExpr sym
     prettyPow (sym, n) = prettyCAS' (CASFactor sym) ++ "^" ++ show n
+    isApplyFactor :: SymbolExpr -> Bool
+    isApplyFactor (Apply1 {})       = True
+    isApplyFactor (Apply2 {})       = True
+    isApplyFactor (Apply3 {})       = True
+    isApplyFactor (Apply4 {})       = True
+    isApplyFactor (FunctionData {}) = True
+    isApplyFactor _                 = False
     isNegative (CASInteger n) = n < 0
     isNegative _ = False
     negateCAST (CASTerm (CASInteger n) m) = CASTerm (CASInteger (-n)) m
