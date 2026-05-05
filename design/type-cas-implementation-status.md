@@ -2,7 +2,7 @@
 
 このドキュメントは [type-cas.md](./type-cas.md) の設計に対する**実装の到達点**と、**残された課題**をまとめる。設計時点で予測された課題は [type-cas-issues.md](./type-cas-issues.md)、こちらは「実装してみて分かったこと」と「現時点で残っているもの」を記録する。
 
-最終更新: 2026-05-06 (Term 第一引数を MathValue に widening)
+最終更新: 2026-05-06 (型昇格タワー level 3/4 monomial 分母吸収)
 
 ---
 
@@ -515,3 +515,9 @@ declare derivative sin = cos
   - `gcdForMathValue` (`lib/math/common/arithmetic.egi`): `i.abs a` が Integer を要求していたところに Frac 係数が来て失敗。`isInteger a && isInteger b` チェックを追加し、非 Integer 係数の場合は GCD = 1 を返す fallback。
   - `casNumerator` / `casDenominator` (`hs-src/Language/Egison/Math/CAS.hs`): tower fix 後の level 4 値 (`CASPoly [CASTerm (CASFrac _ _) _]`) で denominator が常に 1 を返してしまい、`sqrt` 等の `numerator * denominator` 経由の正規化が働かなくなっていた。各 Term の Frac 係数の denominator の LCM を計算して返すように拡張。`(1/2)*x^2 + (1/3)*x` の denominator は 6 (= LCM(2,3)) 等。
   - これで `test/lib/math/algebra.egi` "q-f' - case 3" と `sample/math/number/17th-root-of-unity.egi` の `sqrt` 引数の正規形が tower fix 前と一致 (`sqrt(-10 - 2*sqrt(5))/4` 形)。warnings 完全に 0 件。
+- 2026-05-06: 型昇格タワー level 3/4 の **monomial 分母吸収** (Laurent polynomial 化) を実装。設計書 ([type-cas.md L920-934](./type-cas.md)) の「`b` が単項式 → `m` の負冪として吸収、level 3/4 に留まる」を満たす。`casNormalizeFrac` の `(num, CASPoly [CASTerm denomCoef denomMono])` ケース (denomMono が non-empty) を新規追加: numerator を CASPoly に lift し、各 Term の monomial から denomMono を引き算 (負冪許容)、係数を denomCoef で割る。実装ヘルパ `divTermByMonomial` / `subtractMonomial` を追加。例:
+  - `1 / a^2` → `a^-2` (旧 Frac → 新 Laurent)
+  - `(f|1|1 r^2 + f|1 r + f|2|2) / r^2` → `f|1|1 + f|1 r^-1 + f|2|2 r^-2` (polar Laplacian の正規形)
+  - `riemann-curvature-tensor-of-S2.egi` の inverse metric `g~i~j = [| [r^-2, 0], [0, sin θ^-2 r^-2] |]` 形に
+  - sample test (S2/T2) の expected を `1/r^2` から `r^(-2)` に書き換え。`a^(-2)` (source) も Laurent form として評価される
+  - cabal test 21/21 PASS、mini-test 全件 PASS、warnings 0 件

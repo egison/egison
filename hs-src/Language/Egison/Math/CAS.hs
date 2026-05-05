@@ -619,7 +619,23 @@ casNormalizeFrac num denom =
          let ts1' = map (\(CASTerm c m) ->
                            CASTerm (casNormalizeFrac c (CASInteger d)) m) ts1
          in casNormalizePoly ts1'
-       -- Poly / Poly: try to reduce by monomial GCD
+       -- Any / single-term-Poly with monomial denominator: per the
+       -- type-promotion-tower design, monomial denominators are absorbed
+       -- as negative exponents (Laurent polynomial form, level 3/4) rather
+       -- than left as level 5 Frac. The numerator is normalized to Poly
+       -- form (CASInteger n → [CASTerm n []], CASFactor sym → [CASTerm 1
+       -- [(sym, 1)]]) and each term's exponents are decremented by the
+       -- denominator's monomial.
+       (numV, CASPoly [CASTerm denomCoef denomMono]) | not (null denomMono) ->
+         let numTerms = case numV of
+               CASPoly ts          -> ts
+               CASInteger n        -> [CASTerm (CASInteger n) []]
+               CASFactor sym       -> [CASTerm (CASInteger 1) [(sym, 1)]]
+               _                   -> [CASTerm numV []]
+             ts' = map (divTermByMonomial denomCoef denomMono) numTerms
+         in casNormalizePoly ts'
+       -- Poly / Poly (non-monomial denominator): try to reduce by monomial GCD,
+       -- otherwise keep as level 5 Frac.
        (CASPoly ts1, CASPoly ts2) ->
          let (ts1', ts2') = simplifyPolyDiv ts1 ts2
          in case (ts1', ts2') of
@@ -652,6 +668,25 @@ simplifyPolyDiv ts1 [] = (ts1, [])
 simplifyPolyDiv ts1 ts2 =
   let gcdTerm = casTermsGcd (ts1 ++ ts2)
   in (map (`divideTermBy` gcdTerm) ts1, map (`divideTermBy` gcdTerm) ts2)
+
+-- | Divide a Term by a monomial denominator (single-term Poly's coef and mono).
+-- Used for Laurent absorption: `(coef * mono) / (denomCoef * denomMono)` becomes
+-- `(coef / denomCoef) * (mono - denomMono)` where exponents are subtracted.
+divTermByMonomial :: CASValue -> Monomial -> CASTerm -> CASTerm
+divTermByMonomial denomCoef denomMono (CASTerm c m) =
+  CASTerm (casNormalizeFrac c denomCoef) (subtractMonomial m denomMono)
+
+-- | Subtract one monomial from another (decrement exponents of shared symbols,
+-- introduce negative exponents for symbols only in the divisor). Zero-exponent
+-- entries are left in; `normalizeTermMonomial` will filter them out later.
+subtractMonomial :: Monomial -> Monomial -> Monomial
+subtractMonomial nums denoms = foldr subOne nums denoms
+  where
+    subOne (sym, denomExp) acc =
+      case lookup sym acc of
+        Just numExp ->
+          (sym, numExp - denomExp) : filter ((/= sym) . fst) acc
+        Nothing -> (sym, -denomExp) : acc
 
 --------------------------------------------------------------------------------
 -- GCD Operations

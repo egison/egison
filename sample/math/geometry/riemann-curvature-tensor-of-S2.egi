@@ -19,7 +19,7 @@ assertEqual "Metric tensor"
   [| [| r^2, 0 |], [| 0, r^2 * (sin θ)^2 |] |]_#_#
 assertEqual "Metric tensor"
   g~#~#
-  [| [| 1 / r^2, 0 |], [| 0, 1 / (r^2 * (sin θ)^2) |] |]~#~#
+  [| [| r^(-2), 0 |], [| 0, r^(-2) * (sin θ)^(-2) |] |]~#~#
 
 -- Christoffel symbols
 def Γ_i[_j_k] : Tensor MathValue := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
@@ -68,4 +68,4 @@ def scalarCurvature : MathValue := withSymbols [i, j]
 
 assertEqual "scalar curvature"
   scalarCurvature
-  (2 / r^2)
+  (2 * r^(-2))

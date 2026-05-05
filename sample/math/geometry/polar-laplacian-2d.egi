@@ -11,8 +11,12 @@ def u := function (x, y)
 
 def uR : MathValue := ∂/∂ u r
 
-assert "∂u/∂r"
-  (show uR = "u|1 (r * 'cos θ) (r * 'sin θ) * 'cos θ + u|2 (r * 'cos θ) (r * 'sin θ) * 'sin θ")
+-- Chain rule: ∂u/∂r = u|1 * ∂x/∂r + u|2 * ∂y/∂r = u|1 * cos θ + u|2 * sin θ.
+-- u|i (the i-th partial of u) is constructed via `userRefs u [i]`.
+assertEqual "∂u/∂r"
+  uR
+  (cos θ * (userRefs u [1]) (r * cos θ) (r * sin θ)
+   + sin θ * (userRefs u [2]) (r * cos θ) (r * sin θ))
 
 def uRR : MathValue := ∂/∂ (∂/∂ u r) r
 
@@ -20,6 +24,8 @@ def uΘ : MathValue := ∂/∂ u θ
 def uΘΘ : MathValue := ∂/∂ (∂/∂ u θ) θ
 
 -- Laplacian in polar coordinates: ∂²u/∂r² + (1/r)∂u/∂r + (1/r²)∂²u/∂θ²
--- Full Laplacian should simplify to u|1|1 + u|2|2
-assert "Full Laplacian in polar coordinates"
-  (show (uRR + 1 / r * uR + 1 / r ^ 2 * uΘΘ) = "u|2|2 (r * 'cos θ) (r * 'sin θ) + u|1|1 (r * 'cos θ) (r * 'sin θ)")
+-- Should simplify to u|1|1 + u|2|2 (the cartesian Laplacian).
+assertEqual "Full Laplacian in polar coordinates"
+  (uRR + 1 / r * uR + 1 / r ^ 2 * uΘΘ)
+  ((userRefs u [1, 1]) (r * cos θ) (r * sin θ)
+   + (userRefs u [2, 2]) (r * cos θ) (r * sin θ))

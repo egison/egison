@@ -19,6 +19,9 @@ def uΦΦ := ∂/∂ (∂/∂ u φ) φ
 
 -- Laplacian in spherical coordinates:
 -- Δu = ∂²u/∂r² + (2/r)∂u/∂r + (1/r²)∂²u/∂θ² + (cos θ / (r² sin θ))∂u/∂θ + (1/(r sin θ)²)∂²u/∂φ²
--- Should simplify to u|1|1 + u|2|2 + u|3|3
-assert "Laplacian in spherical coordinates"
-  (show (uRR + 2 / r * uR + 1 / r ^ 2 * uΘΘ + cos θ / (r ^ 2 * sin θ) * uΘ + 1 / (r * sin θ) ^ 2 * uΦΦ) = "u|2|2 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ) + u|1|1 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ) + u|3|3 (r * 'sin θ * 'cos φ) (r * 'sin θ * 'sin φ) (r * 'cos θ)")
+-- Should simplify to u|1|1 + u|2|2 + u|3|3 (the cartesian Laplacian).
+assertEqual "Laplacian in spherical coordinates"
+  (uRR + 2 / r * uR + 1 / r ^ 2 * uΘΘ + cos θ / (r ^ 2 * sin θ) * uΘ + 1 / (r * sin θ) ^ 2 * uΦΦ)
+  ((userRefs u [1, 1]) (r * sin θ * cos φ) (r * sin θ * sin φ) (r * cos θ)
+   + (userRefs u [2, 2]) (r * sin θ * cos φ) (r * sin θ * sin φ) (r * cos θ)
+   + (userRefs u [3, 3]) (r * sin θ * cos φ) (r * sin θ * sin φ) (r * cos θ))
