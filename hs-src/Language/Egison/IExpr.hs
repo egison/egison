@@ -112,6 +112,12 @@ data IExpr
   | IFlipIndicesExpr IExpr
   | IFunctionExpr [String]
   | IPatternFuncExpr [String] IPattern  -- Pattern function: parameter names and pattern body
+  -- Type-driven structural reshape of a CAS value. Inserted by post-typecheck
+  -- elaboration from a type annotation (`def x : T := e` becomes
+  -- `IDefine x (IReshape T e)`). The Type argument is fixed at compile time;
+  -- the actual structural rewrite runs at evaluation time via casReshapeAs.
+  -- See design/type-cas-implementation-status.md.
+  | IReshape Type IExpr
   -- Runtime-type dispatch: select an instance dictionary by inspecting the
   -- runtime CAS shape of the first argument. Emitted by TypeClassExpand when
   -- a method is called on a value whose static type is `MathValue` and no
@@ -337,6 +343,8 @@ data TIExprNode
   
   -- Function reference
   | TIFunctionExpr [String]
+  -- Reshape: typed mirror of IReshape. See note above.
+  | TIReshape Type TIExpr
   -- Runtime-type dispatch: see `IRuntimeDispatch` in IExpr above.
   | TIRuntimeDispatch
       String           -- class name
@@ -415,6 +423,7 @@ stripType (TIExpr _ node) = case node of
   TITransposeExpr perm tensor -> ITransposeExpr (stripType perm) (stripType tensor)
   TIFlipIndicesExpr tensor -> IFlipIndicesExpr (stripType tensor)
   TIFunctionExpr names -> IFunctionExpr names
+  TIReshape ty inner -> IReshape ty (stripType inner)
   TIRuntimeDispatch className methodName candidates args ->
     IRuntimeDispatch className methodName candidates (map stripType args)
   where
@@ -573,6 +582,10 @@ mapTIExprChildren f node = case node of
   -- Indexed
   TIIndexedExpr ov expr idxs ->
     TIIndexedExpr ov (f expr) (fmap f <$> idxs)
+
+  -- Reshape: traverse the inner expression; type is metadata
+  TIReshape ty inner ->
+    TIReshape ty (f inner)
 
   -- Runtime dispatch: traverse arguments only; class/method/candidates are metadata
   TIRuntimeDispatch cls m cands args ->

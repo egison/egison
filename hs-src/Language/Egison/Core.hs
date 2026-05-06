@@ -601,6 +601,16 @@ evalExprShallow env (IPatternFuncExpr paramNames body) =
   -- Create a PatternFunc value, capturing the current environment
   return $ Value (PatternFunc env paramNames body)
 
+-- Reshape (Phase A of design/type-cas-implementation-status.md §reshape).
+-- Inserted by post-typecheck elaboration from a type annotation. At eval time
+-- we structurally rewrite the inner CAS value to fit the annotation's type.
+-- Non-CAS values pass through unchanged.
+evalExprShallow env (IReshape ty inner) = do
+  whnf <- evalExprShallow env inner
+  case whnf of
+    Value (CASData cv) -> return $ Value $ CASData (CAS.casReshapeAs ty cv)
+    _                  -> return whnf
+
 -- Runtime-type dispatch (Phase 3 of design/runtime-type-dispatch.md).
 -- TypeClassExpand emits this node when a type-class method is called on a
 -- value whose static type is `MathValue` and no explicit

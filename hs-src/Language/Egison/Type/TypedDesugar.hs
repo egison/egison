@@ -29,10 +29,31 @@ module Language.Egison.Type.TypedDesugar
 
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
-import           Language.Egison.IExpr      (TIExpr(..), TITopExpr(..), extractNameFromVar, stringToVar)
+import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopExpr(..), extractNameFromVar, stringToVar)
 import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
+import           Language.Egison.Type.Types (Type(..), TypeScheme(..))
 import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, expandTypeClassMethodsInPattern, addDictionaryParametersT, applyConcreteConstraintDictionaries, applyConcreteConstraintDictionariesInPattern)
+
+-- | Wrap a TIExpr with TIReshape when the type scheme demands a concrete
+-- CAS scalar type (Integer, Frac _, Poly _ _, Term _ _, Factor). Skip for
+-- polymorphic schemes (any type variables or class constraints), non-CAS
+-- types, and TMathValue (which is the most general — reshape is a no-op).
+-- This is the post-typecheck elaboration step; placing it after type class
+-- expansion preserves inner-method dispatch context.
+maybeReshape :: TypeScheme -> TIExpr -> TIExpr
+maybeReshape sch@(Forall vars constraints ty) tiexpr
+  | not (null vars) || not (null constraints) = tiexpr
+  | isReshapeTarget ty = TIExpr sch (TIReshape ty tiexpr)
+  | otherwise = tiexpr
+  where
+    isReshapeTarget :: Type -> Bool
+    isReshapeTarget TInt        = True
+    isReshapeTarget TFactor     = True
+    isReshapeTarget (TFrac _)   = True
+    isReshapeTarget (TPoly _ _) = True
+    isReshapeTarget (TTerm _ _) = True
+    isReshapeTarget _           = False
 
 -- | Desugar a typed expression (TIExpr) with type-driven transformations
 -- This function orchestrates the transformation pipeline:
@@ -62,7 +83,9 @@ desugarTypedTopExprT topExpr = case topExpr of
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
     -- Add dictionary parameters for constrained functions
     tiexpr''' <- addDictionaryParametersT scheme tiexpr''
-    return $ Just (TIDefine scheme var tiexpr''')
+    -- Insert TIReshape from type annotation (post-typecheck elaboration)
+    let tiexprFinal = maybeReshape scheme tiexpr'''
+    return $ Just (TIDefine scheme var tiexprFinal)
   
   TITest tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
@@ -150,7 +173,9 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
     -- Add dictionary parameters for constrained functions
     tiexpr''' <- addDictionaryParametersT scheme tiexpr''
-    return $ Just (TIDefine scheme var tiexpr''')
+    -- Insert TIReshape from type annotation (post-typecheck elaboration)
+    let tiexprFinal = maybeReshape scheme tiexpr'''
+    return $ Just (TIDefine scheme var tiexprFinal)
 
   TITest tiexpr -> do
     tiexpr' <- expandTypeClassMethodsT tiexpr

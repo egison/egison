@@ -46,6 +46,7 @@ module Language.Egison.Math.CAS
     -- * Normalization
     , casNormalize
     , casNormalizePoly
+    , casReshapeAs
     -- * Predicates
     , casIsZero
     , casIsAtom
@@ -98,6 +99,7 @@ import           Control.Egison
 import           Control.Monad (MonadPlus (..))
 
 import           Language.Egison.IExpr (Index (..))
+import           Language.Egison.Type.Types (Type(..), SymbolSet(..))
 import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
 
 -- | CASValue represents mathematical values in the CAS.
@@ -685,6 +687,58 @@ casNormalizeFrac num denom =
        (CASFrac a b, c) -> casNormalizeFrac a (casMult b c)
        -- Default: no simplification
        _ -> CASFrac num' denom'
+
+--------------------------------------------------------------------------------
+-- Type-driven reshape (Phase A of the reshape primitive design)
+--------------------------------------------------------------------------------
+
+-- | Reshape a CAS value to match the structure implied by the given Type.
+--
+-- This is the runtime side of the `reshape` primitive: type info comes from
+-- a compile-time annotation embedded in the AST, and at evaluation time we
+-- structurally rewrite the CASValue to fit that shape.
+--
+-- The implementation follows the type promotion tower (see type-cas-tower.md):
+-- normalize first (which handles tower-level reductions), then recursively
+-- adjust coefficients/numerators/denominators to match nested type arguments.
+-- For values that cannot be reshaped to the target structure (e.g. a value
+-- with free atoms reshaped to TInt), we leave the normalized form as-is —
+-- per the "trust the annotation" principle.
+casReshapeAs :: Type -> CASValue -> CASValue
+casReshapeAs ty v = case ty of
+  TInt           -> casNormalize v
+  TMathValue     -> casNormalize v
+  TFactor        -> casNormalize v
+  TFrac inner    -> reshapeAsFrac inner v
+  TPoly inner ss -> reshapeAsPoly inner ss v
+  TTerm inner ss -> reshapeAsTerm inner ss v
+  _              -> v  -- non-CAS types: pass through
+
+-- | Frac inner: keep fraction form (or collapsed Integer when denom=1) and
+-- recursively reshape numerator and denominator with the inner type.
+reshapeAsFrac :: Type -> CASValue -> CASValue
+reshapeAsFrac innerTy v = case casNormalize v of
+  CASInteger n      -> CASInteger n
+  CASFrac num denom -> casNormalizeFrac (casReshapeAs innerTy num)
+                                        (casReshapeAs innerTy denom)
+  cv                -> cv
+
+-- | Poly inner [..]: each term's coefficient is reshaped to the inner type.
+-- The symbol set is currently used only for documentation (full atom-set
+-- separation for nested polynomial types like `Poly (Poly Integer [i]) [..]`
+-- is a future extension; see type-cas-tower.md).
+reshapeAsPoly :: Type -> SymbolSet -> CASValue -> CASValue
+reshapeAsPoly innerTy _ss v = case casNormalize v of
+  CASInteger n -> CASInteger n
+  CASPoly ts   -> casNormalizePoly
+                    [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
+  cv           -> cv
+
+-- | Term inner [...]: like Poly but expected to be a single-term form.
+-- We do not enforce the single-term invariant here; the type checker is
+-- responsible for that, and at runtime we just recurse.
+reshapeAsTerm :: Type -> SymbolSet -> CASValue -> CASValue
+reshapeAsTerm = reshapeAsPoly
 
 -- | Compute GCD of polynomial coefficients with an integer
 casTermsGcdCoeff :: [CASTerm] -> Integer -> Integer

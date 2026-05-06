@@ -464,6 +464,80 @@ def coerceToFactor (x : MathValue) : Factor := primCoerceToFactor x
 - `TInt` を `"Integer"` に (旧 `"MathValue"` 正規化を停止) — `Coerce Integer Integer` と `Coerce MathValue MathValue` を区別するため
 - `Desugar.hs`/`EnvBuilder.hs`/`Type/TypeClassExpand.hs` の dict 名計算箇所を `typeConstructorName` から `typeToName` に更新
 
+### 4.3.2 `reshape` primitive と elaboration による自動挿入 ✅ Phase A+B 完了 (2026-05-07)
+
+**経緯**:
+4.3.1 の `coerce` (= `casNormalize` 呼び出し) は **「最も低い型に reduce」** だけで、ユーザが指定した target type の構造に合わせる reshape はできなかった。例えば `def p : Poly (Poly Integer [i]) [..] := someExpr` のような nested CAS 型に値を変形する機能が欠けていた。
+
+また、`Embed` typeclass (4.1) と `Coerce` の役割が **本質的に同じ** (型 widening = target type への reshape) であり冗長だった。多 param `Embed` は dispatch 上、A1 elaboration の阻害要因でもあった。
+
+**最終案 (採用)**: 両者を `reshape` という単一概念で統一。
+
+**設計**:
+- `reshape` は **型情報を引数に取る Haskell primitive** として実装
+- ユーザは直接呼ばず、**型注釈** (`def x : T := e`, 将来は `(e : T)` 等) を書くだけ
+- 型情報は **コンパイラ内部のみ** (first-class value にしない)
+- 型推論完了後、elaboration が `def x : T := e` を `def x : T := reshape T e` に書き換える
+- runtime に CASValue を見て構造を T に合わせて変形する
+
+**A1 elaboration の干渉問題が解消する理由**:
+旧 A1 案は `def x : T := e` を `def x : T := coerce e` に書き換えていたが、`coerce e` の `e` の context が `MathValue` に変わり内側 typeclass dispatch (例: `embed 5` の戻り値型推論) が阻害された。新案では:
+- 型推論を **先に完了** (元の context のまま、内側 dispatch は無事)
+- subtype unification が走った箇所 **のみ** に reshape 挿入
+- reshape 自体は primitive (typeclass method ではない) なので dispatch なし
+
+**実装** (Phase A + B):
+
+1. **AST node** (`IExpr.hs`):
+   ```haskell
+   data IExpr  = ... | IReshape Type IExpr | ...
+   data TIExprNode = ... | TIReshape Type TIExpr | ...
+   ```
+   `stripType` で `TIReshape` → `IReshape` に変換。
+
+2. **`casReshapeAs`** (`Math/CAS.hs`):
+   ```haskell
+   casReshapeAs :: Type -> CASValue -> CASValue
+   casReshapeAs ty v = case ty of
+     TInt           -> casNormalize v
+     TFactor        -> casNormalize v
+     TFrac inner    -> reshapeAsFrac inner v
+     TPoly inner ss -> reshapeAsPoly inner ss v
+     TTerm inner ss -> reshapeAsTerm inner ss v
+     TMathValue     -> casNormalize v
+     _              -> v
+   ```
+   inner type に対して再帰的に reshape (Frac の num/denom、Poly の係数など)。
+
+3. **Eval handler** (`Core.hs`):
+   ```haskell
+   evalExprShallow env (IReshape ty inner) = do
+     whnf <- evalExprShallow env inner
+     case whnf of
+       Value (CASData cv) -> return $ Value $ CASData (casReshapeAs ty cv)
+       _                  -> return whnf
+   ```
+
+4. **Elaboration** (`Type/TypedDesugar.hs`):
+   ```haskell
+   maybeReshape :: TypeScheme -> TIExpr -> TIExpr
+   maybeReshape sch@(Forall vars constraints ty) tiexpr
+     | not (null vars) || not (null constraints) = tiexpr
+     | isReshapeTarget ty = TIExpr sch (TIReshape ty tiexpr)
+     | otherwise = tiexpr
+   ```
+   `desugarTypedTopExprT` の `TIDefine` 処理の最後 (typeclass expansion + dictionary application 後) に挿入。
+
+**`isReshapeTarget` の対象**: `TInt`, `TFactor`, `TFrac _`, `TPoly _ _`, `TTerm _ _`。`TMathValue` は最汎型なので除外。`TFun` などの非 CAS 型も対象外。
+
+**テスト** (`mini-test/108-reshape.egi`): 9 個の assertion で widening / narrowing / Frac collapse / nested poly 形式を確認。全 pass。
+
+**現状の制限と今後**:
+- `casReshapeAs` は基本タワー (Integer / Frac / Poly / Term / Factor) に対応。
+- 真にネストした構造 (例: `Poly (Poly Integer [i]) [..]` で atom を outer/inner に分離) は **未実装** — 現状は `casNormalize` ベースで「fit するなら fit する」程度。type-cas-tower.md の拡張可能 CAS タワーと連動して将来拡張。
+- 適用範囲は **`def x : T := e` のみ** (Phase B)。`(e : T)` 式注釈や関数引数注釈への拡張は未実装 (Phase D 以降)。
+- `Embed` typeclass と `coerce`/`coerceToX` 関数群は **現状残存** (Phase C で reshape に統合予定)。
+
 ### 4.4 `lookupDerivative` ではなく `chainPartialDiff` 再定義方式
 
 **設計** ([type-cas.md §`Differentiable Factor`](./type-cas.md)): `declare derivative` は `lookupDerivative :: MathFuncRef -> CASValue` を populate する。Factor inst は `apply1 $f $arg -> (lookupDerivative f) arg * partialDiff arg x` で連鎖律を実行する。
@@ -624,3 +698,4 @@ declare derivative sin = cos
 - 2026-05-06: ご指摘により、6 個の coerceToX 関数 + Haskell primitive の構成を更にシンプル化。`def coerce (x : MathValue) : MathValue := x` 単一の純粋 Egison identity 関数で実装。subtype unification (MathValue ↔ 任意 CAS subtype) により Poly Integer [x, y] 等の specific atom set、Term MathValue [..] 等の Term 型、Frac (Poly (Frac Integer) [x]) 等の深いネストでも `coerce expr` が動く。Haskell primitive (primCoerceTo*) は不要なので削除。trust the annotation 原則を完全に反映。将来 level 4 ↔ 5 の強制変換は別関数 (forceToFracPoly 等) として追加予定で、coerce の trust 原則は維持。cabal test 21/21 PASS、mini-test 全件 PASS。
 - 2026-05-06: ご指摘により coerce の意味論を修正。「ユーザの注釈に応じて runtime データ構造を更新」が本来の意図と判明。`coerce` を identity から `casNormalize` 経由に変更 (Haskell primitive primCoerce を追加)。CASPoly [CASTerm 5 []] → CASInteger 5 のような "実質的な型に応じた構造正規化" が起きる。trust the annotation 原則は維持 (構造チェックなし、注釈不一致は runtime error 許容)。
 - 2026-05-06: 拡張可能 CAS タワー構想を [type-cas-tower.md](./type-cas-tower.md) として独立ドキュメント化。`Poly (Poly Integer [i]) [..]` のような中間型を扱うため、ユーザが `declare cas-type` / `declare cas-subtype` / `class CASCanonical` でタワーを編集できる構想。実装は大規模で将来課題。本作業の `coerce` API 設計はこの将来拡張への hook として整合的に位置づけ。§6 残課題リストにも追加。
+- 2026-05-07: §4.3.2 reshape primitive の Phase A+B 実装 (`coerce` と `embed` の統一案)。設計議論で「`embed` ≡ `coerce` の役割 (target type への reshape) であり冗長」「型推論完了後に subtype unification 箇所のみに reshape を挿入すれば A1 干渉問題は解消」という結論。Phase A: AST node `IReshape Type IExpr` / `TIReshape Type TIExpr` を追加 (IExpr.hs)、`casReshapeAs :: Type -> CASValue -> CASValue` を実装 (Math/CAS.hs、basic tower 対応)、eval handler を追加 (Core.hs)。Phase B: `desugarTypedTopExprT` の `TIDefine` 処理末尾で `maybeReshape` を呼び、scheme の type が CAS scalar (TInt / TFactor / TFrac _ / TPoly _ _ / TTerm _ _) かつ非多相のとき `TIReshape ty tiexpr` で wrap (Type/TypedDesugar.hs)。テスト `mini-test/108-reshape.egi` (9 assertion) で widening / narrowing / Frac collapse / nested poly を確認、全 pass。既存 mini-test (40, 68, 69, 72, 103, 104, 105, 106, 107) 全て regression なし。Phase C (Embed/coerce 撤去)、Phase D (`(e:T)` 等の expression annotation)、nested poly atom 分離 (Poly (Poly Integer [i]) [..]) は今後課題。
