@@ -105,6 +105,12 @@ primitives =
         , ("mapPolyAll", mapPolyPrim)
         , ("mapTermAll", mapTermPrim)
         , ("mapFracAll", mapFracPrim)
+        -- Coerce: type-annotated value coercion. Re-runs casNormalize so the
+        -- runtime CAS structure is updated to the canonical form (e.g.,
+        -- `CASPoly [CASTerm 5 []]` → `CASInteger 5`). The annotation itself
+        -- is trusted (no validation); a downstream runtime error is OK if
+        -- the annotation is wrong.
+        , ("primCoerce", coercePrim)
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
@@ -510,6 +516,26 @@ isPureFractionPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASPoly []) -> return $ Bool True
   CASData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger _) []]) -> return $ Bool True
   _ -> return $ Bool False
+
+-- | `coerce`: re-normalize a CAS value to its canonical structural form.
+--
+-- Design principle: ユーザは実行後にデータを観察してから型注釈をつけるので、
+-- 注釈は正しいと仮定する (trust the annotation)。注釈が間違っていた場合の
+-- runtime error は許容。`coerce` 自身は target type を見ず、`casNormalize`
+-- で構造を canonical form に reduce する。例:
+--
+--   CASPoly [CASTerm 5 []]                 → CASInteger 5
+--   CASFrac (CASInteger 5) (CASInteger 1)  → CASInteger 5
+--   CASPoly [CASTerm 1 [(x, 1)],
+--            CASTerm (-1) [(x, 1)]]        → CASInteger 0  (= x - x)
+--
+-- 静的型 annotation (Integer / Poly Integer [x] etc.) は subtype unify で
+-- 任意の CAS subtype を表現可能。コンパイル時の type-check と runtime の
+-- canonical form 化が分離されている。
+coercePrim :: String -> PrimitiveFunc
+coercePrim = oneArg' $ \v -> case v of
+  CASData cv -> return $ CASData (CAS.casNormalize cv)
+  _          -> throwErrorWithTrace (TypeMismatch "CAS value" (Value v))
 
 -- | Phase 8: differential closure check.
 -- Returns True iff the output value's atom set is a subset of the input's,

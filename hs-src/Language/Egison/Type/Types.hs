@@ -258,15 +258,22 @@ isSubsetSymbolSet _ (SymbolSetVar _) = False
 -- | Convert a Type to a string name for dictionary and method naming
 -- This is used for generating instance dictionary names and method names
 -- E.g., TInt -> "Integer", TTensor TInt -> "TensorInteger"
+-- | Render a type into a flat name slug used for instance-dictionary names.
+-- Recursively includes inner type parameters so that e.g.
+-- `Frac (Poly Integer [..])` and `Frac Integer` produce distinct names.
+-- Type variables are dropped (rendered as ""), so polymorphic instances like
+-- `instance Eq [a]` yield `eqCollection` rather than `eqCollectiona`.
+-- Note: Integer and MathValue produce DIFFERENT names so that
+-- `instance Coerce Integer Integer` and `instance Coerce MathValue MathValue`
+-- are distinct (subtyping Integer ⊂ MathValue is handled separately).
 typeToName :: Type -> String
--- Note: TInt is normalized to "MathValue" because Integer = MathValue in Egison
-typeToName TInt = "MathValue"  -- Integer = MathValue, use MathValue for dictionary names
+typeToName TInt = "Integer"
 typeToName TMathValue = "MathValue"
 typeToName TFloat = "Float"
 typeToName TBool = "Bool"
 typeToName TChar = "Char"
 typeToName TString = "String"
-typeToName (TVar (TyVar v)) = v
+typeToName (TVar _) = ""  -- type variables omitted from dict names
 typeToName (TInductive name _) = name
 typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts

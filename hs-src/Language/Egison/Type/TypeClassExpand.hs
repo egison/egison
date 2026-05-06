@@ -46,7 +46,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringT
                                              mapTIExprChildren)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
-import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeConstructorName,
+import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeConstructorName, typeToName,
                                             sanitizeMethodName, freeTyVars, instType, classParam)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)
@@ -79,7 +79,7 @@ runtimeDispatchCandidates instances =
   , length (instTypes inst) == 1
   , instType inst /= TMathValue
   , let dictName = lowerFirst (instClass inst) ++
-                   concatMap typeConstructorName (instTypes inst)
+                   concatMap typeToName (instTypes inst)
   ]
 
 -- | Extract type variable substitutions from instance type and actual type
@@ -515,7 +515,7 @@ expandTypeClassMethodsT tiExpr = do
                         Just inst -> do
                           -- Found instance: eta-expand with concrete dictionary
                           typeEnv <- getTypeEnv
-                          let instTypeName = concatMap typeConstructorName (instTypes inst)
+                          let instTypeName = concatMap typeToName (instTypes inst)
                               dictName = lowerFirst className ++ instTypeName
 
                           -- Look up dictionary type from type environment
@@ -781,7 +781,7 @@ expandTypeClassMethodsT tiExpr = do
               else
                 case findInstanceForDispatch actualTypes instances of
                   Just inst -> do
-                    let instTypeName = concatMap typeConstructorName (instTypes inst)
+                    let instTypeName = concatMap typeToName (instTypes inst)
                         dictName = lowerFirst ownerClass ++ instTypeName
                         methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
                         methodScheme = Forall [] [] methodType
@@ -833,7 +833,7 @@ expandTypeClassMethodsT tiExpr = do
           case findInstanceForDispatch tyArgs instances of
             Just inst -> do
               -- Found instance: generate dictionary name (e.g., "numInteger", "eqCollection")
-              let instTypeName = concatMap typeConstructorName (instTypes inst)
+              let instTypeName = concatMap typeToName (instTypes inst)
                   dictName = lowerFirst className ++ instTypeName
                   dictType = TVar (TyVar "dict")
                   dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
@@ -1262,7 +1262,7 @@ applyConcreteConstraintDictionaries expr = do
       case findInstanceForDispatch normalizedTypes instances of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
-          let instTypeName = concatMap typeConstructorName (instTypes inst)
+          let instTypeName = concatMap typeToName (instTypes inst)
               dictName = lowerFirst className ++ instTypeName
               dictType = TVar (TyVar "dict")
               dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)

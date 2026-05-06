@@ -344,7 +344,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
           -- Also register the dictionary itself
           -- e.g., embedMathValueMathValue : Hash String (MathValue -> MathValue)
-          instTypeName = concatMap Types.typeConstructorName instTypeList
+          instTypeName = concatMap Types.typeToName instTypeList
           dictName = lowerFirst className ++ instTypeName
 
           -- Build dictionary type: Hash String (method type)
@@ -379,7 +379,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
               -- Generate method name from ALL instance types (matching Desugar)
               -- e.g., "embedMathValueMathValueEmbed" for instance Embed MathValue MathValue
-              instTypeName = concatMap Types.typeConstructorName instTyList
+              instTypeName = concatMap Types.typeToName instTyList
               sanitizedName = sanitizeMethodName methName
               generatedMethodName = lowerFirst clsName ++ instTypeName ++ capitalizeFirst sanitizedName
 

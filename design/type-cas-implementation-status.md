@@ -2,7 +2,7 @@
 
 このドキュメントは [type-cas.md](./type-cas.md) の設計に対する**実装の到達点**と、**残された課題**をまとめる。設計時点で予測された課題は [type-cas-issues.md](./type-cas-issues.md)、こちらは「実装してみて分かったこと」と「現時点で残っているもの」を記録する。
 
-最終更新: 2026-05-06 (型昇格タワー level 3/4 monomial 分母吸収)
+最終更新: 2026-05-06 (Coerce typeclass を Haskell-side primitive に置き換え、案 B 採用)
 
 ---
 
@@ -367,8 +367,102 @@ cabal test 21/21 PASS、mini-test 80–107 全件 PASS、warnings 0 件。
 **実装方針 (将来)**:
 1. ✅ **完了**: `casNormalize` の level 4 対応 (2026-05-01)
 2. ✅ **完了**: Term inst の Frac 係数対応 (2026-05-06、Term 第一引数を MathValue に widening)
-3. AST elaboration で型注釈に基づく `coerce` 挿入 (§4.1 Embed elaboration と統合)
-4. `coerce` プリミティブを Haskell-side で正規化を伴うように修正
+3. ✅ **完了**: 単項式分母を level 3/4 Laurent 形に吸収 (2026-05-06)
+4. ✅ **完了 (一部)**: lib に `class Coerce a b` + 標準 instance を提供 (2026-05-06)
+5. ❌ **試行→ revert**: `def x : T := e` への `coerce` 自動挿入 (2026-05-06) — `embed`/`coerceTest` 等の inner typeclass dispatch を return-type 情報で阻害してしまう。tower fix + Term widening により runtime form は通常 canonical なので、明示的 `coerce` は稀少な edge case のみで必要。
+
+### 4.3.1 `Coerce` typeclass を Haskell-side primitive に置き換え ✅ 完了 (2026-05-06、案 B)
+
+**経緯**:
+1. **第 1 案 (typeclass)**: `class Coerce a b where coerce` を lib に提供。識別 instance を value-level identity で実装。
+2. **問題発覚**: 識別 instance が「実体ナシ」(`coerce x := x`)。runtime 正規化を駆動できない。さらに A1 elaboration で `coerce e` wrap すると inner typeclass dispatch (例: `embed 5` の return-type 推論) を阻害する。
+3. **最終案 B (採用)**: typeclass を廃止し、CAS 標準型タワー専用の Haskell-side primitive で実装。
+
+**実装** (`Primitives.hs` + `lib/core/base.egi`):
+
+```haskell
+-- Haskell primitive: re-normalize CAS value to canonical structural form
+coercePrim :: String -> PrimitiveFunc
+coercePrim = oneArg' $ \v -> case v of
+  CASData cv -> return $ CASData (CAS.casNormalize cv)
+  _          -> throwErrorWithTrace ...
+```
+
+```egison
+def coerce (x : MathValue) : MathValue := primCoerce x
+```
+
+`primCoerce` は **`casNormalize`** を再実行し、**runtime CAS 構造を canonical form に更新**する。例:
+
+| 入力 | 出力 |
+|---|---|
+| `CASPoly [CASTerm 5 []]` | `CASInteger 5` |
+| `CASFrac (CASInteger 5) (CASInteger 1)` | `CASInteger 5` |
+| `CASPoly [(x, 1), (-x, 1)]` (= x - x = 0) | `CASInteger 0` |
+
+つまり「`Poly Integer [x]` の構造だが実質 Integer」のような値が、ユーザが `Integer` と注釈した時点で内部表現も `CASInteger` に **更新される** (ご指定通りの挙動)。
+
+**設計原則 (trust the annotation + 構造更新)**:
+- ユーザは **実行後にデータを観察してから** 型注釈をつけるので、注釈は正しいと仮定する
+- `coerce` は target type を見ず、構造を canonical form に reduce
+- 注釈が間違っていた場合の実行時エラーは許容 (downstream で自然に発生)
+
+**Subtype unification との組合せ**:
+静的 annotation は subtype unify で **任意の CAS 型** に narrow 可能:
+
+```egison
+def n : Integer                          := coerce expr   -- subtype: MathValue → Integer
+def p : Poly Integer [x, y]              := coerce expr   -- specific atom set
+def t : Term MathValue [..]              := coerce expr   -- Term type
+def r : Frac (Poly (Frac Integer) [x])   := coerce expr   -- 深いネスト
+```
+
+`coerceToInteger` / `coerceToFracInteger` 等の specialized helpers は backward compatibility のため残置 (`primCoerce` を呼ぶだけ)。
+
+**将来拡張 (force level 4 ↔ 5)**:
+canonical form 以外への **強制** 変換 (例: 自然には level 4 になるが level 5 に強制したい) が必要になれば、`coerce` ではなく **別関数** (例: `forceToFracPoly`) として実装する。`coerce` は canonical form 化に専念。
+
+**より大きな将来構想 (拡張可能 CAS タワー)**:
+現状の 5 段階固定タワーを、ユーザが `declare cas-type` / `declare cas-subtype` / `class CASCanonical` で拡張できる **半順序タワー** にする構想。これにより `Poly (Poly Integer [i]) [..]` のような中間型 (Gaussian 整数係数の多項式等) を体系的に扱える。`coerce` API は target-type-aware に進化するが、ユーザコード (`def x : T := coerce expr`) は変わらない。
+詳細は [type-cas-tower.md](./type-cas-tower.md) を参照。実装は将来課題。
+
+`Type/Check.hs` で型を登録:
+```haskell
+("primCoerceToInteger", Forall [] [] $ TFun TMathValue TInt)
+("primCoerceToFracInteger", Forall [] [] $ TFun TMathValue (TFrac TInt))
+("primCoerceToPolyInteger", Forall [] [] $ TFun TMathValue (TPoly TInt SymbolSetOpen))
+("primCoerceToPolyFracInteger", Forall [] [] $ TFun TMathValue (TPoly (TFrac TInt) SymbolSetOpen))
+("primCoerceToFracPolyInteger", Forall [] [] $ TFun TMathValue (TFrac (TPoly TInt SymbolSetOpen)))
+("primCoerceToFactor", Forall [] [] $ TFun TMathValue TFactor)
+```
+
+`lib/core/base.egi` の `class Coerce` と instances を削除し、named 関数を提供:
+```egison
+def coerceToInteger (x : MathValue) : Integer := primCoerceToInteger x
+def coerceToFracInteger (x : MathValue) : Frac Integer := primCoerceToFracInteger x
+def coerceToPolyInteger (x : MathValue) : Poly Integer [..] := primCoerceToPolyInteger x
+def coerceToPolyFracInteger (x : MathValue) : Poly (Frac Integer) [..] := primCoerceToPolyFracInteger x
+def coerceToFracPolyInteger (x : MathValue) : Frac (Poly Integer [..]) := primCoerceToFracPolyInteger x
+def coerceToFactor (x : MathValue) : Factor := primCoerceToFactor x
+```
+
+**ユーザ拡張性の喪失について** (本日の議論):
+- 「新しい CAS 系の型を追加したい」シナリオは 3 パターンに整理:
+  - パターン A (`declare symbol/rule` で済む) — 既存 Coerce 不要
+  - パターン B (型レベル newtype 相当) — 別名 class で完全代替可
+  - パターン C (Haskell 拡張要、新 CASValue constructor) — Haskell 側で primitive 提供する話
+- いずれのパターンも `instance Coerce X Y` のユーザ拡張は実用上不要と判断
+- Haskell の `Data.Coerce` (compiler primitive、ユーザ拡張不可) と同じ位置付け
+
+**A1 (型注釈ドリブンの coerce 自動挿入) は引き続き保留**:
+- post-typecheck transformation (型推論後に各 def の inferred type を見て必要なら coerce 挿入) が必要
+- 現状は tower fix + Term widening + Laurent absorption により runtime form は通常 canonical なので、明示的 `coerceToX` 呼び出しで十分
+
+**dict 名生成の改良** (副作用、`Type/Types.hs`):
+- `typeToName` を full type を反映するように変更 (`Frac Integer` → `"FracInteger"`、`Poly Integer [..]` → `"PolyInteger_Open"`)
+- 型変数は空文字に (`Eq [a]` → `"Collection"`)
+- `TInt` を `"Integer"` に (旧 `"MathValue"` 正規化を停止) — `Coerce Integer Integer` と `Coerce MathValue MathValue` を区別するため
+- `Desugar.hs`/`EnvBuilder.hs`/`Type/TypeClassExpand.hs` の dict 名計算箇所を `typeConstructorName` から `typeToName` に更新
 
 ### 4.4 `lookupDerivative` ではなく `chainPartialDiff` 再定義方式
 
@@ -466,6 +560,7 @@ extractRuleSides _ = Nothing
 
 | 項目 | 内容 | 工数見込 |
 |---|---|---|
+| **拡張可能 CAS タワー** | `declare cas-type` / `declare cas-subtype` / `class CASCanonical` でユーザが半順序タワーを構築。Gaussian poly などの中間型を扱える ([type-cas-tower.md](./type-cas-tower.md) 参照) | 大規模 (5 phases) |
 | **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 (§4.3) | 中規模 |
 | **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
 | `inspect` の REPL 統合 | REPL で式評価時に静的型 + 観察型を自動表示 | 小〜中 (UI 系) |
@@ -521,3 +616,11 @@ declare derivative sin = cos
   - `riemann-curvature-tensor-of-S2.egi` の inverse metric `g~i~j = [| [r^-2, 0], [0, sin θ^-2 r^-2] |]` 形に
   - sample test (S2/T2) の expected を `1/r^2` から `r^(-2)` に書き換え。`a^(-2)` (source) も Laurent form として評価される
   - cabal test 21/21 PASS、mini-test 全件 PASS、warnings 0 件
+- 2026-05-06: pretty-print 改善: Apply factor を含む monomial で ` * ` 区切り、不要な parens 除去 (`('cos) (θ) r` → `('cos θ) * r`)、単一 Apply factor は無 parens (`'sqrt 2`)。Apply の関数スロット (CASPoly 包みの単一 factor) と引数 (single-symbol) を transparent に出力。
+- 2026-05-06: A2 完了: `class Coerce a b where coerce` を lib/core/base.egi に追加し、CAS タワー全体の標準 instance を提供 (識別/widening/narrowing 全て value-level identity)。dict 名生成を typeConstructorName→typeToName に切替え (TVar は空文字、TInt は "Integer"、Integer/MathValue 区別)。`coerce 3 : Integer` のような明示呼び出しが正常動作。test 72/104 から redundant な local class を削除。
+- 2026-05-06: A1 試行→ revert: `def x : T := e` を `def x : T := coerce e` に elaboration したが、`embed 5`/`coerceTest (3+4)` 等の inner typeclass method 呼び出しの return-type 情報を阻害するため。tower fix + Term widening により runtime form は通常 canonical なので、明示的 `coerce` は edge case のみで必要と判断。
+- 2026-05-06: 案 B 採用: Coerce typeclass を廃止し、CAS 標準型タワー専用の Haskell-side primitive (primCoerceToInteger / primCoerceToFracInteger / primCoerceToPolyInteger / primCoerceToPolyFracInteger / primCoerceToFracPolyInteger / primCoerceToFactor) に置き換え。lib は named 関数 (coerceToInteger 等) で primitive を呼ぶ。識別 instance の "実体ナシ" 問題を解消、A1 (auto coerce 挿入) で typeclass dispatch が inner expression の return-type 推論を阻害する問題を回避できる土台に。ユーザ拡張性は喪失するが、3 パターンの "新しい CAS 型" シナリオ全てで影響なしと検証 (A=既存型 + symbol、B=別名 class、C=Haskell 拡張案件)。test 72 を unique-named class (Conv) ベースに更新。cabal test 21/21 PASS、mini-test 全件 PASS、warnings 0 件。
+- 2026-05-06: ご指摘により coerceToX の構造チェックを削除し、pure identity に統一。"ユーザの注釈は正しいと仮定 (trust the annotation)、間違っていれば runtime error で OK" の原則を明示。primCoerceToInteger / primCoerceToFracInteger も identity 化。lib のコメントもこの原則を明記。
+- 2026-05-06: ご指摘により、6 個の coerceToX 関数 + Haskell primitive の構成を更にシンプル化。`def coerce (x : MathValue) : MathValue := x` 単一の純粋 Egison identity 関数で実装。subtype unification (MathValue ↔ 任意 CAS subtype) により Poly Integer [x, y] 等の specific atom set、Term MathValue [..] 等の Term 型、Frac (Poly (Frac Integer) [x]) 等の深いネストでも `coerce expr` が動く。Haskell primitive (primCoerceTo*) は不要なので削除。trust the annotation 原則を完全に反映。将来 level 4 ↔ 5 の強制変換は別関数 (forceToFracPoly 等) として追加予定で、coerce の trust 原則は維持。cabal test 21/21 PASS、mini-test 全件 PASS。
+- 2026-05-06: ご指摘により coerce の意味論を修正。「ユーザの注釈に応じて runtime データ構造を更新」が本来の意図と判明。`coerce` を identity から `casNormalize` 経由に変更 (Haskell primitive primCoerce を追加)。CASPoly [CASTerm 5 []] → CASInteger 5 のような "実質的な型に応じた構造正規化" が起きる。trust the annotation 原則は維持 (構造チェックなし、注釈不一致は runtime error 許容)。
+- 2026-05-06: 拡張可能 CAS タワー構想を [type-cas-tower.md](./type-cas-tower.md) として独立ドキュメント化。`Poly (Poly Integer [i]) [..]` のような中間型を扱うため、ユーザが `declare cas-type` / `declare cas-subtype` / `class CASCanonical` でタワーを編集できる構想。実装は大規模で将来課題。本作業の `coerce` API 設計はこの将来拡張への hook として整合的に位置づけ。§6 残課題リストにも追加。

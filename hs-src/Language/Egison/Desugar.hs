@@ -38,7 +38,7 @@ import           Language.Egison.IExpr
 import           Language.Egison.RState
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.Type.Env   (lookupClass, ClassInfo(..))
-import           Language.Egison.Type.Types (sanitizeMethodName, typeConstructorName,
+import           Language.Egison.Type.Types (sanitizeMethodName, typeConstructorName, typeToName,
                                              typeExprToType, capitalizeFirst, lowerFirst, TyVar(..))
 
 
@@ -51,17 +51,22 @@ desugarTopExpr (DefineWithType typedVwi expr) = do
   -- Type information is used for type checking, but the runtime representation is the same
   -- Note: Constraints are preserved in the type scheme (by EnvBuilder),
   -- and dictionary passing is handled in TypeClassExpand phase
+  --
+  -- (Auto-coerce elaboration was tried but reverted: wrapping `e` in
+  -- `coerce` breaks inner typeclass dispatch when `e` is itself a method
+  -- call needing return-type context — e.g. `def f : Frac Integer := embed 5`
+  -- becomes `coerce (embed 5)`, leaving `embed`'s return type ambiguous.
+  -- After tower fix + Term widening, runtime forms are already canonical
+  -- in most cases, so explicit `coerce` is rarely needed.)
   let name = typedVarName typedVwi
       indices = typedVarIndices typedVwi
       params = typedVarParams typedVwi
       vwi = VarWithIndices name indices
-  -- If there are typed parameters, wrap the body in a lambda
   case params of
     [] -> do
       (var, iexpr) <- desugarDefineWithIndices vwi expr
       return . Just $ IDefine var iexpr
     _  -> do
-      -- Create lambda arguments from typed parameters
       let argPatterns = map typedParamToArgPattern params
           lambdaExpr = LambdaExpr argPatterns expr
       (var, iexpr) <- desugarDefineWithIndices vwi lambdaExpr
@@ -137,13 +142,13 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
   if null instTypes
     then return Nothing
     else do
-      -- Multi-param-friendly: concatenate type-constructor names of ALL instance
-      -- types so two instances of the same class with different type-tuples get
-      -- distinct dictionary names. e.g.:
-      --   Coerce MathValue Integer       → "coerceMathValueInteger"
-      --   Coerce MathValue (Frac Integer) → "coerceMathValueFrac"
-      -- For single-param classes the result equals the existing single-name form.
-      let instTypeNames = map (typeConstructorName . typeExprToType) instTypes
+      -- Multi-param-friendly: concatenate type names of ALL instance types so
+      -- two instances of the same class with different type-tuples get
+      -- distinct dictionary names. Use `typeToName` (full type, including
+      -- inner parameters) rather than `typeConstructorName` (outer only) so
+      -- that e.g. `Coerce (Frac Integer) Integer` and
+      -- `Coerce (Frac (Poly Integer [..])) Integer` get distinct names.
+      let instTypeNames = map (typeToName . typeExprToType) instTypes
           instTypeName  = concat instTypeNames
       -- Generate individual method definitions with constraint parameters
       methodDefs <- mapM (desugarInstanceMethod constraints classNm instTypeName) methods

@@ -172,27 +172,40 @@ instance Embed (Poly Integer [..]) (Poly (Frac Integer) [..]) where
   embed x := x
 
 --
--- Coerce: explicit narrowing helpers (Phase 5.5 Step 5.5.3a)
+-- coerce: explicit type-annotated value coercion.
 --
--- The current Egison MPTC dispatch indexes only on the first instance
--- parameter, so a single overloaded `coerce :: a -> b` cannot reliably
--- pick between e.g. `Coerce MathValue Integer` and `Coerce MathValue
--- (Frac Integer)` based on the call-site annotation. As a workaround,
--- we expose per-target plain functions. Each performs the runtime
--- structural check and falls through to `undefined` on failure.
+-- Design principle: ユーザは実行後にデータを観察してから型注釈をつけるので、
+-- 注釈は正しいと仮定する (trust the annotation)。`coerce` は target type を
+-- 見ず、Haskell primitive (primCoerce = casNormalize) で runtime CAS 構造を
+-- canonical form に再正規化する。注釈が間違っていた場合の実行時エラーは許容
+-- (downstream の演算で自然に発生する)。
+--
+-- これにより、内部表現が「実質的な型」に応じた構造に更新される:
+--
+--   CASPoly [CASTerm 5 []]                  → CASInteger 5
+--   CASFrac (CASInteger 5) (CASInteger 1)   → CASInteger 5
+--   CASPoly [(x, 1), (-x, 1)]               → CASInteger 0
+--
+-- 静的 annotation は subtype unify で任意の CAS 型 (Integer, Frac Integer,
+-- Poly Integer [x, y], Term MathValue [s], Frac (Poly (Frac Integer) [x]) 等
+-- の任意のネスト・atom 集合) に narrow 可能:
+--
+--   def n : Integer            := coerce expr
+--   def p : Poly Integer [x,y] := coerce expr
+--   def t : Term MathValue [..]:= coerce expr
 --
 
-def coerceToInteger (x : MathValue) : Integer :=
-  if isPureInteger x then x else undefined
+def coerce (x : MathValue) : MathValue := primCoerce x
 
-def coerceToFracInteger (x : MathValue) : Frac Integer :=
-  if isPureFraction x then x else undefined
-
-def coerceFracToInteger (x : Frac Integer) : Integer :=
-  if isPureInteger x then x else undefined
-
-def coercePolyToInteger (x : Poly Integer [..]) : Integer :=
-  if isPureInteger x then x else undefined
+-- Backward-compatible specialized helpers (for explicit return-type clarity)
+def coerceToInteger (x : MathValue) : Integer := primCoerce x
+def coerceToFracInteger (x : MathValue) : Frac Integer := primCoerce x
+def coerceToPolyInteger (x : MathValue) : Poly Integer [..] := primCoerce x
+def coerceToPolyFracInteger (x : MathValue) : Poly (Frac Integer) [..] := primCoerce x
+def coerceToFracPolyInteger (x : MathValue) : Frac (Poly Integer [..]) := primCoerce x
+def coerceToFactor (x : MathValue) : Factor := primCoerce x
+def coerceFracToInteger (x : Frac Integer) : Integer := primCoerce x
+def coercePolyToInteger (x : Poly Integer [..]) : Integer := primCoerce x
 
 --
 -- Rule application combinators (Phase 7.5 helper)
