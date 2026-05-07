@@ -1191,16 +1191,30 @@ collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr
     elementsExpr = CollectionExpr <$> (sepBy expr comma <* symbol "]")
 
 -- Parse an atomic expression starting with '(', which can be:
+--   * a type-annotated expression `(e : T)` (Phase D)
 --   * a tuple
 --   * an arbitrary expression wrapped with parenthesis
 --   * section
 tupleOrParenExpr :: Parser Expr
 tupleOrParenExpr = do
-  elems <- symbol "(" >> try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
-  case elems of
-    [x] -> return x                 -- expression wrapped in parenthesis
-    _   -> return $ TupleExpr elems -- tuple
+  _ <- symbol "("
+  try typeAnnotated <|> tupleOrSection
   where
+    -- `(e : T)` — try this first. If `:` is missing, fall through.
+    typeAnnotated :: Parser Expr
+    typeAnnotated = do
+      e  <- expr
+      _  <- symbol ":"
+      ty <- typeExpr
+      _  <- symbol ")"
+      return (TypeAnnotation e ty)
+
+    tupleOrSection :: Parser Expr
+    tupleOrSection = do
+      elems <- try (sepBy expr comma <* symbol ")") <|> (section <* symbol ")")
+      case elems of
+        [x] -> return x                 -- expression wrapped in parenthesis
+        _   -> return $ TupleExpr elems -- tuple
     section :: Parser [Expr]
     -- Start from right, in order to parse expressions like (-1 +) correctly
     section = (:[]) <$> (rightSection <|> leftSection)

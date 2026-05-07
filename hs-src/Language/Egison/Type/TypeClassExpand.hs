@@ -446,6 +446,11 @@ expandTypeClassMethodsT tiExpr = do
         args' <- mapM (expandTIExprWithConstraints classEnv') args
         return $ TIRuntimeDispatch className methodName candidates args'
 
+      -- Reshape: traverse the inner expression; type annotation is metadata.
+      TIReshape ty inner -> do
+        inner' <- expandTIExprWithConstraints classEnv' inner
+        return $ TIReshape ty inner'
+
     -- Helper: expand a TIExpr using only its own constraints
     -- Parent constraints are not passed to avoid constraint accumulation
     expandTIExprWithConstraints :: ClassEnv -> TIExpr -> EvalM TIExpr

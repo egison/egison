@@ -677,6 +677,9 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
   TIRuntimeDispatch className methodName candidates args ->
     TIRuntimeDispatch className methodName candidates (map (applySubstToTIExprWithClassEnv env s) args)
 
+  TIReshape ty inner ->
+    TIReshape (applySubst s ty) (applySubstToTIExprWithClassEnv env s inner)
+
 -- | Infer type for IExpr
 -- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
 -- This builds the recursive TIExpr structure directly during type inference
@@ -2000,6 +2003,20 @@ inferIExprWithContext expr ctx = case expr of
     -- Function symbols are mathematical function symbols (e.g., f(x,y))
     -- They are represented as MathValue type
     return (mkTIExpr TMathValue (TIFunctionExpr names), emptySubst)
+
+  -- Reshape: type-annotated expression `(e : T)` desugared by Desugar.hs.
+  -- Infer e's type, subtype-unify with the annotation, return a TIReshape
+  -- node typed as T. At eval time the runtime CAS structure is rewritten
+  -- to fit T (or passes through unchanged for non-CAS types).
+  IReshape ty inner -> do
+    let exprCtx = withExpr (prettyStr expr) ctx
+    (innerTI, s) <- inferIExprWithContext inner exprCtx
+    let innerType = tiExprType innerTI
+    ty' <- applySubstWithConstraintsM s ty
+    s2 <- unifyTypesWithContext innerType ty' exprCtx
+    let finalSubst = composeSubst s2 s
+    finalTy <- applySubstWithConstraintsM finalSubst ty
+    return (mkTIExpr finalTy (TIReshape finalTy innerTI), finalSubst)
 
 -- | Infer match clauses type
 -- All clauses should return the same type

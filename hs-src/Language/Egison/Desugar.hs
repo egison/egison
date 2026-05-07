@@ -971,8 +971,13 @@ desugar (WedgeApplyExpr expr args) =
 
 desugar (FunctionExpr args) = return $ IFunctionExpr args
 
--- Type annotation is erased at runtime
-desugar (TypeAnnotation expr _typeExpr) = desugar expr
+-- Type annotation `(e : T)` desugars to `IReshape T (desugar e)` so that
+-- the type checker validates `e`'s inferred type against `T` and the
+-- evaluator structurally rewrites the runtime CAS value to fit `T`. For
+-- non-CAS types `T`, the eval handler is a no-op (passes the value through).
+desugar (TypeAnnotation expr typeExpr) = do
+  inner <- desugar expr
+  return $ IReshape (typeExprToType typeExpr) inner
 
 -- `simplify <expr> using <ruleName>` (Phase 7.6).
 -- Desugars to a direct call of the registered rule lambda:

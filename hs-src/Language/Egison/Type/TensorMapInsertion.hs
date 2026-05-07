@@ -503,6 +503,11 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         args' <- mapM (insertTensorMapsWithConstraints env cs) args
         return $ TIRuntimeDispatch className methodName candidates args'
 
+      -- Reshape: traverse the inner expression; type annotation is metadata.
+      TIReshape ty inner -> do
+        inner' <- insertTensorMapsWithConstraints env cs inner
+        return $ TIReshape ty inner'
+
 -- | Helper to insert tensorMaps in a TIExpr with constraints
 -- IMPORTANT: Merges context constraints with expression's own constraints
 -- This is critical for polymorphic functions where the constraint (e.g., {Num t0})

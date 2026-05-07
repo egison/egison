@@ -99,7 +99,7 @@ import           Control.Egison
 import           Control.Monad (MonadPlus (..))
 
 import           Language.Egison.IExpr (Index (..))
-import           Language.Egison.Type.Types (Type(..), SymbolSet(..))
+import           Language.Egison.Type.Types (Type(..), SymbolSet(..), TypeAtom(..))
 import {-# SOURCE #-} Language.Egison.Data (WHNFData, prettyFunctionName)
 
 -- | CASValue represents mathematical values in the CAS.
@@ -213,7 +213,10 @@ prettyCAS (CASPoly terms) = prettyTerms terms
     prettyTerm (CASTerm coeff []) = prettyCAS coeff
     prettyTerm (CASTerm (CASInteger 1) mono) = prettyMono mono
     prettyTerm (CASTerm (CASInteger (-1)) mono) = "- " ++ prettyMono mono
-    prettyTerm (CASTerm coeff mono) = prettyCAS coeff ++ " * " ++ prettyMono mono
+    -- Use the parenthesizing `prettyCAS'` for the coefficient so that nested
+    -- polynomial coefficients (e.g. `(2*z + 3) * x`) don't visually flatten
+    -- into the surrounding sum. Integer/Factor coeffs pass through unwrapped.
+    prettyTerm (CASTerm coeff mono) = prettyCAS' coeff ++ " * " ++ prettyMono mono
     -- For multi-factor monomials, use ` * ` between factors when any is a
     -- function-application form (Apply1-4 / FunctionData), since juxtaposition
     -- would be ambiguous with the function-call syntax `f x`. Otherwise keep
@@ -723,15 +726,26 @@ reshapeAsFrac innerTy v = case casNormalize v of
                                         (casReshapeAs innerTy denom)
   cv                -> cv
 
--- | Poly inner [..]: each term's coefficient is reshaped to the inner type.
--- The symbol set is currently used only for documentation (full atom-set
--- separation for nested polynomial types like `Poly (Poly Integer [i]) [..]`
--- is a future extension; see type-cas-tower.md).
+-- | Poly inner [..]: structural reshape with atom-set separation.
+--
+-- If the inner type carries a closed symbol set (e.g. `Poly Integer [i]`
+-- inside `Poly (Poly Integer [i]) [..]`), each input term's monomial is
+-- split into atoms that belong inside (those listed in the inner set) and
+-- atoms that stay outside. The inside atoms are folded into the coefficient
+-- (which is then recursively reshaped to the inner type), the outside atoms
+-- form the new term's monomial. `casNormalizePoly` then groups terms with
+-- the same outer monomial, summing their inner-coefficient polynomials.
+--
+-- If the inner type has an open or variable symbol set, no atom separation
+-- is performed; we just recurse on coefficients (basic widening).
 reshapeAsPoly :: Type -> SymbolSet -> CASValue -> CASValue
-reshapeAsPoly innerTy _ss v = case casNormalize v of
+reshapeAsPoly innerTy _outerSS v = case casNormalize v of
   CASInteger n -> CASInteger n
-  CASPoly ts   -> casNormalizePoly
-                    [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
+  CASPoly ts   ->
+    case innerClosedAtoms innerTy of
+      Just inAtoms -> casNormalizePoly (map (separateTerm innerTy inAtoms) ts)
+      Nothing      -> casNormalizePoly
+                        [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
   cv           -> cv
 
 -- | Term inner [...]: like Poly but expected to be a single-term form.
@@ -739,6 +753,50 @@ reshapeAsPoly innerTy _ss v = case casNormalize v of
 -- responsible for that, and at runtime we just recurse.
 reshapeAsTerm :: Type -> SymbolSet -> CASValue -> CASValue
 reshapeAsTerm = reshapeAsPoly
+
+-- | Extract the closed atom list from the *outermost* CAS-poly wrapper of a
+-- type, if any. For nested types like `Poly Integer [z]` returns
+-- `Just [TANameAtom "z"]`. Returns `Nothing` for open or variable sets.
+innerClosedAtoms :: Type -> Maybe [TypeAtom]
+innerClosedAtoms (TPoly _ (SymbolSetClosed atoms)) = Just atoms
+innerClosedAtoms (TTerm _ (SymbolSetClosed atoms)) = Just atoms
+innerClosedAtoms _                                  = Nothing
+
+-- | Split a single CASTerm given the inner atom set: atoms in `inAtoms` are
+-- multiplied into the coefficient and reshaped to `innTy`; the remaining
+-- atoms become the new term's monomial.
+separateTerm :: Type -> [TypeAtom] -> CASTerm -> CASTerm
+separateTerm innTy inAtoms (CASTerm c mono) =
+  let (innerMono, outerMono) = splitMonomialByAtoms inAtoms mono
+      coeffWithInner =
+        if null innerMono
+          then c
+          else casMult c (CASPoly [CASTerm (CASInteger 1) innerMono])
+      newCoeff = casReshapeAs innTy coeffWithInner
+  in CASTerm newCoeff outerMono
+
+-- | Partition a monomial: (atoms-in-inner-set, atoms-not-in-inner-set).
+splitMonomialByAtoms :: [TypeAtom] -> Monomial -> (Monomial, Monomial)
+splitMonomialByAtoms inAtoms = go [] []
+  where
+    go inAcc outAcc []                 = (reverse inAcc, reverse outAcc)
+    go inAcc outAcc (e@(sym, _) : rest)
+      | symbolInAtomSet sym inAtoms = go (e : inAcc) outAcc rest
+      | otherwise                   = go inAcc (e : outAcc) rest
+
+-- | Decide whether a SymbolExpr matches any TypeAtom in the inner set.
+-- Matches by name for `Symbol _ name _` and by function name + arity for
+-- single-application Apply1 factors against TAApplyAtom.
+symbolInAtomSet :: SymbolExpr -> [TypeAtom] -> Bool
+symbolInAtomSet sym = any (matches sym)
+  where
+    matches (Symbol _ name _) (TANameAtom n)    = name == n
+    matches (Apply1 fn _)     (TAApplyAtom n _) = applyFnName fn == Just n
+    matches _                 _                  = False
+
+    applyFnName (CASFactor (Symbol _ n _))                                 = Just n
+    applyFnName (CASPoly [CASTerm (CASInteger 1) [(Symbol _ n _, 1)]])     = Just n
+    applyFnName _                                                          = Nothing
 
 -- | Simplify polynomial division by extracting common monomial GCD
 simplifyPolyDiv :: [CASTerm] -> [CASTerm] -> ([CASTerm], [CASTerm])
