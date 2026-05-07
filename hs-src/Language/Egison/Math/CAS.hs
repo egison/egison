@@ -740,19 +740,6 @@ reshapeAsPoly innerTy _ss v = case casNormalize v of
 reshapeAsTerm :: Type -> SymbolSet -> CASValue -> CASValue
 reshapeAsTerm = reshapeAsPoly
 
--- | Compute GCD of polynomial coefficients with an integer
-casTermsGcdCoeff :: [CASTerm] -> Integer -> Integer
-casTermsGcdCoeff [] d = abs d
-casTermsGcdCoeff terms d = foldl gcdWithTerm (abs d) terms
-  where
-    gcdWithTerm acc (CASTerm (CASInteger c) _) = gcd acc (abs c)
-    gcdWithTerm acc _ = acc  -- Non-integer coefficient: GCD = 1 effectively
-
--- | Divide a coefficient by integer, applying sign
-divCoeffBy :: CASValue -> Integer -> Integer -> CASValue
-divCoeffBy (CASInteger c) g sign = CASInteger (sign * (c `div` g))
-divCoeffBy c _ _ = c  -- Fallback: keep as-is for non-integer
-
 -- | Simplify polynomial division by extracting common monomial GCD
 simplifyPolyDiv :: [CASTerm] -> [CASTerm] -> ([CASTerm], [CASTerm])
 simplifyPolyDiv [] ts2 = ([], ts2)

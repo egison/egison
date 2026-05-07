@@ -46,7 +46,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringT
                                              mapTIExprChildren)
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
-import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeConstructorName, typeToName,
+import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName,
                                             sanitizeMethodName, freeTyVars, instType, classParam)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)

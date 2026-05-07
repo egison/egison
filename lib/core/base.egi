@@ -133,79 +133,24 @@ instance Ring Float
 instance Field Float
 
 --
--- Embed type class (Phase 5.5)
+-- CAS type widening / narrowing
 --
--- Two-parameter class for explicit value-level coercion between types.
--- The runtime `embed x` returns `x` reinterpreted at the target type. The
--- static type checker does not auto-insert these calls yet (that requires
--- elaboration); users call `embed` explicitly when they need the conversion.
+-- After Phase C, both `Embed` and the `coerceTo*` helper functions have been
+-- removed in favor of the unified `reshape` mechanism: the type checker
+-- inserts a `TIReshape T` node whenever a `def x : T := e` annotation is
+-- encountered (where T is a concrete CAS scalar — Integer, Factor, Frac _,
+-- Poly _ _, Term _ _). At runtime, `casReshapeAs T v` structurally rewrites
+-- the CAS value to fit T (collapsing Frac with denom=1 to Integer, lifting
+-- Integer into Poly form, etc.).
 --
-class Embed a b where
-  embed (x: a) : b
-
--- Identity instances: a type embeds trivially into itself.
-instance Embed MathValue MathValue where
-  embed x := x
-
-instance Embed Float Float where
-  embed x := x
-
-instance Embed Bool Bool where
-  embed x := x
-
--- Widening instances among CAS types. Runtime values share the CASValue
--- representation, so the bodies are simple identities — the type system
--- tracks the static widening.
-instance Embed Integer (Frac Integer) where
-  embed x := x
-
-instance Embed Integer (Poly Integer [..]) where
-  embed x := x
-
-instance Embed Factor (Poly Integer [..]) where
-  embed x := x
-
-instance Embed (Frac Integer) (Poly (Frac Integer) [..]) where
-  embed x := x
-
-instance Embed (Poly Integer [..]) (Poly (Frac Integer) [..]) where
-  embed x := x
-
+-- Subtype unification handles the static side (Integer ⊂ Frac Integer ⊂
+-- Poly Integer [..] ⊂ Poly (Frac Integer) [..] ⊂ Frac (Poly Integer [..])).
+-- Together this gives "trust the annotation" semantics:
 --
--- coerce: explicit type-annotated value coercion.
+--   def n : Integer            := someExpr   -- reshapes runtime to Integer
+--   def p : Poly Integer [x,y] := someExpr   -- reshapes to specific atom set
+--   def t : Term MathValue [..]:= someExpr   -- reshapes to single-term form
 --
--- Design principle: ユーザは実行後にデータを観察してから型注釈をつけるので、
--- 注釈は正しいと仮定する (trust the annotation)。`coerce` は target type を
--- 見ず、Haskell primitive (primCoerce = casNormalize) で runtime CAS 構造を
--- canonical form に再正規化する。注釈が間違っていた場合の実行時エラーは許容
--- (downstream の演算で自然に発生する)。
---
--- これにより、内部表現が「実質的な型」に応じた構造に更新される:
---
---   CASPoly [CASTerm 5 []]                  → CASInteger 5
---   CASFrac (CASInteger 5) (CASInteger 1)   → CASInteger 5
---   CASPoly [(x, 1), (-x, 1)]               → CASInteger 0
---
--- 静的 annotation は subtype unify で任意の CAS 型 (Integer, Frac Integer,
--- Poly Integer [x, y], Term MathValue [s], Frac (Poly (Frac Integer) [x]) 等
--- の任意のネスト・atom 集合) に narrow 可能:
---
---   def n : Integer            := coerce expr
---   def p : Poly Integer [x,y] := coerce expr
---   def t : Term MathValue [..]:= coerce expr
---
-
-def coerce (x : MathValue) : MathValue := primCoerce x
-
--- Backward-compatible specialized helpers (for explicit return-type clarity)
-def coerceToInteger (x : MathValue) : Integer := primCoerce x
-def coerceToFracInteger (x : MathValue) : Frac Integer := primCoerce x
-def coerceToPolyInteger (x : MathValue) : Poly Integer [..] := primCoerce x
-def coerceToPolyFracInteger (x : MathValue) : Poly (Frac Integer) [..] := primCoerce x
-def coerceToFracPolyInteger (x : MathValue) : Frac (Poly Integer [..]) := primCoerce x
-def coerceToFactor (x : MathValue) : Factor := primCoerce x
-def coerceFracToInteger (x : Frac Integer) : Integer := primCoerce x
-def coercePolyToInteger (x : Poly Integer [..]) : Integer := primCoerce x
 
 --
 -- Rule application combinators (Phase 7.5 helper)

@@ -100,7 +100,6 @@ builtinTypes = concat
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
       , ("mapFracAll", Forall [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
-      , ("primCoerce", Forall [] [] $ TFun TMathValue TMathValue)
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
