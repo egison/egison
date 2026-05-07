@@ -20,13 +20,12 @@ import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
 
 -- | Apply rewrite rules to a CASValue
--- Note: casRewriteI was migrated to `declare rule auto term i^2 = -1`
--- in lib/math/normalize.egi.
+-- Note: casRewriteI and casRewriteW were migrated to `declare rule auto`
+-- declarations in lib/math/normalize.egi.
 casRewriteSymbol :: CASValue -> CASValue
 casRewriteSymbol =
   foldl1 (\acc f -> f . acc)
-    [ casRewriteW
-    , casRewriteLog
+    [ casRewriteLog
 --    , casRewriteSinCos
     , casRewriteExp
     , casRewritePower
@@ -72,24 +71,8 @@ casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 -- Note: casRewriteI (i^2 = -1) was migrated to a `declare rule auto`
 -- declaration in lib/math/normalize.egi and removed from this module.
 
--- | Rewrite w (cube root of unity): w^3 = 1
-casRewriteW :: CASValue -> CASValue
-casRewriteW = mapCASPolys g . mapCASTerms f
- where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casSymbol #"w", $k & ?(>= 3)) : $xss ->
-               CASTerm coeff ((Symbol "" "w" [], k `mod` 3) : xss) |]
-      , [mc| _ -> term |]
-      ]
-  g _ts@(poly) =
-    match dfs poly (Multiset CASTermM)
-      [ [mc| casTerm' $a ((casSymbol #"w", #2) : $mr) :
-             casTerm' $b ((casSymbol #"w", #1) : #mr) : $pr ->
-               g (CASTerm (casNegate a) mr :
-                  CASTerm (casMinus b a) ((Symbol "" "w" [], 1) : mr) : pr) |]
-      , [mc| _ -> poly |]
-      ]
+-- Note: casRewriteW (w^3 = 1, w^2 + w + 1 = 0) was migrated to
+-- `declare rule auto` declarations in lib/math/normalize.egi and removed.
 
 -- | Rewrite log: log(1) = 0, log(e^n) = n
 casRewriteLog :: CASValue -> CASValue
