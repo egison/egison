@@ -343,8 +343,8 @@ def cf : ContinuedFraction := coerce (355 / 113)
 ## 8. 関連ドキュメント
 
 - [type-cas.md](./type-cas.md) §実行時の型昇格タワー — 現状の 5 段階タワーの定義
-- [type-cas-implementation-status.md](./type-cas-implementation-status.md) §4.3.1 — 現状の `coerce` 実装と将来拡張への hook
-- [type-cas-issues.md](./type-cas-issues.md) — 設計時に予測された課題
+- [type-cas.md](./type-cas.md) §「自動変換の仕組み」 — 現状の `reshape` primitive 実装 (将来拡張への hook)
+- [type-cas.md](./type-cas.md) §「既知の制限と未解決課題」 — 残された課題
 
 ## 9. 改訂履歴
 

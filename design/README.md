@@ -18,10 +18,8 @@
 
 ### CAS 型システム
 
-- **`type-cas.md`** - CAS 型システム設計（メイン）
-- **`type-cas-issues.md`** - 設計時点で予測された実装課題
-- **`type-cas-implementation-status.md`** - 実装状況と発見された詰まり ✨ NEW (2026-04-28)
-- **`type-cas-single-slot-update.md`** - 1スロット原子集合への移行ノート
+- **`type-cas.md`** - CAS 型システム設計（メイン、実装到達点と未解決課題も末尾に統合）
+- **`type-cas-tower.md`** - ユーザ拡張可能な CAS タワー（将来構想）
 
 ## 🎯 クイックスタート
 
@@ -38,9 +36,8 @@
 
 ### CAS 型システムについて知りたい
 
-1. **設計** → `type-cas.md`
-2. **実装の現状と詰まり** → `type-cas-implementation-status.md`
-3. **設計時点の課題** → `type-cas-issues.md`
+1. **設計と実装到達点** → `type-cas.md` (末尾の「既知の制限と未解決課題」も参照)
+2. **将来のタワー拡張構想** → `type-cas-tower.md`
 
 ## 📝 最近の更新
 

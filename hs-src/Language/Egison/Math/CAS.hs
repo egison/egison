@@ -284,13 +284,20 @@ prettyTypeOf (CASFrac n d) =
     -- otherwise widen to MathValue.
     inner = if nT == dT then nT else "MathValue"
 
--- | Pretty join of observed types of multiple coefficients. The simple rule:
--- if all are equal, use that. Otherwise widen to the broadest seen.
+-- | Pretty join of observed types of multiple coefficients.
+--
+-- "Integer" is the bottom of the CAS observed-type lattice (it embeds into
+-- every other CAS type), so when one term is observed as "Integer" and the
+-- rest as some richer type T, we report T (not the over-broad "MathValue").
+-- If two truly distinct non-Integer types appear, we still widen to
+-- "MathValue" — a full subtype-aware join over the observed-type strings is
+-- left as future work.
 joinObservedTypes :: [String] -> String
-joinObservedTypes []     = "Integer"
-joinObservedTypes (t:ts)
-  | all (== t) ts = t
-  | otherwise     = "MathValue"
+joinObservedTypes []  = "Integer"
+joinObservedTypes ts  = case filter (/= "Integer") ts of
+  []                                       -> "Integer"
+  ts' | all (== head ts') (tail ts')        -> head ts'
+      | otherwise                           -> "MathValue"
 
 -- | Phase 8 differential closure: collect the set of atoms (as their canonical
 -- pretty form) appearing in a CASValue's monomials, recursing into nested
@@ -785,14 +792,20 @@ splitMonomialByAtoms inAtoms = go [] []
       | otherwise                   = go inAcc (e : outAcc) rest
 
 -- | Decide whether a SymbolExpr matches any TypeAtom in the inner set.
--- Matches by name for `Symbol _ name _` and by function name + arity for
--- single-application Apply1 factors against TAApplyAtom.
+-- Matches `Symbol _ name _` against `TANameAtom name` (e.g. atom `i`).
+-- Matches `Apply1..4 fn _` against `TAApplyAtom name _` by function name
+-- (e.g. atom `sin x` for any single application of `sin`). The argument
+-- structure inside the TypeAtom is not currently checked.
 symbolInAtomSet :: SymbolExpr -> [TypeAtom] -> Bool
 symbolInAtomSet sym = any (matches sym)
   where
     matches (Symbol _ name _) (TANameAtom n)    = name == n
-    matches (Apply1 fn _)     (TAApplyAtom n _) = applyFnName fn == Just n
-    matches _                 _                  = False
+    matches (Apply1 fn _)         (TAApplyAtom n _) = applyFnName fn == Just n
+    matches (Apply2 fn _ _)       (TAApplyAtom n _) = applyFnName fn == Just n
+    matches (Apply3 fn _ _ _)     (TAApplyAtom n _) = applyFnName fn == Just n
+    matches (Apply4 fn _ _ _ _)   (TAApplyAtom n _) = applyFnName fn == Just n
+    matches (FunctionData fn _)   (TAApplyAtom n _) = applyFnName fn == Just n
+    matches _                 _                      = False
 
     applyFnName (CASFactor (Symbol _ n _))                                 = Just n
     applyFnName (CASPoly [CASTerm (CASInteger 1) [(Symbol _ n _, 1)]])     = Just n

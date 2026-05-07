@@ -1,8 +1,8 @@
 # Egison CAS 型システム設計
 
-> **関連ドキュメント**:
-> - 実装時の状態と発見された詰まりは [type-cas-implementation-status.md](./type-cas-implementation-status.md) を参照
-> - 設計時点で予測された課題は [type-cas-issues.md](./type-cas-issues.md) を参照
+> **関連ドキュメント**: ユーザによるタワー拡張の将来構想は [type-cas-tower.md](./type-cas-tower.md) を参照。
+
+> **2026-05-07 メモ**: 本ドキュメント中の `coerce` / `embed` (typeclass) は実装で **`reshape` primitive 一本に統一済み**。型注釈 (`def x : T := e` または `(e : T)`) を書くだけで AST elaboration が `IReshape T e` を挿入し、runtime の `casReshapeAs T v` が CAS 構造を target type に書き換える。本文はオリジナルの設計案で、用語 (`coerce`/`embed`) は意味的にはすべて `reshape` 経由として読み替え可能。実装の詳細・残課題は本ドキュメント末尾の [§ 既知の制限と未解決課題](#既知の制限と未解決課題) を参照。
 
 ## 概要
 
@@ -452,18 +452,9 @@ data SymbolSet
 
 #### 利用箇所
 
-**1. `coerce` の検証**:
+**1. `reshape` の構造書き換え** (旧 `coerce` 検証):
 
-```haskell
--- Poly a [..] → Poly a atoms の検証
-coerceToClosed :: [SymbolExpr] -> CASValue -> Either CoerceError CASValue
-coerceToClosed atoms (CASPoly terms) = do
-  forM_ terms $ \(CASTerm _ mono) ->
-    forM_ mono $ \(sym, _) ->
-      require (sym `elem` atoms)  -- 注釈された原子のみ許可
-```
-
-システムは原子が **`atoms` に含まれていること**だけを検証する。
+旧設計では `Poly a [..] → Poly a atoms` で原子が `atoms` に含まれているかをランタイム検証する `coerceToClosed` 関数を想定していた。Phase C で **「trust the annotation」原則** を採用したため、検証は行わず `casReshapeAs` が target type に向けて構造を書き換えるのみ。注釈と値が不整合な場合は canonical 形のまま残り downstream で問題が顕在化する設計。
 
 **2. `Differentiable Factor` のディスパッチ**:
 
@@ -753,7 +744,7 @@ s + 1                           -- Poly Integer [..]
 def t : Poly Integer [sqrt 2] := s + 1    -- sqrt 2 は atoms スロットに入る
 ```
 
-`Factor` には `Ring` インスタンスを与えない。演算が必要な文脈では、型チェッカーが coercive subtyping（`Embed` 型クラス）により自動的に `Poly` へ `embed` を挿入する。これにより `casPlus` / `casMult` に `CASFactor` のケースは不要で、演算関数の実装がシンプルになる。
+`Factor` には `Ring` インスタンスを与えない。演算が必要な文脈では、subtype unification (`Factor ⊂ Poly Integer [..]`) により型チェッカーが Poly 型への昇格を許可し、必要なら型注釈経由で `reshape` が runtime 構造を書き換える。これにより `casPlus` / `casMult` に `CASFactor` のケースは不要で、演算関数の実装がシンプルになる。
 
 ### CASFactor コンストラクタ
 
@@ -943,148 +934,90 @@ x / r^2 : Poly Integer [x, r]    -- CASTerm の Monomial = [(x,1), (r,-2)]
 
 Axiom のドメインタワーとの関係については [Axiom/FriCAS との比較](#axiomfricas-との比較) を参照。
 
----
+### ユーザによるタワー拡張 (将来課題)
 
-## 自動変換の3つの仕組み
+上記 5 段階のタワーは **CAS 標準型のみ** を対象にしている。実用上、ユーザは中間段に独自の型を差し込みたい場面がある:
 
-### 1. embed（包含関係による自動埋め込み）
+- **Gaussian 整数係数の多項式** `Poly (Poly Integer [i]) [..]` (`i^2 = -1` の rule 付き)
+- **代数拡大体** `Poly (Poly Integer [α]) [..]` (`α` は最小多項式の根)
+- **三角関数係数の多項式** `Poly (Term MathValue [sin θ, cos θ]) [r]` 等
 
-型の包含関係がある場合、ターゲット型が文脈から既知のときに自動的に `embed` を挿入する。
+これらは `Poly Integer [..] ⊊ X ⊊ Frac (Poly Integer [..])` のように既存レベルの **間** に挿入されるべき型であり、現在の固定 5 段タワーでは表現できない。一方、`reshape` 機構は **任意の nested CAS 型** に runtime 構造を書き換えられる (atom 分離を含む) ので、API 側はすでに extensible になっている。
+
+将来、以下のような構文でユーザがタワーを編集可能にする構想がある:
 
 ```egison
-def f (x : Poly Integer [x, y]) : Poly Integer [x, y] := x + x
-def p : Poly Integer [x] := 1 + x
+-- ユーザ定義の中間型を宣言
+declare cas-type GaussianPoly = Poly (Poly Integer [i]) [..]
+  with rule i^2 = -1
 
-f p  ⇝  f (embed p)    -- Poly Integer [x] → Poly Integer [x, y]
-                       -- atoms スロットの拡大
+-- タワーへの位置を指定 (半順序の追加辺)
+declare cas-subtype GaussianPoly extends Poly Integer [..]
+declare cas-subtype Frac (Poly Integer [..]) extends GaussianPoly
+
+-- 正規化 (canonicalize) のフック
+class CASCanonical a where
+  canonicalize (x: a) : a
+
+instance CASCanonical GaussianPoly where
+  canonicalize x := iterateRules [rule.iSq] x
 ```
+
+これにより:
+
+- `join` がユーザ追加型を含めた **半順序 lattice** で計算される
+- `reshape` が `declare cas-subtype` のチェーンを辿って中間型に着地できる
+- 型ごとに `CASCanonical` 経由で normalize 規則を分離
+
+実装は大規模 (5 phase 程度) で、構想は [type-cas-tower.md](./type-cas-tower.md) にまとめてある。本ドキュメントの以下の章 (タワー、`join`、`embed`/`coerce`) はすべて固定タワー前提だが、ユーザ拡張時には:
+
+- 「タワーのレベル番号」は半順序チェーンの位置に置き換わる
+- `embed`/`reshape` は半順序の上向きエッジ
+- `coerce`/`reshape` は (条件付きで) 下向きエッジ + 検証
+
+という形で自然に一般化される。
+
+---
+
+## 自動変換の仕組み
+
+### 1. reshape (型注釈に基づく構造書き換え)
+
+型注釈 (`def x : T := e` または `(e : T)`) を書くと、AST elaboration が `IReshape T e` を挿入し、runtime に `casReshapeAs T v` が CAS 構造を target type に書き換える。これが旧設計の `embed` (widening) と `coerce` (narrowing) を一本化した実装。
 
 ```egison
 def n : Integer := 3
-def q : Poly Integer [i] := n + i    -- Integer → Poly Integer [i] に自動 embed
+def q : Poly Integer [i] := n + i        -- 注釈ベースで自動 reshape
+def f : Frac Integer := 6 / 2            -- runtime: 3 (Frac→Integer canonical)
+def p : Poly (Poly Integer [z]) [..] :=
+  2*x*z + 3*x + z^2 + 1                  -- atom 分離: (2z+3)*x + (z^2+1)
 ```
 
-#### embed の実装
+旧 `Embed` typeclass や `coerce`/`coerceToX` 関数は **Phase C で削除済**。型注釈による reshape 一本に統一されたので、ユーザは追加の関数呼び出しを書く必要がない。
 
-`Embed` 型クラスと型チェッカーによる AST 変換の組み合わせで実装する。
+#### 「trust the annotation」原則
 
-**`Embed` 型クラス**で変換規則を宣言的に定義する：
+`reshape` は **構造検証を行わない**。注釈に従って CAS 値の構造を書き換えるだけで、注釈と値が不整合な場合 (例: `(x + 1 : Integer)` で実際は多項式) は canonical 形のまま残り、downstream の演算で自然に問題が顕在化する。
 
-```egison
-class Embed a b where
-  embed :: a -> b
+これにより:
+- 観察型と注釈型が一致するケースでは reshape が望ましい構造を構築
+- 強い検証エラーを避け、REPL で「観察 → 注釈」の workflow を妨げない
+- 注釈が意味を持つのは **構造の選好** (level 4 vs level 5、atom 分離など) に対して
 
-instance Embed Integer (Poly Integer [..]) where
-  embed n = ...  -- CASInteger n → CASPoly [CASTerm (CASInteger n) []]
-
-instance Embed Integer (Frac Integer) where
-  embed n = ...  -- CASInteger n → CASFrac (CASInteger n) (CASInteger 1)
-
--- Factor は Poly Integer [..] に embed される
--- ランタイムでは Monomial に (sym, 1) が入るだけ
-instance Embed Factor (Poly Integer [..]) where
-  embed f = ...  -- CASFactor sym → CASPoly [CASTerm (CASInteger 1) [(sym, 1)]]
-
-instance {Embed a b, atoms} Embed (Poly a atoms) (Poly b atoms) where
-  embed p = ...  -- 各項の係数を再帰的に embed (原子集合は保存)
-
--- 原子集合の拡大（ランタイム no-op、型レベルのみの操作）
-instance {atoms₁ ⊆ atoms₂} Embed (Poly a atoms₁) (Poly a atoms₂) where
-  embed p = p
-```
-
-**型チェッカー**が型不一致を検出したとき、包含関係があれば `Embed` 制約を解決し、AST に `embed` 呼び出しを挿入する（elaboration）：
-
-```
--- 型チェック前
-x + 1        -- x : Poly Integer [x], 1 : Integer
-
--- 型チェック後（elaborated）
-x + embed 1  -- embed 1 : Poly Integer [x]
-```
-
-**推移的な変換**（例: `Integer → Poly Integer [s] → Poly (Frac Integer) [s]`）は、型チェッカーが包含関係の推移閉包を探索し、必要に応じて `embed . embed` を合成する。
-
-各変換の内部表現は `Embed` インスタンスのコメントに記載。原子集合の拡大は内部表現を変えない（型レベルのみの操作）。
-
-#### 実装方式
-
-Coq の Coercion mechanism に倣い、型チェッカーに coercive subtyping を組み込む：
-
-- `Embed` インスタンスの宣言時に、型チェッカーが包含関係のグラフを構築する
-- 型不一致の検出時に、グラフ上の最短経路（深さ制限付きBFS）で推移的な `embed` の合成を探索する
-- **Coherence（一貫性）** は、CAS型の包含関係が数学的に明確な半順序であることから自然に保証される（どの経路でも同じ数学的な値に変換される）
-- 参考文献: Luo (1999) *Coercive subtyping*, Breazu-Tannen et al. (1991) *Inheritance as implicit coercion*
-
-#### 式レベル型注釈
-
-任意の式に型注釈を付けることで `coerce` を挿入できる。構文は `(expr : Type)`:
-
-```egison
-(sqrt 4 : Integer)                          -- sqrt 4 の結果を Integer に coerce
-(sqrt 8 : Poly Integer [sqrt 2])           -- sqrt 8 の結果を Poly に coerce
-(sqrt 2 : Factor)                           -- sqrt 2 の結果を Factor に coerce
-(sin x + cos x : MathValue)                 -- 型注釈が推論型と一致すれば coerce 不要
-```
-
-式レベル型注釈は `declare mathfunc` の戻り値（`MathValue`）を具体型に絞り込む主要な手段である。`def` の型注釈と同様に、ターゲット型が推論型より具体的な場合に `coerce` が自動挿入される。
-
-##### 注釈粒度の選び方
+#### 注釈粒度の選び方
 
 同じ `sqrt 2` でも注釈型によって得られる静的情報量が異なる。原子集合まで指定した **閉じた `Poly` / `Term` 型** が最も情報量が多く、後続の計算で型推論が精密になるため推奨:
 
 | 注釈型 | 静的に分かること | 主な用途 |
 |---|---|---|
-| `MathValue` | 何でも（最汎） | 型注釈なしと同等 |
+| `MathValue` | 何でも (最汎) | 型注釈なしと同等 |
 | `Poly Integer [..]` | 原子集合は非固定 | 実行時値を含む場合の退行形 |
-| `Poly Integer [sqrt 2]` | 原子が `sqrt 2` 限定、`(sqrt 2)^2 = 2` 等のルールが型上で追跡可 | **推奨**（引数が静的に既知の場合） |
+| `Poly Integer [sqrt 2]` | 原子が `sqrt 2` 限定、`(sqrt 2)^2 = 2` 等のルールが型上で追跡可 | **推奨** (引数が静的に既知の場合) |
 | `Term Integer [sqrt 2]` | 単項であることも表明 | さらに精密に絞り込みたい場合 |
 
-**REPL / inspect での観察型の表示**: 注釈を省いた場合、REPL は評価後に観察型を表示する。ユーザーはこれをコピーして `def` の注釈にできる。詳細は「観察型」セクション参照。
+**REPL / inspect での観察型の表示**: 注釈を省いた場合、`typeOf`/`inspect` が評価後に観察型を表示する。ユーザーはこれをコピーして `def` の注釈にできる。詳細は「観察型」セクション参照。
 
-#### coerce（型の絞り込み）
-
-`embed` は安全な widening（具体 → 一般）だが、逆方向の narrowing（一般 → 具体）が必要な場面がある。典型的には `declare mathfunc` の関数の戻り値が `MathValue` で推論されるが、ユーザは結果が特定の型に属することを知っている場合。
-
-```egison
--- sqrt : MathValue -> MathValue（declare mathfunc で宣言）
-
--- def の型注釈で coerce が挿入される
-def x : Poly Integer [sqrt 2] := sqrt 2
-def n : Integer := sqrt 4
-
--- 式レベル型注釈でも coerce が挿入される
-(sqrt 4 : Integer) + 1    -- 2 + 1 = 3
-```
-
-`coerce` は `embed` の逆方向の操作で、ランタイム検証を伴う：
-
-```egison
-class Coerce a b where
-  coerce :: a -> b    -- ランタイムで型の適合性を検証し、失敗時はエラー
-```
-
-型注釈がトリガーとなり、型チェッカーが `coerce` を自動挿入する（elaboration）。
-
-**ランタイム検証の内容**:
-
-| 変換 | 検証内容 |
-|------|----------|
-| `Poly a [..] → Poly a atoms` | 全項のモノミアルの各原子が、`atoms` の名前集合に含まれるか |
-| `Poly a [..] → Integer` | 全項のモノミアルが空で、係数が `Integer` に変換可能か |
-| `Poly a [..] → Symbol` | 単一項で係数が1、Monomial が単一原子の1乗で、その原子が `Symbol` コンストラクタ |
-| `Frac a → a` | 分母が1か |
-
-**embed との対称性**:
-
-```
-embed  : 具体 → 一般（常に安全、コンパイル時保証、型チェッカーが自動挿入）
-coerce : 一般 → 具体（ランタイム検証、失敗時エラー、型注釈による自動挿入）
-```
-
-観察型との関係: 観察型と宣言型が一致すれば `coerce` は成功する。観察型の計算については「観察型」セクション参照。
-
-### 2. join（二項演算時の最小上界の計算）
+### 2. join (二項演算時の最小上界の計算)
 
 二項演算 `a + b` で `a : τ₁`, `b : τ₂` のとき、型チェッカーが以下の手順で処理する:
 
@@ -1734,7 +1667,7 @@ instance {Differentiable a} Differentiable (Frac a) where
 
 **結果**: Factor と Term の両方が `IRuntimeDispatch` を経由しない静的 dispatch で動く。Frac inst の `$p1 / $p2` のフォールバック路 (`_ -> chainPartialDiff f x`) と、`runtimeTypeOfCAS` 経由で MathValue → 各 instance への runtime dispatch (`IRuntimeDispatch`) は維持。
 
-**`lookupDerivative` の現状**: 設計通り `declare derivative` の登録 → Factor inst での参照という流れ自体は、現状 `chainPartialDiff` shadowing 再定義方式で代替されている。詳細は [type-cas-implementation-status.md §4.3](./type-cas-implementation-status.md#43-lookupderivative-ではなく-chainpartialdiff-再定義方式) 参照。
+**`lookupDerivative` の現状**: 設計通り `declare derivative` の登録 → Factor inst での参照という流れ自体は、現状 `chainPartialDiff` shadowing 再定義方式で代替されている。Haskell-side primitive 化は [§ 既知の制限と未解決課題](#既知の制限と未解決課題) の残課題として記載。
 
 #### 合成原子の導関数定義
 
@@ -1784,7 +1717,7 @@ def g := function (x, y)     -- 2変数関数 g(x, y)
 | 型 | `MathValue -> MathValue` | 後述(要検討) |
 | 用途 | 具体的な数学関数(`sin`, `sqrt` 等) | シンボリック計算、公式導出 |
 
-関数シンボルの**新 CAS 型システムへの統合**(どの型になるか、`Poly` の原子集合にどう入るか、偏微分インデックスの扱い等)は未決事項。[type-cas-issues.md](./type-cas-issues.md) の課題 P を参照。
+関数シンボルの**新 CAS 型システムへの統合**(どの型になるか、`Poly` の原子集合にどう入るか、偏微分インデックスの扱い等)は未決事項。[§ 既知の制限と未解決課題](#既知の制限と未解決課題) を参照。
 
 #### 差分閉性の観察型による報告
 
@@ -2475,137 +2408,17 @@ def term {a} (m : Matcher a) : Matcher (Term a ..) :=
 - [x] 後方互換テスト: 既存の `mathExpr` マッチャーを使うコードが動作すること (cabal test 21/21 pass)
 - [x] sample/ の数学サンプルが正しく動作すること (cabal test 21/21 pass)
 
-### Phase 5.5: Embed 型クラスと Coercive Subtyping
+### Phase 5.5: 型注釈に基づく自動変換 (旧称 Embed/Coerce、現 reshape)
 
-CAS 型間の自動変換を実現するための型クラスと、型チェッカーへの統合を行う。Phase 5（パラメトリックマッチャー）の完了後、Phase 6（ライブラリ関数の再実装）の前に着手する。
-
-**前提タスクの状態**:
-- [x] multi-param type class infrastructure: ClassInfo.classParams (list), InstanceInfo.instTypes (list) で受け入れ可能。EnvBuilder.hs が `class Embed a b where ...` / `instance Embed T1 T2 where ...` をパース・登録可能 (`mini-test/72-multiparam-class.egi`)
-- [x] CAS 型同士の subtype unification (簡易版): unifier に `MathValue ↔ {Factor, Frac _, Poly _ _}` の双方向ユニフィケーション規則を追加。これで `def p : Poly Integer [x] := 1 + x` 等の注釈付き定義が型エラーなく通る (`mini-test/75-cas-subtype-unify.egi`)
-- [x] `Embed` のライブラリインスタンス追加: `Integer ⊂ Frac Integer / Poly Integer [..]`、`Factor ⊂ Poly Integer [..]`、`Frac Integer ⊂ Poly (Frac Integer) [..]`、`Poly Integer [..] ⊂ Poly (Frac Integer) [..]` (`mini-test/78-embed-cas-widening.egi`)
-- [ ] 完全な elaboration (型不一致時の `embed` 関数呼び出しの自動挿入): 未実装。現状は subtype unification で型エラーを回避し、ユーザーが `embed` を明示的に書ける環境
-
-**Phase 6 の前に行う理由**: `∂/∂` を `Differentiable` 型クラスのメソッドとして、`expandAll` の `Frac` への持ち上げを `CASMap` 型クラスで最初から実装するため。型クラスの基盤なしにライブラリ関数を実装すると、Phase 7 で二度手間のリファクタリングが必要になる。
-
-#### 概要
-
-型の包含関係（例: `Integer ⊂ Poly Integer [x]`）がある場合に、型チェッカーが自動的に `embed` 関数の呼び出しを挿入する（elaboration）。これにより、ユーザーは明示的な型変換を書かずに、自然な数式表記で計算できる。
-
-```egison
--- ユーザーが書くコード
-x + 1    -- x : Poly Integer [x], 1 : Integer
-
--- 型チェッカーが変換後（elaborated）
-x + embed 1  -- embed 1 : Poly Integer [x]
-```
-
-#### Step 5.5.1: Embed 型クラスの定義
-
-- `Embed` 型クラスを `lib/core/cas.egi` に定義
-  ```egison
-  class Embed a b where
-    embed :: a -> b
-  ```
-- 基本インスタンスの実装
-  - `Embed Integer (Poly Integer [..])`
-  - `Embed Integer (Frac Integer)`
-  - `Embed Symbol Factor` — 型レベルのみの埋め込み
-  - `Embed Factor (Poly Integer [..])` — 原子集合に入る (open)
-  - `Embed (Poly a atoms) (Poly b atoms)` where `Embed a b` — 係数のみ embed (atoms 保存)
-  - `Embed (Poly a atoms₁) (Poly a atoms₂)` where `atoms₁ ⊆ atoms₂` — 原子集合拡大
-  - `Embed (Term a atoms) (Poly a atoms)` — `CASTerm` → `CASPoly`（1要素リストで包む）
-
-これらのインスタンスは名前付き型変数 `atoms` を使うことで、解決時に具体的な原子集合に特化され戻り値の型が保存される。`[..]` は原子集合消去のワイルドカードであり、用途に応じて両者を使い分ける（「`+` と `*` の閉性に応じたインスタンス設計」節参照）。演算ロジックの特化インスタンスは不要（簡約規則は `MathValue` の `casNormalize` で処理される）。
-
-#### Step 5.5.2: 型チェッカーでの包含関係グラフの構築
-
-- `Type/Join.hs`（既存）に包含関係グラフの機能を追加
-  - `isSubtype`, `symbolSetSubset` は実装済み
-  - `Embed` インスタンス宣言時にグラフにエッジを追加
-  - 推移閉包の計算（深さ制限付きBFSで探索）
-
-#### パス順序: embed 挿入は tensorMap 挿入より前
-
-elaboration の全体パイプラインは以下:
-
-```
-ソース AST
-  ↓ 1. 型推論 (Infer.hs)            — TIExpr 生成、subtype 制約成功時に TICoerced マーカーを挟む
-TIExpr (型注釈付き AST、coerce マーカー含む)
-  ↓ 2. embed 挿入 (EmbedInsertion.hs) — TICoerced を `App embed expr` に置換
-TIExpr (embed/coerce 挿入済み)
-  ↓ 3. tensorMap 挿入 (TensorMapInsertion.hs) — スカラー関数のテンソル引数への自動 lift
-  ↓ 4. 型クラス展開 (TypeClassExpand.hs)       — 辞書渡しに変換
-最終 AST
-```
-
-**embed 挿入を tensorMap 挿入より前に置く理由**:
-
-- `embed` 自身がスカラー関数 (`Embed a b => a -> b`) として登録される
-- 引数が `Tensor a` で期待型が `Tensor b` の場合、embed 挿入パスは単に `embed t` を生成するだけでよい
-- 後続の tensorMap 挿入パスが `embed : a -> b` を `tensorMap embed t : Tensor b` に持ち上げる
-- embed 挿入パス側でテンソル特殊処理を持つ必要がなく、責務が綺麗に分離される
-
-逆順（tensorMap 先）にすると、tensorMap が生成したラムダの内部に embed を挿入する必要があり、ラムダ越しの型情報伝搬が必要になる。embed 先のほうが AST がフラットなまま処理できる。
-
-#### Step 5.5.3: 型推論での embed 自動挿入
-
-- `Type/Infer.hs` の `unify` で型不一致検出時に包含関係をチェック
-  - 型 `τ₁` と `τ₂` が不一致の場合:
-    1. `isSubtype τ₁ τ₂` なら `embed` で `τ₁ → τ₂` に変換
-    2. `isSubtype τ₂ τ₁` なら `embed` で `τ₂ → τ₁` に変換
-    3. 閉じた Poly 同士でスロットが異なる場合は `join` で和集合を計算し双方を embed
-    4. ターゲット型が既知で逆方向（一般 → 具体）なら `coerce` を挿入
-    5. いずれでもなければ型エラー
-- 推移的な変換（`embed . embed`）の合成
-  - 例: `Integer → Poly Integer [x] → Poly (Frac Integer) [x]`
-  - グラフ上の最短経路で `embed` を連鎖
-- `Embed` 制約の解決と辞書渡し
-  - 型クラス解決機構と連携
-
-#### Step 5.5.3a: coerce の自動挿入
-
-- 型注釈で具体型が指定されており、推論された型が包含関係の逆方向にある場合に `coerce` を挿入
-  - 例: `def x : Poly Integer [sqrt 2] := sqrt 2` で `sqrt 2 : Poly Integer [..]` → `coerce (sqrt 2) : Poly Integer [sqrt 2]`
-  - 例: `def n : Integer := sqrt 4` で `sqrt 4 : Poly Integer [..]` → `coerce (sqrt 4) : Integer`
-- `Coerce` 型クラスの定義
-  ```egison
-  class Coerce a b where
-    coerce :: a -> b    -- ランタイム検証付き
-  ```
-- 基本インスタンスの実装（`Math/CAS.hs` にランタイム検証関数）
-  - `Coerce (Poly a [..]) (Poly a atoms)` — 各原子が `atoms` の名前集合に含まれるかを検証
-  - `Coerce (Poly a [..]) Integer` — 全モノミアルが空で定数項のみかを検証
-  - `Coerce (Poly a [..]) Symbol` — 単一項で Monomial が単一原子1乗、その原子が `Symbol` コンストラクタかを検証
-  - `Coerce (Frac a) a` — 分母が1かを検証
-- ランタイム検証失敗時は `CoerceError` を送出（エラーメッセージに期待される型と実際の値を表示）
-
-#### Step 5.5.4: 二項演算での join と embed の連携
-
-- 二項演算 `a + b` での処理フロー
-  1. `a : τ₁`, `b : τ₂` を推論
-  2. `joinTypes τ₁ τ₂` で最小上界 `τ` を計算（`Join.hs`）
-  3. `τ₁ ≠ τ` なら `embed` で `τ₁ → τ`
-  4. `τ₂ ≠ τ` なら `embed` で `τ₂ → τ`
-  5. 結果の型 `τ` で `Ring τ` インスタンスを解決し `(+)` 辞書を取得
-- 条件式 `if c then a else b` でも同様の join を実行
-- リストリテラル `[a, b, c]` での要素型の join
-
-**処理順序の固定**: `join → embed → インスタンス解決` の順を必ず守る。インスタンス解決を先に行うと、`τ₁` と `τ₂` のどちらの `Ring` を選ぶかで挙動が分岐し、`embed` 後に再解決が必要になる場合がある。常に揃えてから解決することで Haskell 流の単一辞書渡しに乗る。
-
-**Tensor との関係**: 二項演算でも、`embed` 自身がスカラー関数 (`Embed a b => a → b`) として登録されているため、被演算子が `Tensor` の場合は後続の tensorMap 自動挿入機構（[type-tensor-simple.md](./type-tensor-simple.md)）が embed を成分ごとに持ち上げる。本パス（embed 挿入）は Tensor かどうかを意識せず単に `embed x` を生成すればよく、`tensorMap embed t` への lift は次のパスが担当する。`join(Tensor a, Tensor b)` がタワー外でフォールバックして `Tensor MathValue` になるケースも同様に、本パスで Tensor を特別扱いする必要はない（パス順序の根拠は Step 5.5.2 直後の「パス順序」節を参照）。
-
-#### Step 5.5.5: CAS 用の代数的型クラスと MathValue の定義
-
-「代数的型クラス階層」セクションと「微分演算子 `∂/∂`」セクションの設計に基づき、`Ring`, `Field`, `GCDDomain`, `Differentiable` 等の型クラス階層と `MathValue` の `Ring` インスタンスを実装する。内部表現変換関数（`embedIntToPoly` 等）は `Embed` インスタンスのコメントに基づき `Math/CAS.hs` に実装する。
-
-#### Step 5.5.6: 基本テストの作成と検証
-
-- embed の基本テスト（`x + 1` の自動 embed）
-- 原子集合拡大テスト
-- join テスト（異なる原子集合の和集合）
-- 推移的 embed テスト（`Integer → Frac Integer → Poly (Frac Integer) [..]`）
-- 型クラス `Ring` の解決テスト
+> **2026-05-07 メモ**: 当初は `Embed` / `Coerce` 型クラスとそれらに基づく elaboration として設計されたが、実装過程で「`embed` ≡ `coerce` の役割は重複しており、戻り値型 dispatch を含む typeclass method を AST elaboration で wrap すると内側の dispatch context が壊れる (A1 干渉問題)」と判明。最終的に **`reshape` primitive 一本に統一** された (Phase A〜D, 2026-05-07)。
+>
+> 現在の実装:
+> - 型注釈 (`def x : T := e` または `(e : T)`) が elaboration trigger
+> - AST node `IReshape Type IExpr` を post-typecheck で挿入
+> - runtime に `casReshapeAs T v` が CAS 構造を target 型に書き換える (atom 分離を含む)
+> - `Embed` typeclass / `Coerce` typeclass / `coerceToX` 関数群はすべて削除済 (Phase C, 2026-05-07)
+>
+> 旧設計の詳細 (Step 5.5.1〜5.5.6) は git history に残されているが、当ドキュメントからは削除された。
 
 ### Phase 6: ライブラリ関数の再実装
 
@@ -2955,3 +2768,67 @@ Step 7.6 → 7.7 で全ルールが統一的に管理される。
 
 - [ ] 「`declare-key` 機構」セクションを設計書に追加
 - [ ] サンプル: ユーザー定義型クラス + `declare-key` の使い方
+
+---
+
+## 既知の制限と未解決課題
+
+実装は概ね設計通り完了しているが、未着手・部分実装・既知の制約として以下が残っている。
+
+### 設計と実装の主な乖離 (実害なし)
+
+| 項目 | 内容 |
+|---|---|
+| **CAS subtype unification による Embed elaboration の代替** | 設計: `Embed` typeclass で elaboration により `embed` 挿入。実装: unifier (`Type/Unify.hs`) に `MathValue ↔ {Factor, Frac _, Poly _ _}` 双方向ユニフィケーションを追加して回避。Phase C で `Embed` typeclass 自体は削除され、widening は `reshape` 機構に統合 (型注釈経由の AST 書き換え)。runtime 表現が同じ `CASValue` のため動作に差は出ない |
+| **名前付き rule のみが直接呼び出し可能** | `declare rule auto ...` は `autoRule.<freshN>` の名前で desugar されるが、ユーザは fresh-id を予測できない。`casNormalize` 経由の自動適用は動作。**改善案**: `autoRule.<index>` (deterministic) など callable 名を提供する |
+| **型昇格タワー level 4 正規化** | `casNormalizeFrac` の `(CASPoly, CASInteger d)` ケースで定数分母を各項の係数に Frac として分配し level 4 (`Poly (Frac Integer) [..]`) を canonical 形に。Laurent 多項式吸収 (monomial 分母) も実装済 |
+
+### 意図的に実装しない項目
+
+| 項目 | 理由 |
+|---|---|
+| `Apply1〜Apply4` → `ApplyN` 一般化 | 5 変数以上の math function は実用上ほぼ無く、一般化のための広範囲リファクタコストに対するベネフィットが小さい |
+
+### 残された未着手項目 (新機能)
+
+| 項目 | 内容 | 工数見込 |
+|---|---|---|
+| **拡張可能 CAS タワー** | `declare cas-type` / `declare cas-subtype` / `class CASCanonical` でユーザが半順序タワーを構築。Gaussian poly などの中間型を扱える ([type-cas-tower.md](./type-cas-tower.md) 参照) | 大規模 (5 phases) |
+| **reshape の関数引数・match 注釈拡張** | 現状 `def x : T := e` と `(e : T)` のみで reshape が挿入される。`def f (x : T) := ...` の引数注釈、`match` clause 注釈、typed `let` も同様に対応 | 中規模 |
+| **`def n : T := zero` 既存 bug** | 引数なし typeclass method (`zero`/`one`) を具体型注釈で呼ぶと "Expected function, but found: 0" エラー。reshape 無関係の既存 dispatch 問題 | 中規模 (調査必要) |
+| **観察型 join の subtype-aware 化** | `joinObservedTypes` は文字列ベース heuristic。`Integer` ⊂ 他型は対応済だが、`Frac Integer` ⊕ `Poly Integer [x]` 等の真の lattice join は未対応 | 中規模 |
+| **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 | 中規模 |
+| **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
+| `Rewrite.hs` 移行の回帰テスト | `casRewriteRtu`, `casRewriteW` 等を `declare rule` に移行する際の golden test 整備 | 軽量 |
+| 異種 Tensor 型の扱い | `Tensor (Poly Integer [sqrt 2])` と `Tensor (Frac Integer)` の join は `Tensor MathValue` にフォールバック。**方針**: Tensor は homogeneous を要求し、異種混在は明示的に統一型に揃えてから格納 | 軽量 (方針既決) |
+| 関数シンボル (`function (x)`) の CAS 型統合 | 既存の関数シンボル機構 ([function-symbol.md](./function-symbol.md)) と新 CAS 型システムの統合方針が未定。当面は既存挙動を保持し、原子集合 (`Poly ... [f x]`) への出現は禁止 | 中規模 (個別設計) |
+| `inspect` の REPL 統合 | REPL で式評価時に静的型 + 観察型を自動表示 | 小〜中 (UI 系) |
+| 型注釈提案機能 | 観察型をコピペ可能な形で出力 (`suggest:` ラベル付け) | 小 (UI 系) |
+| Pattern function 内での CAS 型の扱い | 部分的 | 別途必要に応じて |
+| `Math/Rewrite.hs` Sweet Egison warning | `[mc| ... |]` quasi-quoter 由来の `tmpM unused` / `incomplete-uni-patterns` 警告 9 件。実害なし | 軽量 (cosmetic) |
+
+### Phase 9 declare-key 詳細 (参考)
+
+`declare derivative <name> = <expr>` のような宣言は現状 hardcoded だが、汎用化して
+`declare-key derivative` で予約後、ライブラリで処理を書ける形にする。
+
+```egison
+-- 想定
+declare-key derivative
+declare derivative sin = cos
+-- ↓ desugar
+-- => onDeclareKey "derivative" "sin" cos  (ライブラリで定義)
+```
+
+これにより `Integrable`、`Substitutable` 等のユーザ独自クラスも同じ宣言機構で拡張可能になる。
+
+### 細かい摩擦点 (回避策で動作)
+
+| 項目 | 内容 |
+|---|---|
+| Egison 識別子に `_` が使えない | `identChar = alphaNumChar` のため `trig_pythagorean` 等は parse できない。`trigPythagorean` (camelCase) を推奨。subscript 構文 (`x_1`) と衝突するため修正困難 |
+| `$y` の expression context での silent parse | `def y := $a` は parse error にならず奇妙な解釈をする。parser に check 追加が望ましい |
+| `∂/∂'` のループ on unknown apply1 | hardcoded ケースのいずれにもマッチしない user mathfunc apply1 が後続 `term`/`poly` ケースに落ちて無限ループ。`chainPartialDiff` の再帰アームで `chainPartialDiff` 自身を呼ぶことで吸収済み |
+| Cabal キャッシュ | `cabal run` がキャッシュを返すことがあり、再ビルド漏れに注意。`cabal clean` で対応 |
+| `Sd` (積分) の lib バグ | pre-existing。未対応 |
+| LHS 中の `=` 演算子 | `declare rule`/`declare derivative` の LHS で `=` が二項演算子として解釈される問題あり。回避策で動作中 |
