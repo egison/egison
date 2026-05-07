@@ -25,6 +25,17 @@ def mathNormalizeBuiltin (x: MathValue) : MathValue :=
 def mathNormalize (x: MathValue) : MathValue := mathNormalizeBuiltin x
 
 --
+-- Built-in auto rules (migrated from Math/Rewrite.hs).
+-- Each `declare rule auto` extends mathNormalize so the rule fires on every
+-- arithmetic operation (+, -, *, /, ^).
+--
+
+-- Imaginary unit: i^2 = -1.
+-- Replaces casRewriteI in Math/Rewrite.hs. The auto-rule engine handles
+-- arbitrary powers (i^3, i^4, ...) by iterating the rule on each term.
+declare rule auto term i^2 = -1
+
+--
 -- rtu
 --
 def rewriteRuleForRtu : MathValue -> MathValue := mapPolys rewriteRuleForRtuPoly

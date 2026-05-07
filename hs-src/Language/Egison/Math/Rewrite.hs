@@ -20,11 +20,12 @@ import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
 
 -- | Apply rewrite rules to a CASValue
+-- Note: casRewriteI was migrated to `declare rule auto term i^2 = -1`
+-- in lib/math/normalize.egi.
 casRewriteSymbol :: CASValue -> CASValue
 casRewriteSymbol =
   foldl1 (\acc f -> f . acc)
-    [ casRewriteI
-    , casRewriteW
+    [ casRewriteW
     , casRewriteLog
 --    , casRewriteSinCos
     , casRewriteExp
@@ -68,21 +69,8 @@ casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 -- Rewrite Rules
 --------------------------------------------------------------------------------
 
--- | Rewrite i (imaginary unit): i^2 = -1
-casRewriteI :: CASValue -> CASValue
-casRewriteI = mapCASTerms f
- where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casSymbol #"i", $k) : $xss ->
-              case coeff of
-                CASInteger a ->
-                  if even k
-                    then CASTerm (CASInteger (a * (-1) ^ (quot k 2))) xss
-                    else CASTerm (CASInteger (a * (-1) ^ (quot k 2))) ((Symbol "" "i" [], 1) : xss)
-                _ -> term |]
-      , [mc| _ -> term |]
-      ]
+-- Note: casRewriteI (i^2 = -1) was migrated to a `declare rule auto`
+-- declaration in lib/math/normalize.egi and removed from this module.
 
 -- | Rewrite w (cube root of unity): w^3 = 1
 casRewriteW :: CASValue -> CASValue
