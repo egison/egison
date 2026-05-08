@@ -96,11 +96,14 @@ builtinTypes = concat
       -- value tree references at least one of the named symbols/functions.
       , ("containsAnySymbol", Forall [] [] $
           TFun (TCollection TString) (TFun TMathValue TBool))
-      -- CAS-specialised iterateRules used by `mathNormalize`. Equivalent in
-      -- behaviour to the lib's iterateRules but the loop runs in Haskell.
+      -- CAS-specialised iterateRules used by `mathNormalize`. The
+      -- 3-argument form takes a parallel list of trigger-symbol sets so the
+      -- Haskell loop can skip rules whose triggers are absent from the
+      -- value (single CAS scan per iteration).
       , ("iterateRulesCAS", Forall [] [] $
-          TFun (TCollection (TFun TMathValue TMathValue))
-               (TFun TMathValue TMathValue))
+          TFun (TCollection (TCollection TString))
+               (TFun (TCollection (TFun TMathValue TMathValue))
+                     (TFun TMathValue TMathValue)))
       -- Phase A.5 deep-traversal primitives.
       -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
       , ("mapPolyAll", Forall [] [] $

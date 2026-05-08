@@ -269,59 +269,45 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
       return . Just $ IDefine (stringToVar varName) body
     Nothing -> do
       -- Auto rule: emit two definitions:
-      --   1. `def autoRule.<idx> := <guardedBody>` (the rule lambda)
-      --   2. `def mathNormalize := \v -> iterateRules [autoRule.0, ...]
-      --                                              (mathNormalizeBuiltin v)`
+      --   1. `def autoRule.<idx> := <body>` (the unwrapped rule lambda)
+      --   2. `def mathNormalize := \v -> iterateRulesCAS [[<trig>],...]
+      --                                                 [autoRule.0, ...]
+      --                                                 (mathNormalizeBuiltin v)`
       --
-      -- The body is wrapped with a trigger-symbol filter when the LHS
-      -- references at least one literal symbol/function. This skips the
-      -- per-arithmetic match attempt on values that cannot match (e.g. a
-      -- rule `i^2 = -1` is a no-op on values that contain no `i`).
+      -- Trigger symbols are now passed to iterateRulesCAS instead of being
+      -- baked into a per-rule wrapper. The Haskell loop scans the value once
+      -- per iteration and skips any rule whose triggers don't intersect.
       let triggers = extractTriggerSymbols lhsPat
-      guardedBody <- if null triggers
-                       then return body
-                       else wrapWithTriggerFilter triggers body
+      appendAutoRuleTriggers triggers
       prevAutoNames <- getAutoRuleVarNames
-      let idx        = length prevAutoNames
-          autoVar    = "autoRule." ++ show idx
+      let autoVar    = "autoRule." ++ show (length prevAutoNames)
           allAutoVars = prevAutoNames ++ [autoVar]
       appendAutoRuleVarName autoVar
-      mathNormBody <- buildMathNormalizeRedef allAutoVars
+      allTriggers <- getAutoRuleTriggers
+      mathNormBody <- buildMathNormalizeRedef allAutoVars allTriggers
       return . Just $ IDefineMany
-        [ (stringToVar autoVar, guardedBody)
+        [ (stringToVar autoVar, body)
         , (stringToVar "mathNormalize", mathNormBody)
         ]
   where
     -- Build the body of the redefined `mathNormalize`:
-    --   \v -> iterateRulesCAS [autoRule.0, ..., autoRule.N]
+    --   \v -> iterateRulesCAS [[<trig.0>], ..., [<trig.N>]]
+    --                         [autoRule.0, ..., autoRule.N]
     --                         (mathNormalizeBuiltin v)
-    -- `iterateRulesCAS` is a Haskell-side primitive equivalent to the lib's
-    -- `iterateRules` but with the rule-application + fixpoint loop running
-    -- in Haskell (eliminating per-iteration Egison fold/recursion/== cost).
-    buildMathNormalizeRedef :: [String] -> EvalM IExpr
-    buildMathNormalizeRedef autoVars = do
-      let rulesList = ICollectionExpr $ map IVarExpr autoVars
+    -- iterateRulesCAS is a Haskell-side primitive that runs the
+    -- rule-application + fixpoint loop, scanning the value once per
+    -- iteration to skip any rule whose trigger set is disjoint from the
+    -- symbols actually present in the value.
+    buildMathNormalizeRedef :: [String] -> [[String]] -> EvalM IExpr
+    buildMathNormalizeRedef autoVars triggerLists = do
+      let triggersList = ICollectionExpr
+            [ ICollectionExpr (map (IConstantExpr . StringExpr . pack) ts)
+            | ts <- triggerLists ]
+          rulesList = ICollectionExpr $ map IVarExpr autoVars
           mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
-          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS") [rulesList, mathBuiltinCall]
+          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS")
+                                [triggersList, rulesList, mathBuiltinCall]
       return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
-
-    -- Wrap a rule body with a trigger-symbol filter so it short-circuits on
-    -- values that cannot match. The wrapper is:
-    --   \v -> if containsAnySymbol [<triggers>] v then <body> v else v
-    -- The fixed point of `iterateRules` is preserved because returning `v`
-    -- unchanged on a no-match input is equivalent to running a body that
-    -- would have returned `v` anyway.
-    wrapWithTriggerFilter :: [String] -> IExpr -> EvalM IExpr
-    wrapWithTriggerFilter triggers body = do
-      fr <- fresh
-      let v = "__rule_filter." ++ filter (\c -> c /= '$' && c /= '_') fr
-          triggerList =
-            ICollectionExpr (map (IConstantExpr . StringExpr . pack) triggers)
-          check = IApplyExpr (IVarExpr "containsAnySymbol")
-                             [triggerList, IVarExpr v]
-          callBody = IApplyExpr body [IVarExpr v]
-      return $ ILambdaExpr Nothing [stringToVar v]
-                 (IIfExpr check callBody (IVarExpr v))
 
     -- Literal LHS path: \v -> applyTermRule lhs rhs v  (term-level)
     --                or \v -> if v = lhs then rhs else v  (poly/frac)

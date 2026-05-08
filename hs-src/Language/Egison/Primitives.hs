@@ -20,6 +20,7 @@ import           Data.IORef
 import           Data.Foldable                     (toList)
 
 import qualified Data.Sequence                     as Sq
+import qualified Data.Set                          as Set
 import qualified Data.Text                         as T
 import qualified Data.Vector                       as V
 
@@ -363,15 +364,76 @@ applyRuleFix f cv = do
 -- desugar for `mathNormalize` (see Desugar.hs `buildMathNormalizeRedef`).
 iterateRulesCASPrim :: String -> PrimitiveFunc
 iterateRulesCASPrim name args = case args of
+  -- 3-arg form: trigger sets + rules + value. Each rule is paired by index
+  -- with a list of trigger symbol names. A rule is invoked only when its
+  -- trigger set intersects the symbols actually present in the value
+  -- (computed once per iteration). An empty trigger set means
+  -- "always run" (e.g. pattern-var-only rules like `$x^3 = 0`).
+  [Collection trigSeq, Collection ruleSeq, CASData v0] -> do
+    triggerSets <- mapM extractTriggerSet (toList trigSeq)
+    let rules = toList ruleSeq
+        pairs = zip triggerSets rules
+    CASData <$> iterateRulesLoopWithTriggers pairs v0
+  -- 2-arg fallback: no triggers known, every rule runs every iteration.
   [Collection ruleSeq, CASData v0] ->
-    -- Collection holds EgisonValues (functions). Pass them directly to
-    -- applyRuleClosure which wraps each with `Value` and calls applyRef.
     CASData <$> iterateRulesLoop (toList ruleSeq) v0
-  [_, v] ->
-    -- Non-CAS input: nothing to iterate (the lib invariant is that
-    -- mathNormalize is only invoked on MathValue/CASData).
-    return v
-  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
+  [_, _, v] -> return v
+  [_, v]    -> return v
+  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 3 (length args))
+ where
+  extractTriggerSet (Collection nameSeq) = do
+    ns <- mapM extractName (toList nameSeq)
+    return (Set.fromList ns)
+  extractTriggerSet v =
+    throwErrorWithTrace (TypeMismatch "list of trigger symbol names" (Value v))
+  extractName (String s) = return (T.unpack s)
+  extractName v          =
+    throwErrorWithTrace (TypeMismatch "trigger symbol name" (Value v))
+
+-- | Walks the CASValue once and collects the set of every Symbol /
+-- QuoteFunction / FunctionData name that appears anywhere in the tree.
+-- Used by iterateRulesCAS to skip rules whose triggers can't possibly fire.
+casCollectSymbols :: CAS.CASValue -> Set.Set String
+casCollectSymbols = goV
+ where
+  goV (CAS.CASInteger _)  = Set.empty
+  goV (CAS.CASFactor sym) = goSym sym
+  goV (CAS.CASPoly terms) = Set.unions (map goTerm terms)
+  goV (CAS.CASFrac n d)   = goV n `Set.union` goV d
+  goTerm (CAS.CASTerm coeff mono) =
+    goV coeff `Set.union` Set.unions (map (goSym . fst) mono)
+  goSym (CAS.Symbol _ name _)      = Set.singleton name
+  goSym (CAS.Apply1 f a1)          = goV f `Set.union` goV a1
+  goSym (CAS.Apply2 f a1 a2)       = Set.unions [goV f, goV a1, goV a2]
+  goSym (CAS.Apply3 f a1 a2 a3)    = Set.unions [goV f, goV a1, goV a2, goV a3]
+  goSym (CAS.Apply4 f a1 a2 a3 a4) = Set.unions [goV f, goV a1, goV a2, goV a3, goV a4]
+  goSym (CAS.Quote v)              = goV v
+  goSym (CAS.QuoteFunction whnf)   = case prettyFunctionName whnf of
+                                       Just n  -> Set.singleton n
+                                       Nothing -> Set.empty
+  goSym (CAS.FunctionData fn args) = goV fn `Set.union` Set.unions (map goV args)
+
+iterateRulesLoopWithTriggers
+  :: [(Set.Set String, EgisonValue)] -> CAS.CASValue -> EvalM CAS.CASValue
+iterateRulesLoopWithTriggers pairs v = do
+  let presentSyms = casCollectSymbols v
+  v' <- foldM (step presentSyms) v pairs
+  if v' == v then return v else iterateRulesLoopWithTriggers pairs v'
+ where
+  step presentSyms acc (triggers, rule)
+    | Set.null triggers                       = applyRuleClosure rule acc
+    | Set.disjoint triggers (presentSymsAcc presentSyms acc) = return acc
+    | otherwise                               = applyRuleClosure rule acc
+  -- The "present symbols" set is computed once at the start of an iteration
+  -- against the iteration-input v, but each rule application within the
+  -- iteration may introduce new symbols (e.g. `log (exp $n) = n` keeps n,
+  -- `(sqrt $a)^2 = a` introduces whatever a was). Recomputing per-rule is
+  -- cheap (O(value size)) and avoids missing chained reductions inside one
+  -- iteration. Default to the iteration-start set; only refresh when the
+  -- accumulator has actually drifted from the input.
+  presentSymsAcc startSet acc'
+    | acc' == v = startSet
+    | otherwise = casCollectSymbols acc'
 
 iterateRulesLoop :: [EgisonValue] -> CAS.CASValue -> EvalM CAS.CASValue
 iterateRulesLoop rules v = do
