@@ -20,14 +20,13 @@ import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
 
 -- | Apply rewrite rules to a CASValue
--- Note: casRewriteI, casRewriteW, casRewriteLog were migrated to
--- `declare rule auto` declarations in lib/math/normalize.egi.
+-- Note: casRewriteI, casRewriteW, casRewriteLog, casRewriteExp were migrated
+-- to `declare rule auto` declarations in lib/math/normalize.egi.
 casRewriteSymbol :: CASValue -> CASValue
 casRewriteSymbol =
   foldl1 (\acc f -> f . acc)
-    [ casRewriteExp
+    [ casRewritePower
 --    , casRewriteSinCos
-    , casRewritePower
     , casRewriteSqrt
     , casRewriteRt
     , casRewriteRtu
@@ -76,24 +75,9 @@ casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 -- Note: casRewriteLog (log 1 = 0, log (e^n) = n) was migrated to
 -- `declare rule auto` declarations in lib/math/normalize.egi and removed.
 
--- | Rewrite exp: exp(0) = 1, exp(1) = e, exp(n*i*pi) = (-1)^n
-casRewriteExp :: CASValue -> CASValue
-casRewriteExp = mapCASTerms f
- where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"exp" _ casZero, _) : $xss ->
-               f (CASTerm coeff xss) |]
-      , [mc| (casApply1 #"exp" _ (casSingleTerm #1 #1 []), _) : $xss ->
-               f (CASTerm coeff ((Symbol "" "e" [], 1) : xss)) |]
-      , [mc| (casApply1 #"exp" _ (casSingleTerm $n #1 [(casSymbol #"i", #1), (casSymbol #"π", #1)]), _) : $xss ->
-               f (CASTerm (casMult coeff (CASInteger ((-1) ^ n))) xss) |]
-      , [mc| (casApply1 #"exp" $expWhnf $x, $n & ?(>= 2)) : $xss ->
-               f (CASTerm coeff ((cassMakeApply expWhnf [casMult (CASInteger n) x], 1) : xss)) |]
-      , [mc| (casApply1 #"exp" $expWhnf $x, #1) : (casApply1 #"exp" _ $y, #1) : $xss ->
-               f (CASTerm coeff ((cassMakeApply expWhnf [casPlus x y], 1) : xss)) |]
-      , [mc| _ -> term |]
-      ]
+-- Note: casRewriteExp was fully migrated to `declare rule auto` declarations
+-- in lib/math/normalize.egi after lib/math/expression.egi's multExpr matcher
+-- was extended with apply1-4 patterns.
 
 -- | Rewrite power: x^0 = 1, x^n * x^m = x^(n+m)
 casRewritePower :: CASValue -> CASValue

@@ -51,11 +51,15 @@ declare rule auto term log 1 = 0
 declare rule auto term log e = 1
 declare rule auto term log (exp $n) = n
 
--- Exponential identities (Phase 1 subset of casRewriteExp in Math/Rewrite.hs).
--- The remaining cases (exp(n*i*pi)=(-1)^n, exp x * exp y = exp(x+y),
--- (exp x)^n = exp(n*x)) stay in casRewriteExp until Phase 2.
+-- Exponential identities (replaces casRewriteExp in Math/Rewrite.hs).
+-- The multi-factor cases ((exp x)^n, exp x * exp y) are now expressible
+-- because lib/math/expression.egi was extended with apply1-4 patterns on
+-- the multExpr matcher (so the "rest of factors" slot accepts apply1).
 declare rule auto term exp 0 = 1
 declare rule auto term exp 1 = e
+declare rule auto term exp ($n * i * π) = (-1)^n
+declare rule auto term (exp $x)^$n = exp (n * x)
+declare rule auto term exp $x * exp $y = exp (x + y)
 
 -- Square root identity (Phase 1 subset of casRewriteSqrt in Math/Rewrite.hs).
 -- The GCD-extraction and sqrt-pair-merge rules stay in casRewriteSqrt until

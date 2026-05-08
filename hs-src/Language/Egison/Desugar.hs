@@ -334,7 +334,7 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
       -- from the outer lambda parameter.
       frInner <- fresh
       let innerArg = "__rule_step." ++ filter (\c -> c /= '$' && c /= '_') frInner
-          translated = translateToMatcherPattern pat
+          translated = wrapLhsForTermLevel (translateToMatcherPattern pat)
           mapPrim = case lvl of
             TermRuleLevel -> "mapTermAll"
             PolyRuleLevel -> "mapPolyAll"
@@ -569,6 +569,53 @@ translateToMatcherPattern p = case p of
   NotPat q    -> NotPat (translateToMatcherPattern q)
   IndexedPat q es -> IndexedPat (translateToMatcherPattern q) es
   _ -> p
+
+-- | Top-level wrap of a translated rule LHS to enable multi-factor
+-- decomposition. When the outer pattern is `f $x * g $y * ...` (a chain of
+-- factor-shaped operands), the mathValue matcher's `$ * $` decomposes into
+-- (coeff, monomial-as-multExpr) — not (factor, rest). To access the
+-- (factor, integer, multExpr) decomposition path that handles apply1-4 via
+-- the `factor` matcher, we must enter the multExpr context. The wrap is:
+--
+--   f $x * g $y
+--     becomes
+--   mult _ (((f $x) ^ #1) * ((g $y) ^ #1))
+--
+-- This is applied only at the TOP LEVEL (not inside other patterns) so that
+-- patterns like `exp ($n * i * π)` are unaffected (the inner `$n * i * π`
+-- is matched as the apply1 argument's mathValue, where (coeff, monomial)
+-- decomposition is the right semantics).
+wrapLhsForTermLevel :: Pattern -> Pattern
+wrapLhsForTermLevel p
+  | isMultChainOfFactorShapes p =
+      InductivePat "mult" [WildCard, wrapFactorsInChain p]
+  | otherwise = p
+
+-- | Recursively wrap factor-shaped patterns inside a `*` chain with `^ #1`.
+-- Operates only on top-level `*` chains — sub-patterns inside an apply
+-- argument keep their original shape.
+wrapFactorsInChain :: Pattern -> Pattern
+wrapFactorsInChain (InfixPat op a b) | repr op == "*" =
+  InfixPat op (wrapFactorsInChain a) (wrapFactorsInChain b)
+wrapFactorsInChain p
+  | isFactorShaped p =
+      InfixPat (Op "^" 9 InfixN False) p
+               (ValuePat (ConstantExpr (IntegerExpr 1)))
+  | otherwise = p
+
+-- | True if a pattern is an `*`-chain whose leaves are all factor-shaped
+-- (apply1-4 / symbol / quote / func / a literal symbol via ValuePat VarExpr).
+isMultChainOfFactorShapes :: Pattern -> Bool
+isMultChainOfFactorShapes (InfixPat op a b) | repr op == "*" =
+  isMultChainOfFactorShapes a && isMultChainOfFactorShapes b
+isMultChainOfFactorShapes p = isFactorShaped p
+
+-- | True if a pattern names a single CAS factor (apply1-4, symbol, etc.).
+isFactorShaped :: Pattern -> Bool
+isFactorShaped (InductivePat name _) =
+  name `elem` ["apply1", "apply2", "apply3", "apply4", "symbol", "quote", "func"]
+isFactorShaped (ValuePat (VarExpr _)) = True
+isFactorShaped _ = False
 
 -- | Replace normalizing arithmetic operators (`+`, `-`, `*`, `/`, `^`) with
 -- their **primitive** Haskell-level counterparts. Used by `declare rule auto`
