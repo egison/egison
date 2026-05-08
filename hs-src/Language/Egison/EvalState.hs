@@ -25,6 +25,7 @@ import           Control.Monad.Trans.State.Strict
 
 import qualified Data.HashMap.Strict              as HashMap
 import           Data.HashMap.Strict              (HashMap)
+import qualified Data.Set                         as Set
 
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
@@ -64,11 +65,11 @@ data EvalState = EvalState
   , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
                                        --   Accumulated as `declare rule auto` declarations are desugared,
                                        --   used to rebuild `mathNormalize` to apply each rule in sequence.
-  , autoRuleTriggers     :: [[String]] -- ^ Trigger-symbol set per auto rule (parallel to autoRuleVarNames).
-                                       --   Each entry lists the literal symbols/functions referenced by the
-                                       --   rule's LHS. Empty list means "no specific trigger" -> always run.
-                                       --   Passed to iterateRulesCAS so the Haskell loop can skip rules whose
-                                       --   triggers are absent from the value (single CAS-scan per iteration).
+  , autoRuleTriggers     :: [Set.Set String] -- ^ Trigger-symbol set per auto rule (parallel to autoRuleVarNames).
+                                       --   Each entry is the set of literal symbols/functions referenced by
+                                       --   the rule's LHS. Empty set means "no specific trigger" -> always run.
+                                       --   Stored as Set already (not [String]) so iterateRulesCAS can read
+                                       --   it once per call without per-call Set construction.
   , derivativesDesugared :: [String] -- ^ Phase 6.3: derivative names desugared so far (in declaration order).
                                        --   Each `declare derivative` redefines `chainPartialDiff` using only
                                        --   the names *up to and including* itself, avoiding forward references
@@ -136,8 +137,9 @@ class (Applicative m, Monad m) => MonadEval m where
   setAutoRuleVarNames :: [String] -> m ()
   appendAutoRuleVarName :: String -> m ()
   -- Trigger-symbol set per auto rule, parallel to autoRuleVarNames.
-  -- Passed to iterateRulesCAS to skip rules whose triggers are absent.
-  getAutoRuleTriggers :: m [[String]]
+  -- Read by iterateRulesCAS via getAutoRuleTriggers (returns the cached
+  -- Set list directly; no per-call construction).
+  getAutoRuleTriggers :: m [Set.Set String]
   appendAutoRuleTriggers :: [String] -> m ()
   -- Phase 6.3: derivative names already desugared (in declaration order).
   -- Lets each `declare derivative` see only the derivatives that come at or
@@ -249,7 +251,7 @@ instance Monad m => MonadEval (StateT EvalState m) where
   getAutoRuleTriggers = autoRuleTriggers <$> get
   appendAutoRuleTriggers ts = do
     st <- get
-    put $ st { autoRuleTriggers = autoRuleTriggers st ++ [ts] }
+    put $ st { autoRuleTriggers = autoRuleTriggers st ++ [Set.fromList ts] }
 
   getDerivativesDesugared = derivativesDesugared <$> get
   setDerivativesDesugared ns = do
@@ -290,6 +292,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   getAutoRuleVarNames = lift getAutoRuleVarNames
   setAutoRuleVarNames = lift . setAutoRuleVarNames
   appendAutoRuleVarName = lift . appendAutoRuleVarName
+  getAutoRuleTriggers = lift getAutoRuleTriggers
+  appendAutoRuleTriggers = lift . appendAutoRuleTriggers
   getDerivativesDesugared = lift getDerivativesDesugared
   setDerivativesDesugared = lift . setDerivativesDesugared
   appendDerivativeDesugared = lift . appendDerivativeDesugared

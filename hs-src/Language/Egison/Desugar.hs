@@ -270,43 +270,35 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     Nothing -> do
       -- Auto rule: emit two definitions:
       --   1. `def autoRule.<idx> := <body>` (the unwrapped rule lambda)
-      --   2. `def mathNormalize := \v -> iterateRulesCAS [[<trig>],...]
-      --                                                 [autoRule.0, ...]
-      --                                                 (mathNormalizeBuiltin v)`
+      --   2. `def mathNormalize := \v -> iterateRulesCAS [autoRule.0, ...]
+      --                                                  (mathNormalizeBuiltin v)`
       --
-      -- Trigger symbols are now passed to iterateRulesCAS instead of being
-      -- baked into a per-rule wrapper. The Haskell loop scans the value once
-      -- per iteration and skips any rule whose triggers don't intersect.
+      -- Triggers are stored in EvalState (already converted to `Set String`)
+      -- and read inside iterateRulesCAS, so they aren't passed as arguments.
       let triggers = extractTriggerSymbols lhsPat
       appendAutoRuleTriggers triggers
       prevAutoNames <- getAutoRuleVarNames
       let autoVar    = "autoRule." ++ show (length prevAutoNames)
           allAutoVars = prevAutoNames ++ [autoVar]
       appendAutoRuleVarName autoVar
-      allTriggers <- getAutoRuleTriggers
-      mathNormBody <- buildMathNormalizeRedef allAutoVars allTriggers
+      mathNormBody <- buildMathNormalizeRedef allAutoVars
       return . Just $ IDefineMany
         [ (stringToVar autoVar, body)
         , (stringToVar "mathNormalize", mathNormBody)
         ]
   where
     -- Build the body of the redefined `mathNormalize`:
-    --   \v -> iterateRulesCAS [[<trig.0>], ..., [<trig.N>]]
-    --                         [autoRule.0, ..., autoRule.N]
+    --   \v -> iterateRulesCAS [autoRule.0, ..., autoRule.N]
     --                         (mathNormalizeBuiltin v)
-    -- iterateRulesCAS is a Haskell-side primitive that runs the
-    -- rule-application + fixpoint loop, scanning the value once per
-    -- iteration to skip any rule whose trigger set is disjoint from the
-    -- symbols actually present in the value.
-    buildMathNormalizeRedef :: [String] -> [[String]] -> EvalM IExpr
-    buildMathNormalizeRedef autoVars triggerLists = do
-      let triggersList = ICollectionExpr
-            [ ICollectionExpr (map (IConstantExpr . StringExpr . pack) ts)
-            | ts <- triggerLists ]
-          rulesList = ICollectionExpr $ map IVarExpr autoVars
+    -- iterateRulesCAS reads trigger sets from EvalState (cached as
+    -- [Set String] at desugar time) and runs the rule-application +
+    -- fixpoint loop, scanning the value once per iteration to skip any
+    -- rule whose trigger set is disjoint from the value's symbols.
+    buildMathNormalizeRedef :: [String] -> EvalM IExpr
+    buildMathNormalizeRedef autoVars = do
+      let rulesList = ICollectionExpr $ map IVarExpr autoVars
           mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
-          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS")
-                                [triggersList, rulesList, mathBuiltinCall]
+          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS") [rulesList, mathBuiltinCall]
       return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
 
     -- Literal LHS path: \v -> applyTermRule lhs rhs v  (term-level)

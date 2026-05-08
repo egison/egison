@@ -33,7 +33,8 @@ import           Language.Egison.Data
 import           Language.Egison.Data.Collection   (makeICollection)
 import           Language.Egison.Data.Utils        (newEvaluatedObjectRef)
 import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount,
-                                                    getReductionRuleNames, getDerivativeRuleNames)
+                                                    getReductionRuleNames, getDerivativeRuleNames,
+                                                    getAutoRuleTriggers)
 import           Language.Egison.IExpr             (Index (..), stringToVar)
 import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.Primitives.Arith
@@ -364,31 +365,15 @@ applyRuleFix f cv = do
 -- desugar for `mathNormalize` (see Desugar.hs `buildMathNormalizeRedef`).
 iterateRulesCASPrim :: String -> PrimitiveFunc
 iterateRulesCASPrim name args = case args of
-  -- 3-arg form: trigger sets + rules + value. Each rule is paired by index
-  -- with a list of trigger symbol names. A rule is invoked only when its
-  -- trigger set intersects the symbols actually present in the value
-  -- (computed once per iteration). An empty trigger set means
-  -- "always run" (e.g. pattern-var-only rules like `$x^3 = 0`).
-  [Collection trigSeq, Collection ruleSeq, CASData v0] -> do
-    triggerSets <- mapM extractTriggerSet (toList trigSeq)
+  -- Triggers come from EvalState (cached as [Set String] at desugar time);
+  -- no per-call Set construction. The rules list and value are passed in.
+  [Collection ruleSeq, CASData v0] -> do
+    triggerSets <- getAutoRuleTriggers
     let rules = toList ruleSeq
         pairs = zip triggerSets rules
     CASData <$> iterateRulesLoopWithTriggers pairs v0
-  -- 2-arg fallback: no triggers known, every rule runs every iteration.
-  [Collection ruleSeq, CASData v0] ->
-    CASData <$> iterateRulesLoop (toList ruleSeq) v0
-  [_, _, v] -> return v
-  [_, v]    -> return v
-  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 3 (length args))
- where
-  extractTriggerSet (Collection nameSeq) = do
-    ns <- mapM extractName (toList nameSeq)
-    return (Set.fromList ns)
-  extractTriggerSet v =
-    throwErrorWithTrace (TypeMismatch "list of trigger symbol names" (Value v))
-  extractName (String s) = return (T.unpack s)
-  extractName v          =
-    throwErrorWithTrace (TypeMismatch "trigger symbol name" (Value v))
+  [_, v] -> return v
+  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
 
 -- | Walks the CASValue once and collects the set of every Symbol /
 -- QuoteFunction / FunctionData name that appears anywhere in the tree.
@@ -415,30 +400,30 @@ casCollectSymbols = goV
 
 iterateRulesLoopWithTriggers
   :: [(Set.Set String, EgisonValue)] -> CAS.CASValue -> EvalM CAS.CASValue
-iterateRulesLoopWithTriggers pairs v = do
-  let presentSyms = casCollectSymbols v
-  v' <- foldM (step presentSyms) v pairs
-  if v' == v then return v else iterateRulesLoopWithTriggers pairs v'
+iterateRulesLoopWithTriggers pairs v0 =
+  -- Fast path: a pure CASInteger has no symbols, so only rules with an
+  -- empty trigger set (e.g. `$x^3 = 0`) can possibly fire on it. Filter
+  -- once; if none remain, return immediately without entering the loop.
+  let activePairs = case v0 of
+        CAS.CASInteger _ -> filter (Set.null . fst) pairs
+        _                -> pairs
+  in if null activePairs
+       then return v0
+       else loop activePairs v0
  where
+  -- One CAS scan per iteration (not per rule). Rules that introduce
+  -- symbols not present at iteration start will still fire in the next
+  -- iteration via the outer fixpoint check, so correctness is preserved
+  -- and we save N-1 deep-compare + scan calls per iteration.
+  loop ps v = do
+    let presentSyms = casCollectSymbols v
+    v' <- foldM (step presentSyms) v ps
+    if v' == v then return v else loop ps v'
   step presentSyms acc (triggers, rule)
-    | Set.null triggers                       = applyRuleClosure rule acc
-    | Set.disjoint triggers (presentSymsAcc presentSyms acc) = return acc
-    | otherwise                               = applyRuleClosure rule acc
-  -- The "present symbols" set is computed once at the start of an iteration
-  -- against the iteration-input v, but each rule application within the
-  -- iteration may introduce new symbols (e.g. `log (exp $n) = n` keeps n,
-  -- `(sqrt $a)^2 = a` introduces whatever a was). Recomputing per-rule is
-  -- cheap (O(value size)) and avoids missing chained reductions inside one
-  -- iteration. Default to the iteration-start set; only refresh when the
-  -- accumulator has actually drifted from the input.
-  presentSymsAcc startSet acc'
-    | acc' == v = startSet
-    | otherwise = casCollectSymbols acc'
+    | Set.null triggers           = applyRuleClosure rule acc
+    | Set.disjoint triggers presentSyms = return acc
+    | otherwise                   = applyRuleClosure rule acc
 
-iterateRulesLoop :: [EgisonValue] -> CAS.CASValue -> EvalM CAS.CASValue
-iterateRulesLoop rules v = do
-  v' <- foldM (\acc r -> applyRuleClosure r acc) v rules
-  if v' == v then return v else iterateRulesLoop rules v'
 
 -- | mapPoly / mapFrac: traverse, apply at each (sub-)MathValue node.
 -- Sub-recursion is gated on the outer "structure" of the value: we recurse
