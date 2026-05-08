@@ -92,6 +92,15 @@ builtinTypes = concat
       , ("hasDerivativeRule", Forall [] [] $ TFun TString TBool)
       , ("applyTermRule", Forall [] [] $
           TFun TMathValue (TFun TMathValue (TFun TMathValue TMathValue)))
+      -- Trigger-symbol pre-filter for `declare rule auto`. True iff the
+      -- value tree references at least one of the named symbols/functions.
+      , ("containsAnySymbol", Forall [] [] $
+          TFun (TCollection TString) (TFun TMathValue TBool))
+      -- CAS-specialised iterateRules used by `mathNormalize`. Equivalent in
+      -- behaviour to the lib's iterateRules but the loop runs in Haskell.
+      , ("iterateRulesCAS", Forall [] [] $
+          TFun (TCollection (TFun TMathValue TMathValue))
+               (TFun TMathValue TMathValue))
       -- Phase A.5 deep-traversal primitives.
       -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
       , ("mapPolyAll", Forall [] [] $

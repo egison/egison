@@ -20,14 +20,13 @@ import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
 
 -- | Apply rewrite rules to a CASValue
--- Note: casRewriteI and casRewriteW were migrated to `declare rule auto`
--- declarations in lib/math/normalize.egi.
+-- Note: casRewriteI, casRewriteW, casRewriteLog were migrated to
+-- `declare rule auto` declarations in lib/math/normalize.egi.
 casRewriteSymbol :: CASValue -> CASValue
 casRewriteSymbol =
   foldl1 (\acc f -> f . acc)
-    [ casRewriteLog
+    [ casRewriteExp
 --    , casRewriteSinCos
-    , casRewriteExp
     , casRewritePower
     , casRewriteSqrt
     , casRewriteRt
@@ -74,17 +73,8 @@ casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 -- Note: casRewriteW (w^3 = 1, w^2 + w + 1 = 0) was migrated to
 -- `declare rule auto` declarations in lib/math/normalize.egi and removed.
 
--- | Rewrite log: log(1) = 0, log(e^n) = n
-casRewriteLog :: CASValue -> CASValue
-casRewriteLog = mapCASTerms f
- where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"log" _ casZero, _) : _ -> CASTerm (CASInteger 0) [] |]
-      , [mc| (casApply1 #"log" _ (casSingleTerm _ #1 [(casSymbol #"e", $n)]), _) : $xss ->
-              CASTerm (casMult (CASInteger n) coeff) xss |]
-      , [mc| _ -> term |]
-      ]
+-- Note: casRewriteLog (log 1 = 0, log (e^n) = n) was migrated to
+-- `declare rule auto` declarations in lib/math/normalize.egi and removed.
 
 -- | Rewrite exp: exp(0) = 1, exp(1) = e, exp(n*i*pi) = (-1)^n
 casRewriteExp :: CASValue -> CASValue

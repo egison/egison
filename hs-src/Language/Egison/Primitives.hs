@@ -12,7 +12,7 @@ module Language.Egison.Primitives
   , primitiveEnvNoIO
   ) where
 
-import           Control.Monad                     (forM)
+import           Control.Monad                     (foldM, forM)
 import           Control.Monad.Except              (throwError)
 import           Control.Monad.IO.Class            (liftIO)
 
@@ -101,6 +101,8 @@ primitives =
         , ("derivativeNames", derivativeNamesPrim)
         , ("hasReductionRule", hasReductionRulePrim)
         , ("hasDerivativeRule", hasDerivativeRulePrim)
+        , ("containsAnySymbol", containsAnySymbolPrim)
+        , ("iterateRulesCAS", iterateRulesCASPrim)
         , ("applyTermRule", applyTermRulePrim)
         , ("mapPolyAll", mapPolyPrim)
         , ("mapTermAll", mapTermPrim)
@@ -355,6 +357,27 @@ applyRuleFix f cv = do
   cv' <- applyRuleClosure f cv
   if cv' == cv then return cv else applyRuleFix f cv'
 
+-- | CAS-specialised replacement for the lib's `iterateRules`. Runs the
+-- entire rule-application + fixpoint loop in Haskell, eliminating the
+-- per-iteration Egison-level fold/recursion/== overhead. Emitted by
+-- desugar for `mathNormalize` (see Desugar.hs `buildMathNormalizeRedef`).
+iterateRulesCASPrim :: String -> PrimitiveFunc
+iterateRulesCASPrim name args = case args of
+  [Collection ruleSeq, CASData v0] ->
+    -- Collection holds EgisonValues (functions). Pass them directly to
+    -- applyRuleClosure which wraps each with `Value` and calls applyRef.
+    CASData <$> iterateRulesLoop (toList ruleSeq) v0
+  [_, v] ->
+    -- Non-CAS input: nothing to iterate (the lib invariant is that
+    -- mathNormalize is only invoked on MathValue/CASData).
+    return v
+  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
+
+iterateRulesLoop :: [EgisonValue] -> CAS.CASValue -> EvalM CAS.CASValue
+iterateRulesLoop rules v = do
+  v' <- foldM (\acc r -> applyRuleClosure r acc) v rules
+  if v' == v then return v else iterateRulesLoop rules v'
+
 -- | mapPoly / mapFrac: traverse, apply at each (sub-)MathValue node.
 -- Sub-recursion is gated on the outer "structure" of the value: we recurse
 -- into Apply1-4/Quote/FunctionData arguments (which are user-visible
@@ -476,6 +499,41 @@ hasDerivativeRulePrim = oneArg' $ \v -> case v of
     ns <- getDerivativeRuleNames
     return $ Bool (T.unpack s `elem` ns)
   _ -> throwErrorWithTrace (TypeMismatch "string function name" (Value v))
+
+-- | True if a CASValue references any of the named symbols or functions
+-- anywhere in its tree. Used by `declare rule auto` desugaring as a fast
+-- pre-filter so rules whose trigger symbols are absent from the value can
+-- skip the per-arithmetic match attempt.
+containsAnySymbolPrim :: String -> PrimitiveFunc
+containsAnySymbolPrim = twoArgs' $ \namesV valV ->
+  case (namesV, valV) of
+    (Collection nameSeq, CASData cv) -> do
+      names <- mapM extractName (toList nameSeq)
+      return $ Bool (casContainsAnyName names cv)
+    _ -> throwErrorWithTrace (TypeMismatch "string list and CAS value" (Value valV))
+ where
+  extractName (String s) = return (T.unpack s)
+  extractName v          = throwErrorWithTrace (TypeMismatch "string symbol name" (Value v))
+
+casContainsAnyName :: [String] -> CAS.CASValue -> Bool
+casContainsAnyName names = goV
+ where
+  goV (CAS.CASInteger _)  = False
+  goV (CAS.CASFactor sym) = goSym sym
+  goV (CAS.CASPoly terms) = any goTerm terms
+  goV (CAS.CASFrac n d)   = goV n || goV d
+  goTerm (CAS.CASTerm coeff mono) = goV coeff || any goFactor mono
+  goFactor (sym, _)               = goSym sym
+  goSym (CAS.Symbol _ name _)      = name `elem` names
+  goSym (CAS.Apply1 f a1)          = goV f || goV a1
+  goSym (CAS.Apply2 f a1 a2)       = goV f || goV a1 || goV a2
+  goSym (CAS.Apply3 f a1 a2 a3)    = goV f || goV a1 || goV a2 || goV a3
+  goSym (CAS.Apply4 f a1 a2 a3 a4) = goV f || goV a1 || goV a2 || goV a3 || goV a4
+  goSym (CAS.Quote v)              = goV v
+  goSym (CAS.QuoteFunction whnf)   = case prettyFunctionName whnf of
+                                       Just n  -> n `elem` names
+                                       Nothing -> False
+  goSym (CAS.FunctionData fn args) = goV fn || any goV args
 
 -- | Phase 5.5: runtime check that all atoms in a CAS value belong to the
 -- given allowed-atom-name list. Used by user-level coerce-style helpers.

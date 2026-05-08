@@ -42,6 +42,27 @@ declare rule auto term i^2 = -1
 declare rule auto term w^3 = 1
 declare rule auto term w^2 = -1 - w
 
+-- Logarithm identities (replaces casRewriteLog in Math/Rewrite.hs).
+-- log 1 = 0 and log e = 1 are also handled at the lib `log` function entry,
+-- but are kept here so the symbolic 'log form normalises consistently.
+-- log (e^n) reaches the rule as log (exp n) because (^) rewrites e^n to exp n
+-- in lib/math/common/arithmetic.egi.
+declare rule auto term log 1 = 0
+declare rule auto term log e = 1
+declare rule auto term log (exp $n) = n
+
+-- Exponential identities (Phase 1 subset of casRewriteExp in Math/Rewrite.hs).
+-- The remaining cases (exp(n*i*pi)=(-1)^n, exp x * exp y = exp(x+y),
+-- (exp x)^n = exp(n*x)) stay in casRewriteExp until Phase 2.
+declare rule auto term exp 0 = 1
+declare rule auto term exp 1 = e
+
+-- Square root identity (Phase 1 subset of casRewriteSqrt in Math/Rewrite.hs).
+-- The GCD-extraction and sqrt-pair-merge rules stay in casRewriteSqrt until
+-- Phase 3 (they require integer factorisation that pure pattern rules cannot
+-- express).
+declare rule auto term (sqrt $a)^2 = a
+
 --
 -- rtu
 --

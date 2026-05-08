@@ -269,9 +269,18 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
       return . Just $ IDefine (stringToVar varName) body
     Nothing -> do
       -- Auto rule: emit two definitions:
-      --   1. `def autoRule.<idx> := <body>` (the rule lambda)
+      --   1. `def autoRule.<idx> := <guardedBody>` (the rule lambda)
       --   2. `def mathNormalize := \v -> iterateRules [autoRule.0, ...]
       --                                              (mathNormalizeBuiltin v)`
+      --
+      -- The body is wrapped with a trigger-symbol filter when the LHS
+      -- references at least one literal symbol/function. This skips the
+      -- per-arithmetic match attempt on values that cannot match (e.g. a
+      -- rule `i^2 = -1` is a no-op on values that contain no `i`).
+      let triggers = extractTriggerSymbols lhsPat
+      guardedBody <- if null triggers
+                       then return body
+                       else wrapWithTriggerFilter triggers body
       prevAutoNames <- getAutoRuleVarNames
       let idx        = length prevAutoNames
           autoVar    = "autoRule." ++ show idx
@@ -279,18 +288,40 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
       appendAutoRuleVarName autoVar
       mathNormBody <- buildMathNormalizeRedef allAutoVars
       return . Just $ IDefineMany
-        [ (stringToVar autoVar, body)
+        [ (stringToVar autoVar, guardedBody)
         , (stringToVar "mathNormalize", mathNormBody)
         ]
   where
     -- Build the body of the redefined `mathNormalize`:
-    --   \v -> iterateRules [autoRule.0, ..., autoRule.N] (mathNormalizeBuiltin v)
+    --   \v -> iterateRulesCAS [autoRule.0, ..., autoRule.N]
+    --                         (mathNormalizeBuiltin v)
+    -- `iterateRulesCAS` is a Haskell-side primitive equivalent to the lib's
+    -- `iterateRules` but with the rule-application + fixpoint loop running
+    -- in Haskell (eliminating per-iteration Egison fold/recursion/== cost).
     buildMathNormalizeRedef :: [String] -> EvalM IExpr
     buildMathNormalizeRedef autoVars = do
       let rulesList = ICollectionExpr $ map IVarExpr autoVars
           mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
-          iterCall = IApplyExpr (IVarExpr "iterateRules") [rulesList, mathBuiltinCall]
+          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS") [rulesList, mathBuiltinCall]
       return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
+
+    -- Wrap a rule body with a trigger-symbol filter so it short-circuits on
+    -- values that cannot match. The wrapper is:
+    --   \v -> if containsAnySymbol [<triggers>] v then <body> v else v
+    -- The fixed point of `iterateRules` is preserved because returning `v`
+    -- unchanged on a no-match input is equivalent to running a body that
+    -- would have returned `v` anyway.
+    wrapWithTriggerFilter :: [String] -> IExpr -> EvalM IExpr
+    wrapWithTriggerFilter triggers body = do
+      fr <- fresh
+      let v = "__rule_filter." ++ filter (\c -> c /= '$' && c /= '_') fr
+          triggerList =
+            ICollectionExpr (map (IConstantExpr . StringExpr . pack) triggers)
+          check = IApplyExpr (IVarExpr "containsAnySymbol")
+                             [triggerList, IVarExpr v]
+          callBody = IApplyExpr body [IVarExpr v]
+      return $ ILambdaExpr Nothing [stringToVar v]
+                 (IIfExpr check callBody (IVarExpr v))
 
     -- Literal LHS path: \v -> applyTermRule lhs rhs v  (term-level)
     --                or \v -> if v = lhs then rhs else v  (poly/frac)
@@ -433,6 +464,55 @@ desugarTopExpr (DeclareMathFunc name _mType) = do
                                    [VarExpr "x"])
   bodyI <- desugar body
   return . Just $ IDefine (stringToVar name) bodyI
+
+-- | Extract the names of literal symbols and functions referenced by a
+-- declare-rule LHS pattern. Used to build a fast trigger-symbol filter so
+-- the rule's body is only invoked when the input value contains at least
+-- one of these names.
+--
+-- Examples:
+--   i^2                  → ["i"]
+--   (sqrt $a)^2          → ["sqrt"]
+--   log (exp $n)         → ["log", "exp"]
+--   $x ^ 3               → []   (no literal symbols, rule must always run)
+--
+-- An empty result means the rule should NOT be guarded (it might match any
+-- value), so the desugarer should skip the wrapper in that case.
+extractTriggerSymbols :: Pattern -> [String]
+extractTriggerSymbols = nub . go
+ where
+  go (ValuePat e)        = exprNames e
+  go (PApplyPat f ps)    = exprNames f ++ concatMap go ps
+  go (DApplyPat p ps)    = go p ++ concatMap go ps
+  go (InfixPat _ a b)    = go a ++ go b
+  go (AndPat a b)        = go a ++ go b
+  go (OrPat a b)         = go a ++ go b
+  go (ForallPat a b)     = go a ++ go b
+  go (NotPat p)          = go p
+  go (TuplePat ps)       = concatMap go ps
+  go (InductivePat _ ps) = concatMap go ps
+  go (InductiveOrPApplyPat _ ps) = concatMap go ps
+  go (IndexedPat p _)    = go p
+  go (LetPat _ p)        = go p
+  go (LoopPat _ _ a b)   = go a ++ go b
+  go (SeqConsPat a b)    = go a ++ go b
+  go _                   = []
+
+  -- An expression appearing in a literal position contributes its symbol
+  -- names. We only descend into shapes where a "trigger symbol" sense
+  -- exists; opaque sub-expressions (lambdas, lets, etc.) contribute none.
+  exprNames :: Expr -> [String]
+  exprNames (VarExpr n)          = [n]
+  exprNames (QuoteSymbolExpr e)  = exprNames e
+  exprNames (InfixExpr _ a b)    = exprNames a ++ exprNames b
+  exprNames (ApplyExpr f args)   = exprNames f ++ concatMap exprNames args
+  exprNames _                    = []
+
+  nub = go' []
+   where
+    go' acc []     = reverse acc
+    go' acc (x:xs) | x `elem` acc = go' acc xs
+                   | otherwise    = go' (x:acc) xs
 
 -- | Detect whether a Pattern has any PatVar at any depth.
 patternHasPatVar :: Pattern -> Bool
