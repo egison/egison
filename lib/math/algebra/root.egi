@@ -67,7 +67,13 @@ def rt'' (n: MathValue) (x: MathValue) : MathValue :=
     | (#2, _) -> 'sqrt x
     | (_, _) -> 'rt n x
 
-def sqrt (x: MathValue) : MathValue :=
+-- sqrt is split into `declare mathfunc` (declares the function name and
+-- registers default symbolic behaviour) plus `declare apply` (the
+-- algorithmic simplification at application time). Pattern rewrites such
+-- as (sqrt $x)^2 = x live separately as `declare rule auto` declarations
+-- in lib/math/normalize.egi.
+declare mathfunc sqrt
+declare apply sqrt x :=
   let m := numerator x
       n := denominator x
    in rt 2 (m *' n) /' n

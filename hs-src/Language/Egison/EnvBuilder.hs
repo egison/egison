@@ -21,10 +21,11 @@ module Language.Egison.EnvBuilder
   ) where
 
 import           Control.Monad              (foldM)
+import           Control.Monad.Except       (throwError)
 import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
-import           Language.Egison.Data       (EvalM)
+import           Language.Egison.Data       (EvalM, EgisonError(..))
 import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
@@ -52,6 +53,10 @@ data EnvBuildResult = EnvBuildResult
   -- name -> derivative expression. Wiring into `Differentiable Factor` is
   -- still pending; for now, just the registration list.
   , ebrDerivativeRules :: [(String, Expr)]
+  -- Names of functions declared via `declare mathfunc`. Used by the
+  -- DeclareApply handler to enforce that `declare apply foo ...` only
+  -- appears after a corresponding `declare mathfunc foo`.
+  , ebrMathFuncNames :: Set.Set String
   } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -72,6 +77,7 @@ buildEnvironments exprs = do
         , ebrPatternTypeEnv = emptyPatternEnv
         , ebrReductionRules = []
         , ebrDerivativeRules = []
+        , ebrMathFuncNames = Set.empty
         }
   
   -- Process each top-level expression to collect declarations
@@ -277,7 +283,19 @@ processTopExpr result topExpr = case topExpr of
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv (stringToVar name) scheme typeEnv
-    return result { ebrTypeEnv = typeEnv' }
+        names'   = Set.insert name (ebrMathFuncNames result)
+    return result { ebrTypeEnv = typeEnv', ebrMathFuncNames = names' }
+
+  -- 11. Math function application rules (Phase A of declare apply impl).
+  -- Requires a prior `declare mathfunc <name>` so the function's type and
+  -- intent are known. The actual implementation is emitted by Desugar as a
+  -- plain `def` that overrides the mathfunc wrapper.
+  DeclareApply name _args _body -> do
+    if Set.member name (ebrMathFuncNames result)
+      then return result
+      else throwError $ Default $
+        "declare apply " ++ name ++ ": no prior `declare mathfunc " ++ name ++ "`. " ++
+        "Add `declare mathfunc " ++ name ++ "` before this `declare apply` declaration."
 
 --------------------------------------------------------------------------------
 -- Helper Functions

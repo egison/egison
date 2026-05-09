@@ -114,6 +114,17 @@ data TopExpr
     --   def <name> (x : MathValue) : MathValue := '<name> x
     -- Combined with `declare derivative`, this gives the user a callable
     -- function and a registered derivative under one umbrella.
+  | DeclareApply String [String] Expr
+    -- ^ Math function application rule (Phase A of declare apply impl).
+    -- e.g.  declare apply sin x := if x = 0 then 0 else 'sin x
+    --       declare apply sqrt x := ...
+    -- String:    function name (must have been declared via `declare mathfunc`).
+    -- [String]:  argument names (typed as MathValue by default).
+    -- Expr:      body. Within body, `'<name> x` produces the symbolic Factor
+    --            (no recursion); `<name> x` (unquoted) recurses through this
+    --            rule again — RHS must use `'` for the fallback to terminate.
+    -- Phase A desugars to a plain `def <name> (args : MathValue ...) : MathValue := <body>`
+    -- which simply overrides the wrapper from `declare mathfunc`.
  deriving Show
 
 -- | Where in the CASValue tree a `declare rule` LHS pattern binds.

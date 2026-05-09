@@ -81,6 +81,9 @@ instance Pretty TopExpr where
                     Nothing -> emptyDoc
                     Just t  -> pretty ":" <+> pretty t
     in pretty "declare" <+> pretty "mathfunc" <+> pretty name <+> typeDoc
+  pretty (DeclareApply name args body) =
+    pretty "declare" <+> pretty "apply" <+> pretty name <+>
+    hsep (map pretty args) <+> pretty ":=" <+> pretty body
   pretty _ = error "Unsupported topexpr"
 
 instance Pretty ConstantExpr where

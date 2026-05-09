@@ -138,17 +138,15 @@ casFindSqrtPairToMerge xs =
   isSingleTermCAS (CASPoly [_])  = True
   isSingleTermCAS _              = False
 
--- | Rewrite sqrt: sqrt(x)^2 = x, sqrt(x) * sqrt(y) = sqrt(x*y)
+-- | Rewrite sqrt: sqrt(x) * sqrt(y) = sqrt(x*y) with GCD extraction.
+-- Note: the `(sqrt x)^k` (k > 1) branch was migrated to a `declare rule
+-- auto term ...` declaration in lib/math/normalize.egi.
 casRewriteSqrt :: CASValue -> CASValue
 casRewriteSqrt = mapCASTerms' f
  where
   f (CASTerm coeff xs) =
     match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"sqrt" $sqrtWhnf $x, ?(> 1) & $k) : $xss ->
-               casRewriteSqrt
-                 (casMult (casSingleTermVal 1 ((cassMakeApply sqrtWhnf [x], k `mod` 2) : xss))
-                          (casMult (casCoeffToVal coeff) (casPower x (div k 2)))) |]
-      , [mc| (casApply1 #"sqrt" $sqrtWhnf (casSingleTerm $n #1 $x), #1) :
+      [ [mc| (casApply1 #"sqrt" $sqrtWhnf (casSingleTerm $n #1 $x), #1) :
                (casApply1 #"sqrt" _ (casSingleTerm $m #1 $y), #1) : $xss ->
              let gcdTerm = casTermsGcd [CASTerm (CASInteger n) x, CASTerm (CASInteger m) y]
                  (_, CASTerm (CASInteger n') x') = casDivideTerm (CASTerm (CASInteger n) x) gcdTerm

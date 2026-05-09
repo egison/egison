@@ -61,11 +61,19 @@ declare rule auto term exp ($n * i * π) = (-1)^n
 declare rule auto term (exp $x)^$n = exp (n * x)
 declare rule auto term exp $x * exp $y = exp (x + y)
 
--- Square root identity (Phase 1 subset of casRewriteSqrt in Math/Rewrite.hs).
--- The GCD-extraction and sqrt-pair-merge rules stay in casRewriteSqrt until
--- Phase 3 (they require integer factorisation that pure pattern rules cannot
--- express).
-declare rule auto term (sqrt $a)^2 = a
+-- Square root power reduction.
+-- Replaces casRewriteSqrt's `(sqrt x)^k` (k > 1) branch.
+-- Pattern uses `term $c ((..., $n) :: [])` to bind the term coefficient
+-- explicitly so `5 * (sqrt 5)^2` correctly normalises to `5 * 5 = 25` (a
+-- bare `(sqrt $a)^$n` LHS would lose the coefficient via the matcher's
+-- wildcarded `term _` slot).
+-- The RHS uses `'sqrt a` (quoted) to avoid re-entering lib's `sqrt`
+-- function, which internally calls `mathNormalize` and would re-fire this
+-- rule infinitely on the n=1 fallback.
+declare rule auto term term $c ((apply1 #sqrt $a, $n) :: []) =
+  if n >= 2
+    then c *' a^'(i.quotient n 2) *' ('sqrt a)^'(i.modulo n 2)
+    else c *' ('sqrt a)^'n
 
 --
 -- rtu

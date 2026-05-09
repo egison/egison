@@ -29,7 +29,16 @@ def product {MulMonoid a} (xs: [a]) : a := foldl (*) one xs
 def product' (xs: [MathValue]) : MathValue := foldl (*') 1 xs
 
 def power (x: MathValue) (n: MathValue) : MathValue := mathNormalize (power' x n)
-def power' (x: MathValue) (n: MathValue) : MathValue := foldl (*') 1 (take n (repeat1 x))
+-- power' must avoid any operator that dispatches through mathNormalize so it
+-- can be safely called from within `mathNormalize` itself (e.g. inside a
+-- declare-rule RHS). foldl/take used `n - 1` whose `-` resolves to
+-- `minusForMathValue` -> `mathNormalize` and creates a cycle. Use direct
+-- recursion with `i.-` (integer subtraction primitive) and `*'` (the
+-- un-normalised multiplication).
+def power' (x: MathValue) (n: MathValue) : MathValue :=
+  if n = 0
+    then 1
+    else x *' power' x (i.- n 1)
 
 def exp (x: MathValue) : MathValue := 'exp x
 
