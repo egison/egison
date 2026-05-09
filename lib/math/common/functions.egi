@@ -4,7 +4,14 @@
 
 def abs (x: MathValue) : MathValue := if isRational x then i.abs x else 'abs x
 
-def exp (x: MathValue) : MathValue :=
+-- Mathematical functions are declared via `declare mathfunc` (which gives
+-- them a default symbolic-factor wrapper) and then their algorithmic
+-- simplification is given via `declare apply`. Pattern rewrite rules such
+-- as `i^2 = -1` and `(sqrt $x)^2 = x` live separately as `declare rule auto`
+-- declarations in lib/math/normalize.egi.
+
+declare mathfunc exp
+declare apply exp x :=
   if isTerm x
     then match x as termExpr with
       | #0 -> 1
@@ -13,27 +20,31 @@ def exp (x: MathValue) : MathValue :=
       | _ -> 'exp x
     else 'exp x
 
-def log (x: MathValue) : MathValue :=
+declare mathfunc log
+declare apply log x :=
   match x as mathValue with
     | #1 -> 0
     | #e -> 1
     | _ -> 'log x
 
-def cos (x: MathValue) : MathValue :=
+declare mathfunc cos
+declare apply cos x :=
   match x as mathValue with
     | #0 -> 1
     | mult $n #π -> (-1) ^ abs n
     | (mult _ #π) / #2 -> 0
     | _ -> 'cos x
 
-def sin (x: MathValue) : MathValue :=
+declare mathfunc sin
+declare apply sin x :=
   match x as mathValue with
     | #0 -> 0
     | mult _ #π -> 0
     | (mult $n #π) / #2 -> (-1) ^ ((abs n - 1) / 2)
     | _ -> 'sin x
 
-def tan (x: MathValue) : MathValue :=
+declare mathfunc tan
+declare apply tan x :=
   match x as mathValue with
     | #0 -> 0
     | _ -> 'tan x
@@ -42,17 +53,20 @@ def tan (x: MathValue) : MathValue :=
 --def asin : MathValue -> MathValue := f.asin
 --def atan : MathValue -> MathValue := f.atan
 
-def cosh (x: MathValue) : MathValue :=
+declare mathfunc cosh
+declare apply cosh x :=
   match x as mathValue with
     | #0 -> 1
     | _ -> 'cosh x
 
-def sinh (x: MathValue) : MathValue :=
+declare mathfunc sinh
+declare apply sinh x :=
   match x as mathValue with
     | #0 -> 0
     | _ -> 'sinh x
 
-def tanh (x: MathValue) : MathValue :=
+declare mathfunc tanh
+declare apply tanh x :=
   match x as mathValue with
     | #0 -> 0
     | _ -> 'tanh x

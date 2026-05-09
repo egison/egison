@@ -28,7 +28,6 @@ casRewriteSymbol =
     [ casRewritePower
 --    , casRewriteSinCos
     , casRewriteSqrt
-    , casRewriteRt
     , casRewriteRtu
     , casRewriteDd
     ]
@@ -79,17 +78,17 @@ casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 -- in lib/math/normalize.egi after lib/math/expression.egi's multExpr matcher
 -- was extended with apply1-4 patterns.
 
--- | Rewrite power: x^0 = 1, x^n * x^m = x^(n+m)
+-- | Rewrite power: residual cases not yet covered by `declare rule auto`.
+-- The `(x^y)^n = x^(n*y)` (n >= 2) and `x^y * x^z = x^(y+z)` rules were
+-- migrated to lib/math/normalize.egi using the `term $c (...) :: []`
+-- coefficient-binding pattern. The remaining branch handles a stray
+-- apply1-shaped `^ 1` factor (rare; kept until a clean migration is found).
 casRewritePower :: CASValue -> CASValue
 casRewritePower = mapCASTerms f
  where
   f term@(CASTerm coeff xs) =
     match dfs xs (Multiset (CASSymbolM, Eql))
       [ [mc| (casApply1 #"^" _ (casSingleTerm #1 #1 []), _) : $xss -> f (CASTerm coeff xss) |]
-      , [mc| (casApply2 #"^" $powerWhnf $x $y, $n & ?(>= 2)) : $xss ->
-               f (CASTerm coeff ((cassMakeApply powerWhnf [x, casMult (CASInteger n) y], 1) : xss)) |]
-      , [mc| (casApply2 #"^" $powerWhnf $x $y, #1) : (casApply2 #"^" _ #x $z, #1) : $xss ->
-               f (CASTerm coeff ((cassMakeApply powerWhnf [x, casPlus y z], 1) : xss)) |]
       , [mc| _ -> term |]
       ]
 
@@ -172,30 +171,16 @@ casRewriteSqrt = mapCASTerms' f
   -- Helper to convert CASValue coefficient to CASValue
   casCoeffToVal c = c
 
--- | Rewrite rt (nth root): rt(n,x)^n = x
-casRewriteRt :: CASValue -> CASValue
-casRewriteRt = mapCASTerms' f
- where
-  f (CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply2 #"rt" _ (casSingleTerm $n #1 []) $x & $rtnx, ?(>= n) & $k) : $xss ->
-               casMult (casMult (casCoeffToVal coeff) (casSingleTermVal 1 ((rtnx, k `mod` n) : xss)))
-                       (casPower x (div k n)) |]
-      , [mc| _ -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
-      ]
-   where
-    casCoeffToVal c = c
+-- Note: casRewriteRt was migrated to a `declare rule auto term ...`
+-- declaration in lib/math/normalize.egi.
 
--- | Rewrite rtu (nth root of unity)
+-- | Rewrite rtu (nth root of unity).
+-- The f stage `(rtu n)^k for k >= n -> (rtu n)^(k mod n)` was migrated to
+-- `declare rule auto`; only the g stage (minimal-polynomial reduction
+-- `(rtu n)^(n-1) = -1 - rtu n - ... - (rtu n)^(n-2)`) remains.
 casRewriteRtu :: CASValue -> CASValue
-casRewriteRtu = mapCASTerms' g . mapCASTerms f
+casRewriteRtu = mapCASTerms' g
  where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"rtu" _ (casSingleTerm $n #1 []) & $rtun, ?(>= n) & $k) : $r ->
-               CASTerm coeff ((rtun, k `mod` n) : r) |]
-      , [mc| _ -> term |]
-      ]
   g (CASTerm coeff xs) =
     match dfs xs (Multiset (CASSymbolM, Eql))
       [ [mc| (casApply1 #"rtu" _ (casSingleTerm $n #1 []) & $rtun, ?(== n - 1)) : $mr ->

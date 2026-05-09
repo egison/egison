@@ -494,6 +494,10 @@ extractTriggerSymbols = nub . go
   exprNames (QuoteSymbolExpr e)  = exprNames e
   exprNames (InfixExpr _ a b)    = exprNames a ++ exprNames b
   exprNames (ApplyExpr f args)   = exprNames f ++ concatMap exprNames args
+  -- Operator section like `(^)` or `(+ 1)`: the operator name itself is
+  -- the trigger (e.g. `apply2 #(^) ...` should trigger only on values
+  -- containing the `^` function).
+  exprNames (SectionExpr op ml mr) = [repr op] ++ maybe [] exprNames ml ++ maybe [] exprNames mr
   exprNames _                    = []
 
   nub = go' []

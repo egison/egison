@@ -61,6 +61,40 @@ declare rule auto term exp ($n * i * π) = (-1)^n
 declare rule auto term (exp $x)^$n = exp (n * x)
 declare rule auto term exp $x * exp $y = exp (x + y)
 
+-- Power identities (replaces casRewritePower in Math/Rewrite.hs).
+-- (x^y)^n = x^(n*y) for n >= 2; n=1 returns the term unchanged.
+-- The pattern matches a single-factor term containing one apply2 #(^) factor.
+declare rule auto term term $c ((apply2 #(^) $x $y, $n) :: []) =
+  if n >= 2
+    then c *' '(^) x (n *' y)
+    else c *' '(^) x y
+
+-- x^y * x^z = x^(y+z) when both factors are apply2 #(^) with the same base.
+-- Exact 2-factor variant; multi-factor cases stay in casRewritePower for now.
+declare rule auto term term $c ((apply2 #(^) $x $y, #1) :: (apply2 #(^) #x $z, #1) :: []) =
+  c *' '(^) x (y +' z)
+
+-- nth-root power reduction (replaces casRewriteRt in Math/Rewrite.hs).
+-- (rt n x)^k for k >= n -> (rt n x)^(k mod n) * x^(k div n).
+-- The isInteger guard skips the rule for symbolic n.
+declare rule auto term term $c ((apply2 #rt $n $x, $k) :: []) =
+  if isInteger n
+    then if k >= n
+      then c *' x^'(i.quotient k n) *' ('rt n x)^'(i.modulo k n)
+      else c *' ('rt n x)^'k
+    else c *' ('rt n x)^'k
+
+-- nth-root-of-unity power reduction (replaces casRewriteRtu's f stage in
+-- Math/Rewrite.hs). (rtu n)^k for k >= n -> (rtu n)^(k mod n).
+-- The minimal-polynomial reduction `(rtu n)^(n-1) = -1 - rtu n - ...` (the
+-- g stage) stays in casRewriteRtu for now.
+declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
+  if isInteger n
+    then if k >= n
+      then c *' ('rtu n)^'(i.modulo k n)
+      else c *' ('rtu n)^'k
+    else c *' ('rtu n)^'k
+
 -- Square root power reduction.
 -- Replaces casRewriteSqrt's `(sqrt x)^k` (k > 1) branch.
 -- Pattern uses `term $c ((..., $n) :: [])` to bind the term coefficient
