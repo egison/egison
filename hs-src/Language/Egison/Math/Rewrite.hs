@@ -4,8 +4,18 @@
 Module      : Language.Egison.Math.Rewrite
 Licence     : MIT
 
-This module implements rewrite rules for common mathematical functions.
-Uses CASValue as the primary representation.
+Residual mathematical rewrite rules that are kept in Haskell because their
+declare-rule equivalents are too expensive in practice for complex samples
+(e.g. riemann-curvature-tensor-of-S2xS3).
+
+Remaining functions:
+  - casRewriteSqrt  : `sqrt a * sqrt b = sqrt(a*b)` plus GCD pair merge
+  - casRewriteDd    : merge polynomial terms with same FunctionData factor
+
+Migrated to declare rule (and removed):
+  - casRewriteI, casRewriteW, casRewriteLog, casRewriteExp
+  - casRewritePower, casRewriteRt, casRewriteRtu
+  - casRewriteSqrt's `(sqrt x)^k` (k > 1) reduction
 -}
 
 module Language.Egison.Math.Rewrite
@@ -19,37 +29,15 @@ import           Language.Egison.Math.Normalize (casDivideTerm)
 import {-# SOURCE #-} Language.Egison.Data (WHNFData)
 
 
--- | Apply rewrite rules to a CASValue
--- Note: casRewriteI, casRewriteW, casRewriteLog, casRewriteExp were migrated
--- to `declare rule auto` declarations in lib/math/normalize.egi.
+-- | Apply rewrite rules to a CASValue.
 casRewriteSymbol :: CASValue -> CASValue
-casRewriteSymbol =
-  foldl1 (\acc f -> f . acc)
-    [ casRewritePower
---    , casRewriteSinCos
-    , casRewriteSqrt
-    , casRewriteRtu
-    , casRewriteDd
-    ]
-
-
--- | Helper: Map a function over all terms in a CASValue
-mapCASTerms :: (CASTerm -> CASTerm) -> CASValue -> CASValue
-mapCASTerms f (CASPoly ts) = casNormalizePoly (map f ts)
-mapCASTerms f (CASFrac num denom) = casNormalize (CASFrac (mapCASTerms f num) (mapCASTerms f denom))
-mapCASTerms _ v = v
+casRewriteSymbol = casRewriteDd . casRewriteSqrt
 
 -- | Helper: Map a function over all terms, returning CASValue
 mapCASTerms' :: (CASTerm -> CASValue) -> CASValue -> CASValue
 mapCASTerms' f (CASPoly ts) = foldr casPlus (CASInteger 0) (map f ts)
 mapCASTerms' f (CASFrac num denom) = casNormalize (CASFrac (mapCASTerms' f num) (mapCASTerms' f denom))
 mapCASTerms' _ v = v
-
--- | Helper: Map over both polys in a CASFrac (or single poly)
-mapCASPolys :: ([CASTerm] -> [CASTerm]) -> CASValue -> CASValue
-mapCASPolys f (CASPoly ts) = casNormalizePoly (f ts)
-mapCASPolys f (CASFrac num denom) = casNormalize (CASFrac (mapCASPolys f num) (mapCASPolys f denom))
-mapCASPolys _ v = v
 
 -- | Helper: Create an Apply symbol from WHNF and CASValue arguments
 cassMakeApply :: WHNFData -> [CASValue] -> SymbolExpr
@@ -60,40 +48,7 @@ cassMakeApply whnf args =
 casSingleTermVal :: Integer -> Monomial -> CASValue
 casSingleTermVal coeff mono = CASPoly [CASTerm (CASInteger coeff) mono]
 
-
---------------------------------------------------------------------------------
--- Rewrite Rules
---------------------------------------------------------------------------------
-
--- Note: casRewriteI (i^2 = -1) was migrated to a `declare rule auto`
--- declaration in lib/math/normalize.egi and removed from this module.
-
--- Note: casRewriteW (w^3 = 1, w^2 + w + 1 = 0) was migrated to
--- `declare rule auto` declarations in lib/math/normalize.egi and removed.
-
--- Note: casRewriteLog (log 1 = 0, log (e^n) = n) was migrated to
--- `declare rule auto` declarations in lib/math/normalize.egi and removed.
-
--- Note: casRewriteExp was fully migrated to `declare rule auto` declarations
--- in lib/math/normalize.egi after lib/math/expression.egi's multExpr matcher
--- was extended with apply1-4 patterns.
-
--- | Rewrite power: residual cases not yet covered by `declare rule auto`.
--- The `(x^y)^n = x^(n*y)` (n >= 2) and `x^y * x^z = x^(y+z)` rules were
--- migrated to lib/math/normalize.egi using the `term $c (...) :: []`
--- coefficient-binding pattern. The remaining branch handles a stray
--- apply1-shaped `^ 1` factor (rare; kept until a clean migration is found).
-casRewritePower :: CASValue -> CASValue
-casRewritePower = mapCASTerms f
- where
-  f term@(CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"^" _ (casSingleTerm #1 #1 []), _) : $xss -> f (CASTerm coeff xss) |]
-      , [mc| _ -> term |]
-      ]
-
--- | Determine if a CASValue is definitely negative
--- Returns Just True if negative, Just False if non-negative, Nothing if unknown
+-- | Determine if a CASValue is definitely negative.
 casIsNegative :: CASValue -> Maybe Bool
 casIsNegative (CASInteger n)
   | n < 0     = Just True
@@ -114,7 +69,6 @@ casIsNegative (CASFrac num (CASPoly [CASTerm (CASInteger d) []]))
   | d < 0     = fmap not (casIsNegative num)
 casIsNegative _ = Nothing
 
--- | Find a pair of sqrts in a monomial whose product simplifies to a single term.
 casFindSqrtPairToMerge :: Monomial -> Maybe (WHNFData, CASValue, Monomial, Integer)
 casFindSqrtPairToMerge xs =
   case results of
@@ -137,9 +91,8 @@ casFindSqrtPairToMerge xs =
   isSingleTermCAS (CASPoly [_])  = True
   isSingleTermCAS _              = False
 
--- | Rewrite sqrt: sqrt(x) * sqrt(y) = sqrt(x*y) with GCD extraction.
--- Note: the `(sqrt x)^k` (k > 1) branch was migrated to a `declare rule
--- auto term ...` declaration in lib/math/normalize.egi.
+-- | Rewrite sqrt: sqrt(x) * sqrt(y) merge with GCD extraction.
+-- The `(sqrt x)^k` (k > 1) reduction was migrated to declare rule auto.
 casRewriteSqrt :: CASValue -> CASValue
 casRewriteSqrt = mapCASTerms' f
  where
@@ -153,46 +106,21 @@ casRewriteSqrt = mapCASTerms' f
                  (CASInteger c) = casTermCoeff gcdTerm
                  z = casTermMono gcdTerm
                  in case (n' * m', n', m', x', y') of
-                      (1, _, _, [], []) -> casMult (casSingleTermVal c z) (casCoeffToVal coeff)
+                      (1, _, _, [], []) -> casMult (casSingleTermVal c z) coeff
                       (_, _, _, _, _) -> casMult (casSingleTermVal c z)
-                                                 (casMult (casCoeffToVal coeff)
+                                                 (casMult coeff
                                                           (casSingleTermVal 1 ((cassMakeApply sqrtWhnf [casSingleTermVal (n' * m') (x' ++ y')], 1) : xss))) |]
       , [mc| _ -> case casFindSqrtPairToMerge xs of
                     Just (whnf, product, remaining, sign) ->
-                      casRewriteSqrt (casMult (casCoeffToVal coeff)
+                      casRewriteSqrt (casMult coeff
                                               (casSingleTermVal sign ((cassMakeApply whnf [product], 1) : remaining)))
-                    Nothing -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
+                    Nothing -> casMult coeff (casSingleTermVal 1 xs) |]
       ]
-
-  -- Helper to extract coefficient from a term
   casTermCoeff (CASTerm c _) = c
-  -- Helper to extract monomial from a term
   casTermMono (CASTerm _ m) = m
-  -- Helper to convert CASValue coefficient to CASValue
-  casCoeffToVal c = c
 
--- Note: casRewriteRt was migrated to a `declare rule auto term ...`
--- declaration in lib/math/normalize.egi.
-
--- | Rewrite rtu (nth root of unity).
--- The f stage `(rtu n)^k for k >= n -> (rtu n)^(k mod n)` was migrated to
--- `declare rule auto`; only the g stage (minimal-polynomial reduction
--- `(rtu n)^(n-1) = -1 - rtu n - ... - (rtu n)^(n-2)`) remains.
-casRewriteRtu :: CASValue -> CASValue
-casRewriteRtu = mapCASTerms' g
- where
-  g (CASTerm coeff xs) =
-    match dfs xs (Multiset (CASSymbolM, Eql))
-      [ [mc| (casApply1 #"rtu" _ (casSingleTerm $n #1 []) & $rtun, ?(== n - 1)) : $mr ->
-               casMult
-                 (foldr casMinus (casSingleTermVal (-1) []) (map (\k -> casSingleTermVal 1 [(rtun, k)]) [1..(n-2)]))
-                 (g (CASTerm coeff mr)) |]
-      , [mc| _ -> casMult (casCoeffToVal coeff) (casSingleTermVal 1 xs) |]
-      ]
-   where
-    casCoeffToVal c = c
-
--- | Rewrite dd (differential)
+-- | Rewrite dd (differential): merge polynomial terms whose monomial shares
+-- the same FunctionData factor.
 casRewriteDd :: CASValue -> CASValue
 casRewriteDd (CASFrac num denom) =
   CASFrac (casNormalizePoly (rewriteDdPoly (extractTerms num)))

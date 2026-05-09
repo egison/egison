@@ -84,30 +84,43 @@ declare rule auto term term $c ((apply2 #rt $n $x, $k) :: []) =
       else c *' ('rt n x)^'k
     else c *' ('rt n x)^'k
 
--- nth-root-of-unity power reduction (replaces casRewriteRtu's f stage in
--- Math/Rewrite.hs). (rtu n)^k for k >= n -> (rtu n)^(k mod n).
--- The minimal-polynomial reduction `(rtu n)^(n-1) = -1 - rtu n - ...` (the
--- g stage) stays in casRewriteRtu for now.
+-- nth-root-of-unity power reduction (replaces casRewriteRtu in
+-- Math/Rewrite.hs).
+-- - k >= n: reduce exponent via mod n.
+-- - k = n-1: apply minimal-polynomial reduction
+--   (rtu n)^(n-1) = -1 - rtu n - (rtu n)^2 - ... - (rtu n)^(n-2).
+-- - otherwise: keep as-is.
+-- Note: the original casRewriteRtu g stage was buggy (foldr casMinus gave
+-- alternating signs); the foldl form below is the correct minimal-polynomial.
 declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
   if isInteger n
     then if k >= n
       then c *' ('rtu n)^'(i.modulo k n)
-      else c *' ('rtu n)^'k
+      else if k = n - 1
+        then c *' (foldl (+') (-1) (map (\j -> (-1) *' ('rtu n) ^' j) (between 1 (n - 2))))
+        else c *' ('rtu n)^'k
     else c *' ('rtu n)^'k
 
--- Square root power reduction.
--- Replaces casRewriteSqrt's `(sqrt x)^k` (k > 1) branch.
--- Pattern uses `term $c ((..., $n) :: [])` to bind the term coefficient
--- explicitly so `5 * (sqrt 5)^2` correctly normalises to `5 * 5 = 25` (a
--- bare `(sqrt $a)^$n` LHS would lose the coefficient via the matcher's
--- wildcarded `term _` slot).
--- The RHS uses `'sqrt a` (quoted) to avoid re-entering lib's `sqrt`
--- function, which internally calls `mathNormalize` and would re-fire this
--- rule infinitely on the n=1 fallback.
+-- Square root power reduction (replaces casRewriteSqrt's `(sqrt x)^k` branch).
 declare rule auto term term $c ((apply1 #sqrt $a, $n) :: []) =
   if n >= 2
     then c *' a^'(i.quotient n 2) *' ('sqrt a)^'(i.modulo n 2)
     else c *' ('sqrt a)^'n
+
+-- Note: FunctionData same-shape term merging stays in casRewriteDd
+-- (Math/Rewrite.hs). The poly-level declare rule version
+--   $a * ($f & func $g $args) * $mr + $b * (func #g #args) * #mr + $rest
+--     = (a + b) * f * mr + rest
+-- works correctly but the multi-term + same-binding constraint is too
+-- expensive for complex differential-form computations like
+-- riemann-curvature-tensor-of-S2xS3 (>120s vs few-seconds with Haskell).
+
+-- Note: square-root pair merge `sqrt a * sqrt b = sqrt (a*b)` stays in
+-- casRewriteSqrt (Math/Rewrite.hs). The declare-rule version
+--   term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: [])
+--     = c *' sqrt (a *' b)
+-- works correctly but is too expensive for sqrt-heavy samples like
+-- riemann-curvature-tensor-of-S2xS3.
 
 --
 -- rtu
