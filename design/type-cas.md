@@ -2439,7 +2439,7 @@ declare rule の発火経路を Haskell 内のループに移行（`iterateRules
 | **観察型 join の subtype-aware 化** | `joinObservedTypes` は文字列ベース heuristic。`Integer` ⊂ 他型は対応済だが、`Frac Integer` ⊕ `Poly Integer [x]` 等の真の lattice join は未対応 | 中規模 |
 | **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 | 中規模 |
 | **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
-| **nested radical の固定点未到達** | `((-1+√5+√(-10-2√5))/4)^5 = 1` 等、nested radical を含む高次冪展開が declare rule の固定点で簡約されない。Apply3 (`#(...)` 形) の root expansion 規則が要追加 | 中規模 (declare rule 拡充) |
+| **nested radical の denesting** | `sqrt(9 - 4*sqrt(5)) = sqrt(5) - 2` 等の二項平方根の denesting が未実装。`5th-root-of-unity.egi` の 4-項版 `(-1 + sqrt 5 + sqrt(-5-2*sqrt 5) + sqrt(-5+2*sqrt 5))/4)^5 = 1` を解くために必要。3-項版 `((-1+√5+√(-10-2√5))/4)^5 = 1` は B1 (multi-factor sqrt 規則拡張) で解決済 | 中規模 (代数 denesting) |
 | 異種 Tensor 型の扱い | `Tensor (Poly Integer [sqrt 2])` と `Tensor (Frac Integer)` の join は `Tensor MathValue` にフォールバック。**方針**: Tensor は homogeneous を要求し、異種混在は明示的に統一型に揃えてから格納 | 軽量 (方針既決) |
 | 関数シンボル (`function (x)`) の CAS 型統合 | 既存の関数シンボル機構 ([function-symbol.md](./function-symbol.md)) と新 CAS 型システムの統合方針が未定。当面は既存挙動を保持し、原子集合 (`Poly ... [f x]`) への出現は禁止 | 中規模 (個別設計) |
 | `inspect` の REPL 統合 | REPL で式評価時に静的型 + 観察型を自動表示 | 小〜中 (UI 系) |

@@ -129,13 +129,25 @@ declare rule auto term term $c ((apply1 #sqrt $aa, $nn) :: $rr) =
 --
 -- For symbolic args (non-integer a or b), GCD doesn't apply: just merge
 -- via `sqrt (a*b)` so declare apply can take over (or stay symbolic).
-declare rule auto term term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: []) =
-  if isInteger a && isInteger b
-    then let g  := gcd' (i.abs a) (i.abs b)
-             a' := i.quotient a g
-             b' := i.quotient b g
-          in c *' g *' sqrt (i.* a' b')
-    else c *' sqrt (a *' b)
+--
+-- The LHS pattern uses `:: $rr` (not `:: []`) so the rule fires on terms
+-- with 3+ sqrt factors as well (e.g. `sqrt(a) * sqrt(b) * sqrt(c) * x`):
+-- the body re-matches via assocMultiset to find any pair of sqrt factors
+-- with exponent 1 and reduces them, leaving the rest in place.
+declare rule auto term term $c ((apply1 #sqrt $aa, #1) :: $rr) =
+  let xs := ('sqrt aa, 1) :: rr
+   in match xs as assocMultiset mathValue with
+        | (apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: $rest ->
+            let merged :=
+                  if isInteger a && isInteger b
+                    then let g  := gcd' (i.abs a) (i.abs b)
+                             a' := i.quotient a g
+                             b' := i.quotient b g
+                          in g *' sqrt (i.* a' b')
+                    else sqrt (a *' b)
+             in c *' merged
+                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rest)
+        | _ -> c *' foldl (*') 1 (map (\(p, k) -> p ^' k) xs)
 
 --
 -- sin/cos pythagorean identity (replaces lib's rewriteRuleForSinAndCos)
