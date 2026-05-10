@@ -167,8 +167,14 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Phase 8: Bind all definitions together (supports mutual recursion)
   envWithPatFuncs <- recursiveBindAll env (accumBindings accum) (accumPatFuncBindings accum)
 
-  -- Phase 9: Evaluate non-definition expressions in order
-  (lastVal, finalEnv) <- foldM (\(lastVal, currentEnv) (iExpr, shouldPrint) -> do
+  -- Phase 9: Evaluate non-definition expressions in order.
+  -- We catch each expression's error so that subsequent expressions still
+  -- run (so a single failed `assertEqual` doesn't hide errors in later
+  -- assertions). But we COLLECT the errors and re-throw at the end so the
+  -- outer EvalM resolves to `Left` — required for `cabal test`'s
+  -- `assertEvalM` to report the test as failed.
+  (lastVal, finalEnv, collectedErrs) <-
+    foldM (\(lastVal, currentEnv, errsAcc) (iExpr, shouldPrint) -> do
       evalResult <- catchError
         (Right <$> evalTopExpr' currentEnv iExpr)
         (\err -> do
@@ -176,13 +182,21 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
           return $ Left err)
 
       case evalResult of
-        Left _ -> return (lastVal, currentEnv)
+        Left err -> return (lastVal, currentEnv, err : errsAcc)
         Right (mVal, env'') -> do
           when shouldPrint $ case mVal of
             Nothing -> return ()
             Just val -> valueToStr val >>= liftIO . putStrLn
-          return (mVal, env'')
-    ) (Nothing, envWithPatFuncs) (accumNonDefExprs accum)
+          return (mVal, env'', errsAcc)
+    ) (Nothing, envWithPatFuncs, []) (accumNonDefExprs accum)
+
+  -- If any expression produced an error, surface the FIRST one so the
+  -- outer EvalM is `Left`. The full set has already been streamed to
+  -- stderr above. Re-throw only when we collected something to avoid
+  -- spurious failures on success paths.
+  case reverse collectedErrs of
+    []      -> return ()
+    (err:_) -> throwError err
 
   return (lastVal, finalEnv)
 

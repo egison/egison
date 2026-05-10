@@ -66,7 +66,7 @@ run = do
     env <- initialEnv  -- Only primitive environment
     evalTopExprs' env allLoadExprs True True
   case mResult of
-    Left err  -> liftIO $ print err
+    Left err  -> liftIO $ print err >> exitFailure
     Right (env, evalState) -> handleOptionWithState env evalState opts
 
 handleOption :: Env -> EgisonOpts -> RuntimeM ()
