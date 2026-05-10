@@ -217,22 +217,18 @@ def r : Frac (Poly (Frac Integer) [x]) := coerce expr  -- 深いネストでも
 
 将来は **typeclass-based** に戻る形だが、目的が「conversion definition」ではなく「**canonicalization** definition」になる点が異なる。
 
-### 5.2 `Embed` typeclass との関係
+### 5.2 `reshape` 機構との関係 (旧 `Embed` typeclass)
 
-`Embed` は既に `lib/core/base.egi` で widening 用に定義済み:
-```egison
-class Embed a b where
-  embed (x: a) : b
-```
+> **2026-05 更新**: 旧設計案では `Embed` typeclass を介して widening を行う想定だったが、Phase C で `Embed` typeclass と `coerceTo*` 関数群はすべて廃止され、**`reshape` primitive 一本に統一**された。型注釈 (`def x : T := e` または `(e : T)`) を書くだけで AST elaboration が `IReshape T e` を挿入し、`casReshapeAs T v` が runtime に CAS 構造を target type に書き換える。
 
-将来の `declare cas-subtype` は `Embed` instance を生成する形で統合できる:
+将来の `declare cas-subtype` は `reshape` 経路上で **target-type-specific な `casReshapeAs` 拡張** として統合する形になる:
 ```egison
-declare cas-subtype A ⊂ B where embed v := f v
+declare cas-subtype A ⊂ B where reshape v := f v
 -- ↓ desugar
-instance Embed A B where embed x := f x
+-- (内部で casReshapeAs を拡張する Haskell primitive 経路に登録)
 ```
 
-つまり Embed は既存の cell として、その上に `cas-subtype` 宣言シンタックスを追加する形。
+つまり旧 Embed instance 生成の代わりに、`reshape` primitive の dispatch table 拡張という形で統合する。
 
 ### 5.3 `casNormalize` (Math/CAS.hs) との関係
 
@@ -349,3 +345,4 @@ def cf : ContinuedFraction := coerce (355 / 113)
 ## 9. 改訂履歴
 
 - 2026-05-06: 初版。半順序タワー拡張の構想をまとめる。実装は将来課題。
+- 2026-05-07: §5.2 を更新 — `Embed` typeclass は Phase C で廃止済 (`reshape` primitive に統一) のため、cas-subtype 宣言の統合先を `reshape` dispatch table に変更。
