@@ -2016,7 +2016,16 @@ inferIExprWithContext expr ctx = case expr of
     s2 <- unifyTypesWithContext innerType ty' exprCtx
     let finalSubst = composeSubst s2 s
     finalTy <- applySubstWithConstraintsM finalSubst ty
-    return (mkTIExpr finalTy (TIReshape finalTy innerTI), finalSubst)
+    -- Apply the substitution to innerTI as well so the inner expression's
+    -- scheme reflects the unified type. Without this, type-class methods like
+    -- `(zero : MathValue)` keep the original `Forall [a] [AddMonoid a] a`
+    -- scheme on `zero`, and TypeClassExpand goes down the TVar dispatch path
+    -- (emitting a reference to the non-existent `dict_AddMonoid` parameter)
+    -- instead of the concrete-instance path. At runtime that produces the
+    -- "Expected CASData" / "Expected function" errors typical of unresolved
+    -- dispatch.
+    innerTI' <- applySubstToTIExprM finalSubst innerTI
+    return (mkTIExpr finalTy (TIReshape finalTy innerTI'), finalSubst)
 
 -- | Infer match clauses type
 -- All clauses should return the same type

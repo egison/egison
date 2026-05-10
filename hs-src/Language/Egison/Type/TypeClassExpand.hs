@@ -617,13 +617,21 @@ expandTypeClassMethodsT tiExpr = do
       -- If concrete dictionaries were applied by checkConstrainedVariable,
       -- clear constraints from the scheme to prevent applyConcreteConstraintDictionaries
       -- from adding them again (avoiding double-application).
+      --
+      -- TIApplyExpr: dispatched (n-ary methods, e.g. `(+) x y` → resolved
+      -- function applied to args).
+      -- TIIndexedExpr: 0-arity method (e.g. `zero` → `dict["zero"]`). Without
+      -- this clear, applyConcreteConstraintDictionaries would wrap the value
+      -- in `TIApplyExpr value [dict]`, treating the resolved value as a
+      -- function and producing "Expected function, but found: 0" at runtime.
       let isConcrete c = all isConcreteType' (constraintTypes c)
           isConcreteType' (TVar _) = False
           isConcreteType' _        = True
+          shouldClear = not (null exprConstraints) && all isConcrete exprConstraints
           scheme' = case expandedNode of
-            TIApplyExpr _ _ | not (null exprConstraints) && all isConcrete exprConstraints ->
-              let Forall vs _ ty = scheme in Forall vs [] ty
-            _ -> scheme
+            TIApplyExpr _ _    | shouldClear -> let Forall vs _ ty = scheme in Forall vs [] ty
+            TIIndexedExpr {}   | shouldClear -> let Forall vs _ ty = scheme in Forall vs [] ty
+            _                                -> scheme
       return $ TIExpr scheme' expandedNode
 
     -- Expand type class methods in patterns (no parent constraints)
