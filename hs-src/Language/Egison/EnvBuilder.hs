@@ -276,10 +276,12 @@ processTopExpr result topExpr = case topExpr of
   -- Without this, binary operations like `f 3 + f 4` infer `Any + Any` and
   -- the type-class `+` dispatch fails (returning the method-name string
   -- "plus" where a CASData was expected).
+  -- The default `MathValue -> MathValue` may be widened by a subsequent
+  -- `declare apply` based on its argument count (see DeclareApply below).
   DeclareMathFunc name mTypeExpr -> do
     let ty = case mTypeExpr of
                Just texpr -> typeExprToType texpr
-               Nothing    -> TFun TInt TInt   -- default: MathValue -> MathValue
+               Nothing    -> TFun TMathValue TMathValue
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv (stringToVar name) scheme typeEnv
@@ -290,9 +292,20 @@ processTopExpr result topExpr = case topExpr of
   -- Requires a prior `declare mathfunc <name>` so the function's type and
   -- intent are known. The actual implementation is emitted by Desugar as a
   -- plain `def` that overrides the mathfunc wrapper.
-  DeclareApply name _args _body -> do
+  -- Updates the registered type to `MathValue -> MathValue -> ... -> MathValue`
+  -- (one MathValue per arg + result), unless `declare mathfunc` had an
+  -- explicit type annotation that already matches arity.
+  DeclareApply name args _body -> do
     if Set.member name (ebrMathFuncNames result)
-      then return result
+      then do
+        let arity = length args
+            -- Build MathValue -> MathValue -> ... -> MathValue (n+1 MathValues)
+            mathFunTy 0 = TMathValue
+            mathFunTy n = TFun TMathValue (mathFunTy (n - 1))
+            ty' = mathFunTy arity
+            scheme' = Forall [] [] ty'
+            typeEnv' = extendEnv (stringToVar name) scheme' (ebrTypeEnv result)
+        return result { ebrTypeEnv = typeEnv' }
       else throwError $ Default $
         "declare apply " ++ name ++ ": no prior `declare mathfunc " ++ name ++ "`. " ++
         "Add `declare mathfunc " ++ name ++ "` before this `declare apply` declaration."
