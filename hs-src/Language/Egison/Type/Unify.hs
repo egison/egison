@@ -152,6 +152,15 @@ unifyG _ _ _ TMathValue (TPoly _ _) = ok
 unifyG _ _ _ (TPoly _ _) TMathValue = ok
 unifyG _ _ _ TInt        (TPoly _ _) = ok
 unifyG _ _ _ (TPoly _ _) TInt        = ok
+-- Cross-level widening: any Frac chain unifies with any Poly chain via reshape
+-- (e.g. `def e2 : Poly (Frac Integer) [..] := e1` where e1 : Frac Integer).
+unifyG _ _ _ (TFrac _)   (TPoly _ _) = ok
+unifyG _ _ _ (TPoly _ _) (TFrac _)   = ok
+-- Factor widening into Frac/Poly chains (e.g. `def e4 : Frac (Poly Integer [x]) := x`).
+unifyG _ _ _ TFactor     (TFrac _)   = ok
+unifyG _ _ _ (TFrac _)   TFactor     = ok
+unifyG _ _ _ TFactor     (TPoly _ _) = ok
+unifyG _ _ _ (TPoly _ _) TFactor     = ok
 
 -- Type variables: delegated to mode-specific handler
 unifyG mode ce cs (TVar v) t = unifyVarG mode ce cs v t

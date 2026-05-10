@@ -1555,9 +1555,10 @@ mathExprMatcherConstructors =
   ]
 
 ppPattern :: Parser PrimitivePatPattern
-ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
+ppPattern = (PPInductivePat <$> lowerId <*> many ppAtom
         <|> do ops <- gets patternOps
-               makeExprParser ppAtom (makeTable ops)
+               makeExprParser ppAtom (makeTable ops))
+        >>= \p -> (PPAndPat p <$> (operator "&" >> ppPattern)) <|> return p
         <?> "primitive pattern pattern"
   where
     makeTable :: [Op] -> [[Operator Parser PrimitivePatPattern]]
@@ -1572,6 +1573,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
 
     ppAtom :: Parser PrimitivePatPattern
     ppAtom = PPWildCard <$ symbol "_"
+         <|> PPDiscard  <$ symbol "~"
          <|> PPPatVar   <$ symbol "$"
          <|> PPValuePat <$> (string "#$" >> lowerId)
          <|> PPInductivePat "[]" [] <$ (symbol "[" >> symbol "]")

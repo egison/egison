@@ -614,18 +614,26 @@ def coefficients (f: MathValue) (x: MathValue) : [MathValue] :=
                            | poly (term $a ((#x, $k) :: $ts) :: _) / _ -> k))
   in map (coefficient f x) (between 0 m)
 
+-- Use the matcher's `_ / $d` extraction (PDFracPat) for the divisor so
+-- it is consistent with the `poly (...) / _` arm above: PDFracPat returns
+-- (self, 1) for non-CASFrac forms (level-4 polys with Frac coefficients),
+-- so no spurious division happens. The user-facing `denominator` primitive
+-- would return the LCM of Frac denoms here and double-count.
+def fracDenom (f: MathValue) : MathValue :=
+  match f as mathValue with | _ / $d -> d
+
 def coefficient (f: MathValue) (x: MathValue) (m: Integer) : MathValue :=
   if m = 0
     then sum (matchAll f as mathValue with
                | poly (term $a (!((#x, _) :: _) & $ts) :: _) / _ ->
-                 foldl (*') a (map (uncurry (^')) ts)) / denominator f
+                 foldl (*') a (map (uncurry (^')) ts)) / fracDenom f
     else coefficient' f x m
 
 def coefficient' (f: MathValue) (x: MathValue) (m: Integer) : MathValue :=
   sum
     (matchAll f as mathValue with
       | poly (term $a ((#x, #m) :: (!((#x, _) :: _) & $ts)) :: _) /_ ->
-        foldl (*') a (map (uncurry (^')) ts)) /' denominator f
+        foldl (*') a (map (uncurry (^')) ts)) /' fracDenom f
 
 def L./ (xs: [MathValue]) (ys: [MathValue]) : ([MathValue], [MathValue]) :=
   if length xs < length ys

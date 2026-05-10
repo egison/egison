@@ -1297,6 +1297,8 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
 primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
+-- PPDiscard "~": matches any user pattern, captures nothing.
+primitivePatPatternMatch _ PPDiscard _ = return ([], [])
 primitivePatPatternMatch env (PPValuePat name) (IValuePat expr) = do
   ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
@@ -1308,6 +1310,11 @@ primitivePatPatternMatch env (PPTuplePat patterns) (ITuplePat exprs)
   | length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
+-- PPAndPat "&": both PPPs must match the same user pattern; concat the results.
+primitivePatPatternMatch env (PPAndPat lhs rhs) pattern = do
+  (ps1, bs1) <- primitivePatPatternMatch env lhs pattern
+  (ps2, bs2) <- primitivePatPatternMatch env rhs pattern
+  return (ps1 ++ ps2, bs1 ++ bs2)
 primitivePatPatternMatch _ _ _ = matchFail
 
 bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
@@ -1345,9 +1352,17 @@ casToTerms cv = [CAS.CASTerm cv []]
 symbolToCASValue :: CAS.SymbolExpr -> CASValue
 symbolToCASValue sym = CAS.CASPoly [CAS.CASTerm (CAS.CASInteger 1) [(sym, 1)]]
 
--- Helper: Convert CASTerm to CASValue
+-- Helper: Convert CASTerm to CASValue.
+-- For an Integer-coefficient constant term, return the bare CASInteger so
+-- downstream user code (e.g. `map`/arithmetic over the term list) sees the
+-- canonical numeric form. For non-Integer constants (e.g. CASFrac
+-- coefficients in level-4 `Poly (Frac Integer)` polynomials) we must wrap
+-- in CASPoly to preserve the `Frac (Plus [Term n xs]) (Plus [Term 1 []])`
+-- shape that `term $ $` etc. PDPs in lib/math/expression.egi expect —
+-- otherwise extraction of the constant Frac coefficient via `term $a _`
+-- silently fails (the bare CASFrac exposes its denom != 1).
 termToCASValue :: CAS.CASTerm -> CASValue
-termToCASValue (CAS.CASTerm coeff []) = coeff  -- Constant term: return coefficient directly
+termToCASValue (CAS.CASTerm coeff@(CAS.CASInteger _) []) = coeff
 termToCASValue t = CAS.CASPoly [t]
 
 -- Helper: Extract SymbolExpr from CASValue if it's a single-symbol single-term polynomial
