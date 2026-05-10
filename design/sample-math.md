@@ -1,0 +1,233 @@
+# sample/math 現状と coverage 改善計画
+
+`sample/math/` 以下の数学サンプルプログラムは、Egison の CAS・テンソル代数・微分形式
+等の表現力を実際の応用数学計算で示すショーケース集です。本ドキュメントは:
+
+1. 全サンプルの現状（pass/fail, assertion 数）
+2. 失敗の根本原因の分類
+3. coverage を増やすためのロードマップ
+
+をまとめます。**しばらくの目標は「全サンプルが意味のある assertion を持ち、すべて pass
+すること」**。
+
+---
+
+## 集計
+
+| 区分 | 合計 | PASS | FAIL | assertion 平均 |
+|---|---:|---:|---:|---:|
+| `algebra/` | 3 | 3 | 0 | 2.0 |
+| `analysis/` | 3 | 1 | 2 | 8.3 |
+| `geometry/` | 32 | 17 | 15 | 5.7 |
+| `number/` | 7 | 6 | 1 | 2.4 |
+| **合計** | **45** | **27** | **18** | **5.4** |
+
+PASS 率: 60% (27/45)。assertion 総数: 約 244 個。
+
+---
+
+## 全サンプル一覧
+
+### `algebra/` (3/3 PASS)
+
+| ファイル | 状態 | asserts | 内容 |
+|---|---|---:|---|
+| `cubic-equation.egi` | ✅ | 1 | カルダノ公式による 3 次方程式の解 |
+| `quadratic-equation.egi` | ✅ | 4 | 2 次方程式の解の公式 |
+| `quartic-equation.egi` | ✅ | 1 | フェラーリ公式による 4 次方程式の解 |
+
+### `analysis/` (1/3 PASS)
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `eulers-formula.egi` | ✅ | 4 | テイラー展開によるオイラーの公式 |
+| `leibniz-formula.egi` | ❌ | 6 | π/4 のライプニッツ級数。`Sd` (不定積分) lib バグで `Sd x 'cos x` 等が `'cos x` を数として扱おうとして失敗 |
+| `vector-analysis.egi` | ❌ | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` assertion で expected と found が乖離 (CAS 簡約の弱さ) |
+
+### `geometry/` (17/32 PASS) — 微分幾何・物理サンプル
+
+#### Hodge / Laplacian / 微分形式 (一部 PASS)
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `exterior-derivative.egi` | ✅ | 3 | 外微分 d、d²=0 |
+| `wedge-product.egi` | ✅ | 4 | ウェッジ積の反対称性 |
+| `hodge-E3.egi` | ✅ | 2 | ユークリッド 3 次元の Hodge ∗ |
+| `hodge-Minkowski.egi` | ✅ | 2 | ミンコフスキー時空の Hodge ∗ |
+| `hodge-laplacian-polar.egi` | ✅ | 1 | 極座標 Laplacian (Hodge 経由) |
+| `hodge-laplacian-spherical.egi` | ❌ | 1 | 球座標 Laplacian。**`abs(sin²θ r⁴)` 因子が消えない** (CAS が `abs` の符号を確定できない) |
+
+#### 極座標 Laplacian バリアント
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `polar-laplacian-2d.egi` | ✅ | 2 | 2D 極 Laplacian (chain rule 経由) |
+| `polar-laplacian-2d-2.egi` | ✅ | 3 | 2D 極 Laplacian (テンソル記法) |
+| `polar-laplacian-2d-3.egi` | ✅ | 2 | 2D 極 Laplacian (別の手法) |
+| `polar-laplacian-3d.egi` | ❌ | 1 | 3D 極 Laplacian。30s タイムアウト (計算が重い) |
+| `polar-laplacian-3d-2.egi` | ✅ | 2 | 3D 極 Laplacian バリアント |
+| `polar-laplacian-3d-3.egi` | ✅ | 2 | 3D 極 Laplacian バリアント |
+
+#### Riemann 曲率テンソル (3 次元低次元 PASS、4 次元以上は FAIL)
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `riemann-curvature-tensor-of-S2.egi` | ✅ | 11 | S² の Riemann tensor |
+| `riemann-curvature-tensor-of-S2-no-type-annotations.egi` | ✅ | 11 | S² (型注釈なし版) |
+| `riemann-curvature-tensor-of-S3.egi` | ✅ | 15 | S³ |
+| `riemann-curvature-tensor-of-S4.egi` | ❌ | 14 | S⁴。型エラーまたは assertion mismatch (詳細未捕捉) |
+| `riemann-curvature-tensor-of-S5.egi` | ❌ | 9 | S⁵。同上 |
+| `riemann-curvature-tensor-of-S5-non-sym.egi` | ❌ | 7 | S⁵ (非対称 Christoffel) |
+| `riemann-curvature-tensor-of-S7.egi` | ❌ | 7 | S⁷。**型エラー** (`Cannot unify types`) |
+| `riemann-curvature-tensor-of-S2xS3.egi` | ❌ | 1 | S²×S³。`casRewriteDd` の poly 級多項マッチが重く時間切れ |
+| `riemann-curvature-tensor-of-T2.egi` | ✅ | 15 | T² (トーラス) |
+| `riemann-curvature-tensor-of-T2-non-sym.egi` | ✅ | 15 | T² (非対称) |
+| `riemann-curvature-tensor-of-FLRW-metric.egi` | ✅ | 2 | FLRW (宇宙論) 計量。uppercase symbol `K` の修正で動作 |
+| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | ❌ | 12 | Schwarzschild 計量。**Christoffel 記号の assertion**: 期待値 `(GM)/(c²r² - 2GMr)` に対し `(-GMc⁻² + 2G²M²c⁻⁴r⁻¹) / (-r² + 4GMc⁻²r - 4G²M²c⁻⁴)` で出力 — 入れ子分数の縮約が unfinished |
+
+#### Chern / Euler 形式
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `chern-form-of-CP1.egi` | ❌ | 3 | CP¹ の Chern 形式。**`exp(-2iθπ) * exp(2iθπ)` が 1 に簡約されない** (CAS 簡約弱さ) |
+| `chern-form-of-CP2.egi` | ✅ | 1 | CP² の Chern 形式 |
+| `curvature-form.egi` | ✅ | 8 | 曲率形式の一般論 |
+| `euler-form-of-S2.egi` | ❌ | 2 | S² の Euler 形式。warning のみで実行は通るが exit 1 |
+| `euler-form-of-T2.egi` | ❌ | 2 | T² の Euler 形式 |
+
+#### Thurston / その他特殊幾何
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `surface.egi` | ❌ | 10 | 一般曲面の幾何。**型エラー** (`Cannot unify types`) |
+| `thurston.egi` | ❌ | 4 | Thurston 例の WCS 不変量 (EMR paper §4)。**型エラー** (`Cannot unify types`) — 過去には `__super_AddGroup` dispatch バグも観測 |
+| `thurston-non-sym.egi` | ❌ | 4 | Thurston (非対称 ∇J)。**`Inconsistent tensor index: [_?] vs [_<val>]`** バグ |
+| `yang-mills-equation-of-U1-gauge-theory.egi` | ❌ | 2 | U(1) ゲージ Yang-Mills |
+
+### `number/` (6/7 PASS)
+
+| ファイル | 状態 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---|
+| `5th-root-of-unity.egi` | ✅ | 2 | 1 の原始 5 乗根 (`z^5 = 1` assertion はコメントアウト — denesting 未実装) |
+| `7th-root-of-unity.egi` | ✅ | 1 | 7 乗根 |
+| `17th-root-of-unity.egi` | ✅ | 1 | 17 乗根 (Gauss の定規コンパス作図) |
+| `eisenstein-primes.egi` | ✅ | 2 | アイゼンシュタイン素数 |
+| `gaussian-primes.egi` | ✅ | 2 | ガウス素数 |
+| `euler-totient-function.egi` | ✅ | 1 | オイラー totient 関数 |
+| `tribonacci.egi` | ❌ | 8 | トリボナッチ。**`Tensor index must be an integer or a single symbol`** バグ |
+
+---
+
+## 失敗原因の分類
+
+| カテゴリ | 件数 | 関連サンプル | 修正方針 |
+|---|---:|---|---|
+| **CAS 簡約の弱さ** | 5+ | `vector-analysis` (Taylor), `chern-form-of-CP1` (`exp(-x)*exp(x)`), `hodge-laplacian-spherical` (`abs`), `Schwarzschild` (入れ子分数), `euler-form-of-S2`/`T2` 等 | 簡約規則の拡充 (declare rule auto): `exp(-x)*exp(x)=1`, `abs` の符号確定、入れ子分数の縮約等 |
+| **型エラー** (`Cannot unify types`) | 4 | `surface`, `thurston`, `riemann-curvature-tensor-of-S7`, おそらく `S4`/`S5` も | 型推論が複合幾何構造を扱えない。要詳細調査 |
+| **`Sd` (不定積分) lib バグ** | 1 | `leibniz-formula` | `lib/math/analysis/integral.egi` の `Sd` 関数のリライト |
+| **タイムアウト (>30s)** | 2 | `polar-laplacian-3d`, `riemann-curvature-tensor-of-S2xS3` | テスト時の timeout 緩和 / `casRewriteDd` 高速化 |
+| **テンソル index pattern バグ** | 2 | `thurston-non-sym` (`Inconsistent tensor index`), `tribonacci` (`Tensor index must be integer or single symbol`) | テンソル index 評価器の修正 |
+| **詳細未捕捉** | 4 | `S4`, `S5`, `S5-non-sym`, `yang-mills`, `euler-form-of-S2`/`T2`, `polar-laplacian-3d` | 個別調査が必要 (warning のみで exit 1 になるパターン含む) |
+
+---
+
+## 既に取り組んだ修正の効果
+
+直近の以下の修正で:
+
+- **A1 (`coefficients` Frac 係数バグ)** → `quadratic-equation.egi` が pass するように
+- **A2 (型 unifier widening)** → `mini-test/107` 等の widening 注釈が動くように
+- **A4 (`def n : T := zero` dispatch)** → 0-arity typeclass method の typed annotation
+- **B1 (multi-factor sqrt 規則)** → 3-項版 5th root of unity 等の nested radical
+- **uppercase symbol pre-binding** → `FLRW` で `K` を含む式が動くように、`Schwarzschild` で `G/M/c` の算術が動くように
+
+ただし **boolean な「sample/math 全体のパス数」は変化なし** (27/45 のまま) — 上記は
+個別の単体テストや一部 sample 内の個別 assertion を通せるようになったが、表面のフ
+ァイル exit code を変えるところまでは届いていない。
+
+---
+
+## Coverage 改善のロードマップ
+
+### Phase 1: 軽量な assertion 追加 (low-hanging fruit)
+
+既に PASS している 27 サンプルのうち、assertion が少ないものに追加する。これは
+runtime バグ修正なしで coverage を上げられる。
+
+| ファイル | 現 asserts | 追加余地 |
+|---|---:|---|
+| `algebra/cubic-equation.egi` | 1 | カルダノ判別式の確認、各根の平方項チェック等 |
+| `algebra/quartic-equation.egi` | 1 | フェラーリ補助方程式の解 |
+| `geometry/chern-form-of-CP2.egi` | 1 | 中間 connection や Chern 数の値 |
+| `geometry/hodge-laplacian-polar.egi` | 1 | 中間ステップ |
+| `number/17th-root-of-unity.egi` | 1 | 中間 cyclotomic 多項式値 |
+| `number/7th-root-of-unity.egi` | 1 | 同上 |
+| `number/euler-totient-function.egi` | 1 | 個別の n に対する φ(n) 値 |
+
+### Phase 2: 簡約規則の拡充 (CAS 強化)
+
+現状の FAIL の大半は CAS 簡約の弱さ。declare rule auto の追加で複数同時に通せる
+可能性が高い:
+
+- **`exp(-x) * exp(x) = 1`**: 新しい declare rule。`chern-form-of-CP1.egi` を含む複数
+  サンプルが pass する見込み
+- **`abs(positive_expr) = positive_expr`**: `sin²θ r⁴` のような非負式の `abs` を外す
+- **入れ子分数の縮約**: `(c²r - 2GM) / (c²r)` 形の簡約 (Schwarzschild 系)
+- **CAS 簡約 fixedpoint の到達深さ**: 一部は単に iteration 不足の可能性
+
+### Phase 3: lib バグ修正
+
+- **`Sd` (不定積分)** の根本書き直し → `leibniz-formula.egi` が pass
+
+### Phase 4: テンソル / dispatch バグ修正
+
+- **テンソル index pattern バグ** (`Inconsistent tensor index`) → `tribonacci`, `thurston-non-sym`
+- **typeclass dispatch** (`__super_AddGroup`) → `thurston`
+- **EMR paper の WCS 不変量計算** が pass すれば、Egison が論文計算の参照実装として成立
+
+### Phase 5: 性能改善
+
+- **`casRewriteDd` の高速化または declare rule 化** → `S2xS3`, `polar-laplacian-3d` の
+  タイムアウト解消
+- **Schwarzschild の Christoffel 計算** が手元で 30s 内に終わるよう最適化
+
+### Phase 6: 新規サンプル追加
+
+既存サンプルが十分通るようになったら、新しい応用領域を追加:
+
+- 量子力学（時間依存 Schrödinger 方程式の摂動展開）
+- 一般相対論（Kerr, Reissner-Nordström 計量）
+- 表現論（Lie 代数の構造定数計算）
+- 数論（Eisenstein 級数、L 関数の解析的部分）
+
+---
+
+## 検証コマンド
+
+```sh
+# 全 sample/math 実行 (約 5-10 分)
+for f in $(find sample/math -name "*.egi" | sort); do
+  if gtimeout 60 cabal run egison -- -t "$f" >/dev/null 2>&1; then
+    echo "PASS: $f"
+  else
+    echo "FAIL: $f"
+  fi
+done
+
+# 個別 PASS/FAIL 確認
+gtimeout 60 cabal run egison -- -t sample/math/<...>.egi
+```
+
+---
+
+## 関連ドキュメント
+
+- [type-cas.md](./type-cas.md) — CAS 型システム設計と既知の制限
+- [type-cas-tower.md](./type-cas-tower.md) — 拡張可能 CAS タワー (将来)
+- [function-symbol.md](./function-symbol.md) — 関数シンボル機構
+
+EMR paper の Thurston 計算は `/Users/egisatoshi/PL/EMR-Paper-Computation/` に元実装。
+WCS 不変量の Wolfram 簡約形は:
+> `S = p² κ (-25 - 640 p² β² + 3072 p⁴ β⁴) / (16 β⁴)`  where `β = 1 + θ₂ - θ₂²`
+
+を `sample/math/geometry/thurston.egi` の `assertEqual` で参照。

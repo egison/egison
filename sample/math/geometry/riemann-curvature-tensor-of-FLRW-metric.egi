@@ -6,8 +6,14 @@ def x : Vector MathValue := [| w, r, θ, φ |]
 -- Scale factor function a(w)
 def a := function (w)
 
--- Spatial curvature factor
+assertEqual "x" x [| w, r, θ, φ |]
+
+-- Spatial curvature factor.
 def W (r: MathValue) : MathValue := 1 / '(1 - K * r^2)
+
+assertEqual "W r = 1/(1-Kr^2)"
+  (W r)
+  (1 / (1 - K * r^2))
 
 -- Metric tensor
 def g_i_j : Matrix MathValue :=
@@ -37,5 +43,9 @@ def Ric_i_j := withSymbols [m]
 def scalarCurvature := withSymbols [i, j]
   expandAll' (g~i~j . Ric_i_j)
 
--- Note: The expected scalar curvature is:
--- (6 * a|1|1 * a + 6 * (a|1)^2 + 6 * K) / a^2
+-- Expected scalar curvature of the FLRW metric (in units c=1):
+--   R = 6 (a''(w) a + (a'(w))^2 + K) / a^2
+-- The full computation is expensive (>5min on this machine); evaluating
+-- `scalarCurvature` is left as the file's final value, not asserted, to
+-- keep `cabal test` runtime reasonable. To verify the expected form
+-- explicitly, run: `cabal run egison -- -t <this-file>` and compare.

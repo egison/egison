@@ -17,8 +17,16 @@ def d {a} (X: a) : DiffForm a := !(flip ∂/∂) params X
 def f := x ^ 2 + y ^ 2 + z ^ 2
 
 -- The exterior derivative of f is the gradient 1-form
-d f
+assertEqual "d f = grad(x^2+y^2+z^2)"
+  (d f)
+  [| 2 * x, 2 * y, 2 * z |]
 
--- The exterior derivative of d(f) is 0 (d^2 = 0)
-d (d f)
-dfNormalize (d (d f))
+-- d (d f) before antisymmetrization is the Hessian matrix
+assertEqual "d (d f) = Hessian (raw, pre-normalize)"
+  (d (d f))
+  [| [| 2, 0, 0 |], [| 0, 2, 0 |], [| 0, 0, 2 |] |]
+
+-- After antisymmetrization (the diff-form normalizer), d^2 = 0
+assertEqual "dfNormalize (d (d f)) = 0 (d^2 = 0)"
+  (dfNormalize (d (d f)))
+  [| [| 0, 0, 0 |], [| 0, 0, 0 |], [| 0, 0, 0 |] |]

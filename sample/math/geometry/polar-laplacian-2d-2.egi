@@ -12,9 +12,13 @@ def e_i_j : Matrix MathValue := ∂/∂ X_j x~i
 def g_i_j : Matrix MathValue := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
 def g~i~j : Matrix MathValue := M.inverse g_#_#
 
-g_#_#
+assertEqual "polar metric g_i_j = diag(1, r^2)"
+  g_#_#
+  [| [| 1, 0 |], [| 0, r^2 |] |]
 
-g~#~#
+assertEqual "inverse polar metric g~i~j = diag(1, 1/r^2)"
+  g~#~#
+  [| [| 1, 0 |], [| 0, 1 / r^2 |] |]
 
 -- Christoffel symbols
 def Γ_i_j_k : Tensor MathValue := withSymbols [j, k, l]
@@ -29,5 +33,10 @@ def f : MathValue := function (r, θ)
 def Laplacian : MathValue := withSymbols [i, j, k]
   g~i~j . ∂/∂ (∂/∂ f x~j) x~i - g~i~j . Γ~k_i_j . ∂/∂ f x~k
 
-Laplacian
+-- Standard polar Laplacian: ∂²f/∂r² + (1/r) ∂f/∂r + (1/r²) ∂²f/∂θ²
+assertEqual "polar Laplacian"
+  Laplacian
+  ((userRefs f [1, 1]) r θ
+   + (userRefs f [1]) r θ / r
+   + (userRefs f [2, 2]) r θ / r^2)
 

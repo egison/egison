@@ -36,6 +36,7 @@ module Language.Egison.Eval
   ) where
 
 import           Control.Monad              (foldM, forM_, when)
+import           Data.IORef                 (newIORef)
 import           Data.List                  (intercalate)
 import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
@@ -151,6 +152,16 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- Phase 2: Environment Building
   buildAndMergeEnvironments exprs opts
 
+  -- Pre-bind declared symbols. `declare symbol K` (uppercase) would
+  -- otherwise fall through to the InductiveData fallback in IVarExpr at
+  -- runtime, so any def whose body mentions `K` (e.g. `def W := 1/(1-K*r^2)`)
+  -- would have to *capture* an env with K bound — but the IDeclareSymbol
+  -- top expr is processed in Phase 9 (after recursiveBindAll), so without
+  -- this pre-binding the def closure captures an env where K is missing.
+  -- Binding here makes the symbol visible to subsequent defs and to the
+  -- IDeclareSymbol pass itself (which is then a no-op).
+  envWithSymbols <- preBindDeclaredSymbols env exprs
+
   let permissive = not (optTypeCheckStrict opts)
 
   -- Phases 3-8: Desugar, type-infer, typed-desugar each expression
@@ -165,7 +176,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     dumpPhaseExprs "Typed AST after Type Class Expansion (Phase 7b)" "End of Type Class Expansion AST" (accumTcExprs accum)
 
   -- Phase 8: Bind all definitions together (supports mutual recursion)
-  envWithPatFuncs <- recursiveBindAll env (accumBindings accum) (accumPatFuncBindings accum)
+  envWithPatFuncs <- recursiveBindAll envWithSymbols (accumBindings accum) (accumPatFuncBindings accum)
 
   -- Phase 9: Evaluate non-definition expressions in order.
   -- We catch each expression's error so that subsequent expressions still
@@ -472,9 +483,37 @@ evalTopExpr' env (ILoadFile file) = do
   env' <- recursiveBindAll env bindings patFuncBindings
   return (Nothing, env')
 evalTopExpr' env (IDeclareSymbol _names _mType) = do
+  -- Symbols are pre-bound by `preBindDeclaredSymbols` before Phase 8 so
+  -- that def closures (e.g. `def W := 1/(1-K*r^2)`) capture an env where
+  -- the declared symbols are visible. This case is therefore a no-op.
   return (Nothing, env)
 evalTopExpr' _env (IPatternFunctionDecl name _ _ _ _) = do
   throwError $ Default $ "Pattern function " ++ name ++ " should have been converted to IPatternFuncExpr"
+
+-- | Walk the input top exprs, collect every name from `declare symbol`,
+-- and bind each to a CAS symbol value in the env. This MUST run before
+-- Phase 8 (recursiveBindAll) so def closures capture an env in which the
+-- declared symbols resolve correctly — particularly important for
+-- uppercase names (`K`, `M`, `G`, …), which otherwise hit the
+-- InductiveData fallback in `evalExprShallow env (IVarExpr name)` and
+-- cause "Expected number, but found: K" at the first arithmetic use.
+preBindDeclaredSymbols :: Env -> [TopExpr] -> EvalM Env
+preBindDeclaredSymbols env exprs = do
+  let names = concatMap collect exprs
+  if null names
+    then return env
+    else do
+      bindings <- mapM mkBinding names
+      return $ extendEnv env bindings
+  where
+    collect :: TopExpr -> [String]
+    collect (DeclareSymbol ns _) = ns
+    collect _                    = []
+
+    mkBinding :: String -> EvalM Binding
+    mkBinding name = do
+      ref <- liftIO $ newIORef (WHNF (Value (symbolCASData "" name)))
+      return (stringToVar name, ref)
 
 --------------------------------------------------------------------------------
 -- Environment Dumping
