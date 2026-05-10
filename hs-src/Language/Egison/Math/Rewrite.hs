@@ -33,7 +33,14 @@ casRewriteSymbol = casRewriteDd
 -- monomial). Kept in Haskell because the equivalent
 -- `declare rule auto poly` (multi-term, same-binding) is too expensive for
 -- complex differential-form samples (e.g. riemann-curvature-tensor-of-S2xS3).
+--
+-- Fast path: if the value contains no FunctionData factor anywhere, the
+-- pattern can't fire — return the value unchanged. This avoids the
+-- per-mathNormalize-call overhead of `rewriteDdPoly`'s multi-term matcher
+-- on the vast majority of values that have no `Function _ _` factors.
 casRewriteDd :: CASValue -> CASValue
+casRewriteDd v
+  | not (casHasFunctionData v) = v
 casRewriteDd (CASFrac num denom) =
   CASFrac (casNormalizePoly (rewriteDdPoly (extractTerms num)))
          (casNormalizePoly (rewriteDdPoly (extractTerms denom)))
@@ -43,6 +50,25 @@ casRewriteDd (CASFrac num denom) =
   extractTerms _ = []
 casRewriteDd (CASPoly ts) = casNormalizePoly (rewriteDdPoly ts)
 casRewriteDd v = v
+
+-- | True if the CASValue contains any `FunctionData` factor anywhere in
+-- its tree.
+casHasFunctionData :: CASValue -> Bool
+casHasFunctionData = goV
+ where
+  goV (CASInteger _)  = False
+  goV (CASFactor sym) = goSym sym
+  goV (CASPoly terms) = any goTerm terms
+  goV (CASFrac n d)   = goV n || goV d
+  goTerm (CASTerm coeff mono) = goV coeff || any (goSym . fst) mono
+  goSym (FunctionData {})  = True
+  goSym (Apply1 f a)        = goV f || goV a
+  goSym (Apply2 f a b)      = goV f || goV a || goV b
+  goSym (Apply3 f a b c)    = goV f || goV a || goV b || goV c
+  goSym (Apply4 f a b c d)  = goV f || goV a || goV b || goV c || goV d
+  goSym (Quote v)           = goV v
+  goSym (Symbol _ _ _)      = False
+  goSym (QuoteFunction _)   = False
 
 rewriteDdPoly :: [CASTerm] -> [CASTerm]
 rewriteDdPoly poly =

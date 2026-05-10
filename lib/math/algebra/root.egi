@@ -7,7 +7,8 @@
 --
 -- Root
 --
-def rt (n: MathValue) (x: MathValue) : MathValue :=
+declare mathfunc rt
+declare apply rt n x :=
   if isInteger n
     then
       if n = 1
@@ -78,9 +79,8 @@ declare apply sqrt x :=
       n := denominator x
    in rt 2 (m *' n) /' n
 
-def rtOfUnity : MathValue -> MathValue := rtu
-
-def rtu (n: MathValue) : MathValue :=
+declare mathfunc rtu
+declare apply rtu n :=
   if isInteger n
     then match n as integer with
       | #1 -> 1
@@ -89,3 +89,5 @@ def rtu (n: MathValue) : MathValue :=
       | #4 -> i
       | _ -> 'rtu n
     else 'rtu n
+
+def rtOfUnity : MathValue -> MathValue := rtu

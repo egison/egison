@@ -2,7 +2,8 @@
 -- Mathematical Functions
 --
 
-def abs (x: MathValue) : MathValue := if isRational x then i.abs x else 'abs x
+declare mathfunc abs
+declare apply abs x := if isRational x then i.abs x else 'abs x
 
 -- Mathematical functions are declared via `declare mathfunc` (which gives
 -- them a default symbolic-factor wrapper) and then their algorithmic

@@ -2718,6 +2718,119 @@ Step 7.1 → 7.3 は既存コードのリファクタリング（新構文不要
 Step 7.4 → 7.5 で初めて `declare rule` がユーザーに見える。
 Step 7.6 → 7.7 で全ルールが統一的に管理される。
 
+#### Step 7.8: 実装の現状と知見 (2026-05 時点)
+
+Step 7.7 の `Rewrite.hs` 削除目標は **ほぼ達成**。残るのは `casRewriteDd` 1 関数のみ（性能上の最適化として明示的に Haskell 残置）。実装過程で得られた知見をここに記録する。
+
+##### 移行完了済の `casRewrite*`
+
+| 元の関数 | declare rule での表現 | 備考 |
+|---|---|---|
+| `casRewriteI` | `term i^2 = -1` | term 級、簡単 |
+| `casRewriteW` | `term w^3 = 1` + `term w^2 = -1 - w` | minimal polynomial を直接 |
+| `casRewriteLog` | `term log 1 = 0`, `term log e = 1`, `term log (exp $n) = n` | `(^)` が `e^n → exp n` を行うので `log (exp $n)` の形 |
+| `casRewriteExp` | 5 規則 (term `exp 0=1` 等 + `(exp $x)^$n`, `exp $x * exp $y`) | multi-factor は multExpr 経由で実現 |
+| `casRewritePower` | `term term $c ((apply2 #(^) $x $y, $n) :: [])` 等 | 係数バインディング必須 |
+| `casRewriteSqrt` | `term term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: [])` (Euclidean GCD) | 素因数分解は `declare apply sqrt` に委譲 |
+| `casRewriteRt` | `term term $c ((apply2 #rt $n $x, $k) :: [])` | k mod n + k div n |
+| `casRewriteRtu` | f stage + g stage 統合 | 旧実装の foldr バグを修正 |
+
+##### 未移行（Haskell 残置）
+
+| 関数 | 理由 |
+|---|---|
+| `casRewriteDd` | poly 級多項マッチ + same-binding 制約が `riemann-curvature-tensor-of-S2xS3` で大幅 slowdown。declare rule での実装は技術的に可能（スパイク確認済）が、当面 Haskell 維持。 |
+
+##### 重要な設計知見
+
+**1. term 級 declare rule の係数バインディング**
+
+bare `(sqrt $a)^$n` パターンは `term _ (...)` でマッチするため **係数を喪失**する（`5 * (sqrt 5)^2` が `5` になる）。これを避けるには明示的に係数をバインドする：
+
+```egison
+declare rule auto term term $c ((apply1 #sqrt $a, $n) :: []) =
+  if n >= 2
+    then c *' a^'(i.quotient n 2) *' ('sqrt a)^'(i.modulo n 2)
+    else c *' ('sqrt a)^'n
+```
+
+→ パーサに `(a, b)` タプルパターンと `[]` 空リストパターンの追加が必要。`hs-src/Language/Egison/Parser/NonS.hs` の `ruleLhsAtom` を拡張。
+
+**2. RHS 内の `^` を `^'` に振り替える**
+
+declare rule の RHS で `x^n` (n はパターン変数) を書くと、lib の `(^)` 経由で `power` が呼ばれ `mathNormalize` が再起動する → **無限ループ**。`unNormalizeOps` で `^` を `^'` (un-normalize 版) に振り替える：
+
+```haskell
+IApplyExpr (IVarExpr "^") [base, expn] ->
+  IApplyExpr (IVarExpr "^'") [unNormalizeOps base, unNormalizeOps expn]
+```
+
+`power'` 自体も `take`/`foldl` 経由の `n - 1` (= `minusForMathValue` → `mathNormalize`) サイクルを持っていたため、直接再帰 + `i.-` に書き直し。
+
+**3. `wrapLhsForTermLevel`：`f $x * g $y` の自動ラップ**
+
+`mathValue` の `$ * $` は (係数, モノミアル全体) に分解する一方、`multExpr` の `$ * $` は (factor, rest) に分解する。multi-factor の declare rule LHS (`f $x * g $y`) は **自動的に** `mult _ ((f $x ^ #1) * (g $y ^ #1))` に変換することで `multExpr` 経由のマッチングに乗せる。
+
+```haskell
+wrapLhsForTermLevel :: Pattern -> Pattern
+wrapLhsForTermLevel p
+  | isMultChainOfFactorShapes p = InductivePat "mult" [WildCard, wrapFactorsInChain p]
+  | otherwise = p
+```
+
+これにより `multExpr` 自体に apply1-4 パターンを追加する必要がなくなり、設計の重複を回避。
+
+**4. trigger filter のセクション式対応**
+
+`apply2 #(^) $x $y` パターンの `#(^)` は parser で `SectionExpr` になる。`extractTriggerSymbols` の `exprNames` 関数が `SectionExpr` を処理しないと trigger が空になり、規則が **常に発火**する（性能 regression）。
+
+```haskell
+exprNames (SectionExpr op ml mr) = [repr op] ++ ...
+```
+
+**5. `declare apply` Phase A 実装 (糖衣構文)**
+
+`declare apply foo x := <body>` は **`def foo := \x -> body` への糖衣構文** として実装。`declare mathfunc foo` のデフォルトラッパーを上書きする。
+
+EnvBuilder で `declare mathfunc` 必須チェック：未宣言の `foo` に対して `declare apply foo` を書くとエラー。
+
+**6. iterateRulesCAS の Haskell 化と trigger filter cache**
+
+declare rule の発火経路を Haskell 内のループに移行（`iterateRulesCAS` プリミティブ）。trigger filter は `EvalState.autoRuleTriggers :: [Set String]` に **declare 時に Set 化済**で保存し、算術 op ごとの再構築コストを排除。
+
+性能影響大：Riemann S2 で 25 s → 5 s 程度の高速化。
+
+**7. lib の `sqrt`/`sin`/`cos`/`exp`/`log` の declare apply 化**
+
+各関数を `declare mathfunc f` + `declare apply f x := ...` に書き換え。設計書の sqrt 全体像 (Section 763) に沿った構造に統一。
+
+##### 実装に必要だった補助機能
+
+- パーサ拡張: tuple `(a, b)`, empty list `[]` を rule LHS で許可
+- `extractTriggerSymbols`: SectionExpr / ApplyExpr / 入れ子パターンに対応
+- `wrapLhsForTermLevel`: multi-factor を自動的に multExpr context に変換
+- `unNormalizeOps`: `^` を `^'` に振り替え
+- `power'` の直接再帰版（take/foldl 経由を撤去）
+- `iterateRulesCAS` プリミティブ（trigger filter + 固定点ループ）
+- `containsAnySymbol` プリミティブ（trigger 判定）
+- `applyTermRule`, `mapTermAll`/`mapPolyAll`/`mapFracAll` (rule body 構築)
+
+##### 旧 casRewriteRtu g stage の bug
+
+```haskell
+foldr casMinus (casSingleTermVal (-1) []) (map (\k -> ...) [1..(n-2)])
+```
+
+`foldr - (-1) [a, b, c]` は `a - (b - (c - (-1)))` = `a - b + c + 1` となり **alternating signs**。本来 `(rtu n)^(n-1) = -1 - rtu n - (rtu n)^2 - ...` の負号統一形が欲しい。declare rule 化時に `foldl (+') (-1) (map (\j -> -1 *' ('rtu n)^'j) [1..n-2])` で修正。
+
+##### 未着手の課題
+
+- `casRewriteDd` の declare rule 化 (poly 級高速化が必要)
+- `lib/math/normalize.egi` の `rewriteRuleForRtu`/`rewriteRuleForSinAndCos` の declare rule 化
+- `mathNormalizeBuiltin` の `containFunction1 rtu/sin/cos` 分岐削減
+- `lib/math/algebra/root.egi` の `rt`/`rtu` の declare apply 化
+- `riemann-curvature-tensor-of-S2xS3` の根本性能 (declare rule 化と独立した既存課題)
+
 ### Phase 8: 観察型機構
 
 観察型 (observed type) を実装する。評価後の `CASValue` から最も具体的な型を逆算してユーザーに報告する機構。

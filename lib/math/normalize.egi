@@ -4,23 +4,18 @@
 --
 --
 
--- Phase 7.5: built-in normalization (sin/cos/rtu rewriting + Haskell-level
--- casRewriteSymbol). The user-facing `mathNormalize` is defined as an alias
--- that desugar can override per-`declare rule auto`. The override pattern is:
+-- Built-in normalization. Now reduced to the residual Haskell-side rewriter
+-- (`symbolNormalize` -> `casRewriteSymbol` -> `casRewriteDd`); all other
+-- rewrite rules live as `declare rule auto` declarations below.
 --
---   def mathNormalize := \v -> iterateRules [autoRule.0, ...] (mathNormalizeBuiltin v)
+-- The user-facing `mathNormalize` is defined as an alias that desugar
+-- overrides per `declare rule auto`. The override pattern is:
 --
--- This way the lib's existing rewrite logic stays effective while also
--- applying user-declared auto rules on each `mathNormalize` call (which is
+--   def mathNormalize := \v -> iterateRulesCAS [autoRule.0, ...] (mathNormalizeBuiltin v)
+--
+-- so user-declared auto rules apply on each `mathNormalize` call (which is
 -- triggered by every `+`/`*`/`/` operation on MathValue, see arithmetic.egi).
-def mathNormalizeBuiltin (x: MathValue) : MathValue :=
-  if isInteger x
-    then x
-    else match (containFunction1 rtu x, containFunction1 sin x || containFunction1 cos x) as (bool, bool) with
-           | (#False, #False) -> symbolNormalize x
-           | (#True, #False)  -> rewriteRuleForRtu (symbolNormalize x)
-           | (#False, #True)  -> rewriteRuleForSinAndCos (symbolNormalize x)
-           | (#True, #True)  -> rewriteRuleForSinAndCos (rewriteRuleForRtu (symbolNormalize x))
+def mathNormalizeBuiltin (x: MathValue) : MathValue := symbolNormalize x
 
 def mathNormalize (x: MathValue) : MathValue := mathNormalizeBuiltin x
 
@@ -133,29 +128,14 @@ declare rule auto term term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :
     else c *' sqrt (a *' b)
 
 --
--- rtu
+-- sin/cos pythagorean identity (replaces lib's rewriteRuleForSinAndCos)
 --
-def rewriteRuleForRtu : MathValue -> MathValue := mapPolys rewriteRuleForRtuPoly
-  where
-    rewriteRuleForRtuPoly (x: MathValue) : MathValue :=
-      match x as mathValue with
-        | $a * (apply1 #rtu $n) ^ #1 * $mr + (loop $i (2, (n - 1))
-                                       (#a * (apply1 #rtu #n) ^ #i * #mr + ...)
-                                       $pr) ->
-          rewriteRuleForRtuPoly (pr +' (-1) *' a *' mr)
-        | _ -> x
 
---
--- sin and cos
---
-def rewriteRuleForSinAndCos : MathValue -> MathValue := mapPolys rewriteRuleForSinAndCosPoly
-  where
-    rewriteRuleForSinAndCosPoly (x: MathValue) : MathValue :=
-      match x as mathValue with
-        | $a * $mr + #(- a) * (apply1 #cos $x) ^ #2 * #mr + $pr ->
-          rewriteRuleForSinAndCosPoly (a *' (sin x)^2 *' mr +' pr)
---        | $a * $mr + #(- a) * (apply1 #sin $x) ^ #2 * #mr + $pr ->
---          rewriteRuleForSinAndCosPoly (a *' (cos x)^2 *' mr +' pr)
-        | $a * (apply1 #cos $x) ^ #2 * $mr + $b * (apply1 #sin #x) ^ #2 * #mr + $pr ->
-          rewriteRuleForSinAndCosPoly (a *' mr +' (b -' a) *' (sin x)^2 *' mr +' pr)
-        | _ -> x
+-- a*mr + (-a)*cos(x)^2*mr -> a*sin(x)^2*mr (since 1 - cos²x = sin²x)
+declare rule auto poly $a * $mr + #(- a) * (apply1 #cos $x) ^ #2 * #mr + $pr =
+  a *' (sin x)^2 *' mr +' pr
+
+-- a*cos(x)^2*mr + b*sin(x)^2*mr -> a*mr + (b-a)*sin(x)^2*mr
+-- (sin²+cos²=1 form: a*cos² + a*sin² + (b-a)*sin² = a + (b-a)*sin²)
+declare rule auto poly $a * (apply1 #cos $x) ^ #2 * $mr + $b * (apply1 #sin #x) ^ #2 * #mr + $pr =
+  a *' mr +' (b -' a) *' (sin x)^2 *' mr +' pr
