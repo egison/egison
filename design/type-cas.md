@@ -2393,11 +2393,9 @@ declare rule の発火経路を Haskell 内のループに移行（`iterateRules
 ##### 残された Phase 7 系課題
 
 - `casRewriteDd` の declare rule 化（性能上の理由で意図的に Haskell 残置。spike 検証済 = 実装可能だが `riemann-curvature-tensor-of-S2xS3` で >120s vs few-seconds の slowdown）
-- `lib/math/normalize.egi` の `rewriteRuleForRtu` の declare rule 化（`sin/cos` の pythagorean 同一性は移行済）
-- `mathNormalizeBuiltin` 残存の `containFunction1 rtu/sin/cos` 分岐削減（上記 rtu 移行後）
 - `riemann-curvature-tensor-of-S2xS3` の根本性能（declare rule 化と独立した既存課題）
 
-その他の現存バグ（`coefficients` の Frac 係数、nested radical の固定点未到達、mini-test 残課題）は「既知の制限と未解決課題」を参照。
+その他の現存バグ（nested radical の denesting 等）は「既知の制限と未解決課題」を参照。
 
 ### Phase 8: 観察型機構
 
