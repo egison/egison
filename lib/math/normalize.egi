@@ -115,12 +115,22 @@ declare rule auto term term $c ((apply1 #sqrt $a, $n) :: []) =
 -- expensive for complex differential-form computations like
 -- riemann-curvature-tensor-of-S2xS3 (>120s vs few-seconds with Haskell).
 
--- Note: square-root pair merge `sqrt a * sqrt b = sqrt (a*b)` stays in
--- casRewriteSqrt (Math/Rewrite.hs). The declare-rule version
---   term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: [])
---     = c *' sqrt (a *' b)
--- works correctly but is too expensive for sqrt-heavy samples like
--- riemann-curvature-tensor-of-S2xS3.
+-- Square root pair merge using Euclidean GCD.
+-- Mathematically: a = g*a', b = g*b' (with g = gcd(|a|, |b|)) implies
+--   sqrt a * sqrt b = sqrt (a*b) = g * sqrt (a'*b').
+-- The Euclidean GCD `gcd' |a| |b|` is cheap (no prime factorisation).
+-- The remaining `sqrt (a'*b')` is then a SMALLER integer than `a*b`,
+-- and its prime factorisation is done only ONCE in `declare apply sqrt`.
+--
+-- For symbolic args (non-integer a or b), GCD doesn't apply: just merge
+-- via `sqrt (a*b)` so declare apply can take over (or stay symbolic).
+declare rule auto term term $c ((apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: []) =
+  if isInteger a && isInteger b
+    then let g  := gcd' (i.abs a) (i.abs b)
+             a' := i.quotient a g
+             b' := i.quotient b g
+          in c *' g *' sqrt (i.* a' b')
+    else c *' sqrt (a *' b)
 
 --
 -- rtu
