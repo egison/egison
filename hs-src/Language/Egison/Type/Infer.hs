@@ -1045,26 +1045,6 @@ inferIExprWithContext expr ctx = case expr of
           -- The caller will wrap it with TMatcher when unifying with next matcher type
           matchedTy <- freshVar "matched"
           return (matchedTy, [matchedTy], [], emptySubst)
-
-        PPDiscard -> do
-          -- Discard pattern (~): matches any user pattern, captures nothing.
-          -- No pattern holes, no bindings.
-          matchedTy <- freshVar "matched"
-          return (matchedTy, [], [], emptySubst)
-
-        PPAndPat lhs rhs -> do
-          -- Conjunction (&): both PPPs see the same user pattern.
-          -- Unify their matched types, concat pattern holes and bindings.
-          (mt1, phs1, bs1, s1) <- inferPrimitivePatPattern lhs ctx
-          (mt2, phs2, bs2, s2) <- inferPrimitivePatPattern rhs ctx
-          let s12 = composeSubst s2 s1
-          mt1' <- applySubstWithConstraintsM s12 mt1
-          mt2' <- applySubstWithConstraintsM s12 mt2
-          s3 <- unifyTypesWithContext mt1' mt2' ctx
-          let s = composeSubst s3 s12
-          mt <- applySubstWithConstraintsM s mt1'
-          phs <- mapM (applySubstWithConstraintsM s) (phs1 ++ phs2)
-          return (mt, phs, bs1 ++ bs2, s)
         
         PPValuePat var -> do
           -- Value pattern (#$val): no pattern holes, binds variable to matched type

@@ -360,11 +360,6 @@ data PrimitivePatPattern
   | PPValuePat String  -- Variable name
   | PPInductivePat String [PrimitivePatPattern]
   | PPTuplePat [PrimitivePatPattern]
-  | PPDiscard          -- "~": matches any user pattern but discards it
-                       --      (no pattern hole emitted, no binding)
-  | PPAndPat PrimitivePatPattern PrimitivePatPattern
-                       -- "&": both PPPs must match the same user pattern;
-                       --      pattern holes and bindings are concatenated
   deriving Show
 
 data PDPatternBase var

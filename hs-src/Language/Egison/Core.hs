@@ -1297,8 +1297,6 @@ primitivePatPatternMatch :: Env -> PrimitivePatPattern -> IPattern ->
                             MatchM ([IPattern], [Binding])
 primitivePatPatternMatch _ PPWildCard IWildCard = return ([], [])
 primitivePatPatternMatch _ PPPatVar pattern = return ([pattern], [])
--- PPDiscard "~": matches any user pattern, captures nothing.
-primitivePatPatternMatch _ PPDiscard _ = return ([], [])
 primitivePatPatternMatch env (PPValuePat name) (IValuePat expr) = do
   ref <- lift $ newThunkRef env expr
   return ([], [(stringToVar name, ref)])
@@ -1310,11 +1308,6 @@ primitivePatPatternMatch env (PPTuplePat patterns) (ITuplePat exprs)
   | length patterns == length exprs =
     (concat *** concat) . unzip <$> zipWithM (primitivePatPatternMatch env) patterns exprs
   | otherwise = matchFail
--- PPAndPat "&": both PPPs must match the same user pattern; concat the results.
-primitivePatPatternMatch env (PPAndPat lhs rhs) pattern = do
-  (ps1, bs1) <- primitivePatPatternMatch env lhs pattern
-  (ps2, bs2) <- primitivePatPatternMatch env rhs pattern
-  return (ps1 ++ ps2, bs1 ++ bs2)
 primitivePatPatternMatch _ _ _ = matchFail
 
 bindPrimitiveDataPattern :: IPrimitiveDataPattern -> ObjectRef -> EvalM [Binding]
