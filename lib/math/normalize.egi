@@ -97,10 +97,20 @@ declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
     else c *' ('rtu n)^'k
 
 -- Square root power reduction (replaces casRewriteSqrt's `(sqrt x)^k` branch).
-declare rule auto term term $c ((apply1 #sqrt $a, $n) :: []) =
-  if n >= 2
-    then c *' a^'(i.quotient n 2) *' ('sqrt a)^'(i.modulo n 2)
-    else c *' ('sqrt a)^'n
+-- The LHS pattern `(apply1 #sqrt $aa, $nn) :: $rr` exists to put `sqrt`
+-- in the rule's trigger set (so the rule is skipped on values without
+-- sqrt). Inside the body, we reconstruct the full assoc list and re-match
+-- with `?(>= 2)` predicate to find a sqrt factor whose exponent is >= 2
+-- (the predicate isn't supported in declare rule LHS but works in body
+-- match). This avoids the n=1 identity-match issue that would
+-- prematurely stop applyRuleFix.
+declare rule auto term term $c ((apply1 #sqrt $aa, $nn) :: $rr) =
+  let xs := ('sqrt aa, nn) :: rr
+   in match xs as assocMultiset mathValue with
+        | (apply1 #sqrt $a, $n & ?(>= 2)) :: $rest ->
+            c *' a^'(i.quotient n 2) *' ('sqrt a)^'(i.modulo n 2)
+               *' foldl (*') 1 (map (\(p, k) -> p ^' k) rest)
+        | _ -> c *' foldl (*') 1 (map (\(p, k) -> p ^' k) xs)
 
 -- Note: FunctionData same-shape term merging stays in casRewriteDd
 -- (Math/Rewrite.hs). The poly-level declare rule version
