@@ -54,7 +54,20 @@ declare rule auto term exp 0 = 1
 declare rule auto term exp 1 = e
 declare rule auto term exp ($n * i * π) = (-1)^n
 declare rule auto term (exp $x)^$n = exp (n * x)
-declare rule auto term exp $x * exp $y = exp (x + y)
+
+-- Multi-factor exp product. The bare pattern `exp $x * exp $y` only matches
+-- terms with exactly two factors, so e.g. `exp(-θ) * exp(θ) * r` (a 3-factor
+-- term) wouldn't fire. Use the same body-match shape as the sqrt-pair rule:
+-- LHS triggers on any exp factor, body re-matches via assocMultiset to find
+-- a pair of `exp` factors with exponent 1 and merges them, leaving the rest
+-- in place.
+declare rule auto term term $c ((apply1 #exp $aa, #1) :: $rr) =
+  let xs := ('exp aa, 1) :: rr
+   in match xs as assocMultiset mathValue with
+        | (apply1 #exp $a, #1) :: (apply1 #exp $b, #1) :: $rest ->
+            c *' exp (a +' b)
+              *' foldl (*') 1 (map (\(p, k) -> p ^' k) rest)
+        | _ -> c *' foldl (*') 1 (map (\(p, k) -> p ^' k) xs)
 
 -- Power identities (replaces casRewritePower in Math/Rewrite.hs).
 -- (x^y)^n = x^(n*y) for n >= 2; n=1 returns the term unchanged.

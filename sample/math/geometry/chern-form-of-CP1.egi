@@ -32,10 +32,13 @@ assertEqual "Ω"
 -- First Chern class
 def c1Form := Ω / ((-2) * π * i)
 
+-- After CAS normalization, the sign goes to the numerator (denominator
+-- becomes the canonical positive form):
+--   r / (-1 - 2r² - r⁴) = -r / (1 + 2r² + r⁴)
 assertEqual "c1"
   c1Form
-  [| [| 0, r / ((-1) - 2 * r^2 - r^4) |]
-   , [| (-1) * r / ((-1) - 2 * r^2 - r^4), 0 |] |]
+  [| [| 0, (- r) / (1 + 2 * r^2 + r^4) |]
+   , [| r / (1 + 2 * r^2 + r^4), 0 |] |]
 
 -- Integration check:
 -- ∫∫ c1 dr dθ = ∫₀^∞ ∫₀^¹ (-2r)/(1+r²)² dθ dr
