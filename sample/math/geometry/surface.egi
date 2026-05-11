@@ -63,7 +63,7 @@ assertEqual "N (second fundamental form)"
 
 -- Gaussian curvature K and mean curvature H
 def K := (L * N - M ^ 2) / '(E * G - F ^ 2)
-def H := ('E * N + 'G * L + (-2) * F * M) / 2 * '(E * G - F ^ 2)
+def H := ('E * N + 'G * L + (-2) * F * M) / 2 * `(E * G - F ^ 2)
 
 -- The formulas for K and H involve complex expressions with partial derivatives
 -- They represent the Gaussian and mean curvatures of the surface z = f(x, y)

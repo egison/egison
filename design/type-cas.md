@@ -2470,3 +2470,92 @@ declare derivative sin = cos
 | Cabal キャッシュ | `cabal run` がキャッシュを返すことがあり、再ビルド漏れに注意。`cabal clean` で対応 |
 | `Sd` (積分) の lib バグ | pre-existing。未対応 |
 | LHS 中の `=` 演算子 | `declare rule`/`declare derivative` の LHS で `=` が二項演算子として解釈される問題あり。回避策で動作中 |
+
+## サンプル想定実行時間 (sample/math/* 計測)
+
+`sample/math/*` の各 sample の想定実行時間。最新測定 (2026-05) の wall time。
+test runner は **想定時間 × 1.5** を per-sample timeout として使うことを推奨。
+これにより無駄な timeout 待ちなしで全 sample を回せる。
+
+### `algebra/`
+
+| ファイル | 想定 |
+|---|---:|
+| `cubic-equation.egi` | 4s |
+| `quadratic-equation.egi` | 3s |
+| `quartic-equation.egi` | 1s |
+
+### `analysis/`
+
+| ファイル | 想定 |
+|---|---:|
+| `eulers-formula.egi` | 8s |
+| `leibniz-formula.egi` | 1s (FAIL: `Sd` lib バグ) |
+| `vector-analysis.egi` | 6s |
+
+### `geometry/` (Hodge / Laplacian / 微分形式)
+
+| ファイル | 想定 |
+|---|---:|
+| `chern-form-of-CP1.egi` | 2s |
+| `chern-form-of-CP2.egi` | 1s |
+| `curvature-form.egi` | 5s |
+| `euler-form-of-S2.egi` | 3s |
+| `euler-form-of-T2.egi` | 6s |
+| `exterior-derivative.egi` | 1s |
+| `hodge-E3.egi` | 3s |
+| `hodge-Minkowski.egi` | 18s |
+| `hodge-laplacian-polar.egi` | 2s |
+| `hodge-laplacian-spherical.egi` | 13s |
+| `polar-laplacian-2d.egi` | 7s |
+| `polar-laplacian-2d-2.egi` | 1s |
+| `polar-laplacian-2d-3.egi` | 2s |
+| `polar-laplacian-3d.egi` | 46s |
+| `polar-laplacian-3d-2.egi` | 6s |
+| `polar-laplacian-3d-3.egi` | 5s |
+| `surface.egi` | 4s |
+| `wedge-product.egi` | 1s |
+
+### `geometry/` (Riemann 曲率)
+
+| ファイル | 想定 |
+|---|---:|
+| `riemann-curvature-tensor-of-FLRW-metric.egi` | 1s |
+| `riemann-curvature-tensor-of-S2.egi` | 4s |
+| `riemann-curvature-tensor-of-S2-no-type-annotations.egi` | 5s |
+| `riemann-curvature-tensor-of-S3.egi` | 18s |
+| `riemann-curvature-tensor-of-S4.egi` | 42s |
+| `riemann-curvature-tensor-of-S5.egi` | 104s |
+| `riemann-curvature-tensor-of-S5-non-sym.egi` | 104s |
+| `riemann-curvature-tensor-of-S7.egi` | >180s (FAIL: heavy computation) |
+| `riemann-curvature-tensor-of-S2xS3.egi` | >180s (FAIL: M.inverse on 5×5 symbolic) |
+| `riemann-curvature-tensor-of-T2.egi` | 9s |
+| `riemann-curvature-tensor-of-T2-non-sym.egi` | 11s |
+| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | 12s |
+
+### `geometry/` (その他)
+
+| ファイル | 想定 |
+|---|---:|
+| `thurston.egi` | >180s (FAIL: Mathematica 級簡約必要) |
+| `thurston-non-sym.egi` | >180s (FAIL: 同上) |
+| `yang-mills-equation-of-U1-gauge-theory.egi` | 224s |
+
+### `number/`
+
+| ファイル | 想定 |
+|---|---:|
+| `17th-root-of-unity.egi` | 3s |
+| `5th-root-of-unity.egi` | 2s |
+| `7th-root-of-unity.egi` | 1s |
+| `eisenstein-primes.egi` | 1s |
+| `euler-totient-function.egi` | 2s |
+| `gaussian-primes.egi` | 2s |
+| `tribonacci.egi` | 3s (FAIL: tensor index 評価バグ) |
+
+### 推奨 timeout 設定
+
+`scripts/sample-timings.txt` 等に `<file>: <expected_seconds>` を列挙し、
+test runner は `gtimeout $(($expected * 3 / 2))` で実行。FAIL カテゴリは固定 300s。
+
+合計実行時間 (per-sample timeout): 約 **10 分** (想定値 × 1.5 + FAIL の 300s × 5 件)。

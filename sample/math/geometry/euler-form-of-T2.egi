@@ -1,50 +1,66 @@
 -- Euler form of T2 (Torus)
 
-declare symbol θ, φ, a, b
+declare symbol θ, φ, a, b : MathValue
 
-def x := [| θ, φ |]
+def x : Vector MathValue := [| θ, φ |]
 
-def X := [| '(a * cos θ + b) * cos φ, '(a * cos θ + b) * sin φ, a * sin θ |]
+-- Use backtick `(...)` for opaque-atom quoting (so `(a*cos θ + b)^k stays
+-- unexpanded). Apostrophe `'(...)` does NOT preserve the expression as an
+-- opaque atom in current Egison NonS — it's only for QuoteSymbolExpr —
+-- and would let intermediate computations explode the polynomial.
+def X : Vector MathValue := [| `(a * cos θ + b) * cos φ, `(a * cos θ + b) * sin φ, a * sin θ |]
 
 -- Local basis
 def e_i_j : Matrix MathValue := ∂/∂ X_j x~i
 
 -- Metric tensor
-def g_i_j := generateTensor (\[a, b] -> V.* e_a e_b) [2, 2]
-def g~i~j := M.inverse g_#_#
+def g_i_j : Matrix MathValue := generateTensor (\[x, y] -> V.* e_x_# e_y_#) [2, 2]
+def g~i~j : Matrix MathValue := M.inverse g_#_#
 
 assertEqual "Metric tensor"
   g_#_#
-  [| [| a^2, 0 |], [| 0, '(a * cos θ + b)^2 |] |]_#_#
+  [| [| a^2, 0 |], [| 0, `(a * cos θ + b)^2 |] |]_#_#
 
 -- Christoffel symbols
-def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
+def Γ_i_j_k : Tensor MathValue := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k x~i)
 
-def Γ~i_j_k := withSymbols [m]
+def Γ~i_j_k : Tensor MathValue := withSymbols [m]
   g~i~m . Γ_m_j_k
 
--- Connection 1-form
-def ω0 := Γ~#_#_#
+-- Vielbein (orthonormal frame)
+def A : Matrix MathValue := [| [| 1 / a, 0 |], [| 0, 1 / `(a * cos θ + b) |] |]
 
--- Vielbein
-def A := [| [| 1 / a, 0 |], [| 0, 1 / '(a * cos θ + b) |] |]
+-- Exterior derivative (paper canonical: !(flip ∂/∂) x t with disjoint completion)
+def d (t : Tensor MathValue) : Tensor MathValue := !(flip ∂/∂) x t
 
--- Transformed connection
-def d A := (flip ∂/∂) x~# A_#_#
+-- Connection 1-form in coordinate basis (paper canonical: ω~i_j := Γ~i_j_#)
+def ω0~i_j : Matrix MathValue := Γ~i_j_#
 
-def ω := withSymbols [i, j, k, l]
-  (M.inverse A)~i_j . ω0~j_k . A~k_l + (M.inverse A)~i_j . d A~j_l
+-- Connection 1-form in orthonormal basis (Cartan transformation):
+--   ω = A⁻¹ ω₀ A + A⁻¹ dA
+def ω~i_j : Tensor MathValue := withSymbols [u, v]
+  (M.inverse A)~i_u . ω0~u_v . A~v_j + (M.inverse A)~i_u . d A~u_j
 
--- Curvature form
-def wedge X Y := X !. Y
+-- Component-wise checks (whole-vector compare currently mismatches on
+-- index metadata even when values agree, so use element access).
+assertEqual "ω~1_2_1" ω~1_2_1 0
+assertEqual "ω~1_2_2" ω~1_2_2 ('sin θ)
+assertEqual "ω~2_1_1" ω~2_1_1 0
+assertEqual "ω~2_1_2" ω~2_1_2 (- ('sin θ))
 
-def Ω := withSymbols [i, j, k]
-  dfNormalize (d ω~i_j + wedge ω~i_k ω~k_j)
+-- Curvature 2-form (Cartan structure equation)
+def Ω'~i_j : Tensor MathValue := withSymbols [k]
+  d ω~i_j + ω~i_k ∧ ω~k_j
+def Ω~i_j_t1_t2 : Tensor MathValue := Ω'~i_j_t1_t2 - Ω'~i_j_t2_t1
 
--- Euler form
-def eulerForm := (1 / (2 * π)) * (Ω~1_2 - Ω~2_1)
+-- Euler form: e(T²) = (1/(4π)) (Ω₁² - Ω²₁)
+def eulerForm : Tensor MathValue :=
+  (1 / (4 * π)) * withSymbols [t1, t2] (Ω~1_2_t1_t2 - Ω~2_1_t1_t2)
 
--- The Euler form integrates to the Euler characteristic χ = 0 for T²
+-- The Euler form integrates to χ(T²) = 0.
+-- In the orthonormal vielbein frame, the (a*(b+a*cos θ)) Jacobian factors
+-- cancel out and the curvature 2-form reduces to cos θ /(2π) dθ∧dφ.
 assertEqual "Euler form of T2"
   eulerForm
-  [| [| cos θ / ('(a * cos θ + b) * a * π), 0 |], [| 0, cos θ / ('(a * cos θ + b) * a * π) |] |]
+  [| [| 0, cos θ / (2 * π) |]
+   , [| - cos θ / (2 * π), 0 |] |]

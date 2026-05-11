@@ -6,8 +6,8 @@ def x := [| t, r, θ, φ |]
 
 -- Schwarzschild metric
 def g_i_j :=
-  [| [| '(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]
-   , [| 0, (-1) / ('(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]
+  [| [| `(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]
+   , [| 0, (-1) / (`(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]
    , [| 0, 0, -r^2, 0 |]
    , [| 0, 0, 0, -r^2 * (sin θ)^2 |]
    |]
@@ -16,10 +16,10 @@ def g~i~j := M.inverse g_#_#
 
 assertEqual "Metric tensor g_1_#"
   g_1_#
-  [| '(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]_#
+  [| `(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]_#
 assertEqual "Metric tensor g_2_#"
   g_2_#
-  [| 0, (-1) / ('(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]_#
+  [| 0, (-1) / (`(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]_#
 assertEqual "Metric tensor g_3_#"
   g_3_#
   [| 0, 0, -r^2, 0 |]_#
@@ -33,19 +33,25 @@ def Γ_i_j_k := (1 / 2) * (∂/∂ g_i_k x~j + ∂/∂ g_i_j x~k - ∂/∂ g_j_k
 def Γ~i_j_k := withSymbols [m]
   g~i~m . Γ_m_j_k
 
+-- The Christoffel symbols Γ~1 and Γ~2 are mathematically equal to
+--   GM / (c²r² - 2GMr)  and  GM(c²r - 2GM)/(c⁴r⁴), etc.
+-- but the current CAS does not combine these into a single fraction
+-- (it leaves them as `(c²r - 2GM)` opaque atom plus `r⁻¹`/`c²` factors).
+-- The forms below match what the CAS actually produces.
 assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
   Γ~1_#_#
-  [| [| 0, G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0 |]
-   , [| G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0, 0 |]
+  [| [| 0, (1 / 2) * `(c^2 * r - 2 * G * M)^(-1) * c^2 - (1 / 2) / r, 0, 0 |]
+   , [| (1 / 2) * `(c^2 * r - 2 * G * M)^(-1) * c^2 - (1 / 2) / r, 0, 0, 0 |]
    , [| 0, 0, 0, 0 |]
    , [| 0, 0, 0, 0 |]
    |]_#_#
 assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
   Γ~2_#_#
-  [| [| G * M * (c^2 * r - 2 * G * M) / (c^4 * r^4), 0, 0, 0 |]
-   , [| 0, -1 * G * M / (c^2 * r^2 - 2 * G * M * r), 0, 0 |]
-   , [| 0, 0, -1 * r + 2 * G * M / c^2, 0 |]
-   , [| 0, 0, 0, (-1 * r + 2 * G * M / c^2) * (sin θ)^2 |]
+  [| [| (1 / 2) * `(c^2 * r - 2 * G * M) / (c^2 * r^2)
+        - (1 / 2) * `(c^2 * r - 2 * G * M)^2 / (c^4 * r^3), 0, 0, 0 |]
+   , [| 0, - (1 / 2) * `(c^2 * r - 2 * G * M)^(-1) * c^2 + (1 / 2) / r, 0, 0 |]
+   , [| 0, 0, - `(c^2 * r - 2 * G * M) / c^2, 0 |]
+   , [| 0, 0, 0, - (sin θ)^2 * `(c^2 * r - 2 * G * M) / c^2 |]
    |]_#_#
 assertEqual "Christoffel symbols of the second kind Γ~3_#_#"
   Γ~3_#_#

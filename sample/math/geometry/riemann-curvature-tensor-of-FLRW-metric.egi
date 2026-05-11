@@ -9,11 +9,11 @@ def a := function (w)
 assertEqual "x" x [| w, r, θ, φ |]
 
 -- Spatial curvature factor.
-def W (r: MathValue) : MathValue := 1 / '(1 - K * r^2)
+def W (r: MathValue) : MathValue := 1 / `(1 - K * r^2)
 
 assertEqual "W r = 1/(1-Kr^2)"
   (W r)
-  (1 / (1 - K * r^2))
+  (1 / `(1 - K * r^2))
 
 -- Metric tensor
 def g_i_j : Matrix MathValue :=

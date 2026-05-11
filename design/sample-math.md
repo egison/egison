@@ -12,17 +12,39 @@
 
 ---
 
-## 集計
+## 集計 (最新)
 
 | 区分 | 合計 | PASS | FAIL | assertion 平均 |
 |---|---:|---:|---:|---:|
 | `algebra/` | 3 | 3 | 0 | 2.0 |
 | `analysis/` | 3 | 2 | 1 | 8.3 |
-| `geometry/` | 32 | 20 | 12 | 5.7 |
+| `geometry/` | 33 | 28 | 5 | 5.7 |
 | `number/` | 7 | 6 | 1 | 2.4 |
-| **合計** | **45** | **31** | **14** | **5.4** |
+| **合計** | **46** | **40** | **6** | **5.4** |
 
-PASS 率: 69% (31/45)。assertion 総数: 約 244 個。
+PASS 率: **87% (40/46)**。assertion 総数: 約 250 個。
+
+> **注**: per-sample timeout = 想定時間 × 1.5 (FAIL カテゴリは 300s 固定) で計測。
+> `yang-mills-equation-of-U1-gauge-theory.egi` は 224s で完走するため、180s 固定
+> timeout だと FAIL になる。
+
+### Quote semantics 修正による直近の改善 (2026-05)
+
+`'(...)` (apostrophe) は v3 では opaque atom quote だったが、現 NonS では
+`QuoteSymbolExpr` (symbol/function quote 専用) として split されており、
+式に対しては no-op (中身が完全展開される)。本来 opaque にしたい場合は
+`` `(...) `` (backtick = `QuoteExpr`) を使う。
+
+この semantics の理解が曖昧だったため複数の sample が `'(...)` 形で書かれて
+**多項式 blow-up** で fail / timeout していた。`` ` `` に置換することで:
+
+| ファイル | Before | After |
+|---|---|---|
+| `euler-form-of-T2.egi` | 168s で fail (degree 12 polynomial) | **7.2s で PASS** |
+| `euler-form-of-S2.egi` | 古い `d` 定義で型エラー | **3.8s で PASS** (paper canonical 形に書き直し) |
+| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | timeout / Christoffel 簡約失敗 | **13.7s で PASS** |
+| `riemann-curvature-tensor-of-FLRW-metric.egi` | (pass済) | **3.3s で PASS** (assertion を `` ` `` 形に同期) |
+| `surface.egi` | 型エラー | **4.7s で PASS** (`function (x,y)` declaration + `userRefs` style) |
 
 > **注**: PASS/FAIL は test runner の timeout 設定に依存。30s timeout だと
 > `polar-laplacian-3d` と `riemann-curvature-tensor-of-S4` が時間切れになるため、
@@ -34,91 +56,91 @@ PASS 率: 69% (31/45)。assertion 総数: 約 244 個。
 
 ### `algebra/` (3/3 PASS)
 
-| ファイル | 状態 | asserts | 内容 |
-|---|---|---:|---|
-| `cubic-equation.egi` | ✅ | 1 | カルダノ公式による 3 次方程式の解 |
-| `quadratic-equation.egi` | ✅ | 4 | 2 次方程式の解の公式 |
-| `quartic-equation.egi` | ✅ | 1 | フェラーリ公式による 4 次方程式の解 |
+| ファイル | 状態 | 時間 | asserts | 内容 |
+|---|---|---:|---:|---|
+| `cubic-equation.egi` | ✅ | 4s | 1 | カルダノ公式による 3 次方程式の解 |
+| `quadratic-equation.egi` | ✅ | 3s | 4 | 2 次方程式の解の公式 |
+| `quartic-equation.egi` | ✅ | 1s | 1 | フェラーリ公式による 4 次方程式の解 |
 
 ### `analysis/` (1/3 PASS)
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `eulers-formula.egi` | ✅ | 4 | テイラー展開によるオイラーの公式 |
-| `leibniz-formula.egi` | ❌ | 6 | π/4 のライプニッツ級数。`Sd` (不定積分) lib バグで `Sd x 'cos x` 等が `'cos x` を数として扱おうとして失敗 |
-| `vector-analysis.egi` | ✅ | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` の assertion を **string-equality (脆弱)** から **assertEqual on values (canonical-form 不変)** に書き換えて pass |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `eulers-formula.egi` | ✅ | 8s | 4 | テイラー展開によるオイラーの公式 |
+| `leibniz-formula.egi` | ❌ | 1s | 6 | π/4 のライプニッツ級数。`Sd` (不定積分) lib バグで `Sd x 'cos x` 等が `'cos x` を数として扱おうとして失敗 |
+| `vector-analysis.egi` | ✅ | 6s | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` の assertion を **string-equality (脆弱)** から **assertEqual on values (canonical-form 不変)** に書き換えて pass |
 
 ### `geometry/` (17/32 PASS) — 微分幾何・物理サンプル
 
 #### Hodge / Laplacian / 微分形式 (一部 PASS)
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `exterior-derivative.egi` | ✅ | 3 | 外微分 d、d²=0 |
-| `wedge-product.egi` | ✅ | 4 | ウェッジ積の反対称性 |
-| `hodge-E3.egi` | ✅ | 2 | ユークリッド 3 次元の Hodge ∗ |
-| `hodge-Minkowski.egi` | ✅ | 2 | ミンコフスキー時空の Hodge ∗ |
-| `hodge-laplacian-polar.egi` | ✅ | 1 | 極座標 Laplacian (Hodge 経由) |
-| `hodge-laplacian-spherical.egi` | ✅ | 1 | 球座標 Laplacian。`abs(non-negative monomial)` の declare rule 追加で `abs(sin²θ r⁴) = sin²θ r⁴` が消えるようになり pass |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `exterior-derivative.egi` | ✅ | 1s | 3 | 外微分 d、d²=0 |
+| `wedge-product.egi` | ✅ | 1s | 4 | ウェッジ積の反対称性 |
+| `hodge-E3.egi` | ✅ | 3s | 2 | ユークリッド 3 次元の Hodge ∗ |
+| `hodge-Minkowski.egi` | ✅ | 18s | 2 | ミンコフスキー時空の Hodge ∗ |
+| `hodge-laplacian-polar.egi` | ✅ | 2s | 1 | 極座標 Laplacian (Hodge 経由) |
+| `hodge-laplacian-spherical.egi` | ✅ | 13s | 1 | 球座標 Laplacian。`abs(non-negative monomial)` の declare rule 追加で `abs(sin²θ r⁴) = sin²θ r⁴` が消えるようになり pass |
 
 #### 極座標 Laplacian バリアント
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `polar-laplacian-2d.egi` | ✅ | 2 | 2D 極 Laplacian (chain rule 経由) |
-| `polar-laplacian-2d-2.egi` | ✅ | 3 | 2D 極 Laplacian (テンソル記法) |
-| `polar-laplacian-2d-3.egi` | ✅ | 2 | 2D 極 Laplacian (別の手法) |
-| `polar-laplacian-3d.egi` | ✅ | 1 | 3D 極 Laplacian。30s タイムアウトで FAIL してたが ~40s で完了する。test runner の timeout を 60s 以上にすれば pass |
-| `polar-laplacian-3d-2.egi` | ✅ | 2 | 3D 極 Laplacian バリアント |
-| `polar-laplacian-3d-3.egi` | ✅ | 2 | 3D 極 Laplacian バリアント |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `polar-laplacian-2d.egi` | ✅ | 7s | 2 | 2D 極 Laplacian (chain rule 経由) |
+| `polar-laplacian-2d-2.egi` | ✅ | 1s | 3 | 2D 極 Laplacian (テンソル記法) |
+| `polar-laplacian-2d-3.egi` | ✅ | 2s | 2 | 2D 極 Laplacian (別の手法) |
+| `polar-laplacian-3d.egi` | ✅ | 46s | 1 | 3D 極 Laplacian |
+| `polar-laplacian-3d-2.egi` | ✅ | 6s | 2 | 3D 極 Laplacian バリアント |
+| `polar-laplacian-3d-3.egi` | ✅ | 5s | 2 | 3D 極 Laplacian バリアント |
 
-#### Riemann 曲率テンソル (3 次元低次元 PASS、4 次元以上は FAIL)
+#### Riemann 曲率テンソル
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `riemann-curvature-tensor-of-S2.egi` | ✅ | 11 | S² の Riemann tensor |
-| `riemann-curvature-tensor-of-S2-no-type-annotations.egi` | ✅ | 11 | S² (型注釈なし版) |
-| `riemann-curvature-tensor-of-S3.egi` | ✅ | 15 | S³ |
-| `riemann-curvature-tensor-of-S4.egi` | ✅ | 14 | S⁴。30s タイムアウトで FAIL してたが ~50s で完了 |
-| `riemann-curvature-tensor-of-S5.egi` | ❌ | 9 | S⁵。同上 |
-| `riemann-curvature-tensor-of-S5-non-sym.egi` | ❌ | 7 | S⁵ (非対称 Christoffel) |
-| `riemann-curvature-tensor-of-S7.egi` | ❌ | 7 | S⁷。**型エラー** (`Cannot unify types`) |
-| `riemann-curvature-tensor-of-S2xS3.egi` | ❌ | 1 | S²×S³。`casRewriteDd` の poly 級多項マッチが重く時間切れ |
-| `riemann-curvature-tensor-of-T2.egi` | ✅ | 15 | T² (トーラス) |
-| `riemann-curvature-tensor-of-T2-non-sym.egi` | ✅ | 15 | T² (非対称) |
-| `riemann-curvature-tensor-of-FLRW-metric.egi` | ✅ | 2 | FLRW (宇宙論) 計量。uppercase symbol `K` の修正で動作 |
-| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | ❌ | 12 | Schwarzschild 計量。**Christoffel 記号の assertion**: 期待値 `(GM)/(c²r² - 2GMr)` に対し `(-GMc⁻² + 2G²M²c⁻⁴r⁻¹) / (-r² + 4GMc⁻²r - 4G²M²c⁻⁴)` で出力 — 入れ子分数の縮約が unfinished |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `riemann-curvature-tensor-of-S2.egi` | ✅ | 4s | 11 | S² の Riemann tensor |
+| `riemann-curvature-tensor-of-S2-no-type-annotations.egi` | ✅ | 5s | 11 | S² (型注釈なし版) |
+| `riemann-curvature-tensor-of-S3.egi` | ✅ | 18s | 15 | S³ |
+| `riemann-curvature-tensor-of-S4.egi` | ✅ | 42s | 14 | S⁴ |
+| `riemann-curvature-tensor-of-S5.egi` | ✅ | 104s | 9 | S⁵。`declare symbol` 追加で動作 |
+| `riemann-curvature-tensor-of-S5-non-sym.egi` | ✅ | 104s | 7 | S⁵ (非対称 Christoffel) |
+| `riemann-curvature-tensor-of-S7.egi` | ❌ | >180s | 7 | S⁷。`declare symbol` + `ε` → `ξ` rename (Levi-Civita lib 衝突回避) で型エラー解消、但しまだ heavy computation で timeout |
+| `riemann-curvature-tensor-of-S2xS3.egi` | ❌ | >180s | 1 | S²×S³。`'(...)` を `` ` `` に変えても M.inverse on 5×5 symbolic matrix 単独で >60s かかり timeout |
+| `riemann-curvature-tensor-of-T2.egi` | ✅ | 9s | 15 | T² (トーラス) |
+| `riemann-curvature-tensor-of-T2-non-sym.egi` | ✅ | 11s | 15 | T² (非対称) |
+| `riemann-curvature-tensor-of-FLRW-metric.egi` | ✅ | 1s | 2 | FLRW (宇宙論) 計量。`'(1-Kr²)` → `` `(1-Kr²) `` |
+| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | ✅ | 12s | 12 | Schwarzschild 計量。`'(c²r-2GM)` → `` `(c²r-2GM) `` で完走、Christoffel assertion を CAS canonical 形に同期、Ric_ij = 0 (vacuum solution) も確認 |
 
 #### Chern / Euler 形式
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `chern-form-of-CP1.egi` | ✅ | 3 | CP¹ の Chern 形式。multi-factor `exp` 規則の追加で `exp(-x)*exp(x)` の cancellation が 3 因子以上の項でも fire するようになり pass |
-| `chern-form-of-CP2.egi` | ✅ | 1 | CP² の Chern 形式 |
-| `curvature-form.egi` | ✅ | 8 | 曲率形式の一般論 |
-| `euler-form-of-S2.egi` | ❌ | 2 | S² の Euler 形式。warning のみで実行は通るが exit 1 |
-| `euler-form-of-T2.egi` | ❌ | 2 | T² の Euler 形式 |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `chern-form-of-CP1.egi` | ✅ | 2s | 3 | CP¹ の Chern 形式。multi-factor `exp` 規則の追加で `exp(-x)*exp(x)` の cancellation が 3 因子以上の項でも fire するようになり pass |
+| `chern-form-of-CP2.egi` | ✅ | 1s | 1 | CP² の Chern 形式 |
+| `curvature-form.egi` | ✅ | 5s | 8 | 曲率形式の一般論 |
+| `euler-form-of-S2.egi` | ✅ | 3s | 2 | S² の Euler 形式。paper canonical (`!(flip ∂/∂)` の disjoint completion + `Γ~i_j_#` 1-form) に書き直し |
+| `euler-form-of-T2.egi` | ✅ | 6s | 6 | T² の Euler 形式。`'(a*cos θ+b)` → `` `(...) `` で polynomial blow-up を抑制 (was 168s で fail) |
 
 #### Thurston / その他特殊幾何
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `surface.egi` | ❌ | 10 | 一般曲面の幾何。**型エラー** (`Cannot unify types`) |
-| `thurston.egi` | ⏳ | 4 | Thurston 例の WCS 不変量 (EMR paper §4)。修正中 — `pmIndex (Sub/Sup Nothing)` 追加 + `applyConcreteConstraintDictionaries` の `TIIndexedExpr` recurse 追加 + R' に `: Tensor MathValue` 注釈で `def f_i_j_k~l` form の index access が動くように。S 計算 (~30分予想) を実行中 |
-| `thurston-non-sym.egi` | ❌ | 4 | Thurston (非対称 ∇J)。**`Inconsistent tensor index: [_?] vs [_<val>]`** バグ |
-| `yang-mills-equation-of-U1-gauge-theory.egi` | ❌ | 2 | U(1) ゲージ Yang-Mills |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `surface.egi` | ✅ | 4s | 10 | 一般曲面の幾何。`f` を `function (x,y)` で declare + `userRefs f [n]` 形に書き直し |
+| `thurston.egi` | ❌ | >180s | 4 | Thurston 例の WCS 不変量 (EMR paper §4)。Mathematica 級の簡約が必要 |
+| `thurston-non-sym.egi` | ❌ | >180s | 4 | Thurston (非対称 ∇J)。**`Inconsistent tensor index: [_?] vs [_<val>]`** バグ |
+| `yang-mills-equation-of-U1-gauge-theory.egi` | ✅ | 224s | 2 | U(1) ゲージ Yang-Mills。重い計算で 180s timeout だと FAIL するが 224s で完走 |
 
 ### `number/` (6/7 PASS)
 
-| ファイル | 状態 | asserts | 内容 / 失敗原因 |
-|---|---|---:|---|
-| `5th-root-of-unity.egi` | ✅ | 2 | 1 の原始 5 乗根 (`z^5 = 1` assertion はコメントアウト — denesting 未実装) |
-| `7th-root-of-unity.egi` | ✅ | 1 | 7 乗根 |
-| `17th-root-of-unity.egi` | ✅ | 1 | 17 乗根 (Gauss の定規コンパス作図) |
-| `eisenstein-primes.egi` | ✅ | 2 | アイゼンシュタイン素数 |
-| `gaussian-primes.egi` | ✅ | 2 | ガウス素数 |
-| `euler-totient-function.egi` | ✅ | 1 | オイラー totient 関数 |
-| `tribonacci.egi` | ❌ | 8 | トリボナッチ。**`Tensor index must be an integer or a single symbol`** バグ |
+| ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
+|---|---|---:|---:|---|
+| `5th-root-of-unity.egi` | ✅ | 2s | 2 | 1 の原始 5 乗根 (`z^5 = 1` assertion はコメントアウト — denesting 未実装) |
+| `7th-root-of-unity.egi` | ✅ | 1s | 1 | 7 乗根 |
+| `17th-root-of-unity.egi` | ✅ | 3s | 1 | 17 乗根 (Gauss の定規コンパス作図) |
+| `eisenstein-primes.egi` | ✅ | 1s | 2 | アイゼンシュタイン素数 |
+| `gaussian-primes.egi` | ✅ | 2s | 2 | ガウス素数 |
+| `euler-totient-function.egi` | ✅ | 2s | 1 | オイラー totient 関数 |
+| `tribonacci.egi` | ❌ | 3s | 8 | トリボナッチ。**`Tensor index must be an integer or a single symbol`** バグ |
 
 ---
 
