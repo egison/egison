@@ -2464,6 +2464,7 @@ declare derivative sin = cos
 
 | 項目 | 内容 |
 |---|---|
+| `'(...)` (apostrophe + 括弧式) は no-op | book §4.4 で `'` は変数のみ続く仕様。`'(x+1)^2` のような式には quote が効かず展開される。式展開抑制には `` `(x+1)^2 `` (backtick = book §4.3) を使う。詳細: [sample-math.md](./sample-math.md) "Quote semantics" |
 | Egison 識別子に `_` が使えない | `identChar = alphaNumChar` のため `trig_pythagorean` 等は parse できない。`trigPythagorean` (camelCase) を推奨。subscript 構文 (`x_1`) と衝突するため修正困難 |
 | `$y` の expression context での silent parse | `def y := $a` は parse error にならず奇妙な解釈をする。parser に check 追加が望ましい |
 | `∂/∂'` のループ on unknown apply1 | hardcoded ケースのいずれにもマッチしない user mathfunc apply1 が後続 `term`/`poly` ケースに落ちて無限ループ。`chainPartialDiff` の再帰アームで `chainPartialDiff` 自身を呼ぶことで吸収済み |
