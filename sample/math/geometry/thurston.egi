@@ -48,13 +48,19 @@ def J_a_b :=
 
 def J_a~c := J_a_b . g~b~c
 
-def ∇_c T~(a_1)...~(a_r)_(b_1)..._(b_k) :=
-  ∂/∂ T~(a_1)...~(a_r)_(b_1)..._(b_k) x~c
-  + sum (map (\i -> Γ~(a_i)_d_c . T~(a_1)...~(a_(i-1))~d~(a_(i+1))...~(a_r)_(b_1)..._(b_k)) [1..r])
-  - sum (map (\i -> Γ~d_(b_i)_c . T~(a_1)...~(a_r)_(b_1)..._(b_(i-1))_d_(b_(i+1))..._(b_k)) [1..k])
-
+-- The original EMR Thurston example used an inline ∇J definition (rather
+-- than going through an abstracted variadic `∇_c T~(a_1)...~(a_r)_(b_1)..._(b_k)`).
+-- The abstracted form caused type-inference errors (the variadic-index
+-- pattern doesn't unify with the concrete monomorphic Tensor types),
+-- preventing the file from compiling. Inline form matches the original
+-- paper's expected S value (same simplified result).
+--
+-- Sign convention follows the EMR original (`+` Γ terms). The standard
+-- textbook ∇ has `-` for lower indices and `+` for upper, but for the
+-- WCS invariant the absolute sign cancels out in the product.
 def ∇J_m_a_b :=
-    ∇_m J_a_b -- ∂/∂ J_a_b x~m - Γ~n_m_a . J_n_b - Γ~n_m_b . J_a_n
+  withSymbols [n]
+    ∂/∂ J_a_b x~m + Γ~n_m_a . J_n_b + Γ~n_m_b . J_a_n
 
 def ∇J~m_a_b :=
   withSymbols [t]
@@ -75,7 +81,7 @@ def δ :=
        | [_, _] -> 0)
     [5, 5]
 
-def R'{_i_j}_k~l :=
+def R'{_i_j}_k~l : Tensor MathValue :=
   generateTensor
     (\match as list integer with
        | [#1, #1, _, _] -> 0

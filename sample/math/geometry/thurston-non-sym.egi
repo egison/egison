@@ -71,7 +71,7 @@ def δ :=
        | _        -> 0)
     [5, 5]
 
-def R'_i_j_k~l :=
+def R'_i_j_k~l : Tensor MathValue :=
   generateTensor
     (\match as list integer with
        | [#1, #1, _, _] -> 0

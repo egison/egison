@@ -1,4 +1,6 @@
 -- Parameters
+declare symbol r, θ, φ, ψ, η, δ : MathValue
+
 def x := [|θ, φ, ψ, η, δ|]
 
 def X := [| r * (cos θ),

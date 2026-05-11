@@ -133,6 +133,26 @@ declare rule auto term term $c ((apply1 #sqrt $aa, $nn) :: $rr) =
 -- expensive for complex differential-form computations like
 -- riemann-curvature-tensor-of-S2xS3 (>120s vs few-seconds with Haskell).
 
+-- abs of a manifestly non-negative monomial reduces to the monomial itself.
+-- A monomial is non-negative if all its symbol exponents are even AND the
+-- coefficient is a non-negative rational. This handles common cases like
+-- `abs(sin²θ * r⁴)` (showing up in spherical Laplacians, hodge-spherical
+-- etc.) by stripping the abs wrapper.
+--
+-- The LHS pattern triggers on any abs factor; the body re-matches the inner
+-- argument as a single Term and checks the conditions before stripping.
+declare rule auto term term $c ((apply1 #abs $a, $n) :: $rr) =
+  match a as termExpr with
+    | term $aCoeff $aMs ->
+        if isRational aCoeff && aCoeff >= 0
+            && all (\(_, k) -> i.modulo k 2 = 0) aMs
+          then c *' (foldl (*') aCoeff (map (\(p, k) -> p ^' k) aMs)) ^' n
+                 *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
+          else c *' ('abs a) ^' n
+                 *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
+    | _ -> c *' ('abs a) ^' n
+             *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
+
 -- Square root pair merge using Euclidean GCD.
 -- Mathematically: a = g*a', b = g*b' (with g = gcd(|a|, |b|)) implies
 --   sqrt a * sqrt b = sqrt (a*b) = g * sqrt (a'*b').

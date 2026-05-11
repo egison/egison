@@ -1237,6 +1237,18 @@ applyConcreteConstraintDictionaries expr = do
       func' <- applyConcreteConstraintDictionaries func
       args' <- mapM applyConcreteConstraintDictionaries args
       return $ TIExpr scheme (TIApplyExpr func' args')
+    -- Indexed access (`R'_i_j_k~l` etc.) wraps a base expression that may
+    -- itself need dict args applied. Without this recursion, a tensor-valued
+    -- def whose body uses typeclass methods (e.g. `def R'_i_j_k~l :=
+    -- generateTensor (\... -> Ring ops ...)`) keeps its `\dict_AddGroup ...
+    -- ->` outer wrapper at the use-site, and the IIndexedExpr eval path
+    -- (Core.hs `Value (Func ...)` arm) treats the lambda directly as a
+    -- function-with-index, raising "Expected number, but found: <lambda>"
+    -- when the lambda is later used in arithmetic.
+    TIIndexedExpr override base indices -> do
+      base' <- applyConcreteConstraintDictionaries base
+      indices' <- mapM (traverse applyConcreteConstraintDictionaries) indices
+      return $ TIExpr scheme (TIIndexedExpr override base' indices')
     _ -> return expr
 
   -- De-expand constraints to minimal set, then check if concrete

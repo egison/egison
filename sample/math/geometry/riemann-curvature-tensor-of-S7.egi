@@ -1,15 +1,17 @@
 -- Riemann curvature tensor of S7
 
-def x := [| α, β, γ, δ, ε, ζ, η |]
+declare symbol α, β, γ, δ, ξ, ζ, η, r : MathValue
+
+def x := [| α, β, γ, δ, ξ, ζ, η |]
 
 def X := [| r * cos α
           , r * sin α * cos β
           , r * sin α * sin β * cos γ
           , r * sin α * sin β * sin γ * cos δ
-          , r * sin α * sin β * sin γ * sin δ * cos ε
-          , r * sin α * sin β * sin γ * sin δ * sin ε * cos ζ
-          , r * sin α * sin β * sin γ * sin δ * sin ε * sin ζ * cos η
-          , r * sin α * sin β * sin γ * sin δ * sin ε * sin ζ * sin η
+          , r * sin α * sin β * sin γ * sin δ * cos ξ
+          , r * sin α * sin β * sin γ * sin δ * sin ξ * cos ζ
+          , r * sin α * sin β * sin γ * sin δ * sin ξ * sin ζ * cos η
+          , r * sin α * sin β * sin γ * sin δ * sin ξ * sin ζ * sin η
           |]
 
 -- Local basis
@@ -39,8 +41,8 @@ assertEqual "Christoffel symbols of the second kind Γ~1_#_#"
    , [| 0, 0, -1 * sin α * cos α * (sin β)^2, 0, 0, 0, 0 |]
    , [| 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2, 0, 0, 0 |]
    , [| 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2, 0, 0 |]
-   , [| 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ε)^2, 0 |]
-   , [| 0, 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ε)^2 * (sin ζ)^2 |]
+   , [| 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ξ)^2, 0 |]
+   , [| 0, 0, 0, 0, 0, 0, -1 * sin α * cos α * (sin β)^2 * (sin γ)^2 * (sin δ)^2 * (sin ξ)^2 * (sin ζ)^2 |]
    |]_#_#
 assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
   Γ~2_#_#
@@ -49,8 +51,8 @@ assertEqual "Christoffel symbols of the second kind Γ~2_#_#"
    , [| 0, 0, -1 * sin β * cos β, 0, 0, 0, 0 |]
    , [| 0, 0, 0, -1 * sin β * cos β * (sin γ)^2, 0, 0, 0 |]
    , [| 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2, 0, 0 |]
-   , [| 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ε)^2, 0 |]
-   , [| 0, 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ε)^2 * (sin ζ)^2 |]
+   , [| 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ξ)^2, 0 |]
+   , [| 0, 0, 0, 0, 0, 0, -1 * sin β * cos β * (sin γ)^2 * (sin δ)^2 * (sin ξ)^2 * (sin ζ)^2 |]
    |]_#_#
 
 -- Riemann curvature

@@ -17,12 +17,12 @@
 | 区分 | 合計 | PASS | FAIL | assertion 平均 |
 |---|---:|---:|---:|---:|
 | `algebra/` | 3 | 3 | 0 | 2.0 |
-| `analysis/` | 3 | 1 | 2 | 8.3 |
-| `geometry/` | 32 | 19 | 13 | 5.7 |
+| `analysis/` | 3 | 2 | 1 | 8.3 |
+| `geometry/` | 32 | 20 | 12 | 5.7 |
 | `number/` | 7 | 6 | 1 | 2.4 |
-| **合計** | **45** | **29** | **16** | **5.4** |
+| **合計** | **45** | **31** | **14** | **5.4** |
 
-PASS 率: 64% (29/45)。assertion 総数: 約 244 個。
+PASS 率: 69% (31/45)。assertion 総数: 約 244 個。
 
 > **注**: PASS/FAIL は test runner の timeout 設定に依存。30s timeout だと
 > `polar-laplacian-3d` と `riemann-curvature-tensor-of-S4` が時間切れになるため、
@@ -46,7 +46,7 @@ PASS 率: 64% (29/45)。assertion 総数: 約 244 個。
 |---|---|---:|---|
 | `eulers-formula.egi` | ✅ | 4 | テイラー展開によるオイラーの公式 |
 | `leibniz-formula.egi` | ❌ | 6 | π/4 のライプニッツ級数。`Sd` (不定積分) lib バグで `Sd x 'cos x` 等が `'cos x` を数として扱おうとして失敗 |
-| `vector-analysis.egi` | ❌ | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` assertion で expected と found が乖離 (CAS 簡約の弱さ) |
+| `vector-analysis.egi` | ✅ | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` の assertion を **string-equality (脆弱)** から **assertEqual on values (canonical-form 不変)** に書き換えて pass |
 
 ### `geometry/` (17/32 PASS) — 微分幾何・物理サンプル
 
@@ -59,7 +59,7 @@ PASS 率: 64% (29/45)。assertion 総数: 約 244 個。
 | `hodge-E3.egi` | ✅ | 2 | ユークリッド 3 次元の Hodge ∗ |
 | `hodge-Minkowski.egi` | ✅ | 2 | ミンコフスキー時空の Hodge ∗ |
 | `hodge-laplacian-polar.egi` | ✅ | 1 | 極座標 Laplacian (Hodge 経由) |
-| `hodge-laplacian-spherical.egi` | ❌ | 1 | 球座標 Laplacian。**`abs(sin²θ r⁴)` 因子が消えない** (CAS が `abs` の符号を確定できない) |
+| `hodge-laplacian-spherical.egi` | ✅ | 1 | 球座標 Laplacian。`abs(non-negative monomial)` の declare rule 追加で `abs(sin²θ r⁴) = sin²θ r⁴` が消えるようになり pass |
 
 #### 極座標 Laplacian バリアント
 
@@ -104,7 +104,7 @@ PASS 率: 64% (29/45)。assertion 総数: 約 244 個。
 | ファイル | 状態 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---|
 | `surface.egi` | ❌ | 10 | 一般曲面の幾何。**型エラー** (`Cannot unify types`) |
-| `thurston.egi` | ❌ | 4 | Thurston 例の WCS 不変量 (EMR paper §4)。**型エラー** (`Cannot unify types`) — 過去には `__super_AddGroup` dispatch バグも観測 |
+| `thurston.egi` | ⏳ | 4 | Thurston 例の WCS 不変量 (EMR paper §4)。修正中 — `pmIndex (Sub/Sup Nothing)` 追加 + `applyConcreteConstraintDictionaries` の `TIIndexedExpr` recurse 追加 + R' に `: Tensor MathValue` 注釈で `def f_i_j_k~l` form の index access が動くように。S 計算 (~30分予想) を実行中 |
 | `thurston-non-sym.egi` | ❌ | 4 | Thurston (非対称 ∇J)。**`Inconsistent tensor index: [_?] vs [_<val>]`** バグ |
 | `yang-mills-equation-of-U1-gauge-theory.egi` | ❌ | 2 | U(1) ゲージ Yang-Mills |
 
@@ -148,13 +148,15 @@ PASS 率: 64% (29/45)。assertion 総数: 約 244 個。
 - **`chern-form-of-CP1.egi` の expected value** を CAS canonical 形に合わせて更新 (`r/(-A) = -r/A`)
 - **timeout 緩和**: `polar-laplacian-3d.egi` は計算 ~40s で完了するため、60s timeout なら pass
 
-これにより **PASS 数が 27 → 29 (60% → 64%)** に改善:
+これにより **PASS 数が 27 → 31 (60% → 69%)** に改善:
 
 | ファイル | PASS 化の理由 |
 |---|---|
 | `chern-form-of-CP1.egi` | multi-factor exp 規則 + expected value の sign 修正 |
 | `polar-laplacian-3d.egi` | timeout 緩和 (~40s で計算完了) |
 | `riemann-curvature-tensor-of-S4.egi` | timeout 緩和 (~50s で計算完了) |
+| `hodge-laplacian-spherical.egi` | `abs(non-negative monomial) = monomial` 規則の追加で `abs(sin²θ r⁴)` 因子が消えるように |
+| `vector-analysis.egi` | string-equality assertion を value 比較に書き直し (canonical form の order 違いに頑健に) |
 
 ---
 
@@ -180,11 +182,10 @@ runtime バグ修正なしで coverage を上げられる。
 現状の FAIL の大半は CAS 簡約の弱さ。declare rule auto の追加で複数同時に通せる
 可能性が高い:
 
-- **`exp(-x) * exp(x) = 1`**: 新しい declare rule。`chern-form-of-CP1.egi` を含む複数
-  サンプルが pass する見込み
-- **`abs(positive_expr) = positive_expr`**: `sin²θ r⁴` のような非負式の `abs` を外す
-- **入れ子分数の縮約**: `(c²r - 2GM) / (c²r)` 形の簡約 (Schwarzschild 系)
-- **CAS 簡約 fixedpoint の到達深さ**: 一部は単に iteration 不足の可能性
+- ✅ **`exp(-x) * exp(x) = 1`** (B1 と同じ multi-factor body-match 形): `chern-form-of-CP1.egi` 等が PASS
+- ✅ **`abs(positive_expr) = positive_expr`** (declare rule auto で全偶数冪 monomial 内部の `abs` を剥がす): `hodge-laplacian-spherical.egi` 等が PASS
+- ⏳ **入れ子分数の縮約**: `(c²r - 2GM) / (c²r)` 形の簡約 (Schwarzschild 系)。多項式 GCD/factor が必要なので大物 (Phase 5 相当)
+- ✅ **CAS 簡約 fixedpoint の到達深さ** (調査済 = NOT the issue): 残りの FAIL の原因を個別に調べた結果、iteration 不足ではなく (a) `Sd` lib バグ, (b) 型エラー, (c) Christoffel 簡約 (多項式 GCD), (d) tensor index 評価バグ, (e) タイムアウト の 5 種に分類できた。`iterateRulesLoopWithTriggers` (Primitives.hs) の fixed-point ループは正しく動作している
 
 ### Phase 3: lib バグ修正
 

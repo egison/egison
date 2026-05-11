@@ -1,30 +1,31 @@
 -- Surface Geometry: First and Second Fundamental Forms
 
-declare symbol x, y, f
+declare symbol x, y
+def f := function (x, y)
 
 def v1 := [|1, 0, ∂/∂ (f x y) x|]
 def v2 := [|0, 1, ∂/∂ (f x y) y|]
 
 assertEqual "tangent vector v1"
   v1
-  [| 1, 0, f|1 x y |]
+  [| 1, 0, (userRefs f [1]) x y |]
 
 assertEqual "tangent vector v2"
   v2
-  [| 0, 1, f|2 x y |]
+  [| 0, 1, (userRefs f [2]) x y |]
 
 def v3 := crossProduct v1 v2
 
 assertEqual "normal vector (cross product)"
   v3
-  [| - f|1 x y, - f|2 x y, 1 |]
+  [| - (userRefs f [1]) x y, - (userRefs f [2]) x y, 1 |]
 
 def e3 := v3 / sqrt '(V.* v3 v3)
 
 -- Unit normal vector
 assertEqual "unit normal vector e3"
   e3
-  [| - f|1 x y / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1), - f|2 x y / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1), 1 / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1) |]
+  [| - (userRefs f [1]) x y / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1), - (userRefs f [2]) x y / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1), 1 / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1) |]
 
 -- First fundamental form coefficients
 def E := V.* v1 v1
@@ -33,15 +34,15 @@ def G := V.* v2 v2
 
 assertEqual "E (first fundamental form)"
   E
-  (1 + (f|1 x y)^2)
+  (1 + ((userRefs f [1]) x y)^2)
 
 assertEqual "F (first fundamental form)"
   F
-  (f|1 x y * f|2 x y)
+  ((userRefs f [1]) x y * (userRefs f [2]) x y)
 
 assertEqual "G (first fundamental form)"
   G
-  (1 + (f|2 x y)^2)
+  (1 + ((userRefs f [2]) x y)^2)
 
 -- Second fundamental form coefficients
 def L := V.* (∂/∂ v1 x) e3
@@ -50,15 +51,15 @@ def N := V.* (∂/∂ v2 y) e3
 
 assertEqual "L (second fundamental form)"
   L
-  (f|1|1 x y / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1))
+  ((userRefs f [1, 1]) x y / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1))
 
 assertEqual "M (second fundamental form)"
   M
-  (f|1|2 x y / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1))
+  ((userRefs f [1, 2]) x y / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1))
 
 assertEqual "N (second fundamental form)"
   N
-  (f|2|2 x y / sqrt ((f|1 x y)^2 + (f|2 x y)^2 + 1))
+  ((userRefs f [2, 2]) x y / sqrt (((userRefs f [1]) x y)^2 + ((userRefs f [2]) x y)^2 + 1))
 
 -- Gaussian curvature K and mean curvature H
 def K := (L * N - M ^ 2) / '(E * G - F ^ 2)

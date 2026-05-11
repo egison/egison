@@ -151,6 +151,17 @@ pmIndex (Sub (Just var)) (Sub val) = do
 pmIndex (Sup (Just var)) (Sup val) = do
   ref <- newEvaluatedObjectRef (Value val)
   return [(var, ref)]
+-- `def f_i_j := ...` desugars (Desugar.hs `desugarDefineWithIndices`) so
+-- the function's stored Var indices are *kind-only* (`Sub Nothing` /
+-- `Sup Nothing`) — the actual index names are bound separately via
+-- `withSymbols` + `transpose` inside the body. When we apply `f_a_b`,
+-- the access values come in here and just need to match the index kind;
+-- there is no name to bind. Without these clauses every tensor function
+-- defined with explicit index names (e.g. the WCS invariant computation
+-- in `sample/math/geometry/thurston.egi`) raises
+-- "Inconsistent tensor index: [_?] vs [_<val>]".
+pmIndex (Sub Nothing) (Sub _) = return []
+pmIndex (Sup Nothing) (Sup _) = return []
 pmIndex expected actual = throwErrorWithTrace $ InconsistentTensorIndex (showIndexPattern [expected]) (showIndexValues [actual])
 
 updateHash :: [Integer] -> WHNFData -> WHNFData -> EvalM WHNFData

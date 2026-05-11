@@ -103,8 +103,20 @@ def multivariateTaylorExpansion fexpr xs ys :=
 
 def taylorExpansion fexpr x a := multivariateTaylorExpansion fexpr [|x|] [|a|]
 
-assert "Taylor expansion of f(x)"
-  (show (take 3 (taylorExpansion f1 x 0)) = "[f1 0, x * f1|1 0, x^2 * f1|1|1 0 / 2]")
+-- Compare values directly. The CAS canonical form puts coefficients first
+-- and uses commutative ordering, so the printed string differs from the
+-- handwritten form (e.g. `x * f|1 0` becomes `(f|1 0) * x`).
+assertEqual "Taylor expansion of f(x)"
+  (take 3 (taylorExpansion f1 x 0))
+  [(userRefs f1 []) 0,
+   (userRefs f1 [1]) 0 * x,
+   (userRefs f1 [1, 1]) 0 * x^2 / 2]
 
-assert "Multivariate Taylor expansion"
-  (show (take 3 (multivariateTaylorExpansion f2 [| x, y |] [| 0, 0 |])) = "[f2 0 0, x * f2|1 0 0 + y * f2|2 0 0, (x^2 * f2|1|1 0 0 + x * y * f2|2|1 0 0 + y * x * f2|1|2 0 0 + y^2 * f2|2|2 0 0) / 2]")
+assertEqual "Multivariate Taylor expansion"
+  (take 3 (multivariateTaylorExpansion f2 [| x, y |] [| 0, 0 |]))
+  [(userRefs f2 []) 0 0,
+   (userRefs f2 [1]) 0 0 * x + (userRefs f2 [2]) 0 0 * y,
+   ((userRefs f2 [1, 1]) 0 0 * x^2
+    + (userRefs f2 [2, 1]) 0 0 * x * y
+    + (userRefs f2 [1, 2]) 0 0 * x * y
+    + (userRefs f2 [2, 2]) 0 0 * y^2) / 2]

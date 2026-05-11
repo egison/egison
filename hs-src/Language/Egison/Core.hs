@@ -246,9 +246,7 @@ evalExprShallow env@(Env _fs _ _) (IIndexedExpr override expr indices) = do
       return $ Value $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (js' ++ js2), 1)]]
     Value (Func v@(Just (Var _fnName is)) env args body) -> do
       js <- mapM evalIndex indices
-      liftIO $ putStrLn $ "[DEBUG pmIndices] is: " ++ show is ++ ", js: " ++ show js
       frame <- pmIndices is js
-      liftIO $ putStrLn $ "can reach here"
       let env' = extendEnv env frame
       return $ Value (Func v env' args body)
     Value (TensorData t@Tensor{}) -> do
