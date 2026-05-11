@@ -1,0 +1,52 @@
+# sample/math/* の想定実行時間 (seconds)
+# Format: <relative-path> <expected-seconds>
+# Updated: 2026-05 measurement on aarch64-osx (Mac mini)
+# Used by scripts/run-sample-suite.sh as per-sample timeout = expected * 1.5
+# (FAIL category samples are given 300s to allow potential PASS when fixed).
+
+sample/math/algebra/cubic-equation.egi 4
+sample/math/algebra/quadratic-equation.egi 3
+sample/math/algebra/quartic-equation.egi 1
+sample/math/analysis/eulers-formula.egi 8
+sample/math/analysis/leibniz-formula.egi 5
+sample/math/analysis/vector-analysis.egi 6
+sample/math/geometry/chern-form-of-CP1.egi 2
+sample/math/geometry/chern-form-of-CP2.egi 1
+sample/math/geometry/curvature-form.egi 5
+sample/math/geometry/euler-form-of-S2.egi 3
+sample/math/geometry/euler-form-of-T2.egi 6
+sample/math/geometry/exterior-derivative.egi 1
+sample/math/geometry/hodge-E3.egi 3
+sample/math/geometry/hodge-Minkowski.egi 18
+sample/math/geometry/hodge-laplacian-polar.egi 2
+sample/math/geometry/hodge-laplacian-spherical.egi 13
+sample/math/geometry/polar-laplacian-2d.egi 7
+sample/math/geometry/polar-laplacian-2d-2.egi 1
+sample/math/geometry/polar-laplacian-2d-3.egi 2
+sample/math/geometry/polar-laplacian-3d.egi 46
+sample/math/geometry/polar-laplacian-3d-2.egi 6
+sample/math/geometry/polar-laplacian-3d-3.egi 5
+sample/math/geometry/riemann-curvature-tensor-of-FLRW-metric.egi 1
+sample/math/geometry/riemann-curvature-tensor-of-S2-no-type-annotations.egi 5
+sample/math/geometry/riemann-curvature-tensor-of-S2.egi 4
+sample/math/geometry/riemann-curvature-tensor-of-S2xS3.egi 200
+sample/math/geometry/riemann-curvature-tensor-of-S3.egi 18
+sample/math/geometry/riemann-curvature-tensor-of-S4.egi 42
+sample/math/geometry/riemann-curvature-tensor-of-S5.egi 104
+sample/math/geometry/riemann-curvature-tensor-of-S5-non-sym.egi 104
+sample/math/geometry/riemann-curvature-tensor-of-S7.egi 200
+sample/math/geometry/riemann-curvature-tensor-of-Schwarzschild-metric.egi 12
+sample/math/geometry/riemann-curvature-tensor-of-T2-non-sym.egi 11
+sample/math/geometry/riemann-curvature-tensor-of-T2.egi 9
+sample/math/geometry/surface.egi 4
+sample/math/geometry/thurston.egi 200
+sample/math/geometry/thurston-non-sym.egi 200
+sample/math/geometry/wedge-product.egi 1
+sample/math/geometry/yang-mills-equation-of-U1-gauge-theory.egi 224
+sample/math/number/17th-root-of-unity.egi 3
+sample/math/number/5th-root-of-unity.egi 2
+sample/math/number/7th-root-of-unity.egi 1
+sample/math/number/eisenstein-primes.egi 1
+sample/math/number/euler-totient-function.egi 2
+sample/math/number/gaussian-primes.egi 2
+sample/math/number/tribonacci.egi 5
