@@ -19,10 +19,10 @@
 | `algebra/` | 3 | 3 | 0 | 2.0 |
 | `analysis/` | 3 | 2 | 1 | 8.3 |
 | `geometry/` | 33 | 28 | 5 | 5.7 |
-| `number/` | 7 | 6 | 1 | 2.4 |
-| **合計** | **46** | **40** | **6** | **5.4** |
+| `number/` | 7 | 7 | 0 | 2.4 |
+| **合計** | **46** | **41** | **5** | **5.4** |
 
-PASS 率: **87% (40/46)**。assertion 総数: 約 250 個。
+PASS 率: **89% (41/46)**。assertion 総数: 約 250 個。
 
 > **注**: per-sample timeout = 想定時間 × 1.5 (FAIL カテゴリは 300s 固定) で計測。
 > `yang-mills-equation-of-U1-gauge-theory.egi` は 224s で完走するため、180s 固定
@@ -153,7 +153,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `eisenstein-primes.egi` | ✅ | 1s | 2 | アイゼンシュタイン素数 |
 | `gaussian-primes.egi` | ✅ | 2s | 2 | ガウス素数 |
 | `euler-totient-function.egi` | ✅ | 2s | 1 | オイラー totient 関数 |
-| `tribonacci.egi` | ❌ | 3s | 8 | トリボナッチ。**`Tensor index must be an integer or a single symbol`** バグ |
+| `tribonacci.egi` | ✅ | 3s | 8 | トリボナッチ。lib `M.*` (Matrix*Matrix only) は `B_j_k` の余分 index で error。sample 内で `def MV.* a b := withSymbols [i, j] (a~i~j . b_j)` を定義して使用 |
 
 ---
 

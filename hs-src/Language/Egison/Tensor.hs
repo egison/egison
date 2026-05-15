@@ -136,6 +136,16 @@ tref [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tref [] t = return t
+-- Reject: too many indices for the tensor's rank.
+-- E.g. `B_j_k` where B is rank 1 (Vector). Without this, the recursion
+-- bottoms out at a scalar with leftover indices and falls through to the
+-- generic "must be integer or single symbol" error, which hides the real
+-- problem. Give a precise message instead.
+tref idxs (Tensor [] _ js) =
+  throwError . Default $
+    "Too many tensor indices: tensor has rank " ++ show (length js) ++
+    " but " ++ show (length idxs + length js) ++ " indices given (" ++
+    show (length idxs) ++ " excess)."
 tref (s@(SupOrSubIndex val):ms) (Tensor (_:ns) xs js)
   | isCASSymbol val = do
       let yss = split (product ns) xs
