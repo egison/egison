@@ -1,0 +1,68 @@
+-- Use case 04: 中間型 Poly GaussianInt [x] (Phase α + β + γ)
+--
+-- Intent:
+--   既存の 5 段階タワーには「Gaussian 整数係数の多項式」の場所がない。
+--   `Poly Integer [i, x]` (flat) と `Poly (Poly Integer [i]) [x]` (nested)
+--   は表現が異なるが内容は同じ。ユーザがどちらの canonical form を使いたいか
+--   を型注釈で選べるようにする。
+--
+-- Required machinery:
+--   - Phase α (型 alias)
+--   - Phase β (subtype)
+--   - Phase γ (`class CASCanonical` + `primCASNormalizeAs`)
+--     → 同じ抽象値に対する複数の正規形を、target type ごとに切り替え
+--
+-- Open questions:
+--   - Poly (Poly Integer [i]) [..] の内部表現は?
+--     A. ネストした CASPoly: CASPoly [CASTerm <coef-as-CASPoly> mono]
+--     B. flat CASPoly with marker: 内部は flat、表示時に re-format
+--     → A が型推論との整合性で素直。casReshapeAs で A ↔ B 変換
+--   - 主変数選択は declare 側? 使用側?
+--     → 設計書では type level で `Poly GaussianInt [x]` のように明示
+--
+-- Tests:
+
+declare symbol i, x
+declare rule auto term i^2 = -1
+declare cas-type GaussianInt := Poly Integer [i]
+declare cas-type GaussianPoly := Poly GaussianInt [x]
+
+-- 複素係数の x 多項式
+def p : GaussianPoly := (2 + 3*i) + (1 - i)*x + 4*x^2
+
+inspect p
+-- 期待表示 (target type を尊重した形):
+--   2 + 3*i + (1 - i)*x + 4*x^2 : GaussianPoly
+-- 内部 CAS 表現 (案 A):
+--   CASPoly [
+--     CASTerm <CASPoly [CASTerm 2 [], CASTerm 3 [(i,1)]]> [],   -- (2+3i) * x^0
+--     CASTerm <CASPoly [CASTerm 1 [], CASTerm (-1) [(i,1)]]> [(x,1)],
+--     CASTerm <CASPoly [CASTerm 4 []]> [(x,2)]
+--   ]
+
+-- p の x について微分: GaussianPoly のまま
+def p' : GaussianPoly := ∂/∂ p x
+assertEqual "derivative w.r.t. x"
+  p'
+  ((1 - i) + 8 * x)
+
+-- p^2 の展開
+def q : GaussianPoly := p^2
+-- 期待: (2+3i)^2 + 2(2+3i)(1-i)*x + ((1-i)^2 + 8(2+3i))*x^2 + 8(1-i)*x^3 + 16*x^4
+-- 簡約後: (-5 + 12*i) + (10 + 2*i)*x + (14 + 24*i)*x^2 + (8 - 8*i)*x^3 + 16*x^4
+inspect q
+
+-- 同じ値を flat な Poly Integer [i, x] として見ることもできる
+declare cas-type FlatGaussianPoly := Poly Integer [i, x]
+
+def p_flat : FlatGaussianPoly := coerce p
+inspect p_flat
+-- 期待: 2 + 3*i + x - i*x + 4*x^2  (i も x も symbol として並列)
+
+-- 双方向変換
+def p_back : GaussianPoly := coerce p_flat
+assertEqual "round-trip flat ↔ nested" p_back p
+
+-- 複素根の方程式: x^2 - 2*i*x - 1 = 0  →  x = i (重根)
+def disc : GaussianInt := coerce ((2*i)^2 - 4*(-1))
+assertEqual "discriminant is 0 (double root)" disc 0

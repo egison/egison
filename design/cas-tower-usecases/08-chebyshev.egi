@@ -1,0 +1,67 @@
+-- Use case 08: 異なる正規化基底 — Chebyshev poly (Phase γ)
+--
+-- Intent:
+--   標準基底 (1, x, x², x³, ...) と Chebyshev 基底 (T₀, T₁, T₂, T₃, ...) は
+--   どちらも次数 ≤ n の多項式空間を張る同型な vector space だが、表現が違う。
+--   `coerce` で双方向変換を提供し、目的 (数値計算 / 近似 / 微分方程式の解) に
+--   応じて選べるようにする。
+--
+-- Required machinery:
+--   - Phase γ: `class CASCanonical` instance ごとに canonical form 定義
+--   - `instance CASCanonical ChebyshevPoly` で Haskell-side の基底変換ロジックを呼ぶ
+--   - 内部表現は同じ `CASPoly` (係数だけ異なる) が、target type で意味が変わる
+--   - `Math/CAS.hs` または専用 `Math/Chebyshev.hs` で変換アルゴリズム
+--
+-- Open questions:
+--   - 「同じ CASValue 内部表現を異なる semantics で解釈する」のは型のみで分離して
+--     良いか? それとも tag を持たせる?
+--     → 設計書 §6.2 では「表現は同じだが意味づけが異なる」と書かれている
+--       → tag-less + 型のみで分離 (cas-type 宣言が semantic を運ぶ)
+--   - 演算 (`+`, `*`) は基底ごとに違う実装が必要 (Chebyshev の積は再帰的)
+--     → typeclass instance で各演算をオーバーライド: 大規模
+--     → MVP では coerce のみサポート、演算は標準基底に戻ってから行う
+--
+-- Tests:
+
+declare symbol x
+declare cas-type StdPoly := Poly Integer [x]
+declare cas-type ChebyshevPoly := Poly Integer [x]
+  -- 表現は同じ Poly Integer [x] だが、係数の意味が標準基底 vs Chebyshev 基底
+
+instance CASCanonical ChebyshevPoly where
+  -- 内部で primConvertToChebyshev を呼ぶ
+  -- StdPoly → ChebyshevPoly の変換: x^n を T_k の線形結合で書き直す
+  canonicalize v := primConvertToChebyshev v
+
+instance CASCanonical StdPoly where
+  -- ChebyshevPoly → StdPoly の変換: T_n(x) を x^k の線形結合で書き直す
+  canonicalize v := primConvertFromChebyshev v
+
+-- 標準基底で書いた多項式
+def p_std : StdPoly := x^3 - 2*x + 1
+
+-- Chebyshev 基底に変換
+def p_che : ChebyshevPoly := coerce p_std
+inspect p_che
+-- 期待: T_3 を含む線形結合
+-- x^3 = (T_3 + 3*T_1) / 4   [標準恒等式]
+-- 2*x = 2*T_1
+-- 1 = T_0
+-- → x^3 - 2*x + 1 = (1/4)*T_3 + (3/4 - 2)*T_1 + T_0
+--                 = (1/4)*T_3 - (5/4)*T_1 + T_0
+-- 内部 CASPoly 表現は同じ shape だが係数が違う
+
+-- 双方向変換が identity
+def p_back : StdPoly := coerce p_che
+assertEqual "round-trip Std → Che → Std" p_back p_std
+
+-- 数値評価: Chebyshev の方が条件数が良い
+-- (実用上の motivation: 高次多項式評価で誤差が小さい)
+def evalAt (p : ChebyshevPoly) (x0 : Frac Integer) : Frac Integer :=
+  -- Clenshaw のアルゴリズム (再帰評価) で評価
+  ...
+
+-- 別の基底: Bernstein, Legendre 等も同じパターン
+declare cas-type BernsteinPoly := Poly Integer [x]
+instance CASCanonical BernsteinPoly where
+  canonicalize v := primConvertToBernstein v

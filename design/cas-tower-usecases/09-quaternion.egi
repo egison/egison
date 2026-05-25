@@ -1,0 +1,66 @@
+-- Use case 09: 四元数 H (Phase ε — 新 CASValue 構造、非可換)
+--
+-- Intent:
+--   ハミルトン四元数 H = R + R*i + R*j + R*k (i² = j² = k² = ijk = -1)
+--   は 3D 回転表現等で重要だが、**非可換** なので既存の CAS 構造とは
+--   根本的に異なる。CASPoly は積が可換前提で構築されているため、
+--   新しい CASValue constructor が必要。
+--
+-- Required machinery:
+--   - Phase ε: `data CASValue = ... | CASQuaternion CASValue CASValue CASValue CASValue`
+--     (a + b*i + c*j + d*k の 4 成分)
+--   - 非可換掛け算 `casQuaternionMult`
+--   - declare cas-type の type alias で `Quaternion := <組込み>` と書ける
+--   - 演算 `*` を非可換に override する仕組みが必要 (typeclass-based)
+--
+-- Open questions:
+--   - 既存の `*` (commutative) と非可換 `*` の区別をどう型システムで担保?
+--     A. typeclass `Mul` を non-commutative にも generalize
+--     B. 専用演算子 (`*~`) を導入
+--     → A が望ましいが、CAS 簡約規則 (e.g. `casMult'` の sort 等) を全面改訂が要
+--   - 4 元数係数の多項式 `H[x]` まで広げるか?
+--     → MVP は H 単独で十分
+--   - 八元数 (octonion) は更に非結合: 別 path
+--
+-- Tests:
+
+declare cas-type Quaternion := <組込み>  -- 構文未定。新 CASValue constructor を持つ
+
+-- 構成
+def q1 : Quaternion := 1 + 2*i + 3*j + 4*k
+def q2 : Quaternion := 5 - i + 2*j - 3*k
+
+assertEqual "Quaternion addition"
+  (q1 + q2)
+  (6 + i + 5*j + k)
+
+-- 非可換掛け算
+-- i*j = k, j*i = -k なので q1 * q2 ≠ q2 * q1 の例
+assertNotEqual "Quaternion is non-commutative"
+  (q1 * q2)
+  (q2 * q1)
+
+-- 共役と norm
+def conj (q : Quaternion) : Quaternion :=
+  -- a + b*i + c*j + d*k → a - b*i - c*j - d*k
+  ...
+
+def norm (q : Quaternion) : Frac Integer :=
+  -- |q|^2 = a^2 + b^2 + c^2 + d^2 (実数)
+  ...
+
+-- 単位四元数による 3D 回転
+-- v ↦ q*v*conj(q) で 3D 回転 (v は虚部のみの quaternion = 3D vector)
+def rotate (q : Quaternion) (v : Quaternion) : Quaternion := q * v * conj q
+
+-- z 軸まわり 90° 回転 = (cos(π/4) + sin(π/4)*k) ※ 単位 quaternion
+-- 実数化: 1/√2 + (1/√2)*k だが √2 が rational じゃないので
+-- 既存 CAS だと表現困難。Phase ε + 何らかの algebraic extension support 要
+
+-- 簡単な例: i*j = k
+assertEqual "i*j = k" (i * j) k
+assertEqual "j*i = -k" (j * i) (-k)
+assertEqual "j*k = i" (j * k) i
+assertEqual "k*j = -i" (k * j) (-i)
+assertEqual "k*i = j" (k * i) j
+assertEqual "i*k = -j" (i * k) (-j)

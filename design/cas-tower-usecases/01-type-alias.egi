@@ -1,0 +1,50 @@
+-- Use case 01: 単純な型エイリアス (Phase α)
+--
+-- Intent:
+--   現状の Egison では `Frac Integer` のような長い型名を毎回書く必要がある。
+--   ユーザが任意の型に短い alias を付けられるようにしたい。
+--
+-- Required machinery:
+--   - `declare cas-type <Name> := <Type>` 構文
+--   - parser: 型を value-level の式と区別して受ける必要あり
+--   - elaboration: alias を展開 (Type/Types.hs に alias env を追加)
+--   - 型推論時に alias を unfold して既存の比較ロジックに渡す
+--   - エラーメッセージや `inspect` での表示は alias の名前を保持したい
+--
+-- Open questions:
+--   - alias は型推論時に展開する? それとも fully-applied な type term として残す?
+--   - 部分適用 (`declare cas-type Pair a := (a, a)`) はサポートするか?
+--     → MVP では「無引数 alias」のみで開始すべき
+--   - 既存の組み込み型 (Integer 等) と同名の alias は禁止?
+--
+-- Examples below show what we want to write.
+
+declare cas-type Q := Frac Integer
+declare cas-type Qx := Poly Q [x]
+declare cas-type Qxy := Poly Q [x, y]
+
+declare symbol x, y
+
+-- alias を型注釈に使う
+def half : Q := 1 / 2
+def f : Qx := x^2 + (1/3) * x + 1/4
+def g : Qxy := x*y + (1/2)*x + (1/3)*y + 1
+
+assertEqual "half is rational" half (1/2)
+
+-- alias は型推論結果でも展開される (現状の挙動と互換)
+def h := f + 2  -- 推論型: Qx (= Poly (Frac Integer) [x])
+inspect h       -- 表示: f が "Qx" で、結果も "Qx" と出るとよい
+
+-- 単純 alias なので reshape は no-op
+def f' := coerce f  -- 型を Qx と推論、内部表現は変わらない
+
+-- 多段 alias
+declare cas-type Z := Integer
+declare cas-type Zxy := Poly Z [x, y]
+def p : Zxy := x*y + 2*x + 3*y + 4
+
+-- alias 同士の互換性
+-- Qx は Z 係数の多項式の上位型なので、Z 係数の多項式は Qx に embed できる
+def p_in_qx : Qx := coerce p   -- ここはエラーになる (Poly Z [x, y] vs Poly Q [x] は違う)
+                                -- → Qxy 経由で経由するか、明示的に書くか?

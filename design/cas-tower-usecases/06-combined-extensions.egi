@@ -1,0 +1,70 @@
+-- Use case 06: 複数代数拡大の組合せ Z[i, √2] (Phase α + β + γ)
+--
+-- Intent:
+--   `Z[i]` と `Z[√2]` を両方使うとき、自動的に `Z[i, √2]` に昇格させたい。
+--   個別の代数拡大同士の join (lattice join) を計算する必要がある。
+--
+-- Required machinery:
+--   - Phase β: subtype 関係の lattice 計算
+--   - join: 各代数拡大の symbol set の和を取る
+--     `Poly Integer [i] ⊔ Poly Integer [sqrt2] = Poly Integer [i, sqrt2]`
+--   - Phase γ: target type ごとに canonical form を選ぶ
+--
+-- Open questions:
+--   - 自動的に「両方の symbol を持つ拡大」を生成する? それとも明示的 declare 要?
+--     A. 明示的: ユーザが `declare cas-type ZiS2 := Poly Integer [i, sqrt2]` を書く
+--     B. 自動: 既存の Poly subtype 規則が `[i] ∪ [sqrt2] = [i, sqrt2]` を計算
+--     → B が自然 (現状のタワーが既に多変数 Poly の subtype を計算する)
+--   - 代数拡大の minimal polynomial (i^2=-1, sqrt2^2=2) は declare rule で個別に
+--     登録されている前提。両方アクティブな状態で計算する。
+--   - 代数 dependency: `i*sqrt2` と `sqrt(-2)` は等価 (体論的) だが、
+--     Egison は両者を別 symbol として扱う (denesting しない方針)
+--
+-- Tests:
+
+declare symbol i, sqrt2
+declare rule auto term i^2 = -1
+declare rule auto term sqrt2^2 = 2
+
+declare cas-type GaussianInt := Poly Integer [i]
+declare cas-type Z_sqrt2 := Poly Integer [sqrt2]
+declare cas-type Z_i_sqrt2 := Poly Integer [i, sqrt2]
+
+-- 既存の Poly タワー subtype 規則で [i] ⊂ [i, sqrt2] が自動成立すべき
+-- declare cas-subtype は不要 (Poly t [i] ⊂ Poly t [i, sqrt2] は既に hard-code)
+
+def a : GaussianInt := 1 + i
+def b : Z_sqrt2 := 1 + sqrt2
+def c := a + b   -- 期待: Z_i_sqrt2 (= Poly Integer [i, sqrt2])
+inspect c        -- 表示: 2 + i + sqrt2
+
+assertEqual "i + sqrt2 in combined ring"
+  (i + sqrt2 : Z_i_sqrt2)
+  (i + sqrt2)
+
+-- (i + sqrt2)^2 = -1 + 2*i*sqrt2 + 2 = 1 + 2*i*sqrt2
+assertEqual "(i + sqrt2)^2"
+  ((i + sqrt2)^2 : Z_i_sqrt2)
+  (1 + 2 * i * sqrt2)
+
+-- (i + sqrt2) * (i - sqrt2) = i^2 - 2 = -1 - 2 = -3
+assertEqual "(i+sqrt2)(i-sqrt2) = -3"
+  ((i + sqrt2) * (i - sqrt2))
+  (-3)
+
+-- 次数 4 の代数拡大なので、minimal polynomial は (x^2-2)(x^2+1) を法とする
+-- 自動的にこれが乗算で適用される (declare rule で reflexive)
+def x : Z_i_sqrt2 := (1 + i + sqrt2)^4
+-- 手計算: ((1 + i)^2 + 2*sqrt2*(1 + i) + 2)^2
+--       = (2*i + 2*sqrt2 + 2*i*sqrt2 + 2)^2 (using (1+i)^2 = 2i)
+--       = ... (CAS で展開)
+inspect x
+
+-- ノルム (4 つの共役の積)
+def norms (z : Z_i_sqrt2) : Integer :=
+  -- 4 つの自己同型 σ で (i,sqrt2) → (±i, ±sqrt2)
+  -- N(z) = ∏ σ(z) ∈ Z
+  -- ここでは概念だけ示す (本格実装は declare cas-subtype + galois 機構が要る)
+  ...
+
+-- ノルム計算が定義可能なら、Open: norms (1 + i + sqrt2) = ?

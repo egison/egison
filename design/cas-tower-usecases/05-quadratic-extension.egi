@@ -1,0 +1,65 @@
+-- Use case 05: 二次代数拡大 Z[√2] (Phase α)
+--
+-- Intent:
+--   √2 を symbol として導入し、(√2)^2 = 2 を declare rule で登録する。
+--   Z[√2] は `Poly Integer [sqrt2]` の alias として扱う。
+--   `(1 + √2)*(1 - √2) = -1` のような有理化計算が動く。
+--
+-- Required machinery:
+--   - Phase α (型 alias)
+--   - declare rule auto term (sqrt2)^2 = 2
+--   - 既存の sqrt 機構との衝突回避: ユーザは生 symbol `sqrt2` を使う
+--     (組み込み `sqrt` 関数とは別)
+--
+-- Open questions:
+--   - 既存の `sqrt 2` (lib の sqrt 関数呼び出し) と
+--     declare cas-type の `sqrt2` symbol の関係は?
+--     → user code 中での名前衝突を避けるため、symbol 名は明示的に
+--       `sqrt2` / `s2` 等のユニーク名を使う方針
+--   - 5th-root-of-unity 等の denesting (`sqrt(9 - 4*sqrt 5) = sqrt 5 - 2`)
+--     は CAS 簡約レベルの話で、この use case とは独立
+--   - 自動的な「(α^n の degree-n 多項式 → degree-(n-1) form) 還元」は
+--     declare rule auto を使えば書ける
+--
+-- Tests:
+
+declare symbol sqrt2
+declare rule auto term sqrt2^2 = 2
+declare cas-type Z_sqrt2 := Poly Integer [sqrt2]
+
+def a : Z_sqrt2 := 1 + sqrt2
+def b : Z_sqrt2 := 1 - sqrt2
+
+assertEqual "norm (1+√2)(1-√2) = -1"
+  (a * b)
+  (-1)
+
+assertEqual "(1 + √2)^2 = 3 + 2√2"
+  (a^2)
+  (3 + 2 * sqrt2)
+
+-- 共役
+def conj (z : Z_sqrt2) : Z_sqrt2 :=
+  -- sqrt2 の係数を符号反転 - termExpr matcher で処理
+  match z as termExpr with
+    | term $c (sqrt2, 1) :: $rest -> -c * sqrt2 + (foldl (+) 0 rest)
+    | _ -> z
+
+assertEqual "conj(3 + 2*sqrt2) = 3 - 2*sqrt2"
+  (conj (3 + 2 * sqrt2))
+  (3 - 2 * sqrt2)
+
+-- ノルム N(a + b√2) = a^2 - 2b^2 ∈ Z
+def norm (z : Z_sqrt2) : Integer := coerce (z * conj z)
+
+assertEqual "N(1+√2) = -1" (norm (1 + sqrt2)) (-1)
+assertEqual "N(3+2√2) = 1" (norm (3 + 2*sqrt2)) 1
+
+-- Pell 方程式の解は norm = 1 の Z[√2] 元: x^2 - 2*y^2 = 1
+-- 基本解 (3, 2) の冪を取れば全解が得られる
+def x1 := 3 + 2 * sqrt2  -- 基本解
+def x2 := x1 * x1        -- 期待: 17 + 12*sqrt2
+def x3 := x1^3           -- 期待: 99 + 70*sqrt2
+
+assertEqual "Pell solution 2" x2 (17 + 12 * sqrt2)
+assertEqual "Pell solution 3" x3 (99 + 70 * sqrt2)

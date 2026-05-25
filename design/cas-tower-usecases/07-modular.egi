@@ -1,0 +1,64 @@
+-- Use case 07: 剰余体 Z/nZ (Phase ε — 新 CASValue 構造)
+--
+-- Intent:
+--   `Z/7Z` のような剰余体を扱いたい。Integer の subtype ではなく、
+--   完全に独立した CAS 構造として扱う必要がある (演算後に必ず mod n される)。
+--
+-- Required machinery:
+--   - Phase ε: 新 CASValue constructor `CASModular Integer CASValue`
+--     または `CASIntMod Integer Integer` (modulus, value)
+--   - Math/CAS.hs に演算 (`casPlusMod`, `casMultMod`, etc.) 追加
+--   - declare cas-type で `Modular n` を type alias でなく **type constructor** として
+--     扱う (parameter を取る型)
+--
+-- Open questions:
+--   - `Modular n` の n は **値レベル**: 型システムでどう扱う?
+--     A. dependent typing (n を type-level integer に持ち上げ): 大規模
+--     B. type-level singleton (Mod7 := Modular 7 のように具体化): 限定的
+--     C. runtime-only: 型は単に `Modular Integer` で n は値で持つ: 簡単だが安全性低
+--     → MVP は B (具体的な n ごとに alias を declare)
+--   - 整数 → Modular n の自動昇格: subtype declaration で表現可
+--     `declare cas-subtype Integer ⊂ Mod7 where embed n := n mod 7`
+--   - Modular 同士の除算は逆元計算が必要 (Fermat の小定理 or 拡張 Euclid)
+--
+-- Tests (Plan B = 具体 alias で開始):
+
+declare cas-type Mod7 := Modular 7
+  -- `Modular 7` は組込み type constructor、内部は CASModular 7 (CASInteger _)
+
+-- 自動昇格
+declare cas-subtype Integer ⊂ Mod7 where
+  embed n := n mod 7   -- value-level reduction
+
+def a : Mod7 := 5
+def b : Mod7 := 4
+
+assertEqual "5 + 4 mod 7" (a + b) 2
+assertEqual "5 * 4 mod 7" (a * b) 6
+assertEqual "(-1) mod 7" (- 1 : Mod7) 6
+
+-- 乗法逆元 (a^{p-1} = 1 mod p から a^{-1} = a^{p-2})
+def inv (a : Mod7) : Mod7 := a^5
+assertEqual "inverse of 3 mod 7" (inv 3) 5  -- 3*5 = 15 = 1 mod 7
+
+-- 「modular の symbol」を組み合わせた poly: Mod7[x]
+declare cas-type Mod7Poly := Poly Mod7 [x]
+declare symbol x
+
+def p : Mod7Poly := 3*x^3 + 5*x + 6
+def q : Mod7Poly := 2*x^2 + 4*x + 1
+
+assertEqual "p + q in Mod7[x]"
+  (p + q)
+  (3*x^3 + 2*x^2 + 2*x)  -- (5+4)x = 9x ≡ 2x; 6+1 = 7 ≡ 0
+
+-- 大きな n も同様 (Plan B では n ごとに declare 必要)
+declare cas-type Mod1000003 := Modular 1000003
+
+def p_big : Mod1000003 := 999999
+assertEqual "p_big * 2" (p_big * 2) 999995  -- 1999998 mod 1000003
+
+-- Open question: Plan A (dependent typing) を将来採用するなら、
+-- 任意の n に対して Modular n が型として使える:
+--   def f (n : Integer) (a : Modular n) : Modular n := a^2 + a + 1
+-- ここまで行くには Egison の型システムを大幅に拡張する必要がある
