@@ -65,16 +65,18 @@ def pattern triplet (pat1 : Tile) (pat2 : [Tile]) : [Tile] := ($pat & ~pat1) :: 
 --
 def complete? : [Tile] -> Bool :=
   \match as multiset tile with
-    | pair
-        $th_1
-        (sequence $sh_1
-           (sequence $sh_2
-              (sequence $sh_3 (sequence $sh_4 [] | triplet $kh_1 [])
-                | triplet $kh_1 (triplet $kh_2 []))
-             | triplet $kh_1 (triplet $kh_2 (triplet $kh_3 [])))
-          | triplet $kh_1 (triplet $kh_2 (triplet $kh_3 (triplet $kh_4 []))))
-        | (pair $th_2 (pair $th_3 (pair $th_4 (pair $th_5 (pair $th_6 (pair $th_7 []))))))
-    -> True
+    -- 1 pair (eyes) + 4 sequences
+    | pair $th_1 (sequence $sh_1 (sequence $sh_2 (sequence $sh_3 (sequence $sh_4 [])))) -> True
+    -- 1 pair + 3 sequences + 1 triplet
+    | pair $th_1 (sequence $sh_1 (sequence $sh_2 (sequence $sh_3 (triplet $kh_1 [])))) -> True
+    -- 1 pair + 2 sequences + 2 triplets
+    | pair $th_1 (sequence $sh_1 (sequence $sh_2 (triplet $kh_1 (triplet $kh_2 [])))) -> True
+    -- 1 pair + 1 sequence + 3 triplets
+    | pair $th_1 (sequence $sh_1 (triplet $kh_1 (triplet $kh_2 (triplet $kh_3 [])))) -> True
+    -- 1 pair + 4 triplets
+    | pair $th_1 (triplet $kh_1 (triplet $kh_2 (triplet $kh_3 (triplet $kh_4 [])))) -> True
+    -- 7 pairs (seven-pairs hand)
+    | pair $th_1 (pair $th_2 (pair $th_3 (pair $th_4 (pair $th_5 (pair $th_6 (pair $th_7 [])))))) -> True
     | _ -> False
 
 --
