@@ -193,9 +193,32 @@ unifyG TensorConstraintAware ce cs (TMatcher b) (TTuple ts) =
 unifyG TensorConstraintAware ce cs (TTuple ts) (TMatcher b) =
   unifyMatcherWithTupleG ce cs b ts
 
+-- COERCE-SLOT-TUPLE: a tuple of matchers filling a product MatcherSlot
+-- (ConstraintAware mode only, reusing the Matcher/Tuple machinery).
+unifyG TensorConstraintAware ce cs (TMatcherSlot ts tt) (TTuple tys) =
+  coerceSlotTuple TensorConstraintAware ce cs ts tt tys
+unifyG TensorConstraintAware ce cs (TTuple tys) (TMatcherSlot ts tt) =
+  coerceSlotTuple TensorConstraintAware ce cs ts tt tys
+
 -- Matcher types
 unifyG mode ce cs (TMatcher t1) (TMatcher t2) =
   unifyNormalized mode ce cs t1 t2
+
+-- MatcherSlot types (two components: structural type and target type)
+unifyG mode ce cs (TMatcherSlot s1 t1) (TMatcherSlot s2 t2) = do
+  (sub1, f1) <- unifyNormalized mode ce cs s1 s2
+  let cs' = map (applySubstConstraint sub1) cs
+  (sub2, f2) <- unifyNormalized mode ce cs' (applySubst sub1 t1) (applySubst sub1 t2)
+  Right (composeSubst sub2 sub1, f1 || f2)
+
+-- COERCE-MATCHER-TO-SLOT: a Matcher value filling a MatcherSlot consumer position
+-- (bidirectional: the Matcher value may appear on either side of the unification).
+-- Dual check (see 'coerceMatcherToSlot'): structural admissibility, checked one-way on the
+-- intrinsic matcher type BEFORE the target unification, plus target unifiability.
+unifyG mode ce cs (TMatcher tm) (TMatcherSlot ts tt) =
+  coerceMatcherToSlot mode ce cs tm ts tt
+unifyG mode ce cs (TMatcherSlot ts tt) (TMatcher tm) =
+  coerceMatcherToSlot mode ce cs tm ts tt
 
 -- Function types (two components with substitution threading)
 unifyG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
@@ -377,28 +400,118 @@ unifyMatcherWithTupleG classEnv constraints b ts = do
       constraints' = map (applySubstConstraint s1) constraints
   (s2, flag2) <- unifyNormalized TensorConstraintAware classEnv constraints' (applySubst s1 b) tupleType
   Right (composeSubst s2 s1, flag1 || flag2)
+
+-- | Treat each element of a tuple as a matcher and extract its inner type,
+-- threading a substitution.  Result: the list of inner types c1..ck such that
+-- each ti unifies with @Matcher ci@.  Shared by 'unifyMatcherWithTupleG' (Matcher
+-- side) and 'coerceSlotTuple' (MatcherSlot side).
+unifyEachAsMatcher :: ClassEnv -> [Constraint] -> [Type] -> Subst -> Either UnifyError ([Type], Subst, Bool)
+unifyEachAsMatcher _ _ [] s = Right ([], s, False)
+unifyEachAsMatcher env cons (t:rest) s = do
+  let t' = applySubst s t
+      cons' = map (applySubstConstraint s) cons
+  (innerType, s1, flag1) <- case t' of
+    TMatcher inner -> Right (inner, emptySubst, False)
+    -- A MatcherSlot element (e.g. a slot-typed parameter used in a next-matcher
+    -- tuple like @(m, list m)@): its target component is its inner type.
+    TMatcherSlot _ tt -> Right (tt, emptySubst, False)
+    TVar v -> do
+      let innerVar = TyVar (getTyVarName v ++ "'")
+          innerTy = TVar innerVar
+      (s', flag) <- unifyNormalized TensorConstraintAware env cons' t' (TMatcher innerTy)
+      Right (applySubst s' innerTy, s', flag)
+    _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
+
+  let s2 = composeSubst s1 s
+      cons'' = map (applySubstConstraint s2) cons
+  (restInnerTypes, s3, flag2) <- unifyEachAsMatcher env cons'' rest s2
+  Right (applySubst s3 innerType : restInnerTypes, s3, flag1 || flag2)
+
+getTyVarName :: TyVar -> String
+getTyVarName (TyVar name) = name
+
+--------------------------------------------------------------------------------
+-- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)
+--------------------------------------------------------------------------------
+
+-- | Coerce a Matcher value of intrinsic type @tm@ into a slot @MatcherSlot ts tt@.
+-- Dual check:
+--   (1) structural admissibility: @ts@ can be specialized (one-way, binding only
+--       @ts@'s variables) to @tm@.  Checked FIRST, on the intrinsic @tm@, so that e.g.
+--       @something : Matcher a@ is rejected at a constructor-headed slot (its @a@ has
+--       not yet been concretized by the target unification).
+--   (2) target unifiability: @tm ~ tt@.
+coerceMatcherToSlot :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Type
+                    -> Either UnifyError (Subst, Bool)
+coerceMatcherToSlot mode ce cs tm ts tt =
+  case matchOneWay ts tm of
+    Nothing   -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot ts tt)
+    Just subS -> do
+      let cs' = map (applySubstConstraint subS) cs
+      (subT, flagT) <- unifyNormalized mode ce cs' (applySubst subS tm) (applySubst subS tt)
+      Right (composeSubst subT subS, flagT)
+
+-- | COERCE-SLOT-TUPLE: a tuple of matchers @(m1, ..., mk)@ filling a product slot
+-- @MatcherSlot ts tt@.  Fold the tuple into a single Matcher whose inner type is
+-- the tuple of element inner types (reusing 'unifyEachAsMatcher'), then apply the
+-- standard COERCE-MATCHER-TO-SLOT dual check.  This is what lets a matcher
+-- constructor whose element parameter is a slot (e.g. @list (m : MatcherSlot a a)@)
+-- still accept a tuple matcher such as @(m, integer)@ — the past blocker.
+coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> [Type]
+                -> Either UnifyError (Subst, Bool)
+coerceSlotTuple mode ce cs ts tt tys = do
+  (innerTypes, s1, flag1) <- unifyEachAsMatcher ce cs tys emptySubst
+  let tm  = TTuple innerTypes
+      cs' = map (applySubstConstraint s1) cs
+  (s2, flag2) <- coerceMatcherToSlot mode ce cs'
+                   (applySubst s1 tm) (applySubst s1 ts) (applySubst s1 tt)
+  Right (composeSubst s2 s1, flag1 || flag2)
+
+-- | One-way matching: is there a substitution over @slot@'s type variables making
+-- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
+-- A variable-headed @slot@ admits any matcher (bind the variable); a constructor- or
+-- concrete-headed @slot@ rejects a bare-variable matcher (e.g. @something@). Repeated
+-- slot variables are matched consistently (resolved via the accumulated substitution).
+matchOneWay :: Type -> Type -> Maybe Subst
+matchOneWay slot0 matcher0 = go [(slot0, matcher0)] emptySubst
   where
-    unifyEachAsMatcher :: ClassEnv -> [Constraint] -> [Type] -> Subst -> Either UnifyError ([Type], Subst, Bool)
-    unifyEachAsMatcher _ _ [] s = Right ([], s, False)
-    unifyEachAsMatcher env cons (t:rest) s = do
-      let t' = applySubst s t
-          cons' = map (applySubstConstraint s) cons
-      (innerType, s1, flag1) <- case t' of
-        TMatcher inner -> Right (inner, emptySubst, False)
-        TVar v -> do
-          let innerVar = TyVar (getTyVarName v ++ "'")
-              innerTy = TVar innerVar
-          (s', flag) <- unifyNormalized TensorConstraintAware env cons' t' (TMatcher innerTy)
-          Right (applySubst s' innerTy, s', flag)
-        _ -> Left $ TypeMismatch (TMatcher (TVar (TyVar "?"))) t'
+    go [] acc = Just acc
+    go ((s, t) : rest) acc =
+      case applySubst acc s of
+        TVar v -> go rest (composeSubst (singletonSubst v t) acc)
+        s'     -> matchStruct s' t rest acc
+    matchStruct (TCollection a) (TCollection b) rest acc = go ((a, b) : rest) acc
+    matchStruct (TTuple as) (TTuple bs) rest acc
+      | length as == length bs = go (zip as bs ++ rest) acc
+    matchStruct (TInductive n as) (TInductive m bs) rest acc
+      | n == m && length as == length bs = go (zip as bs ++ rest) acc
+    matchStruct (TTensor a) (TTensor b) rest acc = go ((a, b) : rest) acc
+    matchStruct (THash k1 v1) (THash k2 v2) rest acc = go ((k1, k2) : (v1, v2) : rest) acc
+    matchStruct (TFun a1 r1) (TFun a2 r2) rest acc = go ((a1, a2) : (r1, r2) : rest) acc
+    matchStruct (TMatcher a) (TMatcher b) rest acc = go ((a, b) : rest) acc
+    matchStruct (TMatcherSlot s1 t1) (TMatcherSlot s2 t2) rest acc = go ((s1, s2) : (t1, t2) : rest) acc
+    matchStruct (TIO a) (TIO b) rest acc = go ((a, b) : rest) acc
+    matchStruct (TIORef a) (TIORef b) rest acc = go ((a, b) : rest) acc
+    matchStruct a b rest acc
+      | a == b          = go rest acc   -- base types match exactly
+      | groundEquiv a b = go rest acc   -- CAS ground equivalence (Integer ~ MathValue ~ Factor/Term/Frac/Poly)
+      | otherwise       = Nothing
 
-      let s2 = composeSubst s1 s
-          cons'' = map (applySubstConstraint s2) cons
-      (restInnerTypes, s3, flag2) <- unifyEachAsMatcher env cons'' rest s2
-      Right (applySubst s3 innerType : restInnerTypes, s3, flag1 || flag2)
-
-    getTyVarName :: TyVar -> String
-    getTyVarName (TyVar name) = name
+-- | CAS ground-type equivalence: the closed, ClassEnv-free subtype/widening
+-- rules of 'unifyG' (Integer, MathValue, Factor, Term, Frac, Poly are mutually
+-- equivalent at the ground level).  This lets 'matchOneWay' admit a concrete CAS
+-- matcher at a concrete CAS slot — e.g. @integer : Matcher Integer@ filling the
+-- @MatcherSlot MathValue MathValue@ that the body of @term@/@poly@/@frac@ pins.
+groundEquiv :: Type -> Type -> Bool
+groundEquiv a b = isCASGround a && isCASGround b
+  where
+    isCASGround TInt        = True
+    isCASGround TMathValue  = True
+    isCASGround TFactor     = True
+    isCASGround (TTerm _ _) = True
+    isCASGround (TFrac _)   = True
+    isCASGround (TPoly _ _) = True
+    isCASGround _           = False
 
 --------------------------------------------------------------------------------
 -- CAS Symbol Set Unification

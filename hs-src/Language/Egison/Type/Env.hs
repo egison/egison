@@ -214,6 +214,7 @@ instantiate (Forall vs cs t) counter =
     substVar old new (TTensor t') = TTensor (substVar old new t')
     substVar old new (THash k v) = THash (substVar old new k) (substVar old new v)
     substVar old new (TMatcher t') = TMatcher (substVar old new t')
+    substVar old new (TMatcherSlot s' t') = TMatcherSlot (substVar old new s') (substVar old new t')
     substVar old new (TFun t1 t2) = TFun (substVar old new t1) (substVar old new t2)
     substVar old new (TIO t') = TIO (substVar old new t')
     substVar old new (TIORef t') = TIORef (substVar old new t')

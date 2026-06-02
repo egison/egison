@@ -273,6 +273,7 @@ instance Pretty TypeExpr where
   pretty (TETuple ts) = parens (hsep (punctuate comma (map pretty ts)))
   pretty (TEFun t1 t2) = pretty t1 <+> pretty "->" <+> pretty t2
   pretty (TEMatcher t) = pretty "Matcher" <+> pretty t
+  pretty (TEMatcherSlot s t) = pretty "MatcherSlot" <+> pretty s <+> pretty t
   pretty (TEPattern t) = pretty "Pattern" <+> pretty t
   pretty (TEIO t) = pretty "IO" <+> pretty t
   pretty (TETensor t) = pretty "Tensor" <+> pretty t
@@ -935,6 +936,7 @@ prettyTypeDoc (Types.THash k v) =
     prettyHashValueTypeDoc t@(Types.TFun _ _) = parens (prettyTypeDoc t)
     prettyHashValueTypeDoc t = prettyTypeDoc t
 prettyTypeDoc (Types.TMatcher t) = pretty "Matcher" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TMatcherSlot s t) = pretty "MatcherSlot" <+> prettyTypeDoc s <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIO t) = pretty "IO" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIORef t) = pretty "IORef" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TTensor t) = pretty "Tensor" <+> prettyTypeDoc t

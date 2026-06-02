@@ -203,7 +203,7 @@ def not (b: Bool) : Bool := if b then False else True
 -- Unordered Pair
 --
 
-def unorderedPair {a} (m: Matcher a) : Matcher (a, a) :=
+def unorderedPair {a} (m: MatcherSlot a a) : Matcher (a, a) :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]

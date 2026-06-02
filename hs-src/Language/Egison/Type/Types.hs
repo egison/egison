@@ -120,6 +120,7 @@ data Type
   | TTensor Type                      -- ^ Tensor type (only element type is kept). Vector and Matrix are aliases for Tensor
   | THash Type Type                   -- ^ Hash map type
   | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
+  | TMatcherSlot Type Type            -- ^ Matcher consumer position, e.g., MatcherSlot tau_s tau_t (structural type / target type)
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
   | TIO Type                          -- ^ IO type (for IO actions)
   | TIORef Type                       -- ^ IORef type
@@ -207,6 +208,7 @@ freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
 freeTyVars (TTensor t)      = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
 freeTyVars (TMatcher t)     = freeTyVars t
+freeTyVars (TMatcherSlot s t) = freeTyVars s `Set.union` freeTyVars t
 freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
@@ -316,6 +318,7 @@ typeConstructorName (TTuple _) = "Tuple"
 typeConstructorName (TTensor _) = "Tensor"
 typeConstructorName (THash _ _) = "Hash"
 typeConstructorName (TMatcher _) = "Matcher"
+typeConstructorName (TMatcherSlot _ _) = "MatcherSlot"
 typeConstructorName (TFun _ _) = "Fun"
 typeConstructorName (TIO _) = "IO"
 typeConstructorName (TIORef _) = "IORef"
@@ -372,6 +375,7 @@ typeExprToType (TEVector elemT) = TTensor (typeExprToType elemT)  -- Vector is a
 typeExprToType (TEMatrix elemT) = TTensor (typeExprToType elemT)  -- Matrix is an alias for Tensor
 typeExprToType (TEDiffForm elemT) = TTensor (typeExprToType elemT)  -- DiffForm is an alias for Tensor
 typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
+typeExprToType (TEMatcherSlot s t) = TMatcherSlot (typeExprToType s) (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
@@ -411,6 +415,7 @@ normalizeInductiveTypes (TTuple ts) = TTuple (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t)
 normalizeInductiveTypes (THash k v) = THash (normalizeInductiveTypes k) (normalizeInductiveTypes v)
 normalizeInductiveTypes (TMatcher t) = TMatcher (normalizeInductiveTypes t)
+normalizeInductiveTypes (TMatcherSlot s t) = TMatcherSlot (normalizeInductiveTypes s) (normalizeInductiveTypes t)
 normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (normalizeInductiveTypes ret)
 normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)

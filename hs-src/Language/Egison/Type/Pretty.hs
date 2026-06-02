@@ -46,6 +46,7 @@ prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyHashVa
     prettyHashValueType t@(TFun _ _) = "(" ++ prettyType t ++ ")"
     prettyHashValueType t            = prettyTypeAtom t
 prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
+prettyType (TMatcherSlot s t) = "MatcherSlot " ++ prettyTypeAtom s ++ " " ++ prettyTypeAtom t
 prettyType (TFun t1 t2)     = prettyTypeArg t1 ++ " -> " ++ prettyType t2
   where
     prettyTypeArg t@(TFun _ _) = "(" ++ prettyType t ++ ")"
@@ -143,6 +144,7 @@ prettyTypeExpr (TEFun t1 t2)  = prettyTypeExprArg t1 ++ " -> " ++ prettyTypeExpr
     prettyTypeExprArg t@(TEFun _ _) = "(" ++ prettyTypeExpr t ++ ")"
     prettyTypeExprArg t             = prettyTypeExpr t
 prettyTypeExpr (TEMatcher t)  = "Matcher " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEMatcherSlot s t) = "MatcherSlot " ++ prettyTypeExprAtom s ++ " " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPattern t)  = "Pattern " ++ prettyTypeExprAtom t
 prettyTypeExpr (TETensor t) = "Tensor " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEApp t args) =

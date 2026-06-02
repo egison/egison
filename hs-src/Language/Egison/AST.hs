@@ -485,6 +485,7 @@ data TypeExpr
   | TETuple [TypeExpr]                 -- ^ Tuple type, e.g., (a, b)
   | TEFun TypeExpr TypeExpr            -- ^ Function type, e.g., a -> b
   | TEMatcher TypeExpr                 -- ^ Matcher type
+  | TEMatcherSlot TypeExpr TypeExpr    -- ^ MatcherSlot type, e.g., MatcherSlot a a (structural / target)
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
   | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
   | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a

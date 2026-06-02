@@ -445,6 +445,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
         go (TTensor t) = TTensor (go t)
         go (THash k v) = THash (go k) (go v)
         go (TMatcher t) = TMatcher (go t)
+        go (TMatcherSlot s t) = TMatcherSlot (go s) (go t)
         go (TFun t1 t2) = TFun (go t1) (go t2)
         go (TIO t) = TIO (go t)
         go (TIORef t) = TIORef (go t)

@@ -778,6 +778,7 @@ typeAtomSimple =
   <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
+  <|> try matcherSlotTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -804,6 +805,7 @@ typeAtom =
   <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
+  <|> try matcherSlotTypeExpr
   <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -821,7 +823,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
+    typeReservedKeywords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "MatcherSlot", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -876,6 +878,17 @@ polyTypeExpr = do
   symbolSet <- symbolSetExpr
   return $ TEPoly coeffType symbolSet
 
+-- | Parse a MatcherSlot type. "MatcherSlot a b" reads two atoms (structural / target);
+-- "MatcherSlot a" is sugar for "MatcherSlot a a".
+matcherSlotTypeExpr :: Parser TypeExpr
+matcherSlotTypeExpr = do
+  _ <- reserved "MatcherSlot"
+  s <- typeAtomOrParenType
+  mt <- optional typeAtomOrParenType
+  return $ case mt of
+    Just t  -> TEMatcherSlot s t
+    Nothing -> TEMatcherSlot s s
+
 -- | Parse a symbol set expression
 -- Either [..] for open, or [x, y, sqrt 2, sin x, ...] for closed.
 -- Closed slots accept simple identifiers as well as function-applied forms
@@ -914,7 +927,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Term", "Frac", "Poly"]
+    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "MatcherSlot", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Term", "Frac", "Poly"]
 
 expr :: Parser Expr
 expr = do

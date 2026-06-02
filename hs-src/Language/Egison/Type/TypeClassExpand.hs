@@ -101,6 +101,7 @@ extractTypeSubstitutions instTy actualTy = go instTy actualTy
     go (THash instK instV) (THash actualK actualV) =
       go instK actualK ++ go instV actualV
     go (TMatcher instT) (TMatcher actualT) = go instT actualT
+    go (TMatcherSlot instS instT) (TMatcherSlot actualS actualT) = go instS actualS ++ go instT actualT
     go (TIO instT) (TIO actualT) = go instT actualT
     go (TIORef instT) (TIORef actualT) = go instT actualT
     go TPort TPort = []
@@ -130,6 +131,7 @@ applySubstsToType substs = go
     go (TTensor t) = TTensor (go t)
     go (THash k v) = THash (go k) (go v)
     go (TMatcher t) = TMatcher (go t)
+    go (TMatcherSlot s t) = TMatcherSlot (go s) (go t)
     go (TFun t1 t2) = TFun (go t1) (go t2)
     go (TIO t) = TIO (go t)
     go (TIORef t) = TIORef (go t)

@@ -229,6 +229,7 @@ prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyType args)
 prettyType (TTensor t) = "Tensor " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
 prettyType (TMatcher t) = "Matcher " ++ prettyType t
+prettyType (TMatcherSlot s t) = "MatcherSlot " ++ prettyType s ++ " " ++ prettyType t
 prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t

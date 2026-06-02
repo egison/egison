@@ -252,6 +252,7 @@ freshenOpenSymbolSets ty = case ty of
   TTensor t -> TTensor <$> freshenOpenSymbolSets t
   THash k v -> THash <$> freshenOpenSymbolSets k <*> freshenOpenSymbolSets v
   TMatcher t -> TMatcher <$> freshenOpenSymbolSets t
+  TMatcherSlot s t -> TMatcherSlot <$> freshenOpenSymbolSets s <*> freshenOpenSymbolSets t
   TFun t1 t2 -> TFun <$> freshenOpenSymbolSets t1 <*> freshenOpenSymbolSets t2
   TIO t -> TIO <$> freshenOpenSymbolSets t
   TIORef t -> TIORef <$> freshenOpenSymbolSets t
@@ -1177,6 +1178,8 @@ inferIExprWithContext expr ctx = case expr of
         0 -> case matcherType of
           -- No pattern holes, but extract inner type to allow error detection
           TMatcher innerType -> return [innerType]
+          -- A MatcherSlot used as a next-matcher: its target component is the inner type.
+          TMatcherSlot _ tt -> return [tt]
           TTuple types -> do
             let matcherInners = mapM extractMatcherInner types
             case matcherInners of
@@ -1185,6 +1188,7 @@ inferIExprWithContext expr ctx = case expr of
           _ -> return []  -- Not a matcher type
         1 -> case matcherType of
           TMatcher innerType -> return [innerType]  -- Single hole: return inner type as-is
+          TMatcherSlot _ tt -> return [tt]          -- A slot next-matcher: target component
           -- Special case: (Matcher a, Matcher b, ...) from ITupleExpr that failed to convert
           -- This can happen when matcher parameters are used before ITupleExpr conversion
           TTuple types -> do
@@ -1211,6 +1215,15 @@ inferIExprWithContext expr ctx = case expr of
                      matcherType
                      ("Expected Matcher with tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
                      ctx
+          -- A product MatcherSlot used as a next-matcher: target tuple component.
+          TMatcherSlot _ (TTuple innerTypes) ->
+            if length innerTypes == n
+              then return innerTypes
+              else throwError $ TE.TypeMismatch
+                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
+                     matcherType
+                     ("Expected Matcher with tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
+                     ctx
           -- Special case: (Matcher a, Matcher b, ...) - extract inner types directly
           TTuple types -> do
             let matcherInners = mapM extractMatcherInner types
@@ -1230,6 +1243,7 @@ inferIExprWithContext expr ctx = case expr of
       -- Helper: Extract inner type from Matcher a -> Just a, otherwise Nothing
       extractMatcherInner :: Type -> Maybe Type
       extractMatcherInner (TMatcher t) = Just t
+      extractMatcherInner (TMatcherSlot _ tt) = Just tt
       extractMatcherInner _ = Nothing
       
       -- Infer a data clause with type checking
@@ -1638,6 +1652,19 @@ inferIExprWithContext expr ctx = case expr of
     let s123 = composeSubst s3 s12
     targetType' <- applySubstWithConstraintsM s123 targetType
     matchedInnerType' <- applySubstWithConstraintsM s123 matchedInnerType
+    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: a bare-variable matcher (e.g. `something`,
+    -- or a generic `Matcher a` parameter) is not structurally admissible at a constructor
+    -- pattern.  Checked here on the matcher's *intrinsic* inner type, before the target
+    -- unification below concretizes it.  (A concrete matcher whose inner type mismatches the
+    -- pattern is rejected by that unification instead.)
+    case matchedInnerType' of
+      TVar _ | any (isConstructorHeadedPattern . fst) clauses ->
+        throwError $ TE.TypeMismatch
+          (TMatcherSlot targetType' targetType')
+          (TMatcher matchedInnerType')
+          "a bare-variable matcher (e.g. `something`) is not structurally admissible at a constructor pattern; use a structured matcher such as `list`/`multiset`/`set`"
+          exprCtx
+      _ -> return ()
     s4 <- unifyTypesWithContext targetType' matchedInnerType' exprCtx
     
     -- Infer match clauses result type
@@ -1697,6 +1724,19 @@ inferIExprWithContext expr ctx = case expr of
     let s123 = composeSubst s3 s12
     targetType' <- applySubstWithConstraintsM s123 targetType
     matchedInnerType' <- applySubstWithConstraintsM s123 matchedInnerType
+    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: a bare-variable matcher (e.g. `something`,
+    -- or a generic `Matcher a` parameter) is not structurally admissible at a constructor
+    -- pattern.  Checked here on the matcher's *intrinsic* inner type, before the target
+    -- unification below concretizes it.  (A concrete matcher whose inner type mismatches the
+    -- pattern is rejected by that unification instead.)
+    case matchedInnerType' of
+      TVar _ | any (isConstructorHeadedPattern . fst) clauses ->
+        throwError $ TE.TypeMismatch
+          (TMatcherSlot targetType' targetType')
+          (TMatcher matchedInnerType')
+          "a bare-variable matcher (e.g. `something`) is not structurally admissible at a constructor pattern; use a structured matcher such as `list`/`multiset`/`set`"
+          exprCtx
+      _ -> return ()
     s4 <- unifyTypesWithContext targetType' matchedInnerType' exprCtx
     
     -- MatchAll returns a collection of results from match clauses
@@ -2026,6 +2066,29 @@ inferIExprWithContext expr ctx = case expr of
     -- dispatch.
     innerTI' <- applySubstToTIExprM finalSubst innerTI
     return (mkTIExpr finalTy (TIReshape finalTy innerTI'), finalSubst)
+
+-- | Is this pattern constructor-headed, i.e., does matching it require the matcher to
+-- decompose via a pattern constructor?  If so, a bare-variable matcher (such as @something@,
+-- or a generic @Matcher a@ parameter) is not structurally admissible at it (paper
+-- COERCE-MATCHER-TO-SLOT / per-use-site structural admissibility).  Value patterns,
+-- variable/wildcard patterns, and tuple patterns are not constructor-headed (the last is
+-- handled by the product-matcher path).
+isConstructorHeadedPattern :: IPattern -> Bool
+isConstructorHeadedPattern p = case p of
+  IInductivePat{}         -> True
+  IInductiveOrPApplyPat{} -> True
+  IDApplyPat{}            -> True
+  IPApplyPat{}            -> True
+  ISeqNilPat              -> True
+  ISeqConsPat{}           -> True
+  ILoopPat _ _ q r        -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
+  INotPat q               -> isConstructorHeadedPattern q
+  IAndPat q r             -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
+  IOrPat q r              -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
+  IForallPat q r          -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
+  ILetPat _ q             -> isConstructorHeadedPattern q
+  IIndexedPat q _         -> isConstructorHeadedPattern q
+  _                       -> False
 
 -- | Infer match clauses type
 -- All clauses should return the same type
