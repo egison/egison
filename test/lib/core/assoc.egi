@@ -1,4 +1,4 @@
-declare symbol x, y, z: MathExpr
+declare symbol x, y, z: MathValue
 
 assertEqual "toAssoc"
   (toAssoc [x, x, y, z])
@@ -17,22 +17,22 @@ assertEqual "toAssoc to get keys"
   [x, y]
 
 assertEqual "assocMultiset"
-  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset something with
+  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset integer with
     | (#z, $n) :: $r -> (n, r))
   [(1, [(x, 3), (y, 2)])]
 
 assertEqual "assocMultiset"
-  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset something with
+  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset integer with
     | ($a, #2) :: $r -> (a, r))
   [(x, [(x, 1), (y, 2), (z, 1)]), (y, [(x, 3), (z, 1)])]
 
 assertEqual "assocMultiset"
-  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset something with
+  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset integer with
     | (#y, #1) :: $r -> r)
   [[(x, 3), (y, 1), (z, 1)]]
 
 assertEqual "assocMultiset"
-  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset something with
+  (matchAll [(x, 3), (y, 2), (z, 1)] as assocMultiset integer with
     | ($a, $n) :: $r -> (a, n, r))
   [(x, 3, [(y, 2), (z, 1)]), (y, 2, [(x, 3), (z, 1)]), (z, 1, [(x, 3), (y, 2)])]
 

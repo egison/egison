@@ -26,7 +26,7 @@ import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM, EgisonError(..))
-import           Language.Egison.EvalState  (ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval(getConstructorEnv), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
@@ -69,10 +69,14 @@ data EnvBuildResult = EnvBuildResult
 -- It must be called AFTER expandLoads (Phase 1) and BEFORE type inference (Phase 5).
 buildEnvironments :: [TopExpr] -> EvalM EnvBuildResult
 buildEnvironments exprs = do
-  -- Names of value-level inductive types declared in this batch (e.g. `inductive Nat`).
-  -- Used to keep explicit signatures like `nat : Matcher Nat` concrete instead of
-  -- generalizing the bare type name into a type variable (see concretizeDeclaredTypes).
-  let declaredTypes = Set.fromList [ n | InductiveDecl n _ _ <- exprs ]
+  -- Names of value-level inductive types: this batch's `inductive` declarations PLUS the
+  -- types already registered by earlier load units (the accumulated constructor env).
+  -- Cross-batch coverage matters because a matcher defined in file B over a type declared
+  -- in file A must still keep that type concrete in its signature (see concretizeDeclaredTypes);
+  -- B's TopExpr list alone would not mention `inductive A`.
+  priorCtorEnv <- getConstructorEnv
+  let declaredTypes = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
+                                    ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ])
   -- Start with empty environments
   let initialResult = EnvBuildResult
         { ebrTypeEnv = emptyEnv

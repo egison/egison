@@ -1054,32 +1054,35 @@ inferIExprWithContext expr ctx = case expr of
         -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
         nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
 
-        -- Paper PP-Con (Def 4.2(1a)) — matcher-definition-time structural admissibility, as an
-        -- opt-in warning (gated like Coverage, --matcher-consistency-warnings).  A bare-variable next
-        -- matcher (`something`, or a `Matcher a` parameter) at a constructor-/concrete-headed
-        -- hole is not structurally admissible (the paper's `weird` matcher).  Recursive next
-        -- matchers (`list m`/`multiset m`) resolve to their declared list type, so they are NOT
-        -- flagged; only genuinely bare-variable inners are.  A hard error would also reject the
-        -- CAS matchers (`term`/`poly` use `something`/`m` at MathValue/String holes — paper-
-        -- non-compliant, like Coverage), so it is surfaced as a warning rather than an error.
-        ppconOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
-        if ppconOn
-          then do
-            -- Flag the built-in bare-variable matcher `something` (the T-SOME matcher) at a
-            -- constructor-/concrete-headed hole (non-variable hole type).  Checked syntactically
-            -- on the literal `something`: a slot-typed parameter (`m : MatcherSlot a a`) is
-            -- deferrable, and a recursive/structured next matcher (`list m`, `multiset m`) meets
-            -- the demand, so neither is flagged — while `something`'s genuinely polymorphic
-            -- bare matcher is.  (A variable-headed hole — the catch-all's $, or an element hole
-            -- — admits `something`, so it is not flagged.)
-            let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
-            mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
-                     (TVar _, _)                      -> return ()
-                     (_, IConstantExpr SomethingExpr) ->
-                       addWarning $ MatcherNextMatcherWarning holeTy (prettyStr comp) ctx
-                     _                                -> return ())
-                  (zip patternHoleTypes' comps)
-          else return ()
+        -- Paper PP-Con (Def 4.2(1a)) — matcher-definition-time structural admissibility, now a
+        -- HARD ERROR.  The built-in bare-variable matcher `something` (the T-SOME matcher) at a
+        -- constructor-/concrete-headed hole is not structurally admissible (the paper's `weird`
+        -- matcher: it cannot decompose the hole's structure, so a pattern through it gets stuck).
+        -- Checked syntactically on the literal `something`.  Exempt:
+        --   * a variable-headed hole (`TVar` — the catch-all's $, or a polymorphic element hole):
+        --     `something` legitimately binds it;
+        --   * a function-typed hole (`TFun` — e.g. `apply1`'s `MathValue -> MathValue` argument):
+        --     functions have no constructors to decompose, so `something` (bind only) is the only
+        --     sound matcher.
+        -- A slot-typed parameter (`m : MatcherSlot a a`) and a recursive/structured next matcher
+        -- (`list m`/`multiset m`) are not literal `something`, so they are never flagged.  The CAS
+        -- matchers were made compliant (symbol's String hole uses `string`; apply's function holes
+        -- are exempt), so this no longer rejects the stdlib.  (Coverage, Def 4.2(3), stays an
+        -- opt-in warning — partial matchers are intentional.)
+        let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
+        mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
+                 (TVar _, _)                      -> return ()
+                 (TFun _ _, _)                    -> return ()
+                 (_, IConstantExpr SomethingExpr) ->
+                   throwError $ TE.TypeMismatch
+                     (TMatcherSlot holeTy holeTy)
+                     (TMatcher (TVar (TyVar "a")))
+                     ("the next matcher `" ++ prettyStr comp ++ "` is a bare-variable matcher, " ++
+                      "not structurally admissible at a constructor-headed hole (paper PP-Con, " ++
+                      "Def 4.2(1a)); use a concrete matcher for that hole's type")
+                     ctx
+                 _                                -> return ())
+              (zip patternHoleTypes' comps)
 
         -- Unify pattern hole types (inner types) with next matcher inner types
         s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx

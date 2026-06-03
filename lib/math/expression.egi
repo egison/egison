@@ -92,7 +92,7 @@ def mathValue : Matcher MathValue :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []
-    | symbol $ $ as (something, list indexExpr) with
+    | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
@@ -164,7 +164,7 @@ def symbol : Matcher MathValue := mathValue
 -- pattern signature is `as (factor, integer)` (e.g. `$fx ^ $n`).
 def factor : Matcher Factor :=
   matcher
-    | symbol $ $ as (something, list indexExpr) with
+    | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
@@ -224,7 +224,7 @@ def term {a} (m: MatcherSlot a a) : Matcher (Term a [..]) :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []
-    | symbol $ $ as (something, list indexExpr) with
+    | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
@@ -283,7 +283,7 @@ def poly {a} (m: MatcherSlot a a) : Matcher MathValue :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []
-    | symbol $ $ as (something, list indexExpr) with
+    | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
@@ -346,7 +346,7 @@ def frac {a} (m: MatcherSlot a a) : Matcher MathValue :=
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
         | _ -> []
-    | symbol $ $ as (something, list indexExpr) with
+    | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
             [(v, js)]
         | _ -> []
