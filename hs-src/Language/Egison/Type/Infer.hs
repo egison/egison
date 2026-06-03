@@ -130,13 +130,13 @@ data InferState = InferState
   , inferPatternFuncEnv :: PatternTypeEnv  -- ^ Pattern function environment (for disambiguation)
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
-  , inferInMatcherBody :: Bool           -- ^ True while inferring a `matcher` body: the
-                                          --   match-site admissibility check (T-MATCHALL) is
-                                          --   suspended there, because generated/recursive
-                                          --   matchers (e.g. algebraicDataMatcher's internal
-                                          --   `(M, M)`) have not-yet-resolved inner types that
-                                          --   the structural check cannot distinguish from a
-                                          --   genuinely polymorphic `something`.
+  , inferInMatcherBody :: Bool           -- ^ True while inferring a `matcher` body.  The match-site
+                                          --   admissibility check (T-MATCHALL) runs normally here —
+                                          --   match-sites nested in a matcher body are genuinely
+                                          --   type-checked.  This flag only suppresses matcher-
+                                          --   Coverage (Def 4.2(3)) warnings for nested / generated
+                                          --   matchers, whose constructor set is an implementation
+                                          --   detail rather than a user-facing matcher.
   } deriving (Show)
 
 -- | Initial inference state
@@ -971,10 +971,9 @@ inferIExprWithContext expr ctx = case expr of
              exprCtx
     -- Infer type of each pattern definition (matcher clause)
     -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
-    -- Suspend the match-site admissibility check (T-MATCHALL) inside the matcher body:
-    -- next matchers / generated internal matches reference recursive matchers whose inner
-    -- types are not yet resolved here.  Their own structural admissibility is handled by the
-    -- next-matcher slot check (PP-Con) instead.
+    -- Mark that we are inside a matcher body.  Match-sites nested here are still fully checked
+    -- for admissibility (T-MATCHALL); this flag only suppresses matcher-Coverage warnings for
+    -- the nested / generated matchers a body may build (see `inferInMatcherBody`).
     savedInMB <- gets inferInMatcherBody
     modify $ \st -> st { inferInMatcherBody = True }
     results <- mapM (inferPatternDef exprCtx) patDefs
@@ -2171,9 +2170,7 @@ patternStructuralType pat ctx = do
 -- unannotated parameter (a type variable), commits it to a slot type, so generic combinators
 -- type-check and defer the check to their use site.
 checkMatcherAdmissibility :: TypeErrorContext -> Type -> Type -> [IMatchClause] -> Subst -> Infer Subst
-checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = do
-  inMatcherBody <- gets inferInMatcherBody
-  if inMatcherBody then return s0 else foldM step s0 clauses
+checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = foldM step s0 clauses
   where
     step accS (pat, _body) = do
       tau_p      <- patternStructuralType pat ctx
