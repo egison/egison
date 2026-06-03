@@ -91,15 +91,16 @@ import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 data InferConfig = InferConfig
   { cfgPermissive       :: Bool  -- ^ Treat unbound variables as warnings, not errors
   , cfgCollectWarnings  :: Bool  -- ^ Collect warnings during inference
-  , cfgCoverageWarnings :: Bool  -- ^ Emit matcher Coverage warnings (paper Def 4.2(3));
-                                 --   off by default as the standard library has many
-                                 --   intentionally partial matchers (opt-in diagnostic).
+  , cfgMatcherConsistencyWarnings :: Bool  -- ^ Emit matcher consistency warnings (paper Def 4.2):
+                                 --   Coverage (4.2(3)) and PP-Con (4.2(1a)).  Off by default, as
+                                 --   the standard library has intentionally partial / non-strict
+                                 --   matchers (opt-in diagnostic; --matcher-consistency-warnings).
   }
 
 instance Show InferConfig where
   show cfg = "InferConfig { cfgPermissive = " ++ show (cfgPermissive cfg)
            ++ ", cfgCollectWarnings = " ++ show (cfgCollectWarnings cfg)
-           ++ ", cfgCoverageWarnings = " ++ show (cfgCoverageWarnings cfg)
+           ++ ", cfgMatcherConsistencyWarnings = " ++ show (cfgMatcherConsistencyWarnings cfg)
            ++ " }"
 
 -- | Default configuration (strict mode)
@@ -107,7 +108,7 @@ defaultInferConfig :: InferConfig
 defaultInferConfig = InferConfig
   { cfgPermissive = False
   , cfgCollectWarnings = False
-  , cfgCoverageWarnings = False
+  , cfgMatcherConsistencyWarnings = False
   }
 
 -- | Permissive configuration (for gradual adoption)
@@ -115,7 +116,7 @@ permissiveInferConfig :: InferConfig
 permissiveInferConfig = InferConfig
   { cfgPermissive = True
   , cfgCollectWarnings = True
-  , cfgCoverageWarnings = False
+  , cfgMatcherConsistencyWarnings = False
   }
 
 -- | Inference state
@@ -1008,7 +1009,7 @@ inferIExprWithContext expr ctx = case expr of
     -- would get stuck at runtime).  Coverage holds vacuously for a polymorphic matched type
     -- or one with no inductive pattern declaration (no constructors).  Suppressed inside a
     -- matcher body (generated / nested matchers).
-    covOn <- cfgCoverageWarnings <$> gets inferConfig
+    covOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
     inMB <- gets inferInMatcherBody
     matchedTyFinal <- applySubstWithConstraintsM allSubst matchedTy
     case (covOn && not inMB, matcherTypeHead matchedTyFinal) of
@@ -1054,14 +1055,32 @@ inferIExprWithContext expr ctx = case expr of
         -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
         nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
 
-        -- Note (paper PP-Con / Def 4.2(1a), NOT enforced): a bare-variable next matcher
-        -- (`something`) at a constructor-headed hole (the paper's `weird` matcher) is left
-        -- unchecked here.  A type-level check cannot distinguish a genuinely polymorphic
-        -- `something` from a not-yet-resolved recursive next matcher (`multiset m`) — Egison's
-        -- HM has no rigid variables and a recursive matcher is not in scope at its result type
-        -- while its body is checked — and a syntactic check on the literal `something` would
-        -- reject the CAS matchers (`term`/`poly`) that legitimately use `something` at their
-        -- symbol/apply argument holes.  See design/matcher-slot.md (Stage 4, gap B).
+        -- Paper PP-Con (Def 4.2(1a)) — matcher-definition-time structural admissibility, as an
+        -- opt-in warning (gated like Coverage, --matcher-consistency-warnings).  A bare-variable next
+        -- matcher (`something`, or a `Matcher a` parameter) at a constructor-/concrete-headed
+        -- hole is not structurally admissible (the paper's `weird` matcher).  Recursive next
+        -- matchers (`list m`/`multiset m`) resolve to their declared list type, so they are NOT
+        -- flagged; only genuinely bare-variable inners are.  A hard error would also reject the
+        -- CAS matchers (`term`/`poly` use `something`/`m` at MathValue/String holes — paper-
+        -- non-compliant, like Coverage), so it is surfaced as a warning rather than an error.
+        ppconOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
+        if ppconOn
+          then do
+            -- Flag the built-in bare-variable matcher `something` (the T-SOME matcher) at a
+            -- constructor-/concrete-headed hole (non-variable hole type).  Checked syntactically
+            -- on the literal `something`: a slot-typed parameter (`m : MatcherSlot a a`) is
+            -- deferrable, and a recursive/structured next matcher (`list m`, `multiset m`) meets
+            -- the demand, so neither is flagged — while `something`'s genuinely polymorphic
+            -- bare matcher is.  (A variable-headed hole — the catch-all's $, or an element hole
+            -- — admits `something`, so it is not flagged.)
+            let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
+            mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
+                     (TVar _, _)                      -> return ()
+                     (_, IConstantExpr SomethingExpr) ->
+                       addWarning $ MatcherNextMatcherWarning holeTy (prettyStr comp) ctx
+                     _                                -> return ())
+                  (zip patternHoleTypes' comps)
+          else return ()
 
         -- Unify pattern hole types (inner types) with next matcher inner types
         s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx
