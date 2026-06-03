@@ -123,15 +123,18 @@ stdlib が壊れる)。
 
 ---
 
-### 課題 F: 制約付き多相マッチャー (`eq : {Eq a} => Matcher a`) の接地
+### 課題 F: 制約付き多相マッチャー (`eq : {Eq a} => Matcher a`) の接地 — ✅ **解決(2026-06、T-MATCHALL の τ_p/τ_t 精緻化による)**
 
-**現状**: `multiset eq with #具体` を過剰拒否(`matcher-slot.md` 残差(2))。`eq` は制約付き多相変数 `{Eq a} => Matcher a`
-なので、具体値パターンに対し `something` と同様 rigid 扱いされ弾かれる。論文は Eq 辞書で受理する。
-
-**作業**: 構造的許容性検査(`checkMatcherAdmissibility` / COERCE)で、**制約付き型変数**を辞書(型クラス)経由で
-具体型に接地(grounding)できる場合は admissible とする。`⊑` 検査に制約解決を組み込む。
-
-**優先度**: 中(`eq` ベースのマッチャーは多用される)。
+> **解決**: 当初は「制約付き変数を辞書経由で接地する」アプローチを想定したが、より一般的・本質的な解として
+> **T-MATCHALL の τ_p/τ_t 分離**(ユーザ提案)を実装した。`checkMatcherAdmissibility` で:
+> - **τ_p = 構築子スケルトン**(`mapValuePatsToFreshVars` で値/述語パターンを fresh-var hole 化)→ 片方向 `⊑`
+> - **τ_t = 値パターン込みの full 型**(ターゲットと unify)
+>
+> 値パターン `#e` は構造等価 `≡`(全マッチャーが持つ)で照合されるため**構造分解を要求しない**=τ_p に入れない。
+> これにより `multiset eq with #1` も `something with #1` も受理、`something with $x::$xs`(構築子)は依然拒否。
+> `eq` に限らず全マッチャーの値パターン位置の過剰拒否が一括解消(制約接地より一般的)。実装は `Infer.hs` の
+> `mapValuePatsToFreshVars` + `checkMatcherAdmissibility`。回帰ゼロ(mini-test 0 / math 0 / cabal test 21/21)。
+> 詳細は `design/matcher-slot.md`「T-MATCHALL の τ_p/τ_t 精緻化」。
 
 ---
 

@@ -2148,13 +2148,18 @@ inferIExprWithContext expr ctx = case expr of
     innerTI' <- applySubstToTIExprM finalSubst innerTI
     return (mkTIExpr finalTy (TIReshape finalTy innerTI'), finalSubst)
 
--- | Independent structural type τ_p of a pattern (paper PAT-VAR/WILD/VALUE/TUPLE/CON/…),
--- used to form the match-site MatcherSlot for the COERCE-MATCHER-TO-SLOT dual check.
--- It reuses 'inferIPattern' against a fresh, unconstrained expected type, so the pattern's
--- own head structure (cons → [α], #1 → Integer, (p,q) → τ_p × τ_q, c … → c's result type)
--- determines τ_p independently of the matcher.  The probe is side-effect-free: accumulated
--- type-class constraints are snapshotted and restored, and any inference failure falls back
--- to a fresh variable (a variable-headed slot admits any matcher — never a false rejection).
+-- | The pattern's own head-determined type (paper PAT-VAR/WILD/VALUE/TUPLE/CON/…), inferred
+-- against a fresh, unconstrained expected type so it is read off the pattern's structure
+-- independently of the matcher.  Used to form the match-site MatcherSlot for the
+-- COERCE-MATCHER-TO-SLOT dual check (paper T-MATCHALL / T-MATCH).  Which of the rule's two
+-- pattern types it yields is selected by the caller via what it passes:
+--   * the full pattern p           → the *target* type τ_t (value pattern #1 → Integer, cons
+--     → [α], (p,q) → τ_t × τ_t, c … → c's result type), later unified with the scrutinee;
+--   * the erasure ⌊p⌋ ('mapValuePatsToFreshVars') → the *structural* type τ_p, with a fresh
+--     variable at each value-pattern position (a value pattern imposes no structural duty).
+-- The probe is side-effect-free: accumulated type-class constraints are snapshotted and
+-- restored, and any inference failure falls back to a fresh variable (a variable-headed slot
+-- admits any matcher — never a false rejection).
 patternStructuralType :: IPattern -> TypeErrorContext -> Infer Type
 patternStructuralType pat ctx = do
   saved <- getConstraints
@@ -2165,23 +2170,59 @@ patternStructuralType pat ctx = do
   modify $ \st -> st { inferConstraints = saved }
   return result
 
+-- | Rewrite every value pattern @#e@ (and predicate pattern @?(p)@) in a clause pattern into a
+-- fresh-variable hole, so that 'patternStructuralType' yields the pattern's *constructor skeleton*
+-- (paper T-MATCHALL τ_p) without the value's type leaking into the structural slot.  A value
+-- pattern is matched by structural equality (the paper's @≡@, which every matcher supports), so it
+-- constrains the *target* type, not the matcher's structural-decomposition obligation.
+mapValuePatsToFreshVars :: IPattern -> IPattern
+mapValuePatsToFreshVars = go
+  where
+    go p = case p of
+      IValuePat _                -> IPatVar "_skel"
+      IPredPat _                 -> IPatVar "_skel"
+      IInductivePat n ps         -> IInductivePat n (map go ps)
+      IInductiveOrPApplyPat n ps -> IInductiveOrPApplyPat n (map go ps)
+      ITuplePat ps               -> ITuplePat (map go ps)
+      IAndPat a b                -> IAndPat (go a) (go b)
+      IOrPat a b                 -> IOrPat (go a) (go b)
+      INotPat a                  -> INotPat (go a)
+      IForallPat a b             -> IForallPat (go a) (go b)
+      IIndexedPat a es           -> IIndexedPat (go a) es
+      ILetPat bs a               -> ILetPat bs (go a)
+      ILoopPat s r a b           -> ILoopPat s r (go a) (go b)
+      IPApplyPat e ps            -> IPApplyPat e (map go ps)
+      IDApplyPat a ps            -> IDApplyPat (go a) (map go ps)
+      ISeqConsPat a b            -> ISeqConsPat (go a) (go b)
+      _                          -> p
+
 -- | Match-site structural admissibility (paper T-MATCHALL / T-MATCH via COERCE-MATCHER-TO-SLOT).
--- For each clause, derive the pattern's structural type τ_p and require the matcher to fill
--- @MatcherSlot τ_p τ_t@ (τ_t = the target type).  The dual check inside the unifier rejects a
--- structurally inadmissible matcher — e.g. @something@ or a bare @Matcher a@ parameter at a
--- constructor or concrete-value pattern, including nested ones — and, when the matcher is an
--- unannotated parameter (a type variable), commits it to a slot type, so generic combinators
--- type-check and defer the check to their use site.
+-- For each clause we derive TWO types from the pattern:
+--   * τ_p — the *constructor skeleton* ('mapValuePatsToFreshVars' turns value/predicate patterns
+--     into fresh-var holes), used as the structural slot the matcher must fill (one-way @⊑@);
+--   * τ_t — the *full* pattern type (value patterns contribute their value's type), unified with
+--     the target type.
+-- The matcher must fill @MatcherSlot τ_p τ_t@.  Routing value-pattern types into τ_t (target)
+-- rather than τ_p (structural) means a value pattern `#e` — matched by structural equality @≡@,
+-- which every matcher supports — imposes only a target-type constraint.  So `multiset eq with #1`
+-- and `something with #1` are admissible, while a *constructor* pattern still demands a
+-- structurally-capable matcher (`something` / a bare `Matcher a` at `$x :: $xs` is still rejected).
 checkMatcherAdmissibility :: TypeErrorContext -> Type -> Type -> [IMatchClause] -> Subst -> Infer Subst
 checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = foldM step s0 clauses
   where
     step accS (pat, _body) = do
-      tau_p      <- patternStructuralType pat ctx
-      matcherTy' <- applySubstWithConstraintsM accS matcherTy
+      tau_p      <- patternStructuralType (mapValuePatsToFreshVars pat) ctx
+      tau_t      <- patternStructuralType pat ctx
       targetTy'  <- applySubstWithConstraintsM accS targetTy
-      tau_p'     <- applySubstWithConstraintsM accS tau_p
-      sSlot <- unifyTypesWithContext matcherTy' (TMatcherSlot tau_p' targetTy') ctx
-      return (composeSubst sSlot accS)
+      tau_t'     <- applySubstWithConstraintsM accS tau_t
+      -- value-pattern-informed type unifies with the actual target type
+      sTgt       <- unifyTypesWithContext tau_t' targetTy' ctx
+      let acc1   =  composeSubst sTgt accS
+      matcherTy' <- applySubstWithConstraintsM acc1 matcherTy
+      tau_p'     <- applySubstWithConstraintsM acc1 tau_p
+      targetTy'' <- applySubstWithConstraintsM acc1 targetTy
+      sSlot <- unifyTypesWithContext matcherTy' (TMatcherSlot tau_p' targetTy'') ctx
+      return (composeSubst sSlot acc1)
 
 -- | Head type-former name under which a type's pattern constructors are grouped (paper
 -- Coverage, Def 4.2(3)).  Polymorphic / tuple / function matched types have no declared
