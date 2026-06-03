@@ -35,6 +35,7 @@ import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
                                              freeTyVars, sanitizeMethodName, typeExprToType,
                                              capitalizeFirst, lowerFirst)
+import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst)
 import qualified Data.Set as Set
 
 -- | Result of environment building phase
@@ -68,6 +69,10 @@ data EnvBuildResult = EnvBuildResult
 -- It must be called AFTER expandLoads (Phase 1) and BEFORE type inference (Phase 5).
 buildEnvironments :: [TopExpr] -> EvalM EnvBuildResult
 buildEnvironments exprs = do
+  -- Names of value-level inductive types declared in this batch (e.g. `inductive Nat`).
+  -- Used to keep explicit signatures like `nat : Matcher Nat` concrete instead of
+  -- generalizing the bare type name into a type variable (see concretizeDeclaredTypes).
+  let declaredTypes = Set.fromList [ n | InductiveDecl n _ _ <- exprs ]
   -- Start with empty environments
   let initialResult = EnvBuildResult
         { ebrTypeEnv = emptyEnv
@@ -81,11 +86,23 @@ buildEnvironments exprs = do
         }
   
   -- Process each top-level expression to collect declarations
-  foldM processTopExpr initialResult exprs
+  foldM (processTopExpr declaredTypes) initialResult exprs
+
+-- | Rewrite bare declared-inductive-type names that 'typeExprToType' produced as
+-- type variables (e.g. @Matcher Nat@ parses to @TMatcher (TVar "Nat")@) into the
+-- concrete @TInductive@.  Without this, an explicit signature @nat : Matcher Nat@
+-- is generalized to @forall a. Matcher a@, so a recursive matcher's self-reference
+-- instantiates to a fresh inner type and fails the MatcherSlot structural check.
+-- Only names declared via @inductive@ in this batch are rewritten; undeclared
+-- capitalized names (e.g. a stale @MathExpr@) stay type variables.
+concretizeDeclaredTypes :: Set.Set String -> Type -> Type
+concretizeDeclaredTypes decls = applySubst subst
+  where subst = foldr (\n s -> composeSubst (singletonSubst (TyVar n) (TInductive n [])) s)
+                      emptySubst (Set.toList decls)
 
 -- | Process a single top-level expression to collect environment information
-processTopExpr :: EnvBuildResult -> TopExpr -> EvalM EnvBuildResult
-processTopExpr result topExpr = case topExpr of
+processTopExpr :: Set.Set String -> EnvBuildResult -> TopExpr -> EvalM EnvBuildResult
+processTopExpr declaredTypes result topExpr = case topExpr of
   
   -- 1. Data Constructor Definitions (from InductiveDecl)
   InductiveDecl typeName typeParams constructors -> do
@@ -188,12 +205,13 @@ processTopExpr result topExpr = case topExpr of
         retType = typeExprToType (typedVarRetType typedVar)
         paramTypes = map typedParamToType params
         
-        -- Build function type
-        funType = foldr TFun retType paramTypes
-        
+        -- Build function type, then keep declared inductive type names concrete
+        -- (e.g. `nat : Matcher Nat` stays `Matcher Nat`, not `forall a. Matcher a`).
+        funType = concretizeDeclaredTypes declaredTypes (foldr TFun retType paramTypes)
+
         -- Convert constraints from AST to internal representation
         constraints = map constraintToInternal (typedVarConstraints typedVar)
-        
+
         -- Generalize free type variables in the type signature
         -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
         freeVars = Set.toList (freeTyVars funType)
