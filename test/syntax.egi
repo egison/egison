@@ -243,8 +243,12 @@ assertEqual "match-all-lambda"
     | _ ++ $x :: _ -> x) [1, 2, 3])
   [1, 2, 3]
 
+-- Uses `multiset integer` (not `multiset something`): the value patterns `#(x + 1)` /
+-- `#(x + 2)` give the element a concrete (Integer) structural type, at which a bare-variable
+-- matcher (`something`) is not structurally admissible under the MatcherSlot type system
+-- (paper's per-use-site structural admissibility); a concrete element matcher is required.
 assertEqual "match-all-lambda-multi"
-  ((\matchAll as multiset something with
+  ((\matchAll as multiset integer with
     | $x :: #(x + 1) :: _ -> [x, x + 1]
     | $x :: #(x + 2) :: _ -> [x, x + 2]) [1, 2, 3])
   [[1, 2], [2, 3], [1, 3]]

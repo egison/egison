@@ -53,9 +53,9 @@ module Language.Egison.Type.Infer
   ) where
 
 import           Control.Monad              (foldM, zipWithM)
-import           Control.Monad.Except       (ExceptT, runExceptT, throwError)
+import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
-import           Data.List                  (isPrefixOf, nub, partition)
+import           Data.List                  (isPrefixOf, nub, partition, intercalate)
 import           Data.Maybe                  (catMaybes)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -89,13 +89,17 @@ import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 -- | Inference configuration
 data InferConfig = InferConfig
-  { cfgPermissive      :: Bool  -- ^ Treat unbound variables as warnings, not errors
-  , cfgCollectWarnings :: Bool  -- ^ Collect warnings during inference
+  { cfgPermissive       :: Bool  -- ^ Treat unbound variables as warnings, not errors
+  , cfgCollectWarnings  :: Bool  -- ^ Collect warnings during inference
+  , cfgCoverageWarnings :: Bool  -- ^ Emit matcher Coverage warnings (paper Def 4.2(3));
+                                 --   off by default as the standard library has many
+                                 --   intentionally partial matchers (opt-in diagnostic).
   }
 
 instance Show InferConfig where
   show cfg = "InferConfig { cfgPermissive = " ++ show (cfgPermissive cfg)
            ++ ", cfgCollectWarnings = " ++ show (cfgCollectWarnings cfg)
+           ++ ", cfgCoverageWarnings = " ++ show (cfgCoverageWarnings cfg)
            ++ " }"
 
 -- | Default configuration (strict mode)
@@ -103,6 +107,7 @@ defaultInferConfig :: InferConfig
 defaultInferConfig = InferConfig
   { cfgPermissive = False
   , cfgCollectWarnings = False
+  , cfgCoverageWarnings = False
   }
 
 -- | Permissive configuration (for gradual adoption)
@@ -110,6 +115,7 @@ permissiveInferConfig :: InferConfig
 permissiveInferConfig = InferConfig
   { cfgPermissive = True
   , cfgCollectWarnings = True
+  , cfgCoverageWarnings = False
   }
 
 -- | Inference state
@@ -123,15 +129,22 @@ data InferState = InferState
   , inferPatternFuncEnv :: PatternTypeEnv  -- ^ Pattern function environment (for disambiguation)
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
+  , inferInMatcherBody :: Bool           -- ^ True while inferring a `matcher` body: the
+                                          --   match-site admissibility check (T-MATCHALL) is
+                                          --   suspended there, because generated/recursive
+                                          --   matchers (e.g. algebraicDataMatcher's internal
+                                          --   `(M, M)`) have not-yet-resolved inner types that
+                                          --   the structural check cannot distinguish from a
+                                          --   genuinely polymorphic `something`.
   } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty False
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty False
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -942,9 +955,29 @@ inferIExprWithContext expr ctx = case expr of
   -- Matchers (return Matcher type)
   IMatcherExpr patDefs -> do
     let exprCtx = withExpr (prettyStr expr) ctx
+    -- Paper Def 4.2(2) (Reachability / catch-all): a matcher must contain a catch-all clause
+    -- `$ as M with $tgt -> N` (its primitive-pattern pattern is a bare hole `$`), so that
+    -- variable and wildcard patterns are handled (delegating, typically to `something`) rather
+    -- than getting stuck.  (Coverage, Def 4.2(3), is not enforced — it needs the full set of
+    -- pattern constructors for the matched type, which Egison does not require to be declared;
+    -- see design/matcher-slot.md, Stage 4, gap C.)
+    if any (\(pp, _, _) -> case pp of PPPatVar -> True; _ -> False) patDefs
+      then return ()
+      else throwError $ TE.TypeMismatch
+             (TMatcher (TVar (TyVar "a")))
+             (TMatcher (TVar (TyVar "a")))
+             "a `matcher` must contain a catch-all clause `$ as <matcher> with $tgt -> ...` (e.g. `$ as something`) so that variable and wildcard patterns are handled"
+             exprCtx
     -- Infer type of each pattern definition (matcher clause)
     -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
+    -- Suspend the match-site admissibility check (T-MATCHALL) inside the matcher body:
+    -- next matchers / generated internal matches reference recursive matchers whose inner
+    -- types are not yet resolved here.  Their own structural admissibility is handled by the
+    -- next-matcher slot check (PP-Con) instead.
+    savedInMB <- gets inferInMatcherBody
+    modify $ \st -> st { inferInMatcherBody = True }
     results <- mapM (inferPatternDef exprCtx) patDefs
+    modify $ \st -> st { inferInMatcherBody = savedInMB }
     
     -- Collect TIPatternDefs and substitutions
     let tiPatDefs = map fst results
@@ -970,6 +1003,24 @@ inferIExprWithContext expr ctx = case expr of
         return (resultTy, s)
     
     let allSubst = composeSubst s_matched finalSubst
+    -- Paper Def 4.2(3) Coverage (warning-level diagnostic, non-fatal): report any pattern
+    -- constructor of the matched type that has no general clause `c $..$` (such a pattern
+    -- would get stuck at runtime).  Coverage holds vacuously for a polymorphic matched type
+    -- or one with no inductive pattern declaration (no constructors).  Suppressed inside a
+    -- matcher body (generated / nested matchers).
+    covOn <- cfgCoverageWarnings <$> gets inferConfig
+    inMB <- gets inferInMatcherBody
+    matchedTyFinal <- applySubstWithConstraintsM allSubst matchedTy
+    case (covOn && not inMB, matcherTypeHead matchedTyFinal) of
+      (True, Just hd) -> do
+        patEnv <- getPatternEnv
+        let allCtors     = [ name | (name, sch) <- patternEnvToList patEnv, ctorResultHead sch == Just hd ]
+            coveredCtors  = [ c | (pp, _, _) <- patDefs, Just c <- [generalClauseCtor pp] ]
+            missing       = filter (`notElem` coveredCtors) allCtors
+        if not (null allCtors) && not (null missing)
+          then addWarning $ MatcherCoverageWarning matchedTyFinal missing exprCtx
+          else return ()
+      _ -> return ()
     return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), allSubst)
     where
       -- Infer a single pattern definition (matcher clause)
@@ -1002,7 +1053,16 @@ inferIExprWithContext expr ctx = case expr of
         -- Extract inner type(s) from next matcher type
         -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
         nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
-        
+
+        -- Note (paper PP-Con / Def 4.2(1a), NOT enforced): a bare-variable next matcher
+        -- (`something`) at a constructor-headed hole (the paper's `weird` matcher) is left
+        -- unchecked here.  A type-level check cannot distinguish a genuinely polymorphic
+        -- `something` from a not-yet-resolved recursive next matcher (`multiset m`) — Egison's
+        -- HM has no rigid variables and a recursive matcher is not in scope at its result type
+        -- while its body is checked — and a syntactic check on the literal `something` would
+        -- reject the CAS matchers (`term`/`poly`) that legitimately use `something` at their
+        -- symbol/apply argument holes.  See design/matcher-slot.md (Stage 4, gap B).
+
         -- Unify pattern hole types (inner types) with next matcher inner types
         s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx
         let s1''' = composeSubst s_unify s1''
@@ -1623,25 +1683,38 @@ inferIExprWithContext expr ctx = case expr of
     let targetType = tiExprType targetTI
         matcherType = tiExprType matcherTI
 
-    -- Matcher should be TMatcher a or (TMatcher a, TMatcher b, ...) which becomes TMatcher (a, b, ...)
+    -- Matcher should be TMatcher a, (TMatcher a, ...) which becomes TMatcher (a, ...), or a
+    -- MatcherSlot (a committed parameter / a stdlib slot-typed matcher).
     let s12 = composeSubst s2 s1
-    appliedMatcherType <- applySubstWithConstraintsM s12 matcherType
+    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: derive each clause pattern's structural type
+    -- τ_p independently and require the matcher to fill MatcherSlot τ_p τ_t.  Run on the raw
+    -- matcher type (before the Matcher/tuple normalization below), so an unannotated matcher
+    -- parameter — a bare type variable — is committed to a slot type rather than forced into
+    -- `Matcher <var>` (indistinguishable from `something`).  Rejects structurally inadmissible
+    -- matchers (e.g. `something` at a constructor or concrete-value pattern, even nested).
+    sAdm <- checkMatcherAdmissibility exprCtx matcherType targetType clauses s12
+    appliedMatcherType <- applySubstWithConstraintsM sAdm matcherType
 
-    -- Normalize matcher type: if it's a tuple, ensure each element is a Matcher
+    -- Normalize the matcher type to extract the matched inner type.
     (_normalizedMatcherType, matchedInnerType, s3) <- case appliedMatcherType of
       TTuple elemTypes -> do
-        -- Each tuple element should be Matcher ai
-        matchedInnerTypes <- mapM (\_ -> freshVar "matched") elemTypes
-        s_elems <- foldM (\accS (elemTy, innerTy) -> do
+        -- Each tuple element is a Matcher (extract its inner) or a MatcherSlot (its target).
+        (finalInnerTypes, s_elems) <- foldM (\(acc, accS) elemTy -> do
           appliedElemTy <- applySubstWithConstraintsM accS elemTy
-          appliedInnerTy <- applySubstWithConstraintsM accS innerTy
-          s' <- unifyTypesWithContext appliedElemTy (TMatcher appliedInnerTy) exprCtx
-          return $ composeSubst s' accS
-          ) emptySubst (zip elemTypes matchedInnerTypes)
+          case appliedElemTy of
+            TMatcherSlot _ tt -> return (acc ++ [tt], accS)
+            _ -> do
+              innerTy <- freshVar "matched"
+              s' <- unifyTypesWithContext appliedElemTy (TMatcher innerTy) exprCtx
+              innerTy' <- applySubstWithConstraintsM s' innerTy
+              return (acc ++ [innerTy'], composeSubst s' accS)
+          ) ([], emptySubst) elemTypes
         -- The tuple as a whole becomes Matcher (a1, a2, ...)
-        finalInnerTypes <- mapM (applySubstWithConstraintsM s_elems) matchedInnerTypes
         let tupleInnerType = TTuple finalInnerTypes
         return (TMatcher tupleInnerType, tupleInnerType, s_elems)
+      -- A MatcherSlot (committed parameter, or a stdlib slot-typed matcher): the matched inner
+      -- type is its target component.
+      TMatcherSlot _ tt -> return (TMatcher tt, tt, emptySubst)
       _ -> do
         -- Single matcher: TMatcher a
         matchedTy <- freshVar "matched"
@@ -1649,26 +1722,13 @@ inferIExprWithContext expr ctx = case expr of
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
         return (TMatcher finalMatchedTy, finalMatchedTy, s')
 
-    let s123 = composeSubst s3 s12
+    let s123 = composeSubst s3 sAdm
     targetType' <- applySubstWithConstraintsM s123 targetType
     matchedInnerType' <- applySubstWithConstraintsM s123 matchedInnerType
-    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: a bare-variable matcher (e.g. `something`,
-    -- or a generic `Matcher a` parameter) is not structurally admissible at a constructor
-    -- pattern.  Checked here on the matcher's *intrinsic* inner type, before the target
-    -- unification below concretizes it.  (A concrete matcher whose inner type mismatches the
-    -- pattern is rejected by that unification instead.)
-    case matchedInnerType' of
-      TVar _ | any (isConstructorHeadedPattern . fst) clauses ->
-        throwError $ TE.TypeMismatch
-          (TMatcherSlot targetType' targetType')
-          (TMatcher matchedInnerType')
-          "a bare-variable matcher (e.g. `something`) is not structurally admissible at a constructor pattern; use a structured matcher such as `list`/`multiset`/`set`"
-          exprCtx
-      _ -> return ()
     s4 <- unifyTypesWithContext targetType' matchedInnerType' exprCtx
     
     -- Infer match clauses result type
-    let s1234 = composeSubst s4 s123
+    let s1234 = composeSubst s4 sAdm
     case clauses of
       [] -> do
         -- No clauses: this should not happen, but handle gracefully
@@ -1695,25 +1755,38 @@ inferIExprWithContext expr ctx = case expr of
     let targetType = tiExprType targetTI
         matcherType = tiExprType matcherTI
     
-    -- Matcher should be TMatcher a or (TMatcher a, TMatcher b, ...) which becomes TMatcher (a, b, ...)
+    -- Matcher should be TMatcher a, (TMatcher a, ...) which becomes TMatcher (a, ...), or a
+    -- MatcherSlot (a committed parameter / a stdlib slot-typed matcher).
     let s12 = composeSubst s2 s1
-    appliedMatcherType <- applySubstWithConstraintsM s12 matcherType
-    
-    -- Normalize matcher type: if it's a tuple, ensure each element is a Matcher
+    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: derive each clause pattern's structural type
+    -- τ_p independently and require the matcher to fill MatcherSlot τ_p τ_t.  Run on the raw
+    -- matcher type (before the Matcher/tuple normalization below), so an unannotated matcher
+    -- parameter — a bare type variable — is committed to a slot type rather than forced into
+    -- `Matcher <var>` (indistinguishable from `something`).  Rejects structurally inadmissible
+    -- matchers (e.g. `something` at a constructor or concrete-value pattern, even nested).
+    sAdm <- checkMatcherAdmissibility exprCtx matcherType targetType clauses s12
+    appliedMatcherType <- applySubstWithConstraintsM sAdm matcherType
+
+    -- Normalize the matcher type to extract the matched inner type.
     (_normalizedMatcherType, matchedInnerType, s3) <- case appliedMatcherType of
       TTuple elemTypes -> do
-        -- Each tuple element should be Matcher ai
-        matchedInnerTypes <- mapM (\_ -> freshVar "matched") elemTypes
-        s_elems <- foldM (\accS (elemTy, innerTy) -> do
+        -- Each tuple element is a Matcher (extract its inner) or a MatcherSlot (its target).
+        (finalInnerTypes, s_elems) <- foldM (\(acc, accS) elemTy -> do
           appliedElemTy <- applySubstWithConstraintsM accS elemTy
-          appliedInnerTy <- applySubstWithConstraintsM accS innerTy
-          s' <- unifyTypesWithContext appliedElemTy (TMatcher appliedInnerTy) exprCtx
-          return $ composeSubst s' accS
-          ) emptySubst (zip elemTypes matchedInnerTypes)
+          case appliedElemTy of
+            TMatcherSlot _ tt -> return (acc ++ [tt], accS)
+            _ -> do
+              innerTy <- freshVar "matched"
+              s' <- unifyTypesWithContext appliedElemTy (TMatcher innerTy) exprCtx
+              innerTy' <- applySubstWithConstraintsM s' innerTy
+              return (acc ++ [innerTy'], composeSubst s' accS)
+          ) ([], emptySubst) elemTypes
         -- The tuple as a whole becomes Matcher (a1, a2, ...)
-        finalInnerTypes <- mapM (applySubstWithConstraintsM s_elems) matchedInnerTypes
         let tupleInnerType = TTuple finalInnerTypes
         return (TMatcher tupleInnerType, tupleInnerType, s_elems)
+      -- A MatcherSlot (committed parameter, or a stdlib slot-typed matcher): the matched inner
+      -- type is its target component.
+      TMatcherSlot _ tt -> return (TMatcher tt, tt, emptySubst)
       _ -> do
         -- Single matcher: TMatcher a
         matchedTy <- freshVar "matched"
@@ -1721,26 +1794,13 @@ inferIExprWithContext expr ctx = case expr of
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
         return (TMatcher finalMatchedTy, finalMatchedTy, s')
 
-    let s123 = composeSubst s3 s12
+    let s123 = composeSubst s3 sAdm
     targetType' <- applySubstWithConstraintsM s123 targetType
     matchedInnerType' <- applySubstWithConstraintsM s123 matchedInnerType
-    -- Paper T-MATCHALL / COERCE-MATCHER-TO-SLOT: a bare-variable matcher (e.g. `something`,
-    -- or a generic `Matcher a` parameter) is not structurally admissible at a constructor
-    -- pattern.  Checked here on the matcher's *intrinsic* inner type, before the target
-    -- unification below concretizes it.  (A concrete matcher whose inner type mismatches the
-    -- pattern is rejected by that unification instead.)
-    case matchedInnerType' of
-      TVar _ | any (isConstructorHeadedPattern . fst) clauses ->
-        throwError $ TE.TypeMismatch
-          (TMatcherSlot targetType' targetType')
-          (TMatcher matchedInnerType')
-          "a bare-variable matcher (e.g. `something`) is not structurally admissible at a constructor pattern; use a structured matcher such as `list`/`multiset`/`set`"
-          exprCtx
-      _ -> return ()
     s4 <- unifyTypesWithContext targetType' matchedInnerType' exprCtx
     
     -- MatchAll returns a collection of results from match clauses
-    let s1234 = composeSubst s4 s123
+    let s1234 = composeSubst s4 sAdm
     case clauses of
       [] -> do
         -- No clauses: return empty collection type
@@ -2067,28 +2127,75 @@ inferIExprWithContext expr ctx = case expr of
     innerTI' <- applySubstToTIExprM finalSubst innerTI
     return (mkTIExpr finalTy (TIReshape finalTy innerTI'), finalSubst)
 
--- | Is this pattern constructor-headed, i.e., does matching it require the matcher to
--- decompose via a pattern constructor?  If so, a bare-variable matcher (such as @something@,
--- or a generic @Matcher a@ parameter) is not structurally admissible at it (paper
--- COERCE-MATCHER-TO-SLOT / per-use-site structural admissibility).  Value patterns,
--- variable/wildcard patterns, and tuple patterns are not constructor-headed (the last is
--- handled by the product-matcher path).
-isConstructorHeadedPattern :: IPattern -> Bool
-isConstructorHeadedPattern p = case p of
-  IInductivePat{}         -> True
-  IInductiveOrPApplyPat{} -> True
-  IDApplyPat{}            -> True
-  IPApplyPat{}            -> True
-  ISeqNilPat              -> True
-  ISeqConsPat{}           -> True
-  ILoopPat _ _ q r        -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
-  INotPat q               -> isConstructorHeadedPattern q
-  IAndPat q r             -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
-  IOrPat q r              -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
-  IForallPat q r          -> isConstructorHeadedPattern q || isConstructorHeadedPattern r
-  ILetPat _ q             -> isConstructorHeadedPattern q
-  IIndexedPat q _         -> isConstructorHeadedPattern q
-  _                       -> False
+-- | Independent structural type τ_p of a pattern (paper PAT-VAR/WILD/VALUE/TUPLE/CON/…),
+-- used to form the match-site MatcherSlot for the COERCE-MATCHER-TO-SLOT dual check.
+-- It reuses 'inferIPattern' against a fresh, unconstrained expected type, so the pattern's
+-- own head structure (cons → [α], #1 → Integer, (p,q) → τ_p × τ_q, c … → c's result type)
+-- determines τ_p independently of the matcher.  The probe is side-effect-free: accumulated
+-- type-class constraints are snapshotted and restored, and any inference failure falls back
+-- to a fresh variable (a variable-headed slot admits any matcher — never a false rejection).
+patternStructuralType :: IPattern -> TypeErrorContext -> Infer Type
+patternStructuralType pat ctx = do
+  saved <- getConstraints
+  tpVar <- freshVar "taup"
+  result <- (do (_, _, sPat) <- inferIPattern pat tpVar ctx
+                applySubstWithConstraintsM sPat tpVar)
+              `catchError` \_ -> return tpVar
+  modify $ \st -> st { inferConstraints = saved }
+  return result
+
+-- | Match-site structural admissibility (paper T-MATCHALL / T-MATCH via COERCE-MATCHER-TO-SLOT).
+-- For each clause, derive the pattern's structural type τ_p and require the matcher to fill
+-- @MatcherSlot τ_p τ_t@ (τ_t = the target type).  The dual check inside the unifier rejects a
+-- structurally inadmissible matcher — e.g. @something@ or a bare @Matcher a@ parameter at a
+-- constructor or concrete-value pattern, including nested ones — and, when the matcher is an
+-- unannotated parameter (a type variable), commits it to a slot type, so generic combinators
+-- type-check and defer the check to their use site.
+checkMatcherAdmissibility :: TypeErrorContext -> Type -> Type -> [IMatchClause] -> Subst -> Infer Subst
+checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = do
+  inMatcherBody <- gets inferInMatcherBody
+  if inMatcherBody then return s0 else foldM step s0 clauses
+  where
+    step accS (pat, _body) = do
+      tau_p      <- patternStructuralType pat ctx
+      matcherTy' <- applySubstWithConstraintsM accS matcherTy
+      targetTy'  <- applySubstWithConstraintsM accS targetTy
+      tau_p'     <- applySubstWithConstraintsM accS tau_p
+      sSlot <- unifyTypesWithContext matcherTy' (TMatcherSlot tau_p' targetTy') ctx
+      return (composeSubst sSlot accS)
+
+-- | Head type-former name under which a type's pattern constructors are grouped (paper
+-- Coverage, Def 4.2(3)).  Polymorphic / tuple / function matched types have no declared
+-- pattern constructors, so they yield 'Nothing' (Coverage holds vacuously).
+matcherTypeHead :: Type -> Maybe String
+matcherTypeHead t = case t of
+  TInt           -> Just "Integer"
+  TMathValue     -> Just "MathValue"
+  TBool          -> Just "Bool"
+  TString        -> Just "String"
+  TChar          -> Just "Char"
+  TFloat         -> Just "Float"
+  TCollection _  -> Just "[]"
+  TInductive n _ -> Just n
+  _              -> Nothing
+
+-- | The result type-former of a pattern-constructor scheme (walks the @arg -> … -> result@
+-- chain), used to group constructors by the type they construct.
+ctorResultHead :: TypeScheme -> Maybe String
+ctorResultHead (Forall _ _ ty) = matcherTypeHead (resultOf ty)
+  where resultOf (TFun _ r) = resultOf r
+        resultOf t          = t
+
+-- | The constructor a matcher clause is a *general* clause for (paper's @c $..$@): an
+-- inductive primitive-pattern pattern whose arguments are all bare holes @$@.  Refinement
+-- clauses (holes mixed with @_@ or @#$x@), value-pattern clauses, and the catch-all are not
+-- general clauses and do not contribute to Coverage.
+generalClauseCtor :: PrimitivePatPattern -> Maybe String
+generalClauseCtor (PPInductivePat name args)
+  | all isHole args = Just name
+  where isHole PPPatVar = True
+        isHole _        = False
+generalClauseCtor _ = Nothing
 
 -- | Infer match clauses type
 -- All clauses should return the same type
@@ -2391,23 +2498,41 @@ inferIPattern pat expectedType ctx = case pat of
     return (tiAndPat, bindings1' ++ bindings2, s)
   
   IOrPat p1 p2 -> do
-    -- Or pattern: both patterns must match the same type
-    -- Left bindings should be available to right pattern for non-linear patterns
+    -- Or pattern (paper PAT-OR): the two branches are alternatives over the same input
+    -- context, so they are typed independently and must produce the SAME output bindings Δ'
+    -- — the same variable names, at unifiable types.
     (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
-    let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
-    let s = composeSubst s2 s1
-    -- Apply substitution to left bindings
-    bindings1'' <- mapM (\(v, ty) -> do
-        ty' <- applySubstWithConstraintsM s2 ty
-        return (v, ty')) bindings1
-    finalType <- applySubstWithConstraintsM s expectedType
-    let bindings1' = bindings1''
-        tiOrPat = TIPattern (Forall [] [] finalType) (TIOrPat tipat1 tipat2)
-    -- For or patterns, ideally both branches should have same variables
-    -- For now, we take union of bindings
-    return (tiOrPat, bindings1' ++ bindings2, s)
+    (tipat2, bindings2, s2) <- inferIPattern p2 expectedType' ctx
+    let s12 = composeSubst s2 s1
+        vars1 = nub (map fst bindings1)
+        vars2 = nub (map fst bindings2)
+        sameVars = all (`elem` vars2) vars1 && all (`elem` vars1) vars2
+    if not sameVars
+      then throwError $ TE.TypeMismatch
+             (TTuple (map snd bindings1))
+             (TTuple (map snd bindings2))
+             ("or-pattern (`|`) branches must bind the same variables, but the left binds {"
+               ++ intercalate ", " vars1 ++ "} and the right binds {"
+               ++ intercalate ", " vars2 ++ "}")
+             ctx
+      else do
+        -- Unify the type of each shared variable across the two branches.
+        sVars <- foldM (\accS (v, ty1) ->
+            case lookup v bindings2 of
+              Just ty2 -> do
+                ty1' <- applySubstWithConstraintsM accS ty1
+                ty2' <- applySubstWithConstraintsM accS ty2
+                s' <- unifyTypesWithContext ty1' ty2' ctx
+                return (composeSubst s' accS)
+              Nothing -> return accS
+          ) s12 bindings1
+        finalBindings <- mapM (\(v, ty) -> do
+            ty' <- applySubstWithConstraintsM sVars ty
+            return (v, ty')) bindings1
+        finalType <- applySubstWithConstraintsM sVars expectedType
+        let tiOrPat = TIPattern (Forall [] [] finalType) (TIOrPat tipat1 tipat2)
+        return (tiOrPat, finalBindings, sVars)
   
   IForallPat p1 p2 -> do
     -- Forall pattern: similar to and pattern

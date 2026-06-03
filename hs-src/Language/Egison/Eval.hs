@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgCoverageWarnings)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
@@ -286,7 +286,8 @@ processOneExpr opts permissive printValues acc expr = do
     Nothing -> return acc
     Just iTopExpr -> do
       -- Phase 5-6: Type Inference
-      let inferConfig = if permissive then permissiveInferConfig else defaultInferConfig
+      let inferConfig = (if permissive then permissiveInferConfig else defaultInferConfig)
+                          { cfgCoverageWarnings = optCoverageWarnings opts }
       currentPatternEnv' <- getPatternEnv
       currentPatternFuncEnv' <- getPatternFuncEnv
       let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']

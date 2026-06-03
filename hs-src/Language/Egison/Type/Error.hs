@@ -68,6 +68,9 @@ data TypeWarning
     -- ^ Expression type cannot be inferred (treated as Any)
   | DeprecatedFeatureWarning String TypeErrorContext
     -- ^ Feature is deprecated
+  | MatcherCoverageWarning Type [String] TypeErrorContext
+    -- ^ A @matcher@ lacks a general clause for some pattern constructor(s) of its matched
+    --   type (paper Coverage, Def 4.2(3)): the matched type, then the missing constructors.
   deriving (Eq, Show, Generic)
 
 -- | Type errors
@@ -208,6 +211,12 @@ formatTypeWarning warn = case warn of
   DeprecatedFeatureWarning feature ctx ->
     formatWithContext ctx $
       "Warning: Deprecated feature: " ++ feature
+
+  MatcherCoverageWarning ty missing ctx ->
+    formatWithContext ctx $
+      "Warning: matcher for " ++ prettyType ty ++
+      " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
+      "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
 
 -- | Pretty print a type
 prettyType :: Type -> String

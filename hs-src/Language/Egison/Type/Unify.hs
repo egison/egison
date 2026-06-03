@@ -452,20 +452,41 @@ coerceMatcherToSlot mode ce cs tm ts tt =
       Right (composeSubst subT subS, flagT)
 
 -- | COERCE-SLOT-TUPLE: a tuple of matchers @(m1, ..., mk)@ filling a product slot
--- @MatcherSlot ts tt@.  Fold the tuple into a single Matcher whose inner type is
--- the tuple of element inner types (reusing 'unifyEachAsMatcher'), then apply the
--- standard COERCE-MATCHER-TO-SLOT dual check.  This is what lets a matcher
--- constructor whose element parameter is a slot (e.g. @list (m : MatcherSlot a a)@)
--- still accept a tuple matcher such as @(m, integer)@ — the past blocker.
+-- @MatcherSlot ts tt@.
+--
+-- When the slot's structural and target indices are themselves @k@-tuples, decompose the
+-- product slot into component slots and check each tuple-matcher component against its own
+-- @MatcherSlot σ_i τ_i@ (the paper's COERCE-SLOT-TUPLE).  This *defers* a component that is a
+-- matcher parameter (committing it to a component slot) rather than folding it into a bare
+-- @Matcher@ — so e.g. @\\m -> matchAll (xs, n) as (m, integer) with ($x :: $xs, $n) -> ...@
+-- commits @m@ to a list-headed component slot instead of rejecting it, while still rejecting
+-- @something@ there.
+--
+-- Otherwise (a variable-headed slot, or a non-tuple target) fold the tuple of matchers into a
+-- single product @Matcher@ and apply the standard COERCE-MATCHER-TO-SLOT dual check.  This is
+-- what lets a matcher constructor whose element parameter is a slot (e.g.
+-- @list (m : MatcherSlot a a)@) still accept a tuple matcher such as @(m, integer)@.
 coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> [Type]
                 -> Either UnifyError (Subst, Bool)
-coerceSlotTuple mode ce cs ts tt tys = do
-  (innerTypes, s1, flag1) <- unifyEachAsMatcher ce cs tys emptySubst
-  let tm  = TTuple innerTypes
-      cs' = map (applySubstConstraint s1) cs
-  (s2, flag2) <- coerceMatcherToSlot mode ce cs'
-                   (applySubst s1 tm) (applySubst s1 ts) (applySubst s1 tt)
-  Right (composeSubst s2 s1, flag1 || flag2)
+coerceSlotTuple mode ce cs ts tt tys
+  | TTuple sigmas <- ts, TTuple taus <- tt
+  , length sigmas == length tys, length taus == length tys =
+      goComponents (zip3 tys sigmas taus) emptySubst False
+  | otherwise = do
+      (innerTypes, s1, flag1) <- unifyEachAsMatcher ce cs tys emptySubst
+      let tm  = TTuple innerTypes
+          cs' = map (applySubstConstraint s1) cs
+      (s2, flag2) <- coerceMatcherToSlot mode ce cs'
+                       (applySubst s1 tm) (applySubst s1 ts) (applySubst s1 tt)
+      Right (composeSubst s2 s1, flag1 || flag2)
+  where
+    goComponents [] acc flag = Right (acc, flag)
+    goComponents ((ty, sigma, tau) : rest) acc flag = do
+      let cs' = map (applySubstConstraint acc) cs
+      (s', f') <- unifyNormalized mode ce cs'
+                    (applySubst acc ty)
+                    (TMatcherSlot (applySubst acc sigma) (applySubst acc tau))
+      goComponents rest (composeSubst s' acc) (flag || f')
 
 -- | One-way matching: is there a substitution over @slot@'s type variables making
 -- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
