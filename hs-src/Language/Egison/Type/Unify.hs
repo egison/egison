@@ -441,6 +441,14 @@ getTyVarName (TyVar name) = name
 --       @something : Matcher a@ is rejected at a constructor-headed slot (its @a@ has
 --       not yet been concretized by the target unification).
 --   (2) target unifiability: @tm ~ tt@.
+-- The paper's COERCE-MATCHER-TO-SLOT freezes the matcher with a fresh renaming
+-- @tm' = fresh_rename(tm)@ (used only in the structural premise @tm' \sqsubseteq ts@, while the
+-- target premise keeps the original @tm@) purely to make the two premises evaluable in any
+-- order.  We do not rename: 'matchOneWay' treats @tm@ as rigid (binds only @ts@'s variables),
+-- and fixing the order — structural check FIRST, on the un-substituted @tm@ — already prevents
+-- the target unification from leaking into the structural check.  So the fresh copy is
+-- unnecessary here; both realize the identical admissibility predicate.  (This is also why no
+-- @fresh_rename@ is applied to the structural index @ts@ at a match site: paper WT-ATOM/T-MATCH.)
 coerceMatcherToSlot :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Type
                     -> Either UnifyError (Subst, Bool)
 coerceMatcherToSlot mode ce cs tm ts tt =

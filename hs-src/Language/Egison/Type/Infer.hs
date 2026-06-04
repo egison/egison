@@ -39,8 +39,6 @@ module Language.Egison.Type.Infer
   , runInferIWithEnv
     -- * Helper functions
   , freshVar
-  , freshSymbolSetVar
-  , freshenOpenSymbolSets
   , getEnv
   , setEnv
   , withEnv
@@ -229,49 +227,6 @@ freshVar prefix = do
   let n = inferCounter st
   put st { inferCounter = n + 1 }
   return $ TVar $ TyVar $ prefix ++ show n
-
--- | Generate a fresh symbol set variable
-freshSymbolSetVar :: Infer SymbolSet
-freshSymbolSetVar = do
-  st <- get
-  let n = inferCounter st
-  put st { inferCounter = n + 1 }
-  return $ SymbolSetVar $ TyVar $ "ss" ++ show n
-
--- | Replace SymbolSetOpen with fresh SymbolSetVar in a type.
--- Each occurrence of [..] becomes a fresh type variable.
--- This implements the desugaring: Poly a [..] -> Poly a s_fresh
-freshenOpenSymbolSets :: Type -> Infer Type
-freshenOpenSymbolSets ty = case ty of
-  -- CAS types with symbol sets
-  TPoly t SymbolSetOpen -> do
-    t' <- freshenOpenSymbolSets t
-    freshSS <- freshSymbolSetVar
-    return $ TPoly t' freshSS
-  TPoly t ss -> do
-    t' <- freshenOpenSymbolSets t
-    return $ TPoly t' ss
-  TFrac t -> TFrac <$> freshenOpenSymbolSets t
-  TTerm t SymbolSetOpen -> do
-    t' <- freshenOpenSymbolSets t
-    freshSS <- freshSymbolSetVar
-    return $ TTerm t' freshSS
-  TTerm t ss -> do
-    t' <- freshenOpenSymbolSets t
-    return $ TTerm t' ss
-  -- Recursive cases
-  TTuple ts -> TTuple <$> mapM freshenOpenSymbolSets ts
-  TCollection t -> TCollection <$> freshenOpenSymbolSets t
-  TInductive name ts -> TInductive name <$> mapM freshenOpenSymbolSets ts
-  TTensor t -> TTensor <$> freshenOpenSymbolSets t
-  THash k v -> THash <$> freshenOpenSymbolSets k <*> freshenOpenSymbolSets v
-  TMatcher t -> TMatcher <$> freshenOpenSymbolSets t
-  TMatcherSlot s t -> TMatcherSlot <$> freshenOpenSymbolSets s <*> freshenOpenSymbolSets t
-  TFun t1 t2 -> TFun <$> freshenOpenSymbolSets t1 <*> freshenOpenSymbolSets t2
-  TIO t -> TIO <$> freshenOpenSymbolSets t
-  TIORef t -> TIORef <$> freshenOpenSymbolSets t
-  -- Base cases (no recursion needed)
-  _ -> return ty
 
 -- | Get the current type environment
 getEnv :: Infer TypeEnv
@@ -1054,16 +1009,35 @@ inferIExprWithContext expr ctx = case expr of
         -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
         nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
 
-        -- Paper PP-Con (Def 4.2(1a)) — matcher-definition-time structural admissibility, now a
-        -- HARD ERROR.  The built-in bare-variable matcher `something` (the T-SOME matcher) at a
-        -- constructor-/concrete-headed hole is not structurally admissible (the paper's `weird`
-        -- matcher: it cannot decompose the hole's structure, so a pattern through it gets stuck).
-        -- Checked syntactically on the literal `something`.  Exempt:
+        -- Paper PP-Con / COERCE-MATCHER-TO-SLOT (Def 4.2(1a)) — matcher-definition-time structural
+        -- admissibility, a HARD ERROR.  In the paper each hole gives a pair (τ_p ▷ τ_t): the target
+        -- τ_t is the declared argument type σ_l (= `holeTy` below) and the structural index τ_p is a
+        -- *fresh instantiation* of σ_l (PP-Con's device — same head, fresh leaves; NO fusion
+        -- τ_p = τ_t, NO separate fresh_rename, uniform with PAT-CON at a match site).  The next
+        -- matcher is consumed at the slot @MatcherSlot τ_p σ_l@, whose structural half is the
+        -- one-way match τ_m ⊑ τ_p: a bare-variable matcher fills only a variable-headed hole; a
+        -- constructor-/concrete-headed hole rejects it (the paper's `weird`: it cannot decompose the
+        -- hole, so a pattern through it gets stuck).
+        --
+        -- We realize this admissibility test SYNTACTICALLY, on the literal `something` (the sole
+        -- built-in bare-variable matcher, T-SOME), at a constructor-/concrete-headed hole.  Two
+        -- operational facts make this the right test rather than a generic @matchOneWay τ_p τ_m@:
+        --   (i)  τ_p need not be materialized.  We need only admit/reject (the structural witness is
+        --        discarded), so — exactly as the paper's structural index is binding-independent and
+        --        needs no rename — reading σ_l's head gives the identical verdict a fresh
+        --        instantiation would; no `freshenType` is required.
+        --   (ii) above (the `unifyTypesWithContext .. (TMatcher matcherInnerTy)` step) every next
+        --        matcher is forced to `Matcher inner`, and an UNDETERMINED parameter's `inner` is
+        --        fixed by the target unification below (`checkPatternHoleConsistency`).  A generic
+        --        one-way match would prematurely reject such a parameter at a constructor hole; the
+        --        literal-`something` test pinpoints only the genuinely unsound case (a *concrete*
+        --        bare-variable matcher) and lets parameters be determined.
+        -- Exempt:
         --   * a variable-headed hole (`TVar` — the catch-all's $, or a polymorphic element hole):
-        --     `something` legitimately binds it;
+        --     `something` legitimately binds it (τ_p variable-headed ⇒ the one-way match is vacuous);
         --   * a function-typed hole (`TFun` — e.g. `apply1`'s `MathValue -> MathValue` argument):
         --     functions have no constructors to decompose, so `something` (bind only) is the only
-        --     sound matcher.
+        --     sound matcher (beyond the paper's inductive-type scope).
         -- A slot-typed parameter (`m : MatcherSlot a a`) and a recursive/structured next matcher
         -- (`list m`/`multiset m`) are not literal `something`, so they are never flagged.  The CAS
         -- matchers were made compliant (symbol's String hole uses `string`; apply's function holes
