@@ -2148,60 +2148,68 @@ inferIExprWithContext expr ctx = case expr of
     innerTI' <- applySubstToTIExprM finalSubst innerTI
     return (mkTIExpr finalTy (TIReshape finalTy innerTI'), finalSubst)
 
--- | The pattern's own head-determined type (paper PAT-VAR/WILD/VALUE/TUPLE/CON/…), inferred
--- against a fresh, unconstrained expected type so it is read off the pattern's structure
--- independently of the matcher.  Used to form the match-site MatcherSlot for the
--- COERCE-MATCHER-TO-SLOT dual check (paper T-MATCHALL / T-MATCH).  Which of the rule's two
--- pattern types it yields is selected by the caller via what it passes:
---   * the full pattern p           → the *target* type τ_t (value pattern #1 → Integer, cons
---     → [α], (p,q) → τ_t × τ_t, c … → c's result type), later unified with the scrutinee;
---   * the erasure ⌊p⌋ ('mapValuePatsToFreshVars') → the *structural* type τ_p, with a fresh
---     variable at each value-pattern position (a value pattern imposes no structural duty).
--- The probe is side-effect-free: accumulated type-class constraints are snapshotted and
--- restored, and any inference failure falls back to a fresh variable (a variable-headed slot
--- admits any matcher — never a false rejection).
-patternStructuralType :: IPattern -> TypeErrorContext -> Infer Type
-patternStructuralType pat ctx = do
+-- | Dual pattern typing for match-site admissibility (paper T-MATCHALL / T-MATCH): a single
+-- 'inferIPattern' traversal yields BOTH of the rule's pattern types — τ_t (the target type, from
+-- the ordinary inference) and τ_p (the structural type, the 4th component, built from the
+-- sub-patterns' own structural types with fresh leaves).  τ_p shares no variable with τ_t (every
+-- leaf is fresh and value patterns never contribute their value's type to τ_p), so later unifying
+-- τ_t with the target never concretizes τ_p — keeping the structural slot matcher-independent (a
+-- bare variable pattern stays admissible for ANY matcher, e.g. `something`).  Run as a
+-- side-effect-free probe (type-class constraints snapshotted/restored); any failure falls back to
+-- fresh variables (a variable-headed slot admits any matcher — never a false rejection).
+patternDualType :: IPattern -> TypeErrorContext -> Infer (Type, Type)
+patternDualType pat ctx = do
   saved <- getConstraints
-  tpVar <- freshVar "taup"
-  result <- (do (_, _, sPat) <- inferIPattern pat tpVar ctx
-                applySubstWithConstraintsM sPat tpVar)
-              `catchError` \_ -> return tpVar
+  result <- (do tv <- freshVar "taut"
+                (_, _, st, taup) <- inferIPattern pat tv ctx
+                taut  <- applySubstWithConstraintsM st tv
+                taup' <- applySubstWithConstraintsM st taup
+                return (taup', taut))
+              `catchError` \_ -> (,) <$> freshVar "taup" <*> freshVar "taut"
   modify $ \st -> st { inferConstraints = saved }
   return result
 
--- | Rewrite every value pattern @#e@ (and predicate pattern @?(p)@) in a clause pattern into a
--- fresh-variable hole, so that 'patternStructuralType' yields the pattern's *constructor skeleton*
--- (paper T-MATCHALL τ_p) without the value's type leaking into the structural slot.  A value
--- pattern is matched by structural equality (the paper's @≡@, which every matcher supports), so it
--- constrains the *target* type, not the matcher's structural-decomposition obligation.
-mapValuePatsToFreshVars :: IPattern -> IPattern
-mapValuePatsToFreshVars = go
-  where
-    go p = case p of
-      IValuePat _                -> IPatVar "_skel"
-      IPredPat _                 -> IPatVar "_skel"
-      IInductivePat n ps         -> IInductivePat n (map go ps)
-      IInductiveOrPApplyPat n ps -> IInductiveOrPApplyPat n (map go ps)
-      ITuplePat ps               -> ITuplePat (map go ps)
-      IAndPat a b                -> IAndPat (go a) (go b)
-      IOrPat a b                 -> IOrPat (go a) (go b)
-      INotPat a                  -> INotPat (go a)
-      IForallPat a b             -> IForallPat (go a) (go b)
-      IIndexedPat a es           -> IIndexedPat (go a) es
-      ILetPat bs a               -> ILetPat bs (go a)
-      ILoopPat s r a b           -> ILoopPat s r (go a) (go b)
-      IPApplyPat e ps            -> IPApplyPat e (map go ps)
-      IDApplyPat a ps            -> IDApplyPat (go a) (map go ps)
-      ISeqConsPat a b            -> ISeqConsPat (go a) (go b)
-      _                          -> p
+-- | Run an action but discard its effect on the type-class constraint store.  Used for the
+-- structural-type τ_p reassembly unifications, which involve only fresh variables and must never
+-- leak into the main (τ_t / binding) inference.
+withIsolatedConstraints :: Infer a -> Infer a
+withIsolatedConstraints act = do
+  saved <- getConstraints
+  r <- act
+  modify $ \st -> st { inferConstraints = saved }
+  return r
+
+-- | τ_p of an and/or/forall/loop/seq-cons pattern: the two sub-patterns describe the same value,
+-- so the matcher must support both shapes — unify their structural types (all fresh-headed, so the
+-- occurs check cannot fire; isolated so it leaves the main inference untouched).
+taupCombine :: TypeErrorContext -> Type -> Type -> Infer Type
+taupCombine ctx ta tb = withIsolatedConstraints $
+  (do s <- unifyTypesWithContext ta tb ctx
+      applySubstWithConstraintsM s ta)
+    `catchError` \_ -> freshVar "taup"
+
+-- | τ_p of a constructor application: reassemble the constructor's result type from the
+-- sub-patterns' structural types @childrenTaup@ at the (freshly instantiated) argument positions
+-- @argTypes@ / @resultType@.  Every argument is fresh-headed, so the occurs check can never fire;
+-- isolated so the reassembly never leaks into the main inference.
+taupFromCtor :: TypeErrorContext -> [Type] -> Type -> [Type] -> Infer Type
+taupFromCtor ctx argTypes resultType childrenTaup
+  | length argTypes /= length childrenTaup = freshVar "taup"
+  | otherwise = withIsolatedConstraints $
+      (do s <- foldM (\acc (x, y) -> do
+                   x' <- applySubstWithConstraintsM acc x
+                   y' <- applySubstWithConstraintsM acc y
+                   s' <- unifyTypesWithContext x' y' ctx
+                   return (composeSubst s' acc)) emptySubst (zip argTypes childrenTaup)
+          applySubstWithConstraintsM s resultType)
+        `catchError` \_ -> freshVar "taup"
 
 -- | Match-site structural admissibility (paper T-MATCHALL / T-MATCH via COERCE-MATCHER-TO-SLOT).
--- For each clause we derive TWO types from the pattern:
---   * τ_p — the *constructor skeleton* ('mapValuePatsToFreshVars' turns value/predicate patterns
---     into fresh-var holes), used as the structural slot the matcher must fill (one-way @⊑@);
---   * τ_t — the *full* pattern type (value patterns contribute their value's type), unified with
---     the target type.
+-- For each clause a single traversal ('patternDualType') derives BOTH pattern types at once:
+--   * τ_p — the *structural* type, the slot the matcher must fill (one-way @⊑@); a value/predicate
+--     pattern contributes only a fresh variable here, so it imposes no structural duty;
+--   * τ_t — the *target* type (value patterns contribute their value's type), unified with the
+--     target type.
 -- The matcher must fill @MatcherSlot τ_p τ_t@.  Routing value-pattern types into τ_t (target)
 -- rather than τ_p (structural) means a value pattern `#e` — matched by structural equality @≡@,
 -- which every matcher supports — imposes only a target-type constraint.  So `multiset eq with #1`
@@ -2211,8 +2219,7 @@ checkMatcherAdmissibility :: TypeErrorContext -> Type -> Type -> [IMatchClause] 
 checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = foldM step s0 clauses
   where
     step accS (pat, _body) = do
-      tau_p      <- patternStructuralType (mapValuePatsToFreshVars pat) ctx
-      tau_t      <- patternStructuralType pat ctx
+      (tau_p, tau_t) <- patternDualType pat ctx
       targetTy'  <- applySubstWithConstraintsM accS targetTy
       tau_t'     <- applySubstWithConstraintsM accS tau_t
       -- value-pattern-informed type unifies with the actual target type
@@ -2291,7 +2298,7 @@ inferMatchClause :: TypeErrorContext -> Type -> IMatchClause -> Subst -> Infer (
 inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
   -- Infer pattern type and extract pattern variable bindings
   -- Use pattern constructor and pattern function type information
-  (tiPattern, bindings, s_pat) <- inferIPattern pattern matchedType ctx
+  (tiPattern, bindings, s_pat, _) <- inferIPattern pattern matchedType ctx
   let s1 = composeSubst s_pat initSubst
   
   -- Convert bindings to TypeScheme format
@@ -2307,17 +2314,19 @@ inferMatchClause ctx matchedType (pattern, bodyExpr) initSubst = do
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))
 -- Returns (list of TIPattern, accumulated bindings, substitution)
-inferPatternsLeftToRight :: [IPattern] -> [Type] -> [(String, Type)] -> Subst -> TypeErrorContext 
-                         -> Infer ([TIPattern], [(String, Type)], Subst)
-inferPatternsLeftToRight [] [] accBindings accSubst _ctx = 
-  return ([], accBindings, accSubst)
+-- The final @[Type]@ component is the sub-patterns' structural types τ_p, in order, used by the
+-- parent constructor/tuple to reassemble its own τ_p (paper T-MATCHALL dual judgment).
+inferPatternsLeftToRight :: [IPattern] -> [Type] -> [(String, Type)] -> Subst -> TypeErrorContext
+                         -> Infer ([TIPattern], [(String, Type)], Subst, [Type])
+inferPatternsLeftToRight [] [] accBindings accSubst _ctx =
+  return ([], accBindings, accSubst, [])
 inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
   -- Add accumulated bindings to environment for this pattern
   let schemes = [(var, Forall [] [] ty) | (var, ty) <- accBindings]
 
   -- Infer this pattern with left bindings in scope
   t' <- applySubstWithConstraintsM accSubst t
-  (tipat, newBindings, s) <- withEnv schemes $ inferIPattern p t' ctx
+  (tipat, newBindings, s, taup) <- withEnv schemes $ inferIPattern p t' ctx
 
   -- Compose substitutions
   let accSubst' = composeSubst s accSubst
@@ -2327,30 +2336,43 @@ inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
       ty' <- applySubstWithConstraintsM s ty
       return (v, ty')) accBindings
   let accBindings' = accBindings'' ++ newBindings
-  
-  -- Continue with remaining patterns
-  (restTipats, finalBindings, finalSubst) <- inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
-  return (tipat : restTipats, finalBindings, finalSubst)
-inferPatternsLeftToRight _ _ accBindings accSubst _ = 
-  return ([], accBindings, accSubst)  -- Mismatched lengths
 
--- | Infer IPattern type and extract pattern variable bindings
--- Returns (TIPattern, bindings, substitution)
--- bindings: [(variable name, type)]
-inferIPattern :: IPattern -> Type -> TypeErrorContext -> Infer (TIPattern, [(String, Type)], Subst)
+  -- Continue with remaining patterns
+  (restTipats, finalBindings, finalSubst, restTaups) <- inferPatternsLeftToRight ps ts accBindings' accSubst' ctx
+  return (tipat : restTipats, finalBindings, finalSubst, taup : restTaups)
+inferPatternsLeftToRight _ _ accBindings accSubst _ =
+  return ([], accBindings, accSubst, [])  -- Mismatched lengths
+
+-- | Infer an IPattern's types and extract its pattern-variable bindings.  Returns
+-- (TIPattern, bindings, substitution, τ_p) — realizing the paper's dual judgment
+-- @Γ;Δ ⊢ p : Pattern τ_p ▷ τ_t ; Δ'@ in one traversal:
+--   * τ_t (the *target* type) and Δ' (bindings) are computed exactly as before — coherently,
+--     top-down, threading one substitution (τ_t is read from the TIPattern / @expectedType@);
+--   * τ_p (the *structural* type, the 4th component) is built up from the sub-patterns' own τ_p
+--     with a FRESH variable at every leaf (variable, wildcard, and value/predicate position).
+-- Keeping τ_p's variables disjoint from τ_t's (the leaves are fresh, and value patterns never
+-- contribute their value's type to τ_p) is what lets the later τ_t-with-target unification leave
+-- τ_p untouched — so the structural slot stays matcher-independent — and is also what stops τ_p
+-- from tangling with outer bindings into an infinite type.  The few τ_p reassembly unifications
+-- (constructor/and/or/…) are run with 'withIsolatedConstraints' so they never leak into the main
+-- (τ_t / binding) inference.
+inferIPattern :: IPattern -> Type -> TypeErrorContext -> Infer (TIPattern, [(String, Type)], Subst, Type)
 inferIPattern pat expectedType ctx = case pat of
   IWildCard -> do
-    -- Wildcard: no bindings
+    -- Wildcard: no bindings; τ_p is a fresh variable (no structural duty)
     let tipat = TIPattern (Forall [] [] expectedType) TIWildCard
-    return (tipat, [], emptySubst)
-  
+    taup <- freshVar "taup"
+    return (tipat, [], emptySubst, taup)
+
   IPatVar name -> do
-    -- Pattern variable: bind to expected type
+    -- Pattern variable: bind to expected type; τ_p a fresh variable, independent of expectedType
     let tipat = TIPattern (Forall [] [] expectedType) (TIPatVar name)
-    return (tipat, [(name, expectedType)], emptySubst)
-  
+    taup <- freshVar "taup"
+    return (tipat, [(name, expectedType)], emptySubst, taup)
+
   IValuePat expr -> do
-    -- Value pattern: infer expression type and unify with expected type
+    -- Value pattern: infer expression type and unify with expected type.  τ_p is a fresh variable
+    -- — matched by structural equality, the value imposes no structural duty (its type goes to τ_t)
     (exprTI, s) <- inferIExprWithContext expr ctx
     let exprType = tiExprType exprTI
     exprType' <- applySubstWithConstraintsM s exprType
@@ -2360,11 +2382,12 @@ inferIPattern pat expectedType ctx = case pat of
     exprTI' <- applySubstToTIExprM finalS exprTI
     finalType <- applySubstWithConstraintsM finalS expectedType
     let tipat = TIPattern (Forall [] [] finalType) (TIValuePat exprTI')
-    return (tipat, [], finalS)
+    taup <- freshVar "taup"
+    return (tipat, [], finalS, taup)
 
   IPredPat expr -> do
-    -- Predicate pattern: infer predicate expression
-    -- Expected type for predicate is: expectedType -> Bool
+    -- Predicate pattern: infer predicate expression.  τ_p is a fresh variable (a boolean test
+    -- imposes no structural duty)
     let predicateType = TFun expectedType TBool
     (exprTI, s) <- inferIExprWithContext expr ctx
     -- Unify with expected predicate type to concretize type variables
@@ -2375,7 +2398,8 @@ inferIPattern pat expectedType ctx = case pat of
     exprTI' <- applySubstToTIExprM finalS exprTI
     finalType <- applySubstWithConstraintsM finalS expectedType
     let tipat = TIPattern (Forall [] [] finalType) (TIPredPat exprTI')
-    return (tipat, [], finalS)
+    taup <- freshVar "taup"
+    return (tipat, [], finalS, taup)
   
   ITuplePat pats -> do
     -- Tuple pattern: decompose expected type
@@ -2383,11 +2407,11 @@ inferIPattern pat expectedType ctx = case pat of
       TTuple types | length types == length pats -> do
         -- Types match: infer each sub-pattern left-to-right
         -- Left patterns' bindings are available for right patterns (for non-linear patterns)
-        (tipats, allBindings, s) <- inferPatternsLeftToRight pats types [] emptySubst ctx
+        (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats types [] emptySubst ctx
         finalType <- applySubstWithConstraintsM s expectedType
         let tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
-        return (tipat, allBindings, s)
-      
+        return (tipat, allBindings, s, TTuple childrenTaup)
+
       TVar _ -> do
         -- Expected type is a type variable: create tuple type
         elemTypes <- mapM (\_ -> freshVar "elem") pats
@@ -2396,10 +2420,10 @@ inferIPattern pat expectedType ctx = case pat of
 
         -- Recursively infer each sub-pattern left-to-right
         elemTypes' <- mapM (applySubstWithConstraintsM s) elemTypes
-        (tipats, allBindings, s') <- inferPatternsLeftToRight pats elemTypes' [] s ctx
+        (tipats, allBindings, s', childrenTaup) <- inferPatternsLeftToRight pats elemTypes' [] s ctx
         finalType <- applySubstWithConstraintsM s' expectedType
         let tipat = TIPattern (Forall [] [] finalType) (TITuplePat tipats)
-        return (tipat, allBindings, s')
+        return (tipat, allBindings, s', TTuple childrenTaup)
       
       _ -> do
         -- Type mismatch
@@ -2437,10 +2461,16 @@ inferIPattern pat expectedType ctx = case pat of
 
             -- Recursively infer each sub-pattern left-to-right
             -- Left patterns' bindings are available for right patterns
-            (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
             finalType <- applySubstWithConstraintsM s expectedType
+            -- τ_p: reassemble from a FRESH instantiation (untied to expectedType) + children τ_p
+            stP <- get
+            let (_csP, ctorTypeP, ctrP) = instantiate scheme (inferCounter stP)
+            modify $ \z -> z { inferCounter = ctrP }
+            let (argTypesP, resultTypeP) = extractFunctionArgs ctorTypeP
+            taup <- taupFromCtor ctx argTypesP resultTypeP childrenTaup
             let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
-            return (tipat, allBindings, s)
+            return (tipat, allBindings, s, taup)
       
       Nothing -> do
         -- Not found in pattern environment: try data constructor from value environment
@@ -2466,11 +2496,17 @@ inferIPattern pat expectedType ctx = case pat of
                 argTypes' <- mapM (applySubstWithConstraintsM s0) argTypes
 
                 -- Recursively infer each sub-pattern left-to-right
-                (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+                (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
                 finalType <- applySubstWithConstraintsM s expectedType
+                -- τ_p: reassemble from a FRESH instantiation (untied to expectedType) + children τ_p
+                stP <- get
+                let (_csP, ctorTypeP, ctrP) = instantiate scheme (inferCounter stP)
+                modify $ \z -> z { inferCounter = ctrP }
+                let (argTypesP, resultTypeP) = extractFunctionArgs ctorTypeP
+                taup <- taupFromCtor ctx argTypesP resultTypeP childrenTaup
                 let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
-                return (tipat, allBindings, s)
-          
+                return (tipat, allBindings, s, taup)
+
           Nothing -> do
             -- Not found: generic inference
             argTypes <- mapM (\_ -> freshVar "arg") pats
@@ -2480,10 +2516,11 @@ inferIPattern pat expectedType ctx = case pat of
             argTypes' <- mapM (applySubstWithConstraintsM s0) argTypes
 
             -- Recursively infer each sub-pattern left-to-right
-            (tipats, allBindings, s) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
+            (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
             finalType <- applySubstWithConstraintsM s expectedType
+            -- τ_p: an undeclared constructor is treated generically — same head, children's τ_p
             let tipat = TIPattern (Forall [] [] finalType) (TIInductivePat name tipats)
-            return (tipat, allBindings, s)
+            return (tipat, allBindings, s, TInductive name childrenTaup)
   
   IIndexedPat p indices -> do
     -- Indexed pattern: infer base pattern and index expressions
@@ -2510,12 +2547,14 @@ inferIPattern pat expectedType ctx = case pat of
 
     -- Infer base pattern with Hash type
     baseType' <- applySubstWithConstraintsM s1 baseType
-    (tipat, bindings, s2) <- inferIPattern p baseType' ctx
+    (tipat, bindings, s2, _) <- inferIPattern p baseType' ctx
 
     let finalS = composeSubst s2 s1
     finalType <- applySubstWithConstraintsM finalS expectedType
     let tiIndexedPat = TIPattern (Forall [] [] finalType) (TIIndexedPat tipat indexTIs)
-    return (tiIndexedPat, bindings, finalS)
+    -- τ_p: an indexed access ($x_i) is variable-like — no structural duty
+    taup <- freshVar "taup"
+    return (tiIndexedPat, bindings, finalS, taup)
   
   ILetPat bindings p -> do
     -- Let pattern: infer bindings and then the pattern
@@ -2525,45 +2564,47 @@ inferIPattern pat expectedType ctx = case pat of
 
     -- Infer pattern with bindings in scope
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat, patBindings, s2) <- withEnv bindingSchemes $ inferIPattern p expectedType' ctx
+    (tipat, patBindings, s2, innerTaup) <- withEnv bindingSchemes $ inferIPattern p expectedType' ctx
 
     let s = composeSubst s2 s1
     finalType <- applySubstWithConstraintsM s expectedType
     let tiLetPat = TIPattern (Forall [] [] finalType) (TILetPat bindingTIs tipat)
-    -- Let bindings are not exported, only pattern bindings
-    return (tiLetPat, patBindings, s)
-  
+    -- Let bindings are not exported, only pattern bindings; τ_p is the inner pattern's
+    return (tiLetPat, patBindings, s, innerTaup)
+
   INotPat p -> do
-    -- Not pattern: infer the sub-pattern but don't use its bindings
-    (tipat, _, s) <- inferIPattern p expectedType ctx
+    -- Not pattern: infer the sub-pattern but don't use its bindings; τ_p is the inner pattern's
+    (tipat, _, s, innerTaup) <- inferIPattern p expectedType ctx
     finalType <- applySubstWithConstraintsM s expectedType
     let tiNotPat = TIPattern (Forall [] [] finalType) (TINotPat tipat)
-    return (tiNotPat, [], s)
+    return (tiNotPat, [], s, innerTaup)
   
   IAndPat p1 p2 -> do
     -- And pattern: both patterns must match the same type
     -- Left bindings should be available to right pattern
-    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1, taup1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
+    (tipat2, bindings2, s2, taup2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
         ty' <- applySubstWithConstraintsM s2 ty
         return (v, ty')) bindings1
     finalType <- applySubstWithConstraintsM s expectedType
+    -- τ_p: the matcher must support both conjuncts' shapes
+    taup <- taupCombine ctx taup1 taup2
     let bindings1' = bindings1''
         tiAndPat = TIPattern (Forall [] [] finalType) (TIAndPat tipat1 tipat2)
-    return (tiAndPat, bindings1' ++ bindings2, s)
+    return (tiAndPat, bindings1' ++ bindings2, s, taup)
   
   IOrPat p1 p2 -> do
     -- Or pattern (paper PAT-OR): the two branches are alternatives over the same input
     -- context, so they are typed independently and must produce the SAME output bindings Δ'
     -- — the same variable names, at unifiable types.
-    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1, taup1) <- inferIPattern p1 expectedType ctx
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- inferIPattern p2 expectedType' ctx
+    (tipat2, bindings2, s2, taup2) <- inferIPattern p2 expectedType' ctx
     let s12 = composeSubst s2 s1
         vars1 = nub (map fst bindings1)
         vars2 = nub (map fst bindings2)
@@ -2592,30 +2633,33 @@ inferIPattern pat expectedType ctx = case pat of
             return (v, ty')) bindings1
         finalType <- applySubstWithConstraintsM sVars expectedType
         let tiOrPat = TIPattern (Forall [] [] finalType) (TIOrPat tipat1 tipat2)
-        return (tiOrPat, finalBindings, sVars)
+        -- τ_p: the matcher must support either alternative's shape
+        taup <- taupCombine ctx taup1 taup2
+        return (tiOrPat, finalBindings, sVars, taup)
   
   IForallPat p1 p2 -> do
     -- Forall pattern: similar to and pattern
     -- Left bindings should be available to right pattern
-    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1, taup1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
+    (tipat2, bindings2, s2, taup2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
         ty' <- applySubstWithConstraintsM s2 ty
         return (v, ty')) bindings1
     finalType <- applySubstWithConstraintsM s expectedType
+    taup <- taupCombine ctx taup1 taup2
     let bindings1' = bindings1''
         tiForallPat = TIPattern (Forall [] [] finalType) (TIForallPat tipat1 tipat2)
-    return (tiForallPat, bindings1' ++ bindings2, s)
+    return (tiForallPat, bindings1' ++ bindings2, s, taup)
   
   ILoopPat var range p1 p2 -> do
     -- Loop pattern: $var is the loop variable (Integer), range contains pattern
     -- First, infer the range pattern (third element of ILoopRange)
     let ILoopRange startExpr endExpr rangePattern = range
-    (tiRangePat, rangeBindings, s_range) <- inferIPattern rangePattern TInt ctx
+    (tiRangePat, rangeBindings, s_range, _) <- inferIPattern rangePattern TInt ctx
     
     -- Infer start and end expressions
     (startTI, s_start) <- inferIExprWithContext startExpr ctx
@@ -2630,7 +2674,7 @@ inferIPattern pat expectedType ctx = case pat of
 
     -- Infer p1 with loop variable and range bindings in scope
     expectedType1 <- applySubstWithConstraintsM s_combined expectedType
-    (tipat1, bindings1, s1) <- withEnv schemes0 $ inferIPattern p1 expectedType1 ctx
+    (tipat1, bindings1, s1, taup1) <- withEnv schemes0 $ inferIPattern p1 expectedType1 ctx
 
     -- Infer p2 with all previous bindings in scope
     allPrevBindings' <- mapM (\(v, ty) -> do
@@ -2639,23 +2683,26 @@ inferIPattern pat expectedType ctx = case pat of
     let allPrevBindings = allPrevBindings' ++ bindings1
         schemes1 = [(v, Forall [] [] ty) | (v, ty) <- allPrevBindings]
     expectedType2 <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType2 ctx
-    
+    (tipat2, bindings2, s2, taup2) <- withEnv schemes1 $ inferIPattern p2 expectedType2 ctx
+
     let s = foldr composeSubst emptySubst [s2, s1, s_combined]
     -- Apply final substitution to all bindings
     finalBindings' <- mapM (\(v, ty) -> do
         ty' <- applySubstWithConstraintsM s ty
         return (v, ty')) (loopVarBinding : rangeBindings ++ bindings1 ++ bindings2)
     finalType <- applySubstWithConstraintsM s expectedType
+    -- τ_p: the iterated body and the rest both describe the matched value
+    taup <- taupCombine ctx taup1 taup2
     let finalBindings = finalBindings'
         tiLoopPat = TIPattern (Forall [] [] finalType) (TILoopPat var tiLoopRange tipat1 tipat2)
 
-    return (tiLoopPat, finalBindings, s)
-  
+    return (tiLoopPat, finalBindings, s, taup)
+
   IContPat -> do
     -- Continuation pattern: no bindings
     let tipat = TIPattern (Forall [] [] expectedType) TIContPat
-    return (tipat, [], emptySubst)
+    taup <- freshVar "taup"
+    return (tipat, [], emptySubst, taup)
   
   IPApplyPat funcExpr argPats -> do
     -- Pattern application: infer pattern function type
@@ -2664,16 +2711,19 @@ inferIPattern pat expectedType ctx = case pat of
     -- Pattern function should return a pattern that matches expectedType
     -- Infer argument patterns left-to-right with fresh types
     argTypes <- mapM (\_ -> freshVar "parg") argPats
-    (tipats, allBindings, s2) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
+    (tipats, allBindings, s2, _) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
 
     finalType <- applySubstWithConstraintsM s2 expectedType
     let tipat = TIPattern (Forall [] [] finalType) (TIPApplyPat funcTI tipats)
-    return (tipat, allBindings, s2)
-  
+    -- τ_p: a pattern-function result is structurally unconstrained at this site
+    taup <- freshVar "taup"
+    return (tipat, allBindings, s2, taup)
+
   IVarPat name -> do
-    -- Variable pattern (with ~): bind to expected type
+    -- Variable pattern (with ~): bind to expected type; τ_p a fresh variable
     let tipat = TIPattern (Forall [] [] expectedType) (TIVarPat name)
-    return (tipat, [(name, expectedType)], emptySubst)
+    taup <- freshVar "taup"
+    return (tipat, [(name, expectedType)], emptySubst, taup)
   
   IInductiveOrPApplyPat name pats -> do
     -- Could be either inductive pattern or pattern application
@@ -2683,58 +2733,61 @@ inferIPattern pat expectedType ctx = case pat of
     case lookupPatternEnv name patternFuncEnv of
       Just _ -> do
         -- It's a pattern function: treat as pattern application
-        (tipat, bindings, s) <- inferIPattern (IPApplyPat (IVarExpr name) pats) expectedType ctx
-        return (tipat, bindings, s)
+        (tipat, bindings, s, taup) <- inferIPattern (IPApplyPat (IVarExpr name) pats) expectedType ctx
+        return (tipat, bindings, s, taup)
       Nothing -> do
         -- It's an inductive pattern constructor (or not found, will be handled later)
-        (tipat, bindings, s) <- inferIPattern (IInductivePat name pats) expectedType ctx
+        (tipat, bindings, s, taup) <- inferIPattern (IInductivePat name pats) expectedType ctx
         -- Wrap it as InductiveOrPApplyPat (if it's actually an inductive pattern)
         case tipPatternNode tipat of
           TIInductivePat _ tipats -> do
             let scheme = tipScheme tipat
                 tiInductiveOrPApplyPat = TIPattern scheme (TIInductiveOrPApplyPat name tipats)
-            return (tiInductiveOrPApplyPat, bindings, s)
-          _ -> 
+            return (tiInductiveOrPApplyPat, bindings, s, taup)
+          _ ->
             -- Not an inductive pattern (e.g., already processed as pattern application)
-            return (tipat, bindings, s)
+            return (tipat, bindings, s, taup)
   
   ISeqNilPat -> do
     -- Sequence nil: no bindings
     let tipat = TIPattern (Forall [] [] expectedType) TISeqNilPat
-    return (tipat, [], emptySubst)
-  
+    taup <- freshVar "taup"
+    return (tipat, [], emptySubst, taup)
+
   ISeqConsPat p1 p2 -> do
     -- Sequence cons: infer both patterns
     -- Left bindings should be available to right pattern
-    (tipat1, bindings1, s1) <- inferIPattern p1 expectedType ctx
+    (tipat1, bindings1, s1, taup1) <- inferIPattern p1 expectedType ctx
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
+    (tipat2, bindings2, s2, taup2) <- withEnv schemes1 $ inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
         ty' <- applySubstWithConstraintsM s2 ty
         return (v, ty')) bindings1
     finalType <- applySubstWithConstraintsM s expectedType
+    taup <- taupCombine ctx taup1 taup2
     let bindings1' = bindings1''
         tipat = TIPattern (Forall [] [] finalType) (TISeqConsPat tipat1 tipat2)
-    return (tipat, bindings1' ++ bindings2, s)
-  
+    return (tipat, bindings1' ++ bindings2, s, taup)
+
   ILaterPatVar -> do
     -- Later pattern variable: no immediate binding
     let tipat = TIPattern (Forall [] [] expectedType) TILaterPatVar
-    return (tipat, [], emptySubst)
+    taup <- freshVar "taup"
+    return (tipat, [], emptySubst, taup)
   
   IDApplyPat p pats -> do
     -- D-apply pattern: infer base pattern and argument patterns
     -- Base pattern bindings should be available to argument patterns
-    (tipat, bindings1, s1) <- inferIPattern p expectedType ctx
-    
+    (tipat, bindings1, s1, baseTaup) <- inferIPattern p expectedType ctx
+
     -- Infer argument patterns left-to-right with base pattern bindings in scope
     argTypes <- mapM (\_ -> freshVar "darg") pats
     let schemes1 = [(var, Forall [] [] ty) | (var, ty) <- bindings1]
-    (tipats, argBindings, s2) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
-    
+    (tipats, argBindings, s2, _) <- withEnv schemes1 $ inferPatternsLeftToRight pats argTypes [] s1 ctx
+
     let s = composeSubst s2 s1
     -- Apply substitution to base bindings
     bindings1'' <- mapM (\(v, ty) -> do
@@ -2743,7 +2796,8 @@ inferIPattern pat expectedType ctx = case pat of
     finalType <- applySubstWithConstraintsM s expectedType
     let bindings1' = bindings1''
         tiDApplyPat = TIPattern (Forall [] [] finalType) (TIDApplyPat tipat tipats)
-    return (tiDApplyPat, bindings1' ++ argBindings, s)
+    -- τ_p: the d-apply's structural shape is its base pattern's
+    return (tiDApplyPat, bindings1' ++ argBindings, s, baseTaup)
   where
     -- Extract function argument types and result type
     -- e.g., a -> b -> c -> d  =>  ([a, b, c], d)
@@ -3409,7 +3463,7 @@ inferITopExpr topExpr = case topExpr of
                   , errorExpr = Just ("Pattern function: " ++ name)
                   , errorContext = Just ("Expected type: " ++ show retType)
                   }
-      (tiBody, _bodyBindings, subst) <- inferIPattern body retType ctx
+      (tiBody, _bodyBindings, subst, _) <- inferIPattern body retType ctx
       
       -- Note: Pattern variables that reference parameters (using ~param) will appear in bodyBindings
       -- but they are NOT conflicts - they are references to the parameters themselves.
