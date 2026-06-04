@@ -120,7 +120,7 @@ data Type
   | TTensor Type                      -- ^ Tensor type (only element type is kept). Vector and Matrix are aliases for Tensor
   | THash Type Type                   -- ^ Hash map type
   | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
-  | TMatcherSlot Type Type            -- ^ Matcher consumer position, e.g., MatcherSlot tau_s tau_t (structural type / target type)
+  | TMatcherSlot Type Type            -- ^ Matcher consumer position, e.g., MatcherSlot tau_p tau_t (structural index tau_p / target index tau_t)
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
   | TIO Type                          -- ^ IO type (for IO actions)
   | TIORef Type                       -- ^ IORef type

@@ -434,33 +434,34 @@ getTyVarName (TyVar name) = name
 -- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)
 --------------------------------------------------------------------------------
 
--- | Coerce a Matcher value of intrinsic type @tm@ into a slot @MatcherSlot ts tt@.
--- Dual check:
---   (1) structural admissibility: @ts@ can be specialized (one-way, binding only
---       @ts@'s variables) to @tm@.  Checked FIRST, on the intrinsic @tm@, so that e.g.
+-- | Coerce a Matcher value of intrinsic type @tm@ (paper τ_m) into the slot @MatcherSlot tp tt@
+-- (paper @MatcherSlot τ_p τ_t@: structural index @tp@ = τ_p, target index @tt@ = τ_t).
+-- Dual check (paper COERCE-MATCHER-TO-SLOT):
+--   (1) structural admissibility (τ_m ⊑ τ_p): @tp@ can be specialized (one-way, binding only
+--       @tp@'s variables) to @tm@.  Checked FIRST, on the intrinsic @tm@, so that e.g.
 --       @something : Matcher a@ is rejected at a constructor-headed slot (its @a@ has
 --       not yet been concretized by the target unification).
---   (2) target unifiability: @tm ~ tt@.
--- The paper's COERCE-MATCHER-TO-SLOT freezes the matcher with a fresh renaming
--- @tm' = fresh_rename(tm)@ (used only in the structural premise @tm' \sqsubseteq ts@, while the
--- target premise keeps the original @tm@) purely to make the two premises evaluable in any
--- order.  We do not rename: 'matchOneWay' treats @tm@ as rigid (binds only @ts@'s variables),
--- and fixing the order — structural check FIRST, on the un-substituted @tm@ — already prevents
--- the target unification from leaking into the structural check.  So the fresh copy is
--- unnecessary here; both realize the identical admissibility predicate.  (This is also why no
--- @fresh_rename@ is applied to the structural index @ts@ at a match site: paper WT-ATOM/T-MATCH.)
+--   (2) target unifiability (τ_m ~ τ_t): @tm ~ tt@.
+-- The paper freezes the matcher with a fresh renaming @τ_m' = fresh_rename(τ_m)@ (used only in
+-- the structural premise @τ_m' ⊑ τ_p@, the target premise keeping the original @τ_m@) purely to
+-- make the two premises evaluable in any order.  We do not rename: 'matchOneWay' treats @tm@ as
+-- rigid (binds only @tp@'s variables), and fixing the order — structural check FIRST, on the
+-- un-substituted @tm@ — already prevents the target unification from leaking into the structural
+-- check.  So the fresh copy is unnecessary; both realize the identical admissibility predicate.
+-- (This is also why no @fresh_rename@ is applied to the structural index @tp@ (τ_p) at a match
+-- site: paper WT-ATOM/T-MATCH.)
 coerceMatcherToSlot :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Type
                     -> Either UnifyError (Subst, Bool)
-coerceMatcherToSlot mode ce cs tm ts tt =
-  case matchOneWay ts tm of
-    Nothing   -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot ts tt)
+coerceMatcherToSlot mode ce cs tm tp tt =
+  case matchOneWay tp tm of
+    Nothing   -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot tp tt)
     Just subS -> do
       let cs' = map (applySubstConstraint subS) cs
       (subT, flagT) <- unifyNormalized mode ce cs' (applySubst subS tm) (applySubst subS tt)
       Right (composeSubst subT subS, flagT)
 
 -- | COERCE-SLOT-TUPLE: a tuple of matchers @(m1, ..., mk)@ filling a product slot
--- @MatcherSlot ts tt@.
+-- @MatcherSlot tp tt@ (structural index @tp@ = τ_p, target index @tt@ = τ_t).
 --
 -- When the slot's structural and target indices are themselves @k@-tuples, decompose the
 -- product slot into component slots and check each tuple-matcher component against its own
@@ -476,8 +477,8 @@ coerceMatcherToSlot mode ce cs tm ts tt =
 -- @list (m : MatcherSlot a a)@) still accept a tuple matcher such as @(m, integer)@.
 coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> [Type]
                 -> Either UnifyError (Subst, Bool)
-coerceSlotTuple mode ce cs ts tt tys
-  | TTuple sigmas <- ts, TTuple taus <- tt
+coerceSlotTuple mode ce cs tp tt tys
+  | TTuple sigmas <- tp, TTuple taus <- tt
   , length sigmas == length tys, length taus == length tys =
       goComponents (zip3 tys sigmas taus) emptySubst False
   | otherwise = do
@@ -485,7 +486,7 @@ coerceSlotTuple mode ce cs ts tt tys
       let tm  = TTuple innerTypes
           cs' = map (applySubstConstraint s1) cs
       (s2, flag2) <- coerceMatcherToSlot mode ce cs'
-                       (applySubst s1 tm) (applySubst s1 ts) (applySubst s1 tt)
+                       (applySubst s1 tm) (applySubst s1 tp) (applySubst s1 tt)
       Right (composeSubst s2 s1, flag1 || flag2)
   where
     goComponents [] acc flag = Right (acc, flag)
