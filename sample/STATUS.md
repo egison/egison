@@ -24,9 +24,12 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 > 注: 2026-06 の matcher rigidity 対応で `five-color` / `bipartite-graph` /
 > `salesman` / `sat/cdcl` / `poker-hands-with-joker` / `chopsticks` /
 > `generalized-sequential-pattern-mining` / `tree` / `graph` の matcher
-> 引数・注釈を移行した(slot 化・poly-RHS 注釈の撤去)。five-color と
-> bipartite-graph はこれで型クリーン化。chopsticks / gsp / tree / salesman2 /
-> graph / unify には rigidity と無関係の既存エラーが残っている。
+> 引数・注釈を移行した(slot 化)。five-color は注釈整理で、bipartite-graph は
+> `inductive` / `inductive pattern` 宣言の追加で型クリーン化。
+> **パラメータ付き algebraicDataMatcher の正しい形** = ①データ宣言
+> `inductive Edge a b := Edge a b` ②パターン宣言 `inductive pattern Edge a b := edge a b`
+> ③slot 注釈付き def(`{a,b,c,d} (a: MatcherSlot b b) ... : Matcher (Edge b d)`)の3点セット。
+> chopsticks / gsp / tree / salesman2 / graph / unify には別の既存エラーが残っている。
 
 ## ディレクトリ別一覧
 
@@ -36,7 +39,7 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 |---|---|---:|---|
 | `bellman-ford.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `Expected CASData, but found: "plus"`(typeclass 展開系) |
 | `binary-counter.egi` | ✅ | 1s |  |
-| `bipartite-graph.egi` | ✅ | 2s | rigidity 対応で結果注釈を撤去して修復(2026-06) |
+| `bipartite-graph.egi` | ✅ | 2s | `inductive Edge` + `inductive pattern Edge` 宣言を追加して修復(2026-06。auto-generated ファイルに宣言が欠落していた) |
 | `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11(タプル/リスト不一致など。matcher 引数の slot 化で rigidity は解消済み、残りは既存の型不一致) |
 | `chopsticks2.egi` | ❌ 型エラー | 2s | 型エラー(`[[Integer]]` 不一致) |
 | `demo1-ja.egi` | ✅ | 1s |  |
@@ -62,7 +65,7 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 | `salesman2.egi` | ❌ 型エラー | 1s | 型エラー(loop+let+hash の複合パターン。`salesman.egi` は OK) |
 | `tail-recursion.egi` | ⏱ timeout | 60s | 60s 超(性質上の重い計算/無限) |
 | `tak.egi` | ✅ | 1s |  |
-| `tree.egi` | ❌ 型エラー | 1s | 型エラー(matcher 引数は slot 化済み、残りは既存の型不一致) |
+| `tree.egi` | ❌ 型エラー | 1s | `inductive Tree` + `inductive pattern Tree` 宣言を追加して前進したが、`$ :: $` / `$ ++ $` 節(リスト用パターン構築子の Tree への流用、v3 流)が型エラーのまま |
 | `triangle.egi` | ❌ 型エラー | 1s | 型エラー(Integer 不一致) |
 | `unify.egi` | ❌ parse | 1s | parse エラー (88:11, Unicode 識別子 `$σ`) |
 | `xml-test.egi` | ⚠️ exit 1 | 1s | exit 1(原因未調査) |

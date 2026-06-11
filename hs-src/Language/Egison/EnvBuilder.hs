@@ -20,16 +20,16 @@ module Language.Egison.EnvBuilder
   , EnvBuildResult(..)
   ) where
 
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, when)
 import           Control.Monad.Except       (throwError)
 import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM, EgisonError(..))
-import           Language.Egison.EvalState  (MonadEval(getConstructorEnv), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getMatcherExemptHeads), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
-import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
+import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, addPatternHead,
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
@@ -228,6 +228,18 @@ processTopExpr declaredTypes result topExpr = case topExpr of
   
   -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
   PatternInductiveDecl typeName typeParams constructors -> do
+    -- Matcher-exemption interlock: a head at which a bare-variable matcher
+    -- value (eq / something) was already admitted under the pattern-
+    -- constructor-free exemption must not gain pattern constructors later;
+    -- the exemption's justification (only value patterns / variables /
+    -- wildcards can reach the matcher) would be silently invalidated.
+    exempted <- getMatcherExemptHeads
+    when (typeName `Set.member` exempted) $
+      throwError $ Default $
+        "cannot declare pattern constructors for '" ++ typeName ++
+        "': a polymorphic matcher value (e.g. eq) was already admitted at this type " ++
+        "under the pattern-constructor-free exemption; declaring pattern constructors " ++
+        "would let patterns reach a matcher that cannot handle them"
     let typeParamVars = map (TVar . TyVar) typeParams
         -- Special cases: [a] as TCollection and String as TString
         patternType = case (typeName, typeParams) of
@@ -241,7 +253,10 @@ processTopExpr declaredTypes result topExpr = case topExpr of
                               patternCtorEnv 
                               constructors
     
-    return result { ebrPatternConstructorEnv = patternCtorEnv' }
+    return result { ebrPatternConstructorEnv = patternCtorEnv'
+                  -- Record the head so the matcher-exemption predicate
+                  -- (exemptibleMatcherHead) sees its declarations
+                  , ebrClassEnv = addPatternHead typeName (ebrClassEnv result) }
   
   -- 6. Pattern Function Declarations (from PatternFunctionDecl)
   PatternFunctionDecl name typeParams params retType _body -> do

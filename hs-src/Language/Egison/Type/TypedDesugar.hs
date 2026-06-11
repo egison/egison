@@ -33,7 +33,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), TITopEx
 import           Language.Egison.Type.Env   (lookupEnv)
 import           Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..))
-import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, expandTypeClassMethodsInPattern, addDictionaryParametersT, applyConcreteConstraintDictionaries, applyConcreteConstraintDictionariesInPattern)
+import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, expandTypeClassMethodsInPattern, addDictionaryParametersT, applyConcreteConstraintDictionaries, applyConcreteConstraintDictionariesInPattern, fixUnboundDictRefs)
 
 -- | Wrap a TIExpr with TIReshape when the type scheme demands a concrete
 -- CAS scalar type (Integer, Frac _, Poly _ _, Term _ _, Factor). Skip for
@@ -83,17 +83,22 @@ desugarTypedTopExprT topExpr = case topExpr of
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
     -- Add dictionary parameters for constrained functions
     tiexpr''' <- addDictionaryParametersT scheme tiexpr''
+    -- Repair any dictionary access left unbound (fall back to runtime dispatch)
+    classEnv <- getClassEnv
+    let tiexprFixed = fixUnboundDictRefs classEnv tiexpr'''
     -- Insert TIReshape from type annotation (post-typecheck elaboration)
-    let tiexprFinal = maybeReshape scheme tiexpr'''
+    let tiexprFinal = maybeReshape scheme tiexprFixed
     return $ Just (TIDefine scheme var tiexprFinal)
-  
+
   TITest tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
-    return $ Just (TITest tiexpr')
-  
+    classEnv <- getClassEnv
+    return $ Just (TITest (fixUnboundDictRefs classEnv tiexpr'))
+
   TIExecute tiexpr -> do
     tiexpr' <- desugarTypedExprT tiexpr
-    return $ Just (TIExecute tiexpr')
+    classEnv <- getClassEnv
+    return $ Just (TIExecute (fixUnboundDictRefs classEnv tiexpr'))
   
   TILoadFile path -> 
     return $ Just (TILoadFile path)
@@ -113,7 +118,8 @@ desugarTypedTopExprT topExpr = case topExpr of
                      Just ts -> ts  -- Use type scheme from environment
                      Nothing -> tiScheme tiexpr'  -- Fallback to expression's scheme
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'
-      return (var, tiexpr'')) bindings
+      classEnv <- getClassEnv
+      return (var, fixUnboundDictRefs classEnv tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
   
   TIDeclareSymbol names ty ->
@@ -173,19 +179,24 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
     -- Add dictionary parameters for constrained functions
     tiexpr''' <- addDictionaryParametersT scheme tiexpr''
+    -- Repair any dictionary access left unbound (fall back to runtime dispatch)
+    classEnv <- getClassEnv
+    let tiexprFixed = fixUnboundDictRefs classEnv tiexpr'''
     -- Insert TIReshape from type annotation (post-typecheck elaboration)
-    let tiexprFinal = maybeReshape scheme tiexpr'''
+    let tiexprFinal = maybeReshape scheme tiexprFixed
     return $ Just (TIDefine scheme var tiexprFinal)
 
   TITest tiexpr -> do
     tiexpr' <- expandTypeClassMethodsT tiexpr
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
-    return $ Just (TITest tiexpr'')
+    classEnv <- getClassEnv
+    return $ Just (TITest (fixUnboundDictRefs classEnv tiexpr''))
 
   TIExecute tiexpr -> do
     tiexpr' <- expandTypeClassMethodsT tiexpr
     tiexpr'' <- applyConcreteConstraintDictionaries tiexpr'
-    return $ Just (TIExecute tiexpr'')
+    classEnv <- getClassEnv
+    return $ Just (TIExecute (fixUnboundDictRefs classEnv tiexpr''))
 
   TILoadFile path ->
     return $ Just (TILoadFile path)
@@ -203,7 +214,8 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
                      Just ts -> ts
                      Nothing -> tiScheme tiexpr'
       tiexpr'' <- addDictionaryParametersT scheme tiexpr'
-      return (var, tiexpr'')) bindings
+      classEnv <- getClassEnv
+      return (var, fixUnboundDictRefs classEnv tiexpr'')) bindings
     return $ Just (TIDefineMany bindings')
   
   TIDeclareSymbol names ty ->

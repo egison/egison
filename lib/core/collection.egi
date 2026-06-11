@@ -425,7 +425,7 @@ def includeAs {a} (m: MatcherSlot a a) (xs: [a]) (ys: [a]) : Bool :=
   match ys as list m with
     | [] -> True
     | $y :: $rs ->
-      if memberAs m y xs then includeAs m (deleteFirst y xs) rs else False
+      if memberAs m y xs then includeAs m (deleteFirstAs m y xs) rs else False
 
 def union {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
@@ -478,6 +478,19 @@ def elemIndices {Eq a} (x: a) (xs: [a]) : [Integer] :=
   matchAll xs as list something with
     | $hs ++ #x :: _ -> 1 + length hs
 
+def unique {Eq a} (xs: [a]) : [a] :=
+  reverse
+    (matchAll reverse xs as list something with
+      | _ ++ $x :: !(_ ++ #x :: _) -> x)
+
+def uniqueAs {a} (m: MatcherSlot a a) (xs: [a]) : [a] := loopFn xs []
+  where
+    loopFn (xs: [a]) (ys: [a]) : [a] :=
+      match (xs, ys) as (list m, multiset m) with
+        | ([], _) -> ys
+        | ($x :: $rs, #x :: _) -> loopFn rs ys
+        | ($x :: $rs, _) -> loopFn rs (ys ++ [x])
+
 --
 -- Set
 --
@@ -504,7 +517,7 @@ def set {a} (m: MatcherSlot a a) : Matcher [a] :=
               $ts -> (map (\i -> x_i) [1..n], tgt)
     | #$val as () with
       | $tgt ->
-        match (unique val, unique tgt) as (list m, multiset m) with
+        match (uniqueAs m val, uniqueAs m tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
           | (_, _) -> []
@@ -518,19 +531,6 @@ def add {Eq a} (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
 
 def addAs {a} (m: MatcherSlot a a) (x: a) (xs: [a]) : [a] := if memberAs m x xs then xs else xs ++ [x]
 
-def fastUnique {Eq a} (xs: [a]) : [a] :=
+def fastUnique {Ord a} (xs: [a]) : [a] :=
   matchAll sort xs as list something with
     | _ ++ $x :: !(#x :: _) -> x
-
-def unique {Eq a} (xs: [a]) : [a] :=
-  reverse
-    (matchAll reverse xs as list something with
-      | _ ++ $x :: !(_ ++ #x :: _) -> x)
-
-def uniqueAs {a} (m: MatcherSlot a a) (xs: [a]) : [a] := loopFn xs []
-  where
-    loopFn (xs: [a]) (ys: [a]) : [a] :=
-      match (xs, ys) as (list m, multiset m) with
-        | ([], _) -> ys
-        | ($x :: $rs, #x :: _) -> loopFn rs ys
-        | ($x :: $rs, _) -> loopFn rs (ys ++ [x])

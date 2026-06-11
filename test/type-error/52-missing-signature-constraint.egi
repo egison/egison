@@ -1,0 +1,8 @@
+-- A definition whose body requires a type-class constraint that its
+-- signature does not declare must be rejected (the signature is the
+-- contract; if the body needs {Ord a}, the signature must say so).
+--
+-- Here <= is an Ord method used at the signature's type variable `a`,
+-- but the signature declares no {Ord a}.
+
+def needsOrd {a} (x: a) (y: a) : Bool := x <= y

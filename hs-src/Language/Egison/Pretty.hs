@@ -848,7 +848,10 @@ prettyTIExprNode node = case node of
   
   TIMatcherExpr patDefs ->
     pretty "matcher" <+> vsep (map prettyPatDef patDefs)
-    where prettyPatDef (pat, expr, _bindings) = pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
+    where prettyPatDef (pat, expr, bindings) =
+            pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
+              <+> pretty "with" <+> vsep (map prettyArm bindings)
+          prettyArm (dp, e) = pretty "|" <+> pretty (show dp) <+> pretty "->" <+> prettyTIExprWithType e
 
   TIRuntimeDispatch className methodName _candidates args ->
     pretty "<runtime-dispatch" <+> pretty className <> pretty "."
@@ -949,6 +952,17 @@ prettyTypeDoc Types.TPolyExpr = pretty "PolyExpr"
 prettyTypeDoc Types.TTermExpr = pretty "TermExpr"
 prettyTypeDoc Types.TSymbolExpr = pretty "SymbolExpr"
 prettyTypeDoc Types.TIndexExpr = pretty "IndexExpr"
+prettyTypeDoc Types.TFactor = pretty "Factor"
+prettyTypeDoc (Types.TFrac t) = pretty "Frac" <+> prettyTypeDoc t
+prettyTypeDoc (Types.TTerm t ss) = pretty "Term" <+> prettyTypeDoc t <+> prettySymbolSetDoc ss
+prettyTypeDoc (Types.TPoly t ss) = pretty "Poly" <+> prettyTypeDoc t <+> prettySymbolSetDoc ss
+
+-- Helper to pretty print a symbol set (of Poly/Term types) as Doc
+prettySymbolSetDoc :: Types.SymbolSet -> Doc ann
+prettySymbolSetDoc (Types.SymbolSetClosed atoms) =
+  brackets (hsep (punctuate comma (map (pretty . Types.prettyTypeAtomValue) atoms)))
+prettySymbolSetDoc Types.SymbolSetOpen = pretty "[..]"
+prettySymbolSetDoc (Types.SymbolSetVar (Types.TyVar v)) = pretty ("[" ++ v ++ "..]")
 
 class Complex a where
   isAtom :: a -> Bool

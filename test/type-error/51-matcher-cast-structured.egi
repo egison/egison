@@ -1,0 +1,7 @@
+-- Matcher exemption (cast) does NOT apply at a structured head: a
+-- bare-variable matcher value may be bound at a pattern-constructor-free
+-- BASE type (def m : Matcher Integer := eq is fine), but [Integer] has
+-- pattern constructors (:: / ++), so this cast would let cons patterns
+-- reach `something`, which cannot decompose them (well-typed but stuck).
+
+def m2 : Matcher [Integer] := something

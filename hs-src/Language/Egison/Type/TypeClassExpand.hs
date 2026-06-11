@@ -28,12 +28,13 @@ module Language.Egison.Type.TypeClassExpand
   , addDictionaryParametersT
   , applyConcreteConstraintDictionaries
   , applyConcreteConstraintDictionariesInPattern
+  , fixUnboundDictRefs
   ) where
 
 import           Data.Char                  (toLower)
 import           Data.List                  (isPrefixOf)
 import           Data.Maybe                 (mapMaybe)
-import           Data.Text                  (pack)
+import           Data.Text                  (pack, unpack)
 import           Control.Monad              (mplus)
 import qualified Data.Set                   as Set
 
@@ -43,7 +44,7 @@ import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringToVar,
                                              Index(..), tiExprType, tiScheme, tiExprNode,
                                              TIPattern(..), TIPatternNode(..), TILoopRange(..),
-                                             mapTIExprChildren)
+                                             mapTIExprChildren, Var(..))
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName,
@@ -137,6 +138,16 @@ applySubstsToType substs = go
     go (TIORef t) = TIORef (go t)
     go TPort = TPort
     go TAny = TAny
+    go TMathValue = TMathValue
+    go TPolyExpr = TPolyExpr
+    go TTermExpr = TTermExpr
+    go TSymbolExpr = TSymbolExpr
+    go TIndexExpr = TIndexExpr
+    go TFactor = TFactor
+    go (TFrac t) = TFrac (go t)
+    -- Symbol sets contain atoms, not types; nothing to substitute there.
+    go (TTerm t ss) = TTerm (go t) ss
+    go (TPoly t ss) = TPoly (go t) ss
 
 -- | Get the arity of a function type (number of parameters)
 getMethodArity :: Type -> Int
@@ -1507,3 +1518,178 @@ applyConcreteConstraintDictionariesInPattern (TIPattern scheme node) = do
       end' <- applyConcreteConstraintDictionaries end
       rangePat' <- applyConcreteConstraintDictionariesInPattern rangePat
       return $ TILoopRange start' end' rangePat'
+
+-- ============================================================================
+-- Unbound dictionary reference repair (post-pass)
+-- ============================================================================
+
+-- | Rewrite dictionary accesses whose dictionary PARAMETER is not lambda-bound
+-- into 'TIRuntimeDispatch'.
+--
+-- The expansion above rewrites a class-method use whose constraint is still a
+-- type variable into an access on the dictionary parameter @dict_<Class>@,
+-- assuming the enclosing definition's scheme carries the constraint so that
+-- 'addDictionaryParametersT' binds that parameter.  When constraint
+-- information was lost (e.g. a definition whose signature is missing a
+-- {Class a} it actually needs, or inference corners that drop node
+-- substitutions), the reference stays UNBOUND: at runtime the variable
+-- silently evaluates to a symbol, the string index (the sanitized method
+-- name, e.g. "ge" for >=) ends up inside CAS data, and evaluation fails far
+-- away with @Expected CASData, but found: "ge"@.
+--
+-- This pass runs AFTER 'addDictionaryParametersT' (so legitimate dictionary
+-- parameters are visible as lambda binders) and rewrites any remaining
+-- access through an unbound @dict_*@ root into a runtime-type dispatch on
+-- the method's owner class — the same mechanism used for MathValue-like
+-- dispatch — which resolves the instance from the first argument's runtime
+-- type.  Accesses with no arguments (0-arity methods like @zero@) cannot be
+-- dispatched at runtime and are left unchanged.
+fixUnboundDictRefs :: ClassEnv -> TIExpr -> TIExpr
+fixUnboundDictRefs classEnv = goE Set.empty
+  where
+    goE :: Set.Set String -> TIExpr -> TIExpr
+    goE scope (TIExpr sch node) = TIExpr sch (goN scope node)
+
+    goN :: Set.Set String -> TIExprNode -> TIExprNode
+    goN scope node = case node of
+      -- Lambda binders may introduce dictionary parameters (from
+      -- addDictionaryParametersT or instance-dictionary functions).
+      TILambdaExpr mVar params body ->
+        let scope' = foldr Set.insert scope
+                       [ n | Var n _ <- params, "dict_" `isPrefixOf` n ]
+        in TILambdaExpr mVar params (goE scope' body)
+      TIMemoizedLambdaExpr params body ->
+        let scope' = foldr Set.insert scope
+                       [ n | n <- params, "dict_" `isPrefixOf` n ]
+        in TIMemoizedLambdaExpr params (goE scope' body)
+
+      -- A method application through an unbound dictionary parameter:
+      -- (dict_C[__super_X]...["m"]) args  ==>  runtime dispatch on the owner.
+      TIApplyExpr fn args
+        | Just (root, owner, methodKey) <- splitDictAccess fn
+        , not (root `Set.member` scope)
+        , candidates <- runtimeDispatchCandidates (lookupInstances owner classEnv)
+        , not (null candidates)
+        -> TIRuntimeDispatch owner methodKey candidates (map (goE scope) args)
+
+      -- An unbound dictionary parameter used as a VALUE — typically passed
+      -- as a dictionary ARGUMENT to a constrained function, e.g.
+      -- `(sort dict_Ord) xs` inside a definition whose signature lacks
+      -- {Ord a}.  Synthesize a dictionary whose every method dispatches on
+      -- its first argument's runtime type, so the callee's dictionary
+      -- accesses keep working.  (0-arity methods cannot be dispatched at
+      -- runtime and are omitted; superclass entries are synthesized
+      -- recursively.)
+      TIVarExpr d
+        | "dict_" `isPrefixOf` d
+        , not (d `Set.member` scope)
+        , let cls = drop (length ("dict_" :: String)) d
+        , Just _ <- lookupClass cls classEnv
+        -> tiExprNode (dispatchDictFor 3 cls)
+
+      -- Patterns embed expressions (value patterns, predicate patterns,
+      -- pattern-function applications, loop ranges); mapTIExprChildren does
+      -- not descend into them, so handle the pattern-carrying nodes here.
+      TIMatchExpr mode tgt mat clauses ->
+        TIMatchExpr mode (goE scope tgt) (goE scope mat)
+                    [ (goP scope p, goE scope b) | (p, b) <- clauses ]
+      TIMatchAllExpr mode tgt mat clauses ->
+        TIMatchAllExpr mode (goE scope tgt) (goE scope mat)
+                       [ (goP scope p, goE scope b) | (p, b) <- clauses ]
+
+      _ -> mapTIExprChildren (goE scope) node
+
+    goP :: Set.Set String -> TIPattern -> TIPattern
+    goP scope (TIPattern sch pnode) = TIPattern sch (goPN scope pnode)
+
+    goPN :: Set.Set String -> TIPatternNode -> TIPatternNode
+    goPN scope pnode = case pnode of
+      TIValuePat e             -> TIValuePat (goE scope e)
+      TIPredPat e              -> TIPredPat (goE scope e)
+      TIIndexedPat p es        -> TIIndexedPat (goP scope p) (map (goE scope) es)
+      TILetPat bs p            -> TILetPat [ (dp, goE scope e) | (dp, e) <- bs ] (goP scope p)
+      TINotPat p               -> TINotPat (goP scope p)
+      TIAndPat p1 p2           -> TIAndPat (goP scope p1) (goP scope p2)
+      TIOrPat p1 p2            -> TIOrPat (goP scope p1) (goP scope p2)
+      TIForallPat p1 p2        -> TIForallPat (goP scope p1) (goP scope p2)
+      TITuplePat ps            -> TITuplePat (map (goP scope) ps)
+      TIInductivePat n ps      -> TIInductivePat n (map (goP scope) ps)
+      TILoopPat v (TILoopRange s e rp) p1 p2 ->
+        TILoopPat v (TILoopRange (goE scope s) (goE scope e) (goP scope rp))
+                  (goP scope p1) (goP scope p2)
+      TIPApplyPat e ps         -> TIPApplyPat (goE scope e) (map (goP scope) ps)
+      TIInductiveOrPApplyPat n ps -> TIInductiveOrPApplyPat n (map (goP scope) ps)
+      TISeqConsPat p1 p2       -> TISeqConsPat (goP scope p1) (goP scope p2)
+      TIDApplyPat p ps         -> TIDApplyPat (goP scope p) (map (goP scope) ps)
+      TIWildCard               -> pnode
+      TIPatVar _               -> pnode
+      TIVarPat _               -> pnode
+      TIContPat                -> pnode
+      TISeqNilPat              -> pnode
+      TILaterPatVar            -> pnode
+
+    -- Recognize a dictionary access chain rooted at a dict_* variable:
+    --   dict_C ["m"]                       -> (dict_C, C, m)
+    --   dict_C ["__super_X"]... ["m"]      -> (dict_C, X-of-last-hop, m)
+    splitDictAccess :: TIExpr -> Maybe (String, String, String)
+    splitDictAccess (TIExpr _ (TIIndexedExpr _ base [Sub keyExpr])) = do
+      key <- stringKeyOf keyExpr
+      if "__super_" `isPrefixOf` key
+        then Nothing  -- a bare superclass hop is not a method access
+        else do
+          (root, hops) <- dictRootOf base
+          ownerFromChain root hops key
+    splitDictAccess _ = Nothing
+
+    ownerFromChain :: String -> [String] -> String -> Maybe (String, String, String)
+    ownerFromChain root hops key =
+      let owner = case hops of
+                    [] -> drop (length ("dict_" :: String)) root
+                    _  -> drop (length ("__super_" :: String)) (last hops)
+      in if null owner then Nothing else Just (root, owner, key)
+
+    -- Walk down nested __super_ accesses to the dict_* root.
+    -- Returns (root variable name, super hops in outermost-last order).
+    dictRootOf :: TIExpr -> Maybe (String, [String])
+    dictRootOf (TIExpr _ (TIVarExpr n))
+      | "dict_" `isPrefixOf` n = Just (n, [])
+    dictRootOf (TIExpr _ (TIIndexedExpr _ base [Sub keyExpr])) = do
+      key <- stringKeyOf keyExpr
+      if "__super_" `isPrefixOf` key
+        then do (root, hops) <- dictRootOf base
+                return (root, hops ++ [key])
+        else Nothing
+    dictRootOf _ = Nothing
+
+    stringKeyOf :: TIExpr -> Maybe String
+    stringKeyOf (TIExpr _ (TIConstantExpr (StringExpr t))) = Just (unpack t)
+    stringKeyOf _ = Nothing
+
+    -- A dictionary value for class `cls` whose methods are runtime
+    -- dispatchers.  Used as the stand-in for an unbound dict_<cls>.
+    dispatchDictFor :: Int -> String -> TIExpr
+    dispatchDictFor depth cls =
+      let (methods, supers) = case lookupClass cls classEnv of
+            Just ci -> (classMethods ci, classSupers ci)
+            Nothing -> ([], [])
+          candidates = runtimeDispatchCandidates (lookupInstances cls classEnv)
+          anyScheme = Forall [] [] TAny
+          strScheme = Forall [] [] TString
+          strKey k = TIExpr strScheme (TIConstantExpr (StringExpr (pack k)))
+          mkMethod (mname, mty) =
+            let key = sanitizeMethodName mname
+                arity = getMethodArity mty
+                params = ["dispatchArg" ++ show i | i <- [1 .. arity]]
+                argEs = [TIExpr anyScheme (TIVarExpr p) | p <- params]
+                body = TIExpr anyScheme (TIRuntimeDispatch cls key candidates argEs)
+            in if arity == 0 || null candidates
+                 then Nothing
+                 else Just (strKey key,
+                            TIExpr anyScheme (TILambdaExpr Nothing (map stringToVar params) body))
+          superEntries
+            | depth <= 0 = []
+            | otherwise =
+                [ (strKey ("__super_" ++ s), dispatchDictFor (depth - 1) s)
+                | s <- supers ]
+      in TIExpr (Forall [] [] (THash TString TAny))
+                (TIHashExpr (mapMaybe mkMethod methods ++ superEntries))

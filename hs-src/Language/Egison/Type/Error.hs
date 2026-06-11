@@ -24,7 +24,8 @@ import           Data.List                  (intercalate)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
-import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..), prettyTypeAtomValue)
+import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..), prettyTypeAtomValue,
+                                             Constraint (..), constraintClass, constraintTypes)
 
 -- | Source location information
 data SourceLocation = SourceLocation
@@ -102,6 +103,9 @@ data TypeError
     -- ^ Inferred type doesn't match annotation
   | UnsupportedFeature String TypeErrorContext
     -- ^ Feature not yet implemented
+  | MissingSignatureConstraint String [Constraint] TypeErrorContext
+    -- ^ A definition's body requires type-class constraints on the
+    -- signature's type variables that the signature does not declare
   | PatternFunctionLinearityError String [String] [String] TypeErrorContext
     -- ^ Pattern function parameter-linearity violation (paper PATFUN-DEF side
     --   condition): each parameter must be used exactly once in the body, in
@@ -178,6 +182,15 @@ formatTypeError err = case err of
   UnsupportedFeature feature ctx ->
     formatWithContext ctx $
       "Unsupported feature: " ++ feature
+
+  MissingSignatureConstraint name cs ctx ->
+    formatWithContext ctx $
+      "The body of '" ++ name ++ "' requires type class constraints that its signature does not declare:\n" ++
+      "  Missing: " ++ intercalate ", " (map prettyConstraint' cs) ++ "\n" ++
+      "  Declare them in the signature, e.g. def " ++ name ++ " {" ++
+        intercalate ", " (map prettyConstraint' cs) ++ "} ..."
+    where prettyConstraint' c =
+            constraintClass c ++ concatMap ((' ' :) . prettyType) (constraintTypes c)
 
   PatternFunctionLinearityError name params uses ctx ->
     formatWithContext ctx $

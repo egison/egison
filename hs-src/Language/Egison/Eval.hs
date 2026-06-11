@@ -291,6 +291,7 @@ processOneExpr opts permissive printValues acc expr = do
       currentPatternEnv' <- getPatternEnv
       currentPatternFuncEnv' <- getPatternFuncEnv
       currentPatternFuncStructEnv' <- getPatternFuncStructEnv
+      currentMatcherExemptHeads <- getMatcherExemptHeads
       let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
           enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
           initState = (initialInferStateWithConfig inferConfig) {
@@ -298,7 +299,8 @@ processOneExpr opts permissive printValues acc expr = do
             inferClassEnv = currentClassEnv,
             inferPatternEnv = currentPatternEnv',
             inferPatternFuncEnv = currentPatternFuncEnv',
-            inferPatternFuncStructEnv = currentPatternFuncStructEnv'
+            inferPatternFuncStructEnv = currentPatternFuncStructEnv',
+            inferMatcherExemptHeads = currentMatcherExemptHeads
           }
       (result, warnings, finalState) <- liftIO $
         runInferWithWarningsAndState (inferITopExpr iTopExpr) initState
@@ -311,6 +313,7 @@ processOneExpr opts permissive printValues acc expr = do
       setPatternEnv (inferPatternEnv finalState)
       setPatternFuncEnv (inferPatternFuncEnv finalState)
       setPatternFuncStructEnv (inferPatternFuncStructEnv finalState)
+      setMatcherExemptHeads (inferMatcherExemptHeads finalState)
 
       case result of
         Left err -> handleTypeError err acc expr printValues

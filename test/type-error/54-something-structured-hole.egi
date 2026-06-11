@@ -1,0 +1,13 @@
+-- Deferred hole admissibility (paper PP-Con, Def 4.2(1a)): the tail hole of
+-- the cons clause resolves (only via the annotation) to [Integer], a
+-- constructor-headed type, where the bare-variable matcher `something` is
+-- not structurally admissible.  The check runs after the definition's final
+-- substitution, so the late pinning does not escape it.
+
+def bad : Matcher [Integer] :=
+  matcher
+    | $ :: $ as (something, something) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
