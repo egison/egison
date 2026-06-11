@@ -102,6 +102,16 @@ data TypeError
     -- ^ Inferred type doesn't match annotation
   | UnsupportedFeature String TypeErrorContext
     -- ^ Feature not yet implemented
+  | PatternFunctionLinearityError String [String] [String] TypeErrorContext
+    -- ^ Pattern function parameter-linearity violation (paper PATFUN-DEF side
+    --   condition): each parameter must be used exactly once in the body, in
+    --   declaration order.  Fields: function name, declared parameters, actual
+    --   parameter uses in body order.
+  | PatternFunctionParamUnderBranchError String [String] TypeErrorContext
+    -- ^ Pattern function parameters used under a branching or repeating pattern
+    --   (or-, loop-, not-, forall-pattern): such an occurrence may be expanded
+    --   zero or several times along a matching path, breaking the binding
+    --   contract.  Fields: function name, offending parameters.
   deriving (Eq, Show, Generic)
 
 
@@ -168,6 +178,18 @@ formatTypeError err = case err of
   UnsupportedFeature feature ctx ->
     formatWithContext ctx $
       "Unsupported feature: " ++ feature
+
+  PatternFunctionLinearityError name params uses ctx ->
+    formatWithContext ctx $
+      "Pattern function '" ++ name ++ "' must use each parameter exactly once, in declaration order:\n" ++
+      "  Parameters:    " ++ intercalate ", " (map ("~" ++) params) ++ "\n" ++
+      "  Uses in body:  " ++ (if null uses then "(none)" else intercalate ", " (map ("~" ++) uses))
+
+  PatternFunctionParamUnderBranchError name offenders ctx ->
+    formatWithContext ctx $
+      "Pattern function '" ++ name ++ "' uses parameters under a branching or repeating pattern\n" ++
+      "(or-, loop-, not-, or forall-pattern), where they may be expanded zero or several times:\n" ++
+      "  Parameters:  " ++ intercalate ", " (map ("~" ++) offenders)
 
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String

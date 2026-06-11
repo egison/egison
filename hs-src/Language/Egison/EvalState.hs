@@ -58,6 +58,12 @@ data EvalState = EvalState
   , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
   , patternEnv     :: PatternTypeEnv -- ^ Pattern constructor environment (for type inference)
   , patternFuncEnv :: PatternTypeEnv -- ^ Pattern function environment (for disambiguation)
+  , patternFuncStructEnv :: PatternTypeEnv -- ^ Pattern function structural signatures (paper PATFUN-DEF):
+                                       --   for each pattern function, the scheme of
+                                       --   beta_1 -> ... -> beta_k -> tau_p_body, where beta_i is the
+                                       --   structural index of parameter i and tau_p_body is the body's
+                                       --   structural index.  Instantiated at application sites (PAT-APP)
+                                       --   to propagate the arguments' structural indices into the result.
   , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
@@ -85,6 +91,7 @@ initialEvalState = EvalState
   , classEnv = emptyClassEnv
   , patternEnv = emptyPatternEnv
   , patternFuncEnv = emptyPatternEnv
+  , patternFuncStructEnv = emptyPatternEnv
   , reductionRulesCount = 0
   , derivativeRulesCount = 0
   , reductionRuleNames = []
@@ -120,6 +127,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Pattern function environment operations
   getPatternFuncEnv :: m PatternTypeEnv
   setPatternFuncEnv :: PatternTypeEnv -> m ()
+  -- Pattern function structural-signature environment operations (paper PATFUN-DEF/PAT-APP)
+  getPatternFuncStructEnv :: m PatternTypeEnv
+  setPatternFuncStructEnv :: PatternTypeEnv -> m ()
   -- Phase 7.4/7.5: reduction-rule and derivative-rule registration counts.
   -- Counts only — full data is held by EnvBuildResult during build phase
   -- and isn't currently threaded into the runtime state.
@@ -220,6 +230,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { patternFuncEnv = env }
 
+  getPatternFuncStructEnv = patternFuncStructEnv <$> get
+  setPatternFuncStructEnv env = do
+    st <- get
+    put $ st { patternFuncStructEnv = env }
+
   getReductionRulesCount = reductionRulesCount <$> get
   setReductionRulesCount n = do
     st <- get
@@ -281,6 +296,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setPatternEnv = lift . setPatternEnv
   getPatternFuncEnv = lift getPatternFuncEnv
   setPatternFuncEnv = lift . setPatternFuncEnv
+  getPatternFuncStructEnv = lift getPatternFuncStructEnv
+  setPatternFuncStructEnv = lift . setPatternFuncStructEnv
   getReductionRulesCount = lift getReductionRulesCount
   setReductionRulesCount = lift . setReductionRulesCount
   getDerivativeRulesCount = lift getDerivativeRulesCount

@@ -1,0 +1,9 @@
+--
+-- Non-linear pattern type mismatch (paper Appendix B.1.1).  `#x` has type
+-- Pattern Integer (x is bound by $x), but the tail of `::` requires
+-- Pattern [Integer].  The correct pattern is `$x :: #x :: _`.
+--
+-- Expected: Type error (Integer vs [Integer])
+--
+
+def t := matchAll [1, 2, 3] as multiset integer with $x :: #x -> x

@@ -1,0 +1,16 @@
+--
+-- Pattern function structural propagation into a nested argument (paper
+-- Appendix B, "Propagation through pattern functions").  Supplying
+-- `num $n` for pair's first parameter drives Tile into the element
+-- position of the recorded scheme, so the application's structural index
+-- is [Tile] and `multiset something` fails [b'] <: [Tile].
+--
+-- Expected: Type error (multiset something vs MatcherSlot [Tile] [Tile])
+--
+
+inductive Tile := Num Integer | Hnr Integer
+inductive pattern Tile := num Integer | hnr Integer
+
+def pattern pair {a} (pat1: a) (pat2: [a]) : [a] := ($pat & ~pat1) :: #pat :: ~pat2
+
+def t := matchAll [Num 1, Num 1] as multiset something with pair (num $n) [] -> n

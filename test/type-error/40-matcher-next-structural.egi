@@ -1,0 +1,20 @@
+--
+-- Structurally inadmissible next matcher (paper Appendix B, the `weird`
+-- matcher; Definition 4.2(1a) / PP-Con).  The tail hole of the cons
+-- clause has structural index [a''], which `something` cannot fill; the
+-- runtime counterpart would route a cons sub-pattern to something and
+-- get stuck.
+--
+-- Expected: Type error (something at the list-headed tail hole)
+--
+
+def weird {a} (m: MatcherSlot a a) : Matcher [a] :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as (m, something) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

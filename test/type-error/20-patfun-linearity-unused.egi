@@ -1,0 +1,10 @@
+--
+-- Pattern function linearity, unused parameter (PATFUN-DEF side condition;
+-- review M2(i)).  `p2` never occurs in the body, so an application
+-- `unused $x $y` would promise a binding for y that matching never
+-- produces.
+--
+-- Expected: Type error (parameter linearity: uses ~p1 only)
+--
+
+def pattern unused {a} (p1: a) (p2: a) : a := ~p1

@@ -1,0 +1,9 @@
+--
+-- Pattern function linearity, duplicated parameter (PATFUN-DEF side
+-- condition; review M2(ii)).  `p` occurs twice, so a single argument
+-- pattern would be expanded twice along one matching path.
+--
+-- Expected: Type error (parameter linearity: uses ~p, ~p)
+--
+
+def pattern twice {a} (p: a) : [a] := ~p :: ~p :: _

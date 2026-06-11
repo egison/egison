@@ -1,0 +1,9 @@
+--
+-- Pattern function parameter under an or-alternative (PATFUN-DEF side
+-- condition).  Along the right alternative the argument is never
+-- expanded, so its bindings would be missing.
+--
+-- Expected: Type error (parameter used under a branching pattern)
+--
+
+def pattern orp {a} (p: a) : a := ~p | _

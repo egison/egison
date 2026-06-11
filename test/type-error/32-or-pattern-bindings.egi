@@ -1,0 +1,8 @@
+--
+-- Or-pattern with different bindings in the branches (PAT-OR requires the
+-- same output context).
+--
+-- Expected: Type error (branches bind {x} vs {y})
+--
+
+def t := matchAll [1, 2, 3] as multiset integer with ($x :: _) | (_ :: $y :: _) -> 0

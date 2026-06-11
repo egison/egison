@@ -50,11 +50,11 @@ module Language.Egison.Type.Infer
   , clearWarnings
   ) where
 
-import           Control.Monad              (foldM, zipWithM)
+import           Control.Monad              (foldM, when, zipWithM)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
 import           Data.List                  (isPrefixOf, nub, partition, intercalate)
-import           Data.Maybe                  (catMaybes)
+import           Data.Maybe                  (catMaybes, fromMaybe)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..))
@@ -126,6 +126,25 @@ data InferState = InferState
   , inferClassEnv    :: ClassEnv         -- ^ Type class environment
   , inferPatternEnv  :: PatternTypeEnv   -- ^ Pattern constructor environment (merged)
   , inferPatternFuncEnv :: PatternTypeEnv  -- ^ Pattern function environment (for disambiguation)
+  , inferPatternFuncStructEnv :: PatternTypeEnv
+                                          -- ^ Pattern function structural signatures (paper PATFUN-DEF):
+                                          --   name |-> scheme of beta_1 -> ... -> beta_k -> tau_p_body,
+                                          --   where beta_i is parameter i's structural index and
+                                          --   tau_p_body the body's structural index.  PAT-APP
+                                          --   instantiates this to compute an application's tau_p.
+  , inferPatfunParamTaup :: Map.Map String Type
+                                          -- ^ While inferring a pattern function body: parameter name
+                                          --   |-> its structural index beta_i, consulted by IVarPat
+                                          --   (the ~param embedding).  Empty outside such bodies.
+  , inferPatfunTaupEqs :: Maybe [(Type, Type)]
+                                          -- ^ While inferring a pattern function body (Just):
+                                          --   the structural equations solved locally (and then
+                                          --   discarded) by taupCombine / taupFromCtor.  The
+                                          --   per-node solvers keep only each node's RESULT type,
+                                          --   so links binding a parameter's beta_i can be lost to
+                                          --   unifier direction; PATFUN-DEF re-solves the recorded
+                                          --   equations jointly and applies the solution to the
+                                          --   structural signature, recovering every link.
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
   , inferInMatcherBody :: Bool           -- ^ True while inferring a `matcher` body.  The match-site
@@ -139,11 +158,11 @@ data InferState = InferState
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty False
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv [] Map.empty False
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -243,6 +262,10 @@ getPatternEnv = inferPatternEnv <$> get
 -- | Get the current pattern function environment (for disambiguation)
 getPatternFuncEnv :: Infer PatternTypeEnv
 getPatternFuncEnv = inferPatternFuncEnv <$> get
+
+-- | Get the pattern function structural-signature environment (paper PATFUN-DEF/PAT-APP)
+getPatternFuncStructEnvI :: Infer PatternTypeEnv
+getPatternFuncStructEnvI = inferPatternFuncStructEnv <$> get
 
 -- | Get the current class environment
 getClassEnv :: Infer ClassEnv
@@ -2157,26 +2180,102 @@ withIsolatedConstraints act = do
 -- so the matcher must support both shapes — unify their structural types (all fresh-headed, so the
 -- occurs check cannot fire; isolated so it leaves the main inference untouched).
 taupCombine :: TypeErrorContext -> Type -> Type -> Infer Type
-taupCombine ctx ta tb = withIsolatedConstraints $
-  (do s <- unifyTypesWithContext ta tb ctx
-      applySubstWithConstraintsM s ta)
-    `catchError` \_ -> freshVar "taup"
+taupCombine ctx ta tb = do
+  r <- withIsolatedConstraints $
+    (do s <- unifyTypesWithContext ta tb ctx
+        Just <$> applySubstWithConstraintsM s ta)
+      `catchError` \_ -> return Nothing
+  case r of
+    Just t  -> recordPatfunTaupEqs [(ta, tb)] >> return t
+    Nothing -> freshVar "taup"
+
+-- | While inferring a pattern function body, record the structural equations a
+-- node-local solver discharged, so PATFUN-DEF can re-solve them jointly for the
+-- structural signature (the node-local substitutions themselves are discarded).
+-- A no-op outside pattern function bodies.
+recordPatfunTaupEqs :: [(Type, Type)] -> Infer ()
+recordPatfunTaupEqs eqs =
+  modify $ \st -> st { inferPatfunTaupEqs = fmap (eqs ++) (inferPatfunTaupEqs st) }
 
 -- | τ_p of a constructor application: reassemble the constructor's result type from the
 -- sub-patterns' structural types @childrenTaup@ at the (freshly instantiated) argument positions
 -- @argTypes@ / @resultType@.  Every argument is fresh-headed, so the occurs check can never fire;
 -- isolated so the reassembly never leaks into the main inference.
+-- | Collect the ~x pattern-variable references of an IPattern in left-to-right
+-- order.  Used for the PATFUN-DEF linearity side condition: each pattern
+-- function parameter must occur exactly once in the body, in declaration order.
+patternVarRefsInOrder :: IPattern -> [String]
+patternVarRefsInOrder pat = case pat of
+  IVarPat name               -> [name]
+  IWildCard                  -> []
+  IPatVar _                  -> []
+  IValuePat _                -> []
+  IPredPat _                 -> []
+  IIndexedPat p _            -> patternVarRefsInOrder p
+  ILetPat _ p                -> patternVarRefsInOrder p
+  INotPat p                  -> patternVarRefsInOrder p
+  IAndPat p1 p2              -> patternVarRefsInOrder p1 ++ patternVarRefsInOrder p2
+  IOrPat p1 p2               -> patternVarRefsInOrder p1 ++ patternVarRefsInOrder p2
+  IForallPat p1 p2           -> patternVarRefsInOrder p1 ++ patternVarRefsInOrder p2
+  ITuplePat ps               -> concatMap patternVarRefsInOrder ps
+  IInductivePat _ ps         -> concatMap patternVarRefsInOrder ps
+  ILoopPat _ (ILoopRange _ _ rp) p1 p2
+                             -> patternVarRefsInOrder rp ++ patternVarRefsInOrder p1 ++ patternVarRefsInOrder p2
+  IContPat                   -> []
+  IPApplyPat _ ps            -> concatMap patternVarRefsInOrder ps
+  IInductiveOrPApplyPat _ ps -> concatMap patternVarRefsInOrder ps
+  ISeqNilPat                 -> []
+  ISeqConsPat p1 p2          -> patternVarRefsInOrder p1 ++ patternVarRefsInOrder p2
+  ILaterPatVar               -> []
+  IDApplyPat p ps            -> concatMap patternVarRefsInOrder (p : ps)
+
+-- | Collect the ~x pattern-variable references that occur under a branching or
+-- repeating pattern (or-, loop-, not-, forall-pattern).  A pattern function
+-- parameter in such a position may be expanded zero or several times along a
+-- matching path, breaking the PATFUN-DEF binding contract, so PATFUN-DEF
+-- rejects it.
+patternVarRefsUnderBranch :: IPattern -> [String]
+patternVarRefsUnderBranch = go False
+  where
+    go under pat = case pat of
+      IVarPat name               -> [name | under]
+      IWildCard                  -> []
+      IPatVar _                  -> []
+      IValuePat _                -> []
+      IPredPat _                 -> []
+      IIndexedPat p _            -> go under p
+      ILetPat _ p                -> go under p
+      INotPat p                  -> go True p
+      IAndPat p1 p2              -> go under p1 ++ go under p2
+      IOrPat p1 p2               -> go True p1 ++ go True p2
+      IForallPat p1 p2           -> go True p1 ++ go True p2
+      ITuplePat ps               -> concatMap (go under) ps
+      IInductivePat _ ps         -> concatMap (go under) ps
+      ILoopPat _ (ILoopRange _ _ rp) p1 p2
+                                 -> go True rp ++ go True p1 ++ go True p2
+      IContPat                   -> []
+      IPApplyPat _ ps            -> concatMap (go under) ps
+      IInductiveOrPApplyPat _ ps -> concatMap (go under) ps
+      ISeqNilPat                 -> []
+      ISeqConsPat p1 p2          -> go under p1 ++ go under p2
+      ILaterPatVar               -> []
+      IDApplyPat p ps            -> concatMap (go under) (p : ps)
+
 taupFromCtor :: TypeErrorContext -> [Type] -> Type -> [Type] -> Infer Type
 taupFromCtor ctx argTypes resultType childrenTaup
   | length argTypes /= length childrenTaup = freshVar "taup"
-  | otherwise = withIsolatedConstraints $
-      (do s <- foldM (\acc (x, y) -> do
-                   x' <- applySubstWithConstraintsM acc x
-                   y' <- applySubstWithConstraintsM acc y
-                   s' <- unifyTypesWithContext x' y' ctx
-                   return (composeSubst s' acc)) emptySubst (zip argTypes childrenTaup)
-          applySubstWithConstraintsM s resultType)
-        `catchError` \_ -> freshVar "taup"
+  | otherwise = do
+      r <- withIsolatedConstraints $
+        (do s <- foldM (\acc (x, y) -> do
+                     x' <- applySubstWithConstraintsM acc x
+                     y' <- applySubstWithConstraintsM acc y
+                     s' <- unifyTypesWithContext x' y' ctx
+                     return (composeSubst s' acc)) emptySubst (zip argTypes childrenTaup)
+            Just <$> applySubstWithConstraintsM s resultType)
+          `catchError` \_ -> return Nothing
+      case r of
+        Just t  -> recordPatfunTaupEqs (zip argTypes childrenTaup) >> return t
+        Nothing -> freshVar "taup"
 
 -- | Match-site structural admissibility (paper T-MATCHALL / T-MATCH via COERCE-MATCHER-TO-SLOT).
 -- For each clause a single traversal ('patternDualType') derives BOTH pattern types at once:
@@ -2679,24 +2778,59 @@ inferIPattern pat expectedType ctx = case pat of
     return (tipat, [], emptySubst, taup)
   
   IPApplyPat funcExpr argPats -> do
-    -- Pattern application: infer pattern function type
+    -- Pattern application (paper PAT-APP), the same device as IInductivePat:
+    -- the target side unifies the pattern function's type with the argument
+    -- target types and the expected (target) type; the structural side
+    -- instantiates the function's recorded structural signature and unifies
+    -- the arguments' structural indices into it.
     (funcTI, s1) <- inferIExprWithContext funcExpr ctx
-    
-    -- Pattern function should return a pattern that matches expectedType
-    -- Infer argument patterns left-to-right with fresh types
+
+    -- Target side: f : tau_1 -> ... -> tau_k -> tau (inner types, no Pattern
+    -- wrapper; design/pattern.md), so unify it with parg_1 -> ... -> parg_k ->
+    -- expectedType and check the argument patterns against the resolved
+    -- parameter types (top-down, keeping tau_t coherent).
     argTypes <- mapM (\_ -> freshVar "parg") argPats
-    (tipats, allBindings, s2, _) <- inferPatternsLeftToRight argPats argTypes [] s1 ctx
+    let funcType = tiExprType funcTI
+    funcType' <- applySubstWithConstraintsM s1 funcType
+    expectedType1 <- applySubstWithConstraintsM s1 expectedType
+    s0 <- unifyTypesWithContext funcType' (foldr TFun expectedType1 argTypes) ctx
+    let s10 = composeSubst s0 s1
+    argTypes' <- mapM (applySubstWithConstraintsM s10) argTypes
+    (tipats, allBindings, s2, childrenTaup) <- inferPatternsLeftToRight argPats argTypes' [] s10 ctx
 
     finalType <- applySubstWithConstraintsM s2 expectedType
     let tipat = TIPattern (Forall [] [] finalType) (TIPApplyPat funcTI tipats)
-    -- τ_p: a pattern-function result is structurally unconstrained at this site
-    taup <- freshVar "taup"
+
+    -- Structural side: instantiate the structural signature
+    -- beta_1 -> ... -> beta_k -> tau_p_body recorded at the definition
+    -- (a FRESH instantiation, untied to the target side, as in IInductivePat),
+    -- unify the arguments' structural indices with the beta_i, and return the
+    -- resulting instance of tau_p_body.  Without a recorded signature the
+    -- application is structurally unconstrained (fresh), the pre-fix behavior.
+    taup <- case funcExpr of
+      IVarExpr fname -> do
+        structEnv <- getPatternFuncStructEnvI
+        case lookupPatternEnv fname structEnv of
+          Just structScheme -> do
+            stP <- get
+            let (_csP, structTy, ctrP) = instantiate structScheme (inferCounter stP)
+            modify $ \z -> z { inferCounter = ctrP }
+            let (argTaups, resultTaup) = extractFunctionArgs structTy
+            taupFromCtor ctx argTaups resultTaup childrenTaup
+          Nothing -> freshVar "taup"
+      _ -> freshVar "taup"
     return (tipat, allBindings, s2, taup)
 
   IVarPat name -> do
-    -- Variable pattern (with ~): bind to expected type; τ_p a fresh variable
+    -- Variable pattern (with ~): bind to expected type.
+    -- τ_p: inside a pattern function body, a parameter embedding ~x_i carries the
+    -- parameter's structural index beta_i (paper PATFUN-DEF/PAT-EMBED), so the body's
+    -- structural index records where each argument's structure flows; otherwise fresh.
     let tipat = TIPattern (Forall [] [] expectedType) (TIVarPat name)
-    taup <- freshVar "taup"
+    paramTaups <- inferPatfunParamTaup <$> get
+    taup <- case Map.lookup name paramTaups of
+              Just beta -> return beta
+              Nothing   -> freshVar "taup"
     return (tipat, [(name, expectedType)], emptySubst, taup)
   
   IInductiveOrPApplyPat name pats -> do
@@ -3420,45 +3554,95 @@ inferITopExpr topExpr = case topExpr of
             return ((var, exprTI), subst)
   
   IPatternFunctionDecl name tyVars params retType body -> do
-    -- Pattern function type checking:
-    -- 1. Add parameters to environment for type checking
-    -- 2. Infer body pattern with expected return type
-    -- 3. Create type scheme with type parameters
-    
+    -- Pattern function type checking (paper PATFUN-DEF):
+    -- 1. Linearity side condition: each parameter occurs exactly once in the
+    --    body, in declaration order
+    -- 2. Add parameters to environment for type checking
+    -- 3. Infer body pattern with expected return type, giving each parameter a
+    --    fresh structural index beta_i and capturing the body's structural index
+    -- 4. Create type scheme with type parameters, and record the structural
+    --    signature beta_1 -> ... -> beta_k -> tau_p_body for PAT-APP
+
     clearConstraints  -- Start fresh
-    
+
+    let ctx = TypeErrorContext
+                { errorLocation = Nothing
+                , errorExpr = Just ("Pattern function: " ++ name)
+                , errorContext = Just ("Expected type: " ++ show retType)
+                }
+        paramNames = map fst params
+        paramUses = filter (`elem` paramNames) (patternVarRefsInOrder body)
+    -- Linearity (PATFUN-DEF side condition): exactly one use of each parameter,
+    -- in declaration order.  This is what lets MS-MNODE-VARPAT expand each
+    -- argument pattern exactly once, left to right, so argument bindings appear
+    -- exactly as promised and value patterns in later arguments can refer to
+    -- variables bound by earlier ones.
+    when (paramUses /= paramNames) $
+      throwError $ TE.PatternFunctionLinearityError name paramNames paramUses ctx
+    -- A parameter under an or-, loop-, not-, or forall-pattern may be expanded
+    -- zero or several times along a matching path even when it occurs exactly
+    -- once syntactically, so it is rejected as well.
+    let branchedUses = filter (`elem` paramNames) (patternVarRefsUnderBranch body)
+    when (not (null branchedUses)) $
+      throwError $ TE.PatternFunctionParamUnderBranchError name branchedUses ctx
+
     -- Add parameters to environment for type checking the body
     -- Note: Parameter types don't need Pattern wrapper (design/pattern.md)
     let paramBindings = map (\(pname, pty) -> (pname, Forall [] [] pty)) params
     withEnv paramBindings $ do
-      -- Infer body pattern with expected return type
-      let ctx = TypeErrorContext 
-                  { errorLocation = Nothing
-                  , errorExpr = Just ("Pattern function: " ++ name)
-                  , errorContext = Just ("Expected type: " ++ show retType)
-                  }
-      (tiBody, _bodyBindings, subst, _) <- inferIPattern body retType ctx
-      
+      -- Structural side: a fresh structural index beta_i per parameter; the
+      -- ~param embeddings in the body return it (IVarPat), so the body's
+      -- structural index records where each argument's structure flows.
+      betas <- mapM (\_ -> freshVar "beta") params
+      let paramTaupMap = Map.fromList (zip paramNames betas)
+      oldParamTaups <- inferPatfunParamTaup <$> get
+      oldTaupEqs <- inferPatfunTaupEqs <$> get
+      modify $ \z -> z { inferPatfunParamTaup = paramTaupMap, inferPatfunTaupEqs = Just [] }
+      bodyResult <- (Right <$> inferIPattern body retType ctx) `catchError` (return . Left)
+      taupEqs <- (fromMaybe [] . inferPatfunTaupEqs) <$> get
+      modify $ \z -> z { inferPatfunParamTaup = oldParamTaups, inferPatfunTaupEqs = oldTaupEqs }
+      (tiBody, _bodyBindings, subst, bodyTaup) <- either throwError return bodyResult
+
       -- Note: Pattern variables that reference parameters (using ~param) will appear in bodyBindings
       -- but they are NOT conflicts - they are references to the parameters themselves.
       -- Only NEW variable bindings (using $var) would be actual conflicts.
-      -- Since the pattern body uses ~p1 and ~p2 (pattern variable references), 
+      -- Since the pattern body uses ~p1 and ~p2 (pattern variable references),
       -- not $p1 and $p2 (new bindings), we don't need to check for conflicts here.
       -- The existing semantics already handle this correctly during pattern matching.
-      
+
       -- Create type scheme with type parameters
       -- Pattern function type: param1 -> param2 -> ... -> retType
       let paramTypes = map snd params
           funcType = foldr TFun retType paramTypes
           typeScheme = Forall tyVars [] funcType
-      
-      -- Add pattern function to both inferPatternFuncEnv and inferEnv
+
+      -- Structural signature beta_1 -> ... -> beta_k -> tau_p_body.  The body's
+      -- node-local structural solvers keep only each node's result type, so the
+      -- recorded equations are re-solved jointly here and the solution applied
+      -- to the signature — recovering the links between the beta_i and the body
+      -- skeleton (e.g. pair's beta_1 at the element position of its cons body).
+      -- Generalized over all its variables so every application site
+      -- instantiates it freshly (PAT-APP, independent of the target side).
+      let structSig0 = foldr TFun bodyTaup betas
+      structSig <- withIsolatedConstraints $
+        (do sEq <- foldM (\acc (x, y) -> do
+                       x' <- applySubstWithConstraintsM acc x
+                       y' <- applySubstWithConstraintsM acc y
+                       s' <- unifyTypesWithContext x' y' ctx
+                       return (composeSubst s' acc)) emptySubst taupEqs
+            applySubstWithConstraintsM sEq structSig0)
+          `catchError` \_ -> return structSig0
+      let structScheme = Forall (Set.toList (freeTyVars structSig)) [] structSig
+
+      -- Add pattern function to inferPatternFuncEnv, inferEnv, and the
+      -- structural-signature environment
       -- This allows the type checker to recognize it in subsequent declarations
-      modify $ \s -> s { 
+      modify $ \s -> s {
         inferPatternFuncEnv = extendPatternEnv name typeScheme (inferPatternFuncEnv s),
-        inferEnv = extendEnv (stringToVar name) typeScheme (inferEnv s)
+        inferEnv = extendEnv (stringToVar name) typeScheme (inferEnv s),
+        inferPatternFuncStructEnv = extendPatternEnv name structScheme (inferPatternFuncStructEnv s)
       }
-      
+
       return (Just (TIPatternFunctionDecl name typeScheme params retType tiBody), subst)
   
   IDeclareSymbol names mType -> do

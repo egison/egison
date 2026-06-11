@@ -1,0 +1,9 @@
+--
+-- Ill-typed value pattern (paper Appendix B.1.1).  The value pattern's
+-- expression is typed under the bindings of the preceding sub-patterns:
+-- x : Integer, so `x ++ [1]` is ill-typed.
+--
+-- Expected: Type error ((++) expects a list, x is Integer)
+--
+
+def t := matchAll [1, 2, 3] as multiset integer with $x :: #(x ++ [1]) :: _ -> x

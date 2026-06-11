@@ -1,0 +1,12 @@
+--
+-- Pattern function structural propagation, argument side (paper PAT-APP;
+-- review counterexample M1).  `idp`'s body is just its parameter, so the
+-- argument's cons-headed structural index flows through to the
+-- application; `something` fails the check.
+--
+-- Expected: Type error (Matcher a vs MatcherSlot [taup] [Integer])
+--
+
+def pattern idp {a} (p: [a]) : [a] := ~p
+
+def t := matchAll [1, 2] as something with idp ($x :: $xs) -> x

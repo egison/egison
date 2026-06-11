@@ -1,0 +1,12 @@
+--
+-- Pattern function structural propagation, body side (paper PAT-APP;
+-- review counterexample M1).  `pair`'s body is cons-headed, so the
+-- application's structural index is [b']; `something` fails the check.
+-- Before the PAT-APP fix this was well-typed and stuck at runtime.
+--
+-- Expected: Type error (Matcher a vs MatcherSlot [taup] [Integer])
+--
+
+def pattern pair {a} (pat1: a) (pat2: [a]) : [a] := ($pat & ~pat1) :: #pat :: ~pat2
+
+def t := matchAll [1, 1] as something with pair $x [] -> x

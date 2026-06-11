@@ -1,0 +1,11 @@
+--
+-- Matcher-target mismatch (paper Appendix B.2.1).  The pattern constructor
+-- `num` belongs to Tile, but the matcher and target are [Integer].
+--
+-- Expected: Type error (Tile vs Integer)
+--
+
+inductive Tile := Num Integer | Hnr Integer
+inductive pattern Tile := num Integer | hnr Integer
+
+def t := matchAll [1, 2, 3] as multiset integer with num $n :: _ -> n

@@ -1,0 +1,15 @@
+--
+-- Pattern function argument target type (paper Appendix B.1.2).  `seqp`
+-- expects Pattern Tile as its first argument, but `#1` has type
+-- Pattern Integer.  Before the PAT-APP fix this silently failed at runtime.
+--
+-- Expected: Type error (Integer vs Tile)
+--
+
+inductive Tile := Num Integer | Hnr Integer
+inductive pattern Tile := num Integer | hnr Integer
+
+def pattern seqp (pat1: Tile) (pat2: [Tile]) : [Tile] :=
+  (num $n & ~pat1) :: num #(n + 1) :: ~pat2
+
+def t := matchAll [Num 1, Num 2] as multiset something with seqp #1 _ -> True

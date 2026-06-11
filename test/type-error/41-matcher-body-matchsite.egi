@@ -1,0 +1,14 @@
+--
+-- Match site nested inside a matcher body is genuinely checked: `integer`
+-- cannot fill the cons pattern's slot in the inner match.
+--
+-- Expected: Type error (integer vs a cons-headed slot in the inner match)
+--
+
+def badInner : Matcher [Integer] :=
+  matcher
+    | $ as something with
+      | $tgt ->
+        match tgt as integer with
+          | $x :: $xs -> [tgt]
+          | _ -> [tgt]

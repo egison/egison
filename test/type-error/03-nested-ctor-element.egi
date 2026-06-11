@@ -1,0 +1,13 @@
+--
+-- Nested constructor sub-pattern (paper Appendix B, "Nested constructor
+-- sub-patterns").  The element position of the cons is pinned to Tile by
+-- `num`, so the structural index is [Tile]; `multiset something` fails
+-- [b'] <: [Tile].
+--
+-- Expected: Type error (multiset something vs MatcherSlot [Tile] ...)
+--
+
+inductive Tile := Num Integer | Hnr Integer
+inductive pattern Tile := num Integer | hnr Integer
+
+def t := matchAll [Num 1, Num 2] as multiset something with num $n :: $rest -> n

@@ -1,0 +1,8 @@
+--
+-- Tuple pattern arity mismatch: a 3-tuple pattern against a pair target
+-- and a pair product matcher.
+--
+-- Expected: Type error (tuple pattern vs (Integer, Integer))
+--
+
+def t := matchAll (1, 2) as (integer, integer) with ($x, $y, $z) -> x

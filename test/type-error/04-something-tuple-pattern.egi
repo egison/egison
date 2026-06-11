@@ -1,0 +1,9 @@
+--
+-- Tuple pattern at a bare-variable matcher (paper Lemma "MS Progress",
+-- tuple case).  The tuple pattern's structural index is product-headed,
+-- so `something : Matcher b` fails the structural check b' <: (a' x b').
+--
+-- Expected: Type error (something vs a product-headed slot)
+--
+
+def t := matchAll (1, 2) as something with ($x, $y) -> x

@@ -1,0 +1,10 @@
+--
+-- Pattern function linearity, out-of-order parameters (PATFUN-DEF side
+-- condition; review M2(iii)).  The body uses ~p2 before ~p1, so at
+-- `flipped $x #x` the value pattern #x would be evaluated before $x
+-- binds x.
+--
+-- Expected: Type error (parameter linearity: uses ~p2, ~p1)
+--
+
+def pattern flipped {a} (p1: a) (p2: a) : (a, a) := (~p2, ~p1)

@@ -1,0 +1,12 @@
+--
+-- Match-site dual check through a function parameter (paper Appendix B, Case 3).
+-- The cons pattern commits `m` to MatcherSlot [a'] [Integer]; supplying
+-- `something` at the application site fails the structural check there.
+--
+-- Expected: Type error at `f something` (structural check fails at the
+-- application site)
+--
+
+def f m := matchAll [1, 2, 3] as m with $x :: $xs -> (x, xs)
+
+def t := f something

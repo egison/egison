@@ -1,0 +1,9 @@
+--
+-- Match-site dual check, direct supply (paper Appendix B, Case 2).
+-- `something : Matcher b` cannot fill the cons pattern's slot
+-- MatcherSlot [a'] [Integer]: the structural check b' <: [a'] fails.
+--
+-- Expected: Type error (Matcher b vs MatcherSlot [a'] [Integer])
+--
+
+def t := matchAll [1, 2, 3] as something with $x :: $xs -> (x, xs)

@@ -40,6 +40,8 @@ Extra-source-files:  README.md
                      benchmark/*.egi
                      test/lib/math/*.egi
                      test/lib/core/*.egi
+                     test/type-error/*.egi
+                     test/type-error/README.md
                      sample/*.egi
                      sample/database/*.egi
                      sample/io/*.egi
