@@ -1,4 +1,197 @@
-# sample/math 現状と coverage 改善計画
+# sample/ 動作状況 (STATUS)
+
+サンプルプログラムは**すべてが動くわけではありません**。本ファイルは全サンプルの現状
+(型検査 `-t` での動作状況)の一覧です。サンプルや処理系を変更したら更新してください。
+
+- 計測日: 2026-06-11(matcher rigidity 対応後の時点)
+- 判定方法: `-t` は permissive(型エラーでも untyped 評価にフォールバックし exit 0)なので、
+  **exit code でなく出力**で判定する。「出力に `Type error:` / `Parse error` /
+  `Evaluation error` が含まれない」ことが ✅ の条件。
+- timeout: math 系 90s、その他 60s(`gtimeout -k 10`)。表中 ⏱ は本基準での時間切れで、
+  より長い timeout なら完走するものは備考に実績時間を記載。
+
+```sh
+# 検証コマンド(1ファイル)
+gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
+```
+
+## 集計
+
+全 95 ファイル中 **62 OK**(65%)。失敗の主な内訳: 既存の型エラー
+(v3 期の auto-generated サンプル等)、parse エラー(古い構文・Unicode 識別子・ハッシュ
+リテラル)、実行時エラー(lib バグ・runtime dispatch)、重い計算の timeout。
+
+> 注: 2026-06 の matcher rigidity 対応で `five-color` / `bipartite-graph` /
+> `salesman` / `sat/cdcl` / `poker-hands-with-joker` / `chopsticks` /
+> `generalized-sequential-pattern-mining` / `tree` / `graph` の matcher
+> 引数・注釈を移行した(slot 化・poly-RHS 注釈の撤去)。five-color と
+> bipartite-graph はこれで型クリーン化。chopsticks / gsp / tree / salesman2 /
+> graph / unify には rigidity と無関係の既存エラーが残っている。
+
+## ディレクトリ別一覧
+
+### sample/ 直下 (15/32 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `bellman-ford.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `Expected CASData, but found: "plus"`(typeclass 展開系) |
+| `binary-counter.egi` | ✅ | 1s |  |
+| `bipartite-graph.egi` | ✅ | 2s | rigidity 対応で結果注釈を撤去して修復(2026-06) |
+| `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11(タプル/リスト不一致など。matcher 引数の slot 化で rigidity は解消済み、残りは既存の型不一致) |
+| `chopsticks2.egi` | ❌ 型エラー | 2s | 型エラー(`[[Integer]]` 不一致) |
+| `demo1-ja.egi` | ✅ | 1s |  |
+| `demo1.egi` | ✅ | 1s |  |
+| `efficient-backtracking.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `Expected rational, but found: n` |
+| `five-color.egi` | ✅ | 1s |  |
+| `generalized-sequential-pattern-mining.egi` | ❌ 型エラー | 2s | 型エラー(Integer vs Float ほか。rigidity は注釈撤去で解消済み、残りは既存の型不一致) |
+| `graph.egi` | ❌ parse | 1s | parse エラー (45:6, ハッシュリテラル `{|1, 4, 3|}`) |
+| `ioRef.egi` | ❌ 型エラー | 1s | 型エラー(Integer 不一致) |
+| `mahjong.egi` | ✅ | 43s | 型クリーン+assertion 2 件 pass(負荷によっては数十秒) |
+| `mickey.egi` | ✅ | 1s |  |
+| `n-queen.egi` | ❌ 型エラー | 1s | 型エラー(`n-queens.egi` は OK) |
+| `n-queens.egi` | ✅ | 2s |  |
+| `nishiwaki.egi` | ❌ 型エラー | 1s | 型エラー(Integer 不一致) |
+| `one-minute-first.egi` | ✅ | 1s |  |
+| `one-minute-second.egi` | ✅ | 7s |  |
+| `pi.egi` | ⏱ timeout | 60s | 60s 超(π の桁計算、性質上重い) |
+| `poker-hands-with-joker.egi` | ✅ | 13s |  |
+| `poker-hands.egi` | ✅ | 3s |  |
+| `prime-millionaire.egi` | ❌ 型エラー | 1s | 型エラー(`IO String` 不一致) |
+| `primes.egi` | ✅ | 1s |  |
+| `salesman.egi` | ✅ | 1s |  |
+| `salesman2.egi` | ❌ 型エラー | 1s | 型エラー(loop+let+hash の複合パターン。`salesman.egi` は OK) |
+| `tail-recursion.egi` | ⏱ timeout | 60s | 60s 超(性質上の重い計算/無限) |
+| `tak.egi` | ✅ | 1s |  |
+| `tree.egi` | ❌ 型エラー | 1s | 型エラー(matcher 引数は slot 化済み、残りは既存の型不一致) |
+| `triangle.egi` | ❌ 型エラー | 1s | 型エラー(Integer 不一致) |
+| `unify.egi` | ❌ parse | 1s | parse エラー (88:11, Unicode 識別子 `$σ`) |
+| `xml-test.egi` | ⚠️ exit 1 | 1s | exit 1(原因未調査) |
+
+### database/ (0/2 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `edge-sqlite.egi` | ❌ parse | 1s | parse エラー (7:12) |
+| `simple-sqlite.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `simpleSelect` 未定義(sqlite プリミティブ) |
+
+### io/ (4/5 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `args.egi` | ✅ | 1s |  |
+| `cat.egi` | ✅ | 1s |  |
+| `cut.egi` | ❌ 型エラー | 1s | 型エラー(`IO String` 不一致) |
+| `hello.egi` | ✅ | 1s |  |
+| `print-primes.egi` | ✅ | 1s |  |
+
+### physics/ (1/3 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `tension.egi` | ✅ | 4s |  |
+| `tension2.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: runtime dispatch `Ord` インスタンス無し |
+| `tension3.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: runtime dispatch `Ord` インスタンス無し |
+
+### repl/ (0/1 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `egison.egi` | ❌ parse | 1s | parse エラー (5:10) |
+
+### rosetta/ (3/4 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `abc_problem.egi` | ✅ | 3s |  |
+| `consolidate.egi` | ✅ | 1s |  |
+| `lcs.egi` | ❌ parse | 1s | parse エラー (5:16) |
+| `partial.egi` | ✅ | 1s |  |
+
+### sat/ (1/2 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `cdcl.egi` | ✅ | 8s |  |
+| `dp.egi` | ❌ 型エラー | 2s | 型エラー(タプルパターン arity) |
+
+### math/algebra/ (3/3 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `cubic-equation.egi` | ✅ | 5s |  |
+| `quadratic-equation.egi` | ✅ | 2s |  |
+| `quartic-equation.egi` | ✅ | 2s |  |
+
+### math/analysis/ (2/3 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `eulers-formula.egi` | ✅ | 8s |  |
+| `leibniz-formula.egi` | ⚠️ 実行時エラー | 1s | `Sd`(不定積分)lib バグ(下記 math 詳細参照) |
+| `vector-analysis.egi` | ✅ | 5s |  |
+
+### math/geometry/ (26/33 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `chern-form-of-CP1.egi` | ✅ | 2s |  |
+| `chern-form-of-CP2.egi` | ✅ | 1s |  |
+| `curvature-form.egi` | ✅ | 5s |  |
+| `euler-form-of-S2.egi` | ✅ | 4s |  |
+| `euler-form-of-T2.egi` | ✅ | 5s |  |
+| `exterior-derivative.egi` | ✅ | 1s |  |
+| `hodge-E3.egi` | ✅ | 3s |  |
+| `hodge-Minkowski.egi` | ✅ | 18s |  |
+| `hodge-laplacian-polar.egi` | ✅ | 2s |  |
+| `hodge-laplacian-spherical.egi` | ✅ | 13s |  |
+| `polar-laplacian-2d-2.egi` | ✅ | 2s |  |
+| `polar-laplacian-2d-3.egi` | ✅ | 1s |  |
+| `polar-laplacian-2d.egi` | ✅ | 7s |  |
+| `polar-laplacian-3d-2.egi` | ✅ | 6s |  |
+| `polar-laplacian-3d-3.egi` | ✅ | 5s |  |
+| `polar-laplacian-3d.egi` | ✅ | 48s |  |
+| `riemann-curvature-tensor-of-FLRW-metric.egi` | ✅ | 1s |  |
+| `riemann-curvature-tensor-of-S2-no-type-annotations.egi` | ✅ | 5s |  |
+| `riemann-curvature-tensor-of-S2.egi` | ✅ | 4s |  |
+| `riemann-curvature-tensor-of-S2xS3.egi` | ⏱ timeout | 90s | 90s 超(5×5 symbolic 行列の逆行列が単独で >60s) |
+| `riemann-curvature-tensor-of-S3.egi` | ✅ | 18s |  |
+| `riemann-curvature-tensor-of-S4.egi` | ✅ | 43s |  |
+| `riemann-curvature-tensor-of-S5-non-sym.egi` | ⏱ timeout | 90s | 90s 超(長 timeout なら完走: 実績 104s) |
+| `riemann-curvature-tensor-of-S5.egi` | ⏱ timeout | 90s | 90s 超(長 timeout なら完走: 実績 104s) |
+| `riemann-curvature-tensor-of-S7.egi` | ⏱ timeout | 90s | 90s 超(heavy computation) |
+| `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | ✅ | 12s |  |
+| `riemann-curvature-tensor-of-T2-non-sym.egi` | ✅ | 10s |  |
+| `riemann-curvature-tensor-of-T2.egi` | ✅ | 10s |  |
+| `surface.egi` | ✅ | 4s |  |
+| `thurston-non-sym.egi` | ⏱ timeout | 90s | 90s 超(+ tensor index バグ) |
+| `thurston.egi` | ⏱ timeout | 90s | 90s 超(Mathematica 級の簡約が必要) |
+| `wedge-product.egi` | ✅ | 1s |  |
+| `yang-mills-equation-of-U1-gauge-theory.egi` | ⏱ timeout | 90s | 90s 超(長 timeout なら完走: 実績 224s) |
+
+### math/number/ (7/7 OK)
+
+| ファイル | 状態 | 時間 | 備考 |
+|---|---|---:|---|
+| `17th-root-of-unity.egi` | ✅ | 3s |  |
+| `5th-root-of-unity.egi` | ✅ | 1s |  |
+| `7th-root-of-unity.egi` | ✅ | 1s |  |
+| `eisenstein-primes.egi` | ✅ | 2s |  |
+| `euler-totient-function.egi` | ✅ | 1s |  |
+| `gaussian-primes.egi` | ✅ | 3s |  |
+| `tribonacci.egi` | ✅ | 2s |  |
+
+
+## 更新ガイド
+
+- サンプルを追加・修正したら該当行を更新する(検証コマンドは上記)。
+- math 系の詳細(per-file の assertion 数・失敗原因・改善ロードマップ)は下の
+  「math 系サンプル詳細」を参照・更新する。
+- 処理系側の変更でサンプルの挙動が変わった場合(型規則の変更等)は、変更点を
+  集計の注記に一行残すこと。
+
+---
+
+## math 系サンプル詳細(旧 design/sample-math.md)
 
 `sample/math/` 以下の数学サンプルプログラムは、Egison の CAS・テンソル代数・微分形式
 等の表現力を実際の応用数学計算で示すショーケース集です。本ドキュメントは:
@@ -12,7 +205,7 @@
 
 ---
 
-## 集計 (最新)
+### 集計 (最新)
 
 | 区分 | 合計 | PASS | FAIL | assertion 平均 |
 |---|---:|---:|---:|---:|
@@ -28,7 +221,7 @@ PASS 率: **89% (41/46)**。assertion 総数: 約 250 個。
 > `yang-mills-equation-of-U1-gauge-theory.egi` は 224s で完走するため、180s 固定
 > timeout だと FAIL になる。
 
-### Quote semantics 修正による直近の改善 (2026-05)
+#### Quote semantics 修正による直近の改善 (2026-05)
 
 `'(...)` (apostrophe) と `` `(...) `` (backtick) は **別々の機構** で、
 egison-book §4.3-4.4 に正式な区別がある:
@@ -65,9 +258,9 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 
 ---
 
-## 全サンプル一覧
+### 全サンプル一覧
 
-### `algebra/` (3/3 PASS)
+#### `algebra/` (3/3 PASS)
 
 | ファイル | 状態 | 時間 | asserts | 内容 |
 |---|---|---:|---:|---|
@@ -75,7 +268,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `quadratic-equation.egi` | ✅ | 3s | 4 | 2 次方程式の解の公式 |
 | `quartic-equation.egi` | ✅ | 1s | 1 | フェラーリ公式による 4 次方程式の解 |
 
-### `analysis/` (1/3 PASS)
+#### `analysis/` (1/3 PASS)
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -83,9 +276,9 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `leibniz-formula.egi` | ❌ | 1s | 6 | π/4 のライプニッツ級数。`Sd` (不定積分) lib バグで `Sd x 'cos x` 等が `'cos x` を数として扱おうとして失敗 |
 | `vector-analysis.egi` | ✅ | 6s | 15 | テイラー展開・偏微分・gradient/curl/div。`"Taylor expansion of f(x)"` の assertion を **string-equality (脆弱)** から **assertEqual on values (canonical-form 不変)** に書き換えて pass |
 
-### `geometry/` (17/32 PASS) — 微分幾何・物理サンプル
+#### `geometry/` (17/32 PASS) — 微分幾何・物理サンプル
 
-#### Hodge / Laplacian / 微分形式 (一部 PASS)
+##### Hodge / Laplacian / 微分形式 (一部 PASS)
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -96,7 +289,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `hodge-laplacian-polar.egi` | ✅ | 2s | 1 | 極座標 Laplacian (Hodge 経由) |
 | `hodge-laplacian-spherical.egi` | ✅ | 13s | 1 | 球座標 Laplacian。`abs(non-negative monomial)` の declare rule 追加で `abs(sin²θ r⁴) = sin²θ r⁴` が消えるようになり pass |
 
-#### 極座標 Laplacian バリアント
+##### 極座標 Laplacian バリアント
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -107,7 +300,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `polar-laplacian-3d-2.egi` | ✅ | 6s | 2 | 3D 極 Laplacian バリアント |
 | `polar-laplacian-3d-3.egi` | ✅ | 5s | 2 | 3D 極 Laplacian バリアント |
 
-#### Riemann 曲率テンソル
+##### Riemann 曲率テンソル
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -124,7 +317,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `riemann-curvature-tensor-of-FLRW-metric.egi` | ✅ | 1s | 2 | FLRW (宇宙論) 計量。`'(1-Kr²)` → `` `(1-Kr²) `` |
 | `riemann-curvature-tensor-of-Schwarzschild-metric.egi` | ✅ | 12s | 12 | Schwarzschild 計量。`'(c²r-2GM)` → `` `(c²r-2GM) `` で完走、Christoffel assertion を CAS canonical 形に同期、Ric_ij = 0 (vacuum solution) も確認 |
 
-#### Chern / Euler 形式
+##### Chern / Euler 形式
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -134,7 +327,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `euler-form-of-S2.egi` | ✅ | 3s | 2 | S² の Euler 形式。paper canonical (`!(flip ∂/∂)` の disjoint completion + `Γ~i_j_#` 1-form) に書き直し |
 | `euler-form-of-T2.egi` | ✅ | 6s | 6 | T² の Euler 形式。`'(a*cos θ+b)` → `` `(...) `` で polynomial blow-up を抑制 (was 168s で fail) |
 
-#### Thurston / その他特殊幾何
+##### Thurston / その他特殊幾何
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -143,7 +336,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 | `thurston-non-sym.egi` | ❌ | >180s | 4 | Thurston (非対称 ∇J)。**`Inconsistent tensor index: [_?] vs [_<val>]`** バグ |
 | `yang-mills-equation-of-U1-gauge-theory.egi` | ✅ | 224s | 2 | U(1) ゲージ Yang-Mills。重い計算で 180s timeout だと FAIL するが 224s で完走 |
 
-### `number/` (6/7 PASS)
+#### `number/` (6/7 PASS)
 
 | ファイル | 状態 | 時間 | asserts | 内容 / 失敗原因 |
 |---|---|---:|---:|---|
@@ -157,7 +350,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 
 ---
 
-## 失敗原因の分類
+### 失敗原因の分類
 
 | カテゴリ | 件数 | 関連サンプル | 修正方針 |
 |---|---:|---|---|
@@ -170,7 +363,7 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 
 ---
 
-## 既に取り組んだ修正の効果
+### 既に取り組んだ修正の効果
 
 直近の以下の修正で:
 
@@ -195,9 +388,9 @@ polynomial blow-up の原因だった。修正は `` `(...) `` への置換 (= *
 
 ---
 
-## Coverage 改善のロードマップ
+### Coverage 改善のロードマップ
 
-### Phase 1: 軽量な assertion 追加 (low-hanging fruit)
+#### Phase 1: 軽量な assertion 追加 (low-hanging fruit)
 
 既に PASS している 27 サンプルのうち、assertion が少ないものに追加する。これは
 runtime バグ修正なしで coverage を上げられる。
@@ -212,7 +405,7 @@ runtime バグ修正なしで coverage を上げられる。
 | `number/7th-root-of-unity.egi` | 1 | 同上 |
 | `number/euler-totient-function.egi` | 1 | 個別の n に対する φ(n) 値 |
 
-### Phase 2: 簡約規則の拡充 (CAS 強化)
+#### Phase 2: 簡約規則の拡充 (CAS 強化)
 
 現状の FAIL の大半は CAS 簡約の弱さ。declare rule auto の追加で複数同時に通せる
 可能性が高い:
@@ -222,23 +415,23 @@ runtime バグ修正なしで coverage を上げられる。
 - ⏳ **入れ子分数の縮約**: `(c²r - 2GM) / (c²r)` 形の簡約 (Schwarzschild 系)。多項式 GCD/factor が必要なので大物 (Phase 5 相当)
 - ✅ **CAS 簡約 fixedpoint の到達深さ** (調査済 = NOT the issue): 残りの FAIL の原因を個別に調べた結果、iteration 不足ではなく (a) `Sd` lib バグ, (b) 型エラー, (c) Christoffel 簡約 (多項式 GCD), (d) tensor index 評価バグ, (e) タイムアウト の 5 種に分類できた。`iterateRulesLoopWithTriggers` (Primitives.hs) の fixed-point ループは正しく動作している
 
-### Phase 3: lib バグ修正
+#### Phase 3: lib バグ修正
 
 - **`Sd` (不定積分)** の根本書き直し → `leibniz-formula.egi` が pass
 
-### Phase 4: テンソル / dispatch バグ修正
+#### Phase 4: テンソル / dispatch バグ修正
 
 - **テンソル index pattern バグ** (`Inconsistent tensor index`) → `tribonacci`, `thurston-non-sym`
 - **typeclass dispatch** (`__super_AddGroup`) → `thurston`
 - **EMR paper の WCS 不変量計算** が pass すれば、Egison が論文計算の参照実装として成立
 
-### Phase 5: 性能改善
+#### Phase 5: 性能改善
 
 - **`casRewriteDd` の高速化または declare rule 化** → `S2xS3`, `polar-laplacian-3d` の
   タイムアウト解消
 - **Schwarzschild の Christoffel 計算** が手元で 30s 内に終わるよう最適化
 
-### Phase 6: 新規サンプル追加
+#### Phase 6: 新規サンプル追加
 
 既存サンプルが十分通るようになったら、新しい応用領域を追加:
 
@@ -249,10 +442,10 @@ runtime バグ修正なしで coverage を上げられる。
 
 ---
 
-## 検証コマンド
+### 検証コマンド
 
 ```sh
-# 全 sample/math 実行 (約 5-10 分)
+## 全 sample/math 実行 (約 5-10 分)
 for f in $(find sample/math -name "*.egi" | sort); do
   if gtimeout 60 cabal run egison -- -t "$f" >/dev/null 2>&1; then
     echo "PASS: $f"
@@ -261,17 +454,17 @@ for f in $(find sample/math -name "*.egi" | sort); do
   fi
 done
 
-# 個別 PASS/FAIL 確認
+## 個別 PASS/FAIL 確認
 gtimeout 60 cabal run egison -- -t sample/math/<...>.egi
 ```
 
 ---
 
-## 関連ドキュメント
+### 関連ドキュメント
 
-- [type-cas.md](./type-cas.md) — CAS 型システム設計と既知の制限
-- [type-cas-tower.md](./type-cas-tower.md) — 拡張可能 CAS タワー (将来)
-- [function-symbol.md](./function-symbol.md) — 関数シンボル機構
+- [type-cas.md](../design/type-cas.md) — CAS 型システム設計と既知の制限
+- [type-cas-tower.md](../design/type-cas-tower.md) — 拡張可能 CAS タワー (将来)
+- [function-symbol.md](../design/function-symbol.md) — 関数シンボル機構
 
 EMR paper の Thurston 計算は `/Users/egisatoshi/PL/EMR-Paper-Computation/` に元実装。
 WCS 不変量の Wolfram 簡約形は:

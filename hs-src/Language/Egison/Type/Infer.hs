@@ -369,6 +369,55 @@ unifyTypes t1 t2 = unifyTypesWithContext t1 t2 emptyContext
 -- | Unify two types with context information
 -- This now uses the accumulated constraints from the Infer monad to properly
 -- handle constraint-aware unification (e.g., ensuring {Num a} a doesn't unify with Tensor b)
+-- | Error message for a matcher-rigidity violation (TU.MatcherRigidity): two
+-- distinct Matcher types may not be unified (see the TMatcher/TMatcher case
+-- in Type.Unify for the soundness argument).
+matcherRigidityMsg :: String
+matcherRigidityMsg =
+  "matcher types are rigid: a matcher value's structural capability is fixed by its definition, "
+  ++ "so two different Matcher types never unify (e.g. `something' cannot be specialized to a "
+  ++ "concrete matcher type by context).  Pass the intended matcher directly; matcher-consuming "
+  ++ "function parameters should be slot-typed (m : MatcherSlot a a)"
+
+-- | Bind a fresh inner variable to a type's Matcher component.  Matcher types
+-- are rigid (the TMatcher/TMatcher case of unifyG), so an already-Matcher type
+-- is destructured directly -- binding only the fresh variable, a pure
+-- extraction, not a semantic merge of two matcher types; any other type
+-- (a yet-undetermined variable, a slot, a tuple of matchers) is constrained by
+-- unification with @Matcher fresh@ as before.
+bindMatcherInner :: TypeErrorContext -> Type -> Type -> Infer Subst
+bindMatcherInner ctx ty freshInner = case ty of
+  TMatcher inner -> unifyTypesWithContext freshInner inner ctx
+  _              -> unifyTypesWithContext ty (TMatcher freshInner) ctx
+
+-- | The expression under any lambda wrappers (the body a parameterized
+-- definition is desugared to).  Also sees through the letrec produced by the
+-- algebraicDataMatcher desugaring (a self-referencing matcher literal).
+rhsCore :: IExpr -> IExpr
+rhsCore (ILambdaExpr _ _ e) = rhsCore e
+rhsCore (ILetRecExpr [(PDPatVar v, e@(IMatcherExpr _))] (IVarExpr name))
+  | v == stringToVar name   = e
+rhsCore e                   = e
+
+-- | T-MATCHER checking mode: unify the inferred and declared types of an
+-- annotated matcher-literal definition (possibly parameterized, i.e.
+-- lambda-wrapped).  This is the one context where two Matcher types may have
+-- their parameters unified: the literal's structural capability is derived by
+-- the clause checks at the declared type -- the matcher value is being
+-- DEFINED here, not re-typed -- so matcher rigidity does not apply at the
+-- result position of the definition's type.  Parameter positions of the TFun
+-- spine are unified normally (they are slots or ordinary types).
+unifyMatcherDefType :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
+unifyMatcherDefType cs (TFun a1 r1) (TFun a2 r2) ctx = do
+  s1 <- unifyTypesWithConstraints cs a1 a2 ctx
+  r1' <- applySubstWithConstraintsM s1 r1
+  r2' <- applySubstWithConstraintsM s1 r2
+  s2 <- unifyMatcherDefType (map (applySubstConstraint s1) cs) r1' r2' ctx
+  return (composeSubst s2 s1)
+unifyMatcherDefType cs (TMatcher t1) (TMatcher t2) ctx =
+  unifyTypesWithConstraints cs t1 t2 ctx
+unifyMatcherDefType cs t1 t2 ctx = unifyTypesWithConstraints cs t1 t2 ctx
+
 unifyTypesWithContext :: Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithContext t1 t2 ctx = do
   constraints <- getConstraints
@@ -378,6 +427,7 @@ unifyTypesWithContext t1 t2 ctx = do
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
 
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
@@ -388,6 +438,7 @@ unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
   Left err -> case err of
     TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
     TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+    TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
 
 -- | Unify two types with constraint-aware handling
 -- This is crucial for unifying types when type variables have constraints
@@ -400,6 +451,7 @@ unifyTypesWithConstraints constraints t1 t2 ctx = do
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
 
 -- | Infer type for constants
 inferConstant :: ConstantExpr -> Infer Type
@@ -1012,10 +1064,14 @@ inferIExprWithContext expr ctx = case expr of
         let nextMatcherType = tiExprType nextMatcherTI
         
         -- nextMatcherType must be a Matcher type
-        -- Unify with Matcher a to constrain it and detect errors early
+        -- Constrain it to `Matcher inner` / extract its inner type.  Matcher
+        -- types are rigid (the TMatcher/TMatcher case of unifyG), so an
+        -- already-Matcher type is destructured directly -- binding only the
+        -- fresh inner variable, a pure extraction, not a semantic merge of two
+        -- matcher types -- instead of being unified with `Matcher fresh`.
         matcherInnerTy <- freshVar "matcherInner"
         nextMatcherType' <- applySubstWithConstraintsM s1 nextMatcherType
-        s1' <- unifyTypesWithContext nextMatcherType' (TMatcher matcherInnerTy) ctx
+        s1' <- bindMatcherInner ctx nextMatcherType' matcherInnerTy
         nextMatcherType'' <- applySubstWithConstraintsM s1' nextMatcherType
         
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
@@ -1049,7 +1105,7 @@ inferIExprWithContext expr ctx = case expr of
         --        discarded), so — exactly as the paper's structural index is binding-independent and
         --        needs no rename — reading σ_l's head gives the identical verdict a fresh
         --        instantiation would; no `freshenType` is required.
-        --   (ii) above (the `unifyTypesWithContext .. (TMatcher matcherInnerTy)` step) every next
+        --   (ii) above (the `bindMatcherInner .. matcherInnerTy` step) every next
         --        matcher is forced to `Matcher inner`, and an UNDETERMINED parameter's `inner` is
         --        fixed by the target unification below (`checkPatternHoleConsistency`).  A generic
         --        one-way match would prematurely reject such a parameter at a constructor hole; the
@@ -1723,7 +1779,7 @@ inferIExprWithContext expr ctx = case expr of
             TMatcherSlot _ tt -> return (acc ++ [tt], accS)
             _ -> do
               innerTy <- freshVar "matched"
-              s' <- unifyTypesWithContext appliedElemTy (TMatcher innerTy) exprCtx
+              s' <- bindMatcherInner exprCtx appliedElemTy innerTy
               innerTy' <- applySubstWithConstraintsM s' innerTy
               return (acc ++ [innerTy'], composeSubst s' accS)
           ) ([], emptySubst) elemTypes
@@ -1736,7 +1792,7 @@ inferIExprWithContext expr ctx = case expr of
       _ -> do
         -- Single matcher: TMatcher a
         matchedTy <- freshVar "matched"
-        s' <- unifyTypesWithContext appliedMatcherType (TMatcher matchedTy) exprCtx
+        s' <- bindMatcherInner exprCtx appliedMatcherType matchedTy
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
         return (TMatcher finalMatchedTy, finalMatchedTy, s')
 
@@ -1795,7 +1851,7 @@ inferIExprWithContext expr ctx = case expr of
             TMatcherSlot _ tt -> return (acc ++ [tt], accS)
             _ -> do
               innerTy <- freshVar "matched"
-              s' <- unifyTypesWithContext appliedElemTy (TMatcher innerTy) exprCtx
+              s' <- bindMatcherInner exprCtx appliedElemTy innerTy
               innerTy' <- applySubstWithConstraintsM s' innerTy
               return (acc ++ [innerTy'], composeSubst s' accS)
           ) ([], emptySubst) elemTypes
@@ -1808,7 +1864,7 @@ inferIExprWithContext expr ctx = case expr of
       _ -> do
         -- Single matcher: TMatcher a
         matchedTy <- freshVar "matched"
-        s' <- unifyTypesWithContext appliedMatcherType (TMatcher matchedTy) exprCtx
+        s' <- bindMatcherInner exprCtx appliedMatcherType matchedTy
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
         return (TMatcher finalMatchedTy, finalMatchedTy, s')
 
@@ -3424,7 +3480,17 @@ inferITopExpr topExpr = case topExpr of
             currentConstraints = map (applySubstConstraint subst1) instConstraints
         exprType' <- applySubstWithConstraintsM subst1 exprType
         expectedType' <- applySubstWithConstraintsM subst1 expectedType
-        subst2 <- unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
+        -- Matcher-rigidity exception: a matcher LITERAL (possibly behind the
+        -- lambdas of a parameterized definition) checked against its
+        -- annotation (paper T-MATCHER's checking mode).  The literal's
+        -- structural capability is derived by the clause checks at whatever
+        -- type the annotation names, so unifying the Matcher parameters at
+        -- the result position is sound; rigidity guards already-existing
+        -- matcher values, not the literal being defined.
+        subst2 <- case rhsCore expr of
+          IMatcherExpr _ ->
+            unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
+          _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
         let finalSubst = composeSubst subst2 subst1
 
         -- Apply final substitution to exprTI to resolve all type variables
@@ -3520,7 +3586,12 @@ inferITopExpr topExpr = case topExpr of
             let exprType = tiExprType exprTI
             exprType' <- applySubstWithConstraintsM subst1 exprType
             expectedType' <- applySubstWithConstraintsM subst1 expectedType
-            subst2 <- unifyTypesWithTopLevel exprType' expectedType' emptyContext
+            -- Matcher-rigidity exception for an annotated matcher literal,
+            -- possibly lambda-wrapped (see the IDefine signature branch)
+            subst2 <- case rhsCore expr of
+              IMatcherExpr _ ->
+                unifyMatcherDefType [] exprType' expectedType' emptyContext
+              _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
             let finalSubst = composeSubst subst2 subst1
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             return ((var, exprTI'), finalSubst)

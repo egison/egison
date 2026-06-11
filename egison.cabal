@@ -42,6 +42,7 @@ Extra-source-files:  README.md
                      test/lib/core/*.egi
                      test/type-error/*.egi
                      test/type-error/README.md
+                     sample/STATUS.md
                      sample/*.egi
                      sample/database/*.egi
                      sample/io/*.egi

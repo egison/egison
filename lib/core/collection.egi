@@ -304,7 +304,7 @@ def split {Eq a} (sep: [a]) (ls: [a]) : [[a]] :=
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
     | _ -> [ls]
 
-def splitAs {a} (m: Matcher a) (sep: [a]) (ls: [a]) : [[a]] :=
+def splitAs {a} (m: MatcherSlot a a) (sep: [a]) (ls: [a]) : [[a]] :=
   match ls as list m with
     | $xs ++ #sep ++ $rs -> xs :: splitAs m sep rs
     | _ -> [ls]
@@ -387,7 +387,7 @@ def deleteFirst {Eq a} (x : a) (xs : [a]) : [a] :=
     | #x :: $rs -> rs
     | $y :: $rs -> y :: deleteFirst x rs
 
-def deleteFirstAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
+def deleteFirstAs {a} (m: MatcherSlot a a) (x: a) (xs: [a]) : [a] :=
   match xs as list m with
     | [] -> []
     | #x :: $rs -> rs
@@ -399,7 +399,7 @@ def delete {Eq a} (x: a) (xs: [a]) : [a] :=
     | $hs ++ #x :: $ts -> hs ++ delete x ts
     | _ -> xs
 
-def deleteAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] :=
+def deleteAs {a} (m: MatcherSlot a a) (x: a) (xs: [a]) : [a] :=
   match xs as list m with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ deleteAs m x ts
@@ -410,7 +410,7 @@ def difference {Eq a} (xs: [a]) (ys: [a]) : [a] :=
     | [] -> xs
     | $y :: $rs -> difference (deleteFirst y xs) rs
 
-def differenceAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+def differenceAs {a} (m: MatcherSlot a a) (xs: [a]) (ys: [a]) : [a] :=
   match ys as list m with
     | [] -> xs
     | $y :: $rs -> differenceAs m (deleteFirstAs m y xs) rs
@@ -421,7 +421,7 @@ def include {Eq a} (xs: [a]) (ys: [a]) : Bool :=
     | $y :: $rs ->
       if member y xs then include (deleteFirst y xs) rs else False
 
-def includeAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : Bool :=
+def includeAs {a} (m: MatcherSlot a a) (xs: [a]) (ys: [a]) : Bool :=
   match ys as list m with
     | [] -> True
     | $y :: $rs ->
@@ -431,7 +431,7 @@ def union {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset something, multiset something) with
     | ($y :: _, !(#y :: _)) -> y)
 
-def unionAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+def unionAs {a} (m: MatcherSlot a a) (xs: [a]) (ys: [a]) : [a] :=
   xs ++ (matchAll (ys, xs) as (multiset m, multiset m) with
     | ($y :: _, !(#y :: _)) -> y)
 
@@ -439,7 +439,7 @@ def intersect {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset something, multiset something) with
     | ($x :: _, #x :: _) -> x
 
-def intersectAs {a} (m: Matcher a) (xs: [a]) (ys: [a]) : [a] :=
+def intersectAs {a} (m: MatcherSlot a a) (xs: [a]) (ys: [a]) : [a] :=
   matchAll (xs, ys) as (multiset m, multiset m) with
     | ($x :: _, #x :: _) -> x
 
@@ -451,7 +451,7 @@ def member {Eq a} (x: a) (ys: [a]) : Bool :=
     | _ ++ #x :: _ -> True
     | _ -> False
 
-def memberAs {a} (m: Matcher a) (x: a) (ys: [a]) : Bool :=
+def memberAs {a} (m: MatcherSlot a a) (x: a) (ys: [a]) : Bool :=
   match ys as list m with
     | _ ++ #x :: _ -> True
     | _ -> False
@@ -462,13 +462,13 @@ def memberAs {a} (m: Matcher a) (x: a) (ys: [a]) : Bool :=
 def count {Eq a} (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if x = y then acc + 1 else acc) 0 xs
 
-def countAs {a} (m: Matcher a) (x: a) (xs: [a]) : Integer :=
+def countAs {a} (m: MatcherSlot a a) (x: a) (xs: [a]) : Integer :=
   foldl (\acc y -> if eqAs m x y then acc + 1 else acc) 0 xs
 
 def frequency {Eq a} (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, count u xs)) (unique xs)
 
-def frequencyAs {a} (m: Matcher a) (xs: [a]) : [(a, Integer)] :=
+def frequencyAs {a} (m: MatcherSlot a a) (xs: [a]) : [(a, Integer)] :=
   map (\u -> (u, countAs m u xs)) (uniqueAs m xs)
 
 --
@@ -516,7 +516,7 @@ def set {a} (m: MatcherSlot a a) : Matcher [a] :=
 --
 def add {Eq a} (x: a) (xs: [a]) : [a] := if member x xs then xs else xs ++ [x]
 
-def addAs {a} (m: Matcher a) (x: a) (xs: [a]) : [a] := if memberAs m x xs then xs else xs ++ [x]
+def addAs {a} (m: MatcherSlot a a) (x: a) (xs: [a]) : [a] := if memberAs m x xs then xs else xs ++ [x]
 
 def fastUnique {Eq a} (xs: [a]) : [a] :=
   matchAll sort xs as list something with
@@ -527,7 +527,7 @@ def unique {Eq a} (xs: [a]) : [a] :=
     (matchAll reverse xs as list something with
       | _ ++ $x :: !(_ ++ #x :: _) -> x)
 
-def uniqueAs {a} (m: Matcher a) (xs: [a]) : [a] := loopFn xs []
+def uniqueAs {a} (m: MatcherSlot a a) (xs: [a]) : [a] := loopFn xs []
   where
     loopFn (xs: [a]) (ys: [a]) : [a] :=
       match (xs, ys) as (list m, multiset m) with

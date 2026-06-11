@@ -4,9 +4,9 @@
 
 def station : Matcher String := string
 
-def price : Matcher Integer := integer
+def price := integer
 
-def graph : Matcher [(String, [(String, Integer)])] := multiset (station, multiset (station, price))
+def graph := multiset (station, multiset (station, price))
 
 def graphData : [(String, [(String, Integer)])] :=
   [ ( "Berlin"

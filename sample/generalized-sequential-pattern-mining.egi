@@ -27,9 +27,9 @@ def I (t: Integer) : Integer := floor (rtof (t / (60 * 60 * 24)))
 -- Utils
 --
 
-def query {a, b, c} : Matcher [(Integer, a)] := list (integer, eq)
+def query := list (integer, eq)
 
-def sequence {a, b, c} : Matcher [(Integer, [a])] := list (time, list eq)
+def sequence := list (time, list eq)
 
 def time {a, b} : Matcher Integer := matcher
   | interval $ $ as (integer, integer) with

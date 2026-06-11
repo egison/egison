@@ -34,6 +34,9 @@ import           Language.Egison.Type.Types  (instType)
 data UnifyError
   = OccursCheck TyVar Type        -- ^ Infinite type detected
   | TypeMismatch Type Type        -- ^ Types cannot be unified
+  | MatcherRigidity Type Type     -- ^ Attempt to unify two distinct Matcher types
+                                  --   (matcher types are rigid; see the
+                                  --   TMatcher/TMatcher case of 'unifyG')
   deriving (Eq, Show)
 
 --------------------------------------------------------------------------------
@@ -200,9 +203,23 @@ unifyG TensorConstraintAware ce cs (TMatcherSlot ts tt) (TTuple tys) =
 unifyG TensorConstraintAware ce cs (TTuple tys) (TMatcherSlot ts tt) =
   coerceSlotTuple TensorConstraintAware ce cs ts tt tys
 
--- Matcher types
-unifyG mode ce cs (TMatcher t1) (TMatcher t2) =
-  unifyNormalized mode ce cs t1 t2
+-- Matcher types: RIGID -- two Matcher types are compatible only when their
+-- parameters are already equal; their unification is forbidden.  A matcher
+-- value's structural capability is fixed by its definition and judged from
+-- its *intrinsic* type ('coerceMatcherToSlot' / 'matchOneWay'), so letting
+-- @Matcher t1@ unify with @Matcher t2@ would specialize an intrinsically
+-- general matcher's type -- e.g. give @something : Matcher b@ the type
+-- @Matcher [Integer]@ via the list literal @[something, list integer]@ --
+-- and a later match site would trust a structural capability the runtime
+-- value does not have (well-typed but stuck).  Consequences: a polymorphic
+-- matcher cannot be specialized by annotation (write a concrete matcher
+-- literal instead of @def integer : Matcher Integer := eq@), and matcher-
+-- consuming function parameters must be slot-typed (@m : MatcherSlot a a@,
+-- filled by 'coerceMatcherToSlot' at the call site) rather than
+-- @m : Matcher a@.
+unifyG _ _ _ (TMatcher t1) (TMatcher t2)
+  | t1 == t2  = ok
+  | otherwise = Left $ MatcherRigidity (TMatcher t1) (TMatcher t2)
 
 -- MatcherSlot types (two components: structural type and target type)
 unifyG mode ce cs (TMatcherSlot s1 t1) (TMatcherSlot s2 t2) = do

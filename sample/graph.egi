@@ -7,9 +7,9 @@
 --
 -- Matcher definition
 --
-def graph {a, b} (a: Matcher b) : Matcher [Edge b] := set (edge a)
+def graph {a, b} (a: MatcherSlot b b) : Matcher [Edge b] := set (edge a)
 
-def edge {a, b} (a: Matcher b) : Matcher (Edge b) :=
+def edge {a, b} (a: MatcherSlot b b) : Matcher (Edge b) :=
   algebraicDataMatcher
     | edge a a
 

@@ -41,10 +41,42 @@ def eq {Eq a} : Matcher a :=
     | $ as something with
       | $tgt -> [tgt]
 
-def bool : Matcher Bool := eq
-def char : Matcher Char := eq
-def integer : Matcher Integer := eq
-def float : Matcher Float := eq
+-- The primitive matchers are eq's body inlined at each concrete type.
+-- Matcher types are rigid (two different Matcher types never unify), so a
+-- polymorphic matcher value cannot be specialized by annotation: `def
+-- integer : Matcher Integer := eq` no longer type-checks, and an
+-- unannotated alias `def integer := eq` would keep eq's polymorphic
+-- scheme, which a *concrete* hole (e.g. `as (integer, ...)` at an Integer
+-- hole) rejects just as it rejects `something`.  A concrete matcher
+-- literal derives its capability at the annotated type instead.
+
+def bool : Matcher Bool :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def char : Matcher Char :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def integer : Matcher Integer :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def float : Matcher Float :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
 
 -- Additive hierarchy
 class AddSemigroup a where
@@ -182,7 +214,7 @@ def compose {a, b, c} (f: a -> b) (g: b -> c) : a -> c := \x -> g (f x)
 
 def flip {a, b, c} (fn: a -> b -> c) : b -> a -> c := \x y -> fn y x
 
-def eqAs {Eq a} (m: Matcher a) (x: a) (y: a) : Bool :=
+def eqAs {Eq a} (m: MatcherSlot a a) (x: a) (y: a) : Bool :=
   match x as m with
     | #y -> True
     | _ -> False

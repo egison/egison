@@ -1,4 +1,4 @@
-def tree {a, b} (a: Matcher b) : Matcher (Tree b) := matcher
+def tree {a, b} (a: MatcherSlot b b) : Matcher (Tree b) := matcher
   | leaf $ as a with
     | Leaf $x -> [x]
     | Node _ _ -> []

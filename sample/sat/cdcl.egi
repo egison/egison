@@ -9,11 +9,11 @@ inductive pattern Assignment :=
   | guessed (Integer, Integer)
   | whichever (Integer, Integer)
 
-def literal : Matcher Integer := integer
+def literal := integer
 
-def stage : Matcher Integer := integer
+def stage := integer
 
-def taggedLiteral : Matcher (Integer, Integer) := (literal, stage)
+def taggedLiteral := (literal, stage)
 
 def assignment : Matcher Assignment :=
   matcher

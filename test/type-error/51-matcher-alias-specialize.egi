@@ -1,0 +1,12 @@
+--
+-- Specializing a polymorphic matcher value by annotation (matcher rigidity).
+-- `eq : {Eq a} => Matcher a` cannot be given the type Matcher Integer by an
+-- annotation: a matcher value's structural capability is fixed by its
+-- definition, so two different Matcher types never unify.  Write a concrete
+-- matcher literal instead (as the standard library does for `integer`),
+-- or use `eq` directly.
+--
+-- Expected: Type error (matcher types are rigid: Matcher a vs Matcher Integer)
+--
+
+def integer2 : Matcher Integer := eq

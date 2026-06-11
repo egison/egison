@@ -47,6 +47,8 @@ done
 | 40-matcher-next-structural | Def 4.2(1a) / PP-Con(B の `weird`) | 構築子頭 hole への `something` |
 | 41-matcher-body-matchsite | 本体内 match-site 検査 | matcher 本体内の `integer` × cons |
 | 42-tuple-pattern-arity | PAT-TUPLE | タプルパターンの arity 不一致 |
+| 50-matcher-collection-hetero | Matcher rigidity | `[something, list integer]`(異種 matcher のコレクション) |
+| 51-matcher-alias-specialize | Matcher rigidity | `def integer2 : Matcher Integer := eq`(注釈による特殊化) |
 
 ## ケース追加時の注意
 
