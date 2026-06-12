@@ -170,8 +170,7 @@ data InferState = InferState
 --   * HCSlot: a slot-typed parameter — committed to the hole by index
 --     unification (Def 4.2(1a) parameter route), nothing left to check.
 --   * HCBareVar: a bare-variable matcher value (eq / something) — admissible
---     only at a variable-headed, function-typed, or pattern-constructor-free
---     hole (the uniform exemption).
+--     only at a variable-headed or function-typed hole.
 --   * HCShape t: a structured/concrete matcher value — its (freshened)
 --     intrinsic inner type must one-way match the hole's structural index
 --     (same head, fresh leaves).
@@ -389,8 +388,7 @@ clearDeferredHoleChecks :: Infer ()
 clearDeferredHoleChecks = modify $ \s -> s { inferDeferredHoleChecks = [] }
 
 -- | Run the queued matcher-hole admissibility checks against the final
--- substitution (paper PP-Con / Def 4.2(1a), with the uniform bare-variable
--- matcher exemption at pattern-constructor-free heads).
+-- substitution (paper PP-Con / Def 4.2(1a)).
 flushDeferredHoleChecks :: Subst -> Infer ()
 flushDeferredHoleChecks finalSubst = do
   checks <- gets inferDeferredHoleChecks
@@ -413,7 +411,7 @@ flushDeferredHoleChecks finalSubst = do
                 throwError $ TE.TypeMismatch
                   (TMatcherSlot holeTy holeTy)
                   compTy
-                  ("the hole's next matcher is a bare-variable matcher, not structurally admissible at a constructor-headed hole (paper PP-Con, Def 4.2(1a)); use a concrete matcher for that hole's type [clause: " ++ ppStr ++ "]")
+                  ("the next matcher of clause `" ++ ppStr ++ "` is a bare-variable matcher, not structurally admissible at its hole's resolved type (paper PP-Con, Def 4.2(1a)); use a concrete matcher for that hole's type")
                   ctx
         HCShape inner0 -> case normalizeInductiveTypes (normalizeTensorType holeTy) of
           TVar _ -> return ()
@@ -1255,37 +1253,26 @@ inferIExprWithContext expr ctx = case expr of
         -- *fresh instantiation* of σ_l (PP-Con's device — same head, fresh leaves; NO fusion
         -- τ_p = τ_t, NO separate fresh_rename, uniform with PAT-CON at a match site).  The next
         -- matcher is consumed at the slot @MatcherSlot τ_p σ_l@, whose structural half is the
-        -- one-way match τ_m ⊑ τ_p: a bare-variable matcher fills only a variable-headed hole; a
-        -- constructor-/concrete-headed hole rejects it (the paper's `weird`: it cannot decompose the
-        -- hole, so a pattern through it gets stuck).
+        -- one-way match τ_m ⊑ τ_p: a bare-variable matcher fills only a variable-headed or
+        -- function-typed hole (functions admit no pattern constructors); a constructor-/concrete-
+        -- headed hole rejects it (the paper's `weird`: it cannot decompose the hole, so a pattern
+        -- routed through it gets stuck).
         --
-        -- We realize this admissibility test SYNTACTICALLY, on the literal `something` (the sole
-        -- built-in bare-variable matcher, T-SOME), at a constructor-/concrete-headed hole.  Two
-        -- operational facts make this the right test rather than a generic @matchOneWay τ_p τ_m@:
-        --   (i)  τ_p need not be materialized.  We need only admit/reject (the structural witness is
-        --        discarded), so — exactly as the paper's structural index is binding-independent and
-        --        needs no rename — reading σ_l's head gives the identical verdict a fresh
-        --        instantiation would; no `freshenType` is required.
-        --   (ii) above (the `bindMatcherInner .. matcherInnerTy` step) every next
-        --        matcher is forced to `Matcher inner`, and an UNDETERMINED parameter's `inner` is
-        --        fixed by the target unification below (`checkPatternHoleConsistency`).  A generic
-        --        one-way match would prematurely reject such a parameter at a constructor hole; the
-        --        literal-`something` test pinpoints only the genuinely unsound case (a *concrete*
-        --        bare-variable matcher) and lets parameters be determined.
-        -- Exempt:
-        --   * a variable-headed hole (`TVar` — the catch-all's $, or a polymorphic element hole):
-        --     `something` legitimately binds it (τ_p variable-headed ⇒ the one-way match is vacuous);
-        --   * a function-typed hole (`TFun` — e.g. `apply1`'s `MathValue -> MathValue` argument):
-        --     functions have no constructors to decompose, so `something` (bind only) is the only
-        --     sound matcher (beyond the paper's inductive-type scope).
-        -- A slot-typed parameter (`m : MatcherSlot a a`) and a recursive/structured next matcher
-        -- (`list m`/`multiset m`) are not literal `something`, so they are never flagged.  The CAS
-        -- matchers were made compliant (symbol's String hole uses `string`; apply's function holes
-        -- are exempt), so this no longer rejects the stdlib.  (Coverage, Def 4.2(3), stays an
-        -- opt-in warning — partial matchers are intentional.)
+        -- The test runs in TWO STAGES, because a hole's target type may be resolved only by the
+        -- enclosing definition's final substitution (e.g. the annotation `: Matcher [Integer]`
+        -- pinning the matched variable):
+        --   * EAGER (here): the literal `something` (T-SOME) at a hole whose type is already
+        --     constructor-/concrete-headed — rejected immediately, with the clause in context.
+        --     A slot-typed parameter (`m : MatcherSlot a a`) or a structured next matcher
+        --     (`list m`/`multiset m`) is never literal `something`, so it is not flagged here;
+        --     an undetermined parameter's inner is fixed by the target unification below
+        --     (`checkPatternHoleConsistency`) and must not be rejected prematurely.
+        --   * DEFERRED (recorded below, run by `flushDeferredHoleChecks` at the end of the
+        --     top-level expression): the general check at the RESOLVED hole types — components
+        --     classified as slot / bare-variable value / shaped value (`HoleCompShape`), the
+        --     shaped case checked against PP-Con's fresh-leaves structural index.
+        -- (Coverage, Def 4.2(3), stays an opt-in warning — partial matchers are intentional.)
         let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
-            compTys = case nextMatcherType'' of { TTuple ts -> ts; t -> [t] }
-            compTyAt i = if length compTys == length comps then Just (compTys !! i) else Nothing
         mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
                  (TVar _, _)                      -> return ()
                  (TFun _ _, _)                    -> return ()
