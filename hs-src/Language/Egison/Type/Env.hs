@@ -23,9 +23,6 @@ module Language.Egison.Type.Env
   , emptyClassEnv
   , addClass
   , addInstance
-  , addPatternHead
-  , exemptibleMatcherHead
-  , baseHeadName
   , lookupClass
   , lookupInstances
   , classEnvToList
@@ -234,74 +231,43 @@ instantiate (Forall vs cs t) counter =
 
 -- | Class environment: maps class names to class info and instances
 data ClassEnv = ClassEnv
-  { classEnvClasses      :: Map String ClassInfo      -- ^ Class definitions
-  , classEnvInstances    :: Map String [InstanceInfo] -- ^ Instances per class
-  , classEnvPatternHeads :: Set.Set String            -- ^ Type heads with `inductive pattern` declarations
+  { classEnvClasses   :: Map String ClassInfo      -- ^ Class definitions
+  , classEnvInstances :: Map String [InstanceInfo] -- ^ Instances per class
   } deriving (Eq, Show)
 
 -- | Empty class environment
 emptyClassEnv :: ClassEnv
-emptyClassEnv = ClassEnv Map.empty Map.empty Set.empty
+emptyClassEnv = ClassEnv Map.empty Map.empty
 
 -- | Add a class to the environment
 addClass :: String -> ClassInfo -> ClassEnv -> ClassEnv
-addClass name info (ClassEnv classes insts pheads) =
-  ClassEnv (Map.insert name info classes) insts pheads
+addClass name info (ClassEnv classes insts) =
+  ClassEnv (Map.insert name info classes) insts
 
 -- | Add an instance to the environment
 addInstance :: String -> InstanceInfo -> ClassEnv -> ClassEnv
-addInstance className inst (ClassEnv classes insts pheads) =
-  ClassEnv classes (Map.insertWith (++) className [inst] insts) pheads
-
--- | Record that a type head has `inductive pattern` declarations
-addPatternHead :: String -> ClassEnv -> ClassEnv
-addPatternHead name (ClassEnv classes insts pheads) =
-  ClassEnv classes insts (Set.insert name pheads)
+addInstance className inst (ClassEnv classes insts) =
+  ClassEnv classes (Map.insertWith (++) className [inst] insts)
 
 -- | Look up a class definition
 lookupClass :: String -> ClassEnv -> Maybe ClassInfo
-lookupClass name (ClassEnv classes _ _) = Map.lookup name classes
+lookupClass name (ClassEnv classes _) = Map.lookup name classes
 
 -- | Look up instances for a class
 lookupInstances :: String -> ClassEnv -> [InstanceInfo]
-lookupInstances name (ClassEnv _ insts _) = Map.findWithDefault [] name insts
+lookupInstances name (ClassEnv _ insts) = Map.findWithDefault [] name insts
 
 -- | Convert class environment to list
 classEnvToList :: ClassEnv -> [(String, ClassInfo)]
-classEnvToList (ClassEnv classes _ _) = Map.toList classes
+classEnvToList (ClassEnv classes _) = Map.toList classes
 
 -- | Merge two class environments
 -- The second environment's definitions take precedence in case of conflicts
 mergeClassEnv :: ClassEnv -> ClassEnv -> ClassEnv
-mergeClassEnv (ClassEnv classes1 insts1 pheads1) (ClassEnv classes2 insts2 pheads2) =
+mergeClassEnv (ClassEnv classes1 insts1) (ClassEnv classes2 insts2) =
   ClassEnv
     (Map.union classes2 classes1)  -- classes2 takes precedence
     (Map.unionWith (++) insts2 insts1)  -- Combine instance lists
-    (Set.union pheads1 pheads2)
-
--- | The name under which a base type's head is recorded for `inductive
--- pattern` declarations (the declaration syntax writes these names).
-baseHeadName :: Type -> Maybe String
-baseHeadName TInt    = Just "Integer"
-baseHeadName TBool   = Just "Bool"
-baseHeadName TChar   = Just "Char"
-baseHeadName TString = Just "String"
-baseHeadName TFloat  = Just "Float"
-baseHeadName _       = Nothing
-
--- | The uniform matcher-exemption predicate: a BARE-VARIABLE matcher value
--- (intrinsic type @Matcher b@, e.g. @eq@ / @something@) is structurally
--- admissible at this type, because no pattern other than a value pattern,
--- a pattern variable, or a wildcard can ever reach it.  True for the
--- built-in base types WITHOUT `inductive pattern` declarations, and for
--- function types (which can never have pattern constructors).  Declaring
--- pattern constructors for a base type removes its exemption.
-exemptibleMatcherHead :: ClassEnv -> Type -> Bool
-exemptibleMatcherHead ce ty = case ty of
-  TFun _ _ -> True
-  _        -> case baseHeadName ty of
-                Just n  -> not (n `Set.member` classEnvPatternHeads ce)
-                Nothing -> False
 
 --------------------------------------------------------------------------------
 -- Pattern Type Environment

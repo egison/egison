@@ -41,19 +41,44 @@ def eq {Eq a} : Matcher a :=
     | $ as something with
       | $tgt -> [tgt]
 
--- The primitive matchers are eq specialized to the concrete base types.
--- Matcher types are rigid (two different Matcher types never unify), with a
--- uniform exemption: a BARE-VARIABLE matcher value such as eq may be bound,
--- passed, or used at a PATTERN-CONSTRUCTOR-FREE base type head, because the
--- only patterns that can ever reach it there are value patterns, pattern
--- variables, and wildcards -- exactly what eq handles.  Consequently these
--- heads must not gain `inductive pattern` declarations later (checked); see
--- design/paper-compliance-roadmap.md (matcher exemption).
+-- The primitive matchers are eq's body inlined at each concrete type.
+-- Matcher types are rigid (two different Matcher types never unify), so a
+-- polymorphic matcher value cannot be specialized by annotation: `def
+-- integer : Matcher Integer := eq` does not type-check, and an unannotated
+-- alias `def integer := eq` would keep eq's polymorphic scheme, which a
+-- concrete hole (e.g. `as (integer, ...)` at an Integer hole) rejects just
+-- as it rejects `something`.  A concrete matcher literal instead derives
+-- its capability at the annotated type (T-MATCHER in checking mode).
+-- The #$val arm uses the built-in equality `=` (same convention as
+-- sortedList's #$val arm); for the base types it coincides with ==.
 
-def bool : Matcher Bool := eq
-def char : Matcher Char := eq
-def integer : Matcher Integer := eq
-def float : Matcher Float := eq
+def bool : Matcher Bool :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def char : Matcher Char :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def integer : Matcher Integer :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def float : Matcher Float :=
+  matcher
+    | #$val as () with
+      | $tgt -> if val = tgt then [()] else []
+    | $ as something with
+      | $tgt -> [tgt]
 
 -- Additive hierarchy
 class AddSemigroup a where

@@ -48,9 +48,9 @@ done
 | 41-matcher-body-matchsite | 本体内 match-site 検査 | matcher 本体内の `integer` × cons |
 | 42-tuple-pattern-arity | PAT-TUPLE | タプルパターンの arity 不一致 |
 | 50-matcher-collection-hetero | Matcher rigidity | `[something, list integer]`(異種 matcher のコレクション) |
-| 51-matcher-cast-structured | Matcher 免除(cast)の範囲外 | `def m2 : Matcher [Integer] := something`(構築子を持つ head への cast) |
+| 51-matcher-cast-structured | Matcher rigidity | `def m2 : Matcher [Integer] := something`(構造型への束縛) |
 | 52-missing-signature-constraint | シグネチャ完全性(残存制約検査) | 本体が `<=`({Ord a})を要求するのにシグネチャに無い |
-| 53-pattern-decl-blocks-cast | 免除×宣言の相互排他 | `inductive pattern Integer` がある(または免除使用後の)head への cast / 宣言 |
+| 53-matcher-alias-specialize | Matcher rigidity | `def myint : Matcher Integer := eq`(注釈による特殊化) |
 | 54-something-structured-hole | PP-Con 遅延判定 | 注釈で後から [Integer] に確定する hole への `something` |
 
 ## ケース追加時の注意

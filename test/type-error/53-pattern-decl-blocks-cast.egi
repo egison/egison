@@ -1,9 +1,0 @@
--- A base type WITH `inductive pattern` declarations loses the matcher
--- exemption: pc patterns could reach the cast matcher, which cannot
--- handle them.  (Declarations are registered for the whole file before
--- inference, so the cast below sees them regardless of textual order.)
-
-inductive pattern Integer :=
-  | pc Integer
-
-def myint : Matcher Integer := eq

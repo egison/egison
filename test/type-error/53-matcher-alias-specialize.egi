@@ -1,0 +1,8 @@
+-- Matcher rigidity: a polymorphic matcher value cannot be re-typed at a
+-- concrete matcher type by annotation.  eq has the intrinsic type
+-- {Eq a} => Matcher a; binding it at Matcher Integer would make the type
+-- system believe a capability the value does not change.  The standard
+-- library instead inlines eq's body as a concrete matcher literal
+-- (T-MATCHER in checking mode derives the capability at the declared type).
+
+def myint : Matcher Integer := eq

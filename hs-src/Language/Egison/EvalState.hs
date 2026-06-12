@@ -69,7 +69,6 @@ data EvalState = EvalState
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
   , derivativeRuleNames  :: [String] -- ^ Names of declared derivatives (the function names)
   , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
-  , matcherExemptHeads   :: Set.Set String -- ^ Type heads at which a bare-variable matcher was exempted (matcher-exemption interlock: such heads must not gain `inductive pattern` declarations later).
                                        --   Accumulated as `declare rule auto` declarations are desugared,
                                        --   used to rebuild `mathNormalize` to apply each rule in sequence.
   , autoRuleTriggers     :: [Set.Set String] -- ^ Trigger-symbol set per auto rule (parallel to autoRuleVarNames).
@@ -98,7 +97,6 @@ initialEvalState = EvalState
   , reductionRuleNames = []
   , derivativeRuleNames = []
   , autoRuleVarNames = []
-  , matcherExemptHeads = Set.empty
   , autoRuleTriggers = []
   , derivativesDesugared = []
   }
@@ -148,11 +146,6 @@ class (Applicative m, Monad m) => MonadEval m where
   getAutoRuleVarNames :: m [String]
   setAutoRuleVarNames :: [String] -> m ()
   appendAutoRuleVarName :: String -> m ()
-  -- Matcher-exemption interlock: heads at which a bare-variable matcher
-  -- value was admitted under the pattern-constructor-free exemption.
-  getMatcherExemptHeads :: m (Set.Set String)
-  setMatcherExemptHeads :: Set.Set String -> m ()
-  appendMatcherExemptHead :: String -> m ()
   -- Trigger-symbol set per auto rule, parallel to autoRuleVarNames.
   -- Read by iterateRulesCAS via getAutoRuleTriggers (returns the cached
   -- Set list directly; no per-call construction).
@@ -269,14 +262,6 @@ instance Monad m => MonadEval (StateT EvalState m) where
   appendAutoRuleVarName n = do
     st <- get
     put $ st { autoRuleVarNames = autoRuleVarNames st ++ [n] }
-
-  getMatcherExemptHeads = matcherExemptHeads <$> get
-  setMatcherExemptHeads hs = do
-    st <- get
-    put $ st { matcherExemptHeads = hs }
-  appendMatcherExemptHead n = do
-    st <- get
-    put $ st { matcherExemptHeads = Set.insert n (matcherExemptHeads st) }
 
   getAutoRuleTriggers = autoRuleTriggers <$> get
   appendAutoRuleTriggers ts = do

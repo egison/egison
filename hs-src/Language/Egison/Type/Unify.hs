@@ -28,7 +28,7 @@ import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (TyVar (..), Type (..), freeTyVars, normalizeInductiveTypes,
                                               Constraint(..), SymbolSet(..))
-import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, emptyClassEnv, exemptibleMatcherHead)
+import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, emptyClassEnv)
 import           Language.Egison.Type.Types  (instType)
 
 -- | Unification errors
@@ -472,18 +472,7 @@ coerceMatcherToSlot :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Typ
                     -> Either UnifyError (Subst, Bool)
 coerceMatcherToSlot mode ce cs tm tp tt =
   case matchOneWay tp tm of
-    Nothing
-      -- Uniform matcher exemption: a BARE-VARIABLE matcher value (eq /
-      -- something, intrinsic type @Matcher b@) is structurally admissible at
-      -- a pattern-constructor-free head (built-in base types without
-      -- `inductive pattern` declarations, and function types): no pattern
-      -- other than a value pattern / variable / wildcard can ever reach it
-      -- there, which is exactly what a bare-variable matcher handles.  Only
-      -- the target half of the dual check remains.
-      | TVar _ <- tm, exemptibleMatcherHead ce tp -> do
-          (subT, flagT) <- unifyNormalized mode ce cs tm tt
-          Right (subT, flagT)
-      | otherwise -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot tp tt)
+    Nothing   -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot tp tt)
     Just subS -> do
       let cs' = map (applySubstConstraint subS) cs
       (subT, flagT) <- unifyNormalized mode ce cs' (applySubst subS tm) (applySubst subS tt)

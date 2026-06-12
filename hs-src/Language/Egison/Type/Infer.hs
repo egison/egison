@@ -155,11 +155,6 @@ data InferState = InferState
                                           --   Coverage (Def 4.2(3)) warnings for nested / generated
                                           --   matchers, whose constructor set is an implementation
                                           --   detail rather than a user-facing matcher.
-  , inferMatcherExemptHeads :: Set.Set String
-                                          -- ^ Type heads at which a bare-variable matcher value was
-                                          --   admitted under the pattern-constructor-free exemption.
-                                          --   Seeded from / written back to EvalState; consulted by
-                                          --   the `inductive pattern` interlock (EnvBuilder).
   , inferDeferredHoleChecks :: [(Type, HoleCompShape, String, TypeErrorContext)]
                                           -- ^ Matcher-definition hole admissibility checks deferred
                                           --   to the end of the top-level expression (paper PP-Con,
@@ -185,11 +180,11 @@ data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False Set.empty []
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False []
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False Set.empty []
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False []
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -382,16 +377,6 @@ checkResidualConstraints defName sigConstraints finalType finalSubst ctx = do
   when (not (null missing)) $
     throwError $ TE.MissingSignatureConstraint defName missing ctx
 
--- | Record that a bare-variable matcher value was admitted at this head
--- under the pattern-constructor-free exemption (for the `inductive pattern`
--- interlock; only base-type heads can later gain declarations, so only those
--- are recorded).
-recordMatcherExemptHead :: Type -> Infer ()
-recordMatcherExemptHead ty =
-  mapM_ (\n -> modify $ \s ->
-          s { inferMatcherExemptHeads = Set.insert n (inferMatcherExemptHeads s) })
-        (baseHeadName ty)
-
 -- | Queue a matcher-definition hole admissibility check for the end of the
 -- current top-level expression (see 'inferDeferredHoleChecks').
 deferHoleCheck :: Type -> HoleCompShape -> String -> TypeErrorContext -> Infer ()
@@ -419,10 +404,12 @@ flushDeferredHoleChecks finalSubst = do
         HCSlot -> return ()
         HCBareVar compTy -> case holeTy of
           TVar _   -> return ()
+          -- A function-typed hole admits a bare-variable matcher: function
+          -- types can never own pattern constructors (the declaration
+          -- grammar attaches them to type constructors only), so only
+          -- value patterns / variables / wildcards can reach it.
           TFun _ _ -> return ()
-          _ | exemptibleMatcherHead classEnv holeTy ->
-                recordMatcherExemptHead holeTy
-            | otherwise ->
+          _ ->
                 throwError $ TE.TypeMismatch
                   (TMatcherSlot holeTy holeTy)
                   compTy
@@ -1299,24 +1286,17 @@ inferIExprWithContext expr ctx = case expr of
         let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
             compTys = case nextMatcherType'' of { TTuple ts -> ts; t -> [t] }
             compTyAt i = if length compTys == length comps then Just (compTys !! i) else Nothing
-        classEnvHole <- getClassEnv
         mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
                  (TVar _, _)                      -> return ()
                  (TFun _ _, _)                    -> return ()
-                 (_, IConstantExpr SomethingExpr)
-                   -- Uniform matcher exemption: `something` IS admissible at a
-                   -- pattern-constructor-free base head (only #e / $x / _ can
-                   -- reach it there).  Recorded for the decl interlock.
-                   | exemptibleMatcherHead classEnvHole holeTy ->
-                       recordMatcherExemptHead holeTy
-                   | otherwise ->
-                       throwError $ TE.TypeMismatch
-                         (TMatcherSlot holeTy holeTy)
-                         (TMatcher (TVar (TyVar "a")))
-                         ("the next matcher `" ++ prettyStr comp ++ "` is a bare-variable matcher, " ++
-                          "not structurally admissible at a constructor-headed hole (paper PP-Con, " ++
-                          "Def 4.2(1a)); use a concrete matcher for that hole's type")
-                         ctx
+                 (_, IConstantExpr SomethingExpr) ->
+                   throwError $ TE.TypeMismatch
+                     (TMatcherSlot holeTy holeTy)
+                     (TMatcher (TVar (TyVar "a")))
+                     ("the next matcher `" ++ prettyStr comp ++ "` is a bare-variable matcher, " ++
+                      "not structurally admissible at a constructor-headed hole (paper PP-Con, " ++
+                      "Def 4.2(1a)); use a concrete matcher for that hole's type")
+                     ctx
                  _                                -> return ())
               (zip patternHoleTypes' comps)
         -- Deferred (post-annotation) admissibility: a hole's target type may
@@ -3725,21 +3705,7 @@ inferITopExpr topExpr = case topExpr of
         subst2 <- case rhsCore expr of
           IMatcherExpr _ ->
             unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
-          _ -> do
-            classEnvCast <- getClassEnv
-            case (exprType', expectedType') of
-              -- Matcher-exemption cast: a BARE-VARIABLE matcher value (eq /
-              -- something) may be bound at a pattern-constructor-free head
-              -- (e.g. `def integer : Matcher Integer := eq`): no pattern
-              -- other than a value pattern / variable / wildcard can ever
-              -- reach such a matcher there.  The head is recorded so that a
-              -- later `inductive pattern` declaration for it is rejected
-              -- (it would invalidate this admission).
-              (TMatcher tmv@(TVar _), TMatcher claimed)
-                | exemptibleMatcherHead classEnvCast claimed -> do
-                    recordMatcherExemptHead claimed
-                    unifyTypesWithConstraints currentConstraints tmv claimed exprCtx
-              _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
+          _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
         let finalSubst = composeSubst subst2 subst1
 
         -- Reject the definition if its body needs constraints (on the
@@ -3870,15 +3836,7 @@ inferITopExpr topExpr = case topExpr of
             subst2 <- case rhsCore expr of
               IMatcherExpr _ ->
                 unifyMatcherDefType [] exprType' expectedType' emptyContext
-              _ -> do
-                classEnvCast <- getClassEnv
-                case (exprType', expectedType') of
-                  -- Matcher-exemption cast (see the IDefine signature branch)
-                  (TMatcher tmv@(TVar _), TMatcher claimed)
-                    | exemptibleMatcherHead classEnvCast claimed -> do
-                        recordMatcherExemptHead claimed
-                        unifyTypesWithTopLevel tmv claimed emptyContext
-                  _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
+              _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
             let finalSubst = composeSubst subst2 subst1
             -- Reject if the body needs constraints the signature lacks
             finalTypeChk <- applySubstWithConstraintsM finalSubst expectedType
