@@ -43,11 +43,13 @@ def assocMultiset {a} (m: MatcherSlot a a) : Matcher [(a, Integer)] :=
       | $tgt ->
         matchAll tgt as list (m, integer) with
           | $hs ++ ($x, $n) :: $ts -> (x, n, hs ++ ts)
-    | #$x :: $ as (assocMultiset m) with
-      | $tgt ->
-        matchAll tgt as list (m, integer) with
-          | $hs ++ (#x, $n) :: $ts ->
-            if n = 1 then hs ++ ts else hs ++ (x, n - 1) :: ts
+    -- NOTE: the untyped Egison version also had an element-view clause
+    --   | #$x :: $ as (assocMultiset m) with ...
+    -- binding the head VALUE at the element type `a` (decrement-one-occurrence
+    -- semantics).  Under the typed pattern-constructor rules the head of `::`
+    -- at the matched type [(a, Integer)] is the PAIR (a, Integer) — for the
+    -- clause's capture and for the user's value pattern alike — so that view
+    -- is not typeable; use the pair view `(#v, $n) :: rest` instead.
     | $ as (something) with
       | $tgt -> [tgt]
 

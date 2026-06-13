@@ -52,6 +52,8 @@ done
 | 52-missing-signature-constraint | シグネチャ完全性(残存制約検査) | 本体が `<=`({Ord a})を要求するのにシグネチャに無い |
 | 53-matcher-alias-specialize | Matcher rigidity | `def myint : Matcher Integer := eq`(注釈による特殊化) |
 | 54-something-structured-hole | PP-Con 遅延判定 | 注釈で後から [Integer] に確定する hole への `something` |
+| 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
+| 56-multisite-structural-join | 同(構造要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
 
 ## ケース追加時の注意
 

@@ -1,0 +1,15 @@
+--
+-- Multi-site matcher parameter, joint structural demand (paper Appendix C,
+-- Step 3a): site 1's cons pattern makes the committed slot's structural
+-- index list-headed; the value-pattern-only site 2 adds no demand but does
+-- not erase it.  Supplying `something` at the application then fails the
+-- structural half of COERCE-MATCHER-TO-SLOT.
+--
+-- Expected: Type error at `g something` (bare variable against a list head)
+--
+
+def g m :=
+  ( matchAll [1, 2] as m with $x :: _ -> x
+  , matchAll [1, 2] as m with #[1, 2] -> True )
+
+def t := g something

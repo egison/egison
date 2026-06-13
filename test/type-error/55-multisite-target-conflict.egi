@@ -1,0 +1,12 @@
+--
+-- Multi-site matcher parameter, conflicting TARGET types (paper Appendix C,
+-- Step 3a): the second match site component-unifies the committed slot, so
+-- its target type must equal the first site's.  A lambda-bound matcher is
+-- monomorphic (standard HM), so [Integer] vs [String] is rejected.
+--
+-- Expected: Type error at the second match site (Integer vs String)
+--
+
+def h m :=
+  ( matchAll [1, 2] as m with $x :: _ -> x
+  , matchAll ["a", "b"] as m with $y :: _ -> y )

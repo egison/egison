@@ -162,6 +162,18 @@ data InferState = InferState
                                           --   by the definition's annotation, so the structural test
                                           --   runs after the final substitution.  (holeTy, shape of
                                           --   the next-matcher component, error context).
+  , inferGlobalSubst :: Subst             -- ^ The growing zonk substitution: every committed
+                                          --   unification merges its result here, and the unify
+                                          --   wrappers resolve both sides through it first.  Sibling
+                                          --   subexpressions are inferred independently and their
+                                          --   substitutions merged with the left-biased 'composeSubst',
+                                          --   which on a conflicting binding silently keeps one side
+                                          --   (e.g. two match sites committing the same lambda-bound
+                                          --   matcher parameter to different slot types).  Zonking
+                                          --   makes the later unification see the earlier commitment,
+                                          --   so the conflict is unified — and reported — instead of
+                                          --   shadowed.  Reset per top-level item (a fresh InferState
+                                          --   is seeded for each).
   } deriving (Show)
 
 -- | Shape classification of a matcher-clause hole's next-matcher component,
@@ -179,11 +191,11 @@ data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False []
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False []
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -573,23 +585,46 @@ unifyTypesWithContext :: Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithContext t1 t2 ctx = do
   constraints <- getConstraints
   classEnv <- getClassEnv
-  case TU.unifyWithConstraints classEnv constraints t1 t2 of
-    Right (s, _)  -> return s  -- Discard flag in basic unification
+  -- Zonk both sides through the global substitution first: a variable already
+  -- committed by a sibling subexpression (whose local substitution this caller
+  -- never saw) resolves to its committed type, so a conflicting second
+  -- commitment is unified against the first instead of silently shadowing it
+  -- in a later left-biased 'composeSubst'.
+  (t1', t2') <- zonkPair t1 t2
+  case TU.unifyWithConstraints classEnv constraints t1' t2' of
+    Right (s, _)  -> recordGlobalSubst s >> return s  -- Discard flag in basic unification
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
       TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
 
+-- | Resolve both unification operands through 'inferGlobalSubst' (with the
+-- usual constraint-aware Tensor adjustment).  'applySubstWithConstraintsM'
+-- routes every application through the global substitution, so the empty
+-- local substitution suffices here.
+zonkPair :: Type -> Type -> Infer (Type, Type)
+zonkPair t1 t2 = do
+  t1' <- applySubstWithConstraintsM emptySubst t1
+  t2' <- applySubstWithConstraintsM emptySubst t2
+  return (t1', t2')
+
+-- | Merge a committed unifier into the global zonk substitution.
+recordGlobalSubst :: Subst -> Infer ()
+recordGlobalSubst s =
+  modify $ \st -> st { inferGlobalSubst = composeSubst s (inferGlobalSubst st) }
+
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
 -- According to type-tensor-simple.md: "Only for top-level tensor definitions, if Tensor a is unified with a, it becomes a."
 unifyTypesWithTopLevel :: Type -> Type -> TypeErrorContext -> Infer Subst
-unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
-  Right s  -> return s
-  Left err -> case err of
-    TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
-    TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
-    TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
+unifyTypesWithTopLevel t1 t2 ctx = do
+  (t1', t2') <- zonkPair t1 t2
+  case TU.unifyWithTopLevel t1' t2' of
+    Right s  -> recordGlobalSubst s >> return s
+    Left err -> case err of
+      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
+      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
+      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
 
 -- | Unify two types with constraint-aware handling
 -- This is crucial for unifying types when type variables have constraints
@@ -597,8 +632,9 @@ unifyTypesWithTopLevel t1 t2 ctx = case TU.unifyWithTopLevel t1 t2 of
 unifyTypesWithConstraints :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithConstraints constraints t1 t2 ctx = do
   classEnv <- getClassEnv
-  case TU.unifyWithConstraints classEnv constraints t1 t2 of
-    Right (s, _)  -> return s  -- Discard flag in basic unification
+  (t1', t2') <- zonkPair t1 t2
+  case TU.unifyWithConstraints classEnv constraints t1' t2' of
+    Right (s, _)  -> recordGlobalSubst s >> return s  -- Discard flag in basic unification
     Left err -> case err of
       TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
       TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
@@ -709,7 +745,11 @@ applySubstToTIExprWithClassEnv classEnv s (TIExpr scheme node) =
 applySubstToTIExprM :: Subst -> TIExpr -> Infer TIExpr
 applySubstToTIExprM s tiExpr = do
   classEnv <- getClassEnv
-  return $ applySubstToTIExprWithClassEnv classEnv s tiExpr
+  g <- gets inferGlobalSubst
+  -- Resolve through the global zonk substitution as well (see
+  -- 'applySubstWithConstraintsM'): stored node schemes must not keep stale
+  -- type variables that the global substitution has already committed.
+  return $ applySubstToTIExprWithClassEnv classEnv (composeSubst g s) tiExpr
 
 -- | Apply a substitution to a Type with constraint awareness
 -- This is a monadic version that retrieves ClassEnv and constraints from the Infer monad
@@ -718,10 +758,16 @@ applySubstWithConstraintsM :: Subst -> Type -> Infer Type
 applySubstWithConstraintsM (Subst m) t = do
   classEnv <- getClassEnv
   constraints <- gets inferConstraints
+  Subst gm <- gets inferGlobalSubst
   -- Adjust substitution based on constraints using the same logic as applySubstSchemeWithClassEnv
   let m' = adjustSubstForConstraints classEnv constraints m
       s' = Subst m'
-  return $ applySubst s' t
+      -- Also resolve through the global zonk substitution: with zonking, each
+      -- unifier is a delta relative to the global state, so a locally threaded
+      -- substitution alone may leave already-committed variables unresolved
+      -- (and code that case-analyzes the applied type would misread them).
+      gm' = adjustSubstForConstraints classEnv constraints gm
+  return $ applySubst (Subst gm') (applySubst s' t)
   where
     -- Adjust substitution to unwrap Tensor when constraint has no instance
     adjustSubstForConstraints :: ClassEnv -> [Constraint] -> Map.Map TyVar Type -> Map.Map TyVar Type
@@ -2409,28 +2455,32 @@ inferIExprWithContext expr ctx = case expr of
 -- leaf is fresh and value patterns never contribute their value's type to τ_p), so later unifying
 -- τ_t with the target never concretizes τ_p — keeping the structural slot matcher-independent (a
 -- bare variable pattern stays admissible for ANY matcher, e.g. `something`).  Run as a
--- side-effect-free probe (type-class constraints snapshotted/restored); any failure falls back to
+-- side-effect-free probe (type-class constraints and the global zonk substitution
+-- snapshotted/restored); any failure falls back to
 -- fresh variables (a variable-headed slot admits any matcher — never a false rejection).
 patternDualType :: IPattern -> TypeErrorContext -> Infer (Type, Type)
 patternDualType pat ctx = do
   saved <- getConstraints
+  savedG <- gets inferGlobalSubst
   result <- (do tv <- freshVar "taut"
                 (_, _, st, taup) <- inferIPattern pat tv ctx
                 taut  <- applySubstWithConstraintsM st tv
                 taup' <- applySubstWithConstraintsM st taup
                 return (taup', taut))
               `catchError` \_ -> (,) <$> freshVar "taup" <*> freshVar "taut"
-  modify $ \st -> st { inferConstraints = saved }
+  modify $ \st -> st { inferConstraints = saved, inferGlobalSubst = savedG }
   return result
 
--- | Run an action but discard its effect on the type-class constraint store.  Used for the
--- structural-type τ_p reassembly unifications, which involve only fresh variables and must never
--- leak into the main (τ_t / binding) inference.
+-- | Run an action but discard its effect on the type-class constraint store and the global
+-- zonk substitution.  Used for the structural-type τ_p reassembly unifications, which involve
+-- only fresh variables and must never leak into the main (τ_t / binding) inference — including
+-- speculative unifications whose failure is swallowed by a 'catchError' fallback.
 withIsolatedConstraints :: Infer a -> Infer a
 withIsolatedConstraints act = do
   saved <- getConstraints
+  savedG <- gets inferGlobalSubst
   r <- act
-  modify $ \st -> st { inferConstraints = saved }
+  modify $ \st -> st { inferConstraints = saved, inferGlobalSubst = savedG }
   return r
 
 -- | τ_p of an and/or/forall/loop/seq-cons pattern: the two sub-patterns describe the same value,
@@ -3429,8 +3479,37 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- This ensures nested type variables are fully resolved (e.g., for sortWithSign)
   let finalS = composeSubst s3 s12
   finalExprType <- applySubstRecursively finalS exprType
-  let bindings = extractIBindingsFromPattern pat finalExprType
-      s' = composeSubst finalS s
+
+  -- Let-generalization (paper T-LET, standard Hindley-Milner): quantify the
+  -- binding over its type variables that occur neither in the environment nor
+  -- in the accumulated class constraints.  The environment's free variables
+  -- are zonked first: a lambda-bound variable already committed by the global
+  -- substitution stands for its image's variables, which a stale entry does
+  -- not mention.  Constrained variables stay monomorphic (a deliberate
+  -- restriction): dictionaries are threaded at top-level definitions only, so
+  -- generalizing a constrained local binding would outrun the runtime's
+  -- dictionary passing.  Matcher-typed bindings (e.g. `let m := something`)
+  -- are constraint-free and generalize fully, so a let-bound matcher may
+  -- serve differently-typed match sites (matcher polymorphism), unlike a
+  -- lambda-bound, monomorphic one.
+  -- Only a single-variable binding (the paper's `let x = e1 in e2` form) is
+  -- generalized; destructuring bindings keep monomorphic components.
+  let rhsFree = freeTyVars finalExprType
+  bindings <-
+    case pat of
+      PDPatVar _ | not (Set.null rhsFree) -> do
+        envNow <- getEnv
+        envFreeImages <- mapM (applySubstWithConstraintsM emptySubst . TVar)
+                              (Set.toList (freeVarsInEnv envNow))
+        constraintsNow <- getConstraints
+        let envFreeZ = Set.unions (map freeTyVars envFreeImages)
+            consFree = Set.unions [ freeTyVars t | c <- constraintsNow, t <- constraintTypes c ]
+            genSet = rhsFree `Set.difference` (envFreeZ `Set.union` consFree)
+            regeneralize (n, Forall _ _ t) =
+              (n, Forall (Set.toList (freeTyVars t `Set.intersection` genSet)) [] t)
+        return (map regeneralize (extractIBindingsFromPattern pat finalExprType))
+      _ -> return (extractIBindingsFromPattern pat finalExprType)
+  let s' = composeSubst finalS s
 
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
@@ -3518,8 +3597,46 @@ inferIRecBindingsWithContext bindings _env s ctx = do
 
   -- Re-extract bindings with fully resolved types
   exprTypes' <- mapM (applySubstRecursively finalS) exprTypes
-  let finalBindings = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders exprTypes'
-      transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
+  -- Let-generalization (paper T-LET, standard Hindley-Milner; the surface
+  -- `let` parses as letrec, so this is the binding form the paper's
+  -- let-generalization claim refers to).  Quantify each single-variable
+  -- binding over its type variables that occur neither in the (zonked)
+  -- environment nor in the accumulated class constraints:
+  --   * the environment's free variables are zonked first — a lambda-bound
+  --     variable already committed by the global substitution stands for its
+  --     image's variables, which the stale entry does not mention;
+  --   * constrained variables stay monomorphic (dictionaries are threaded at
+  --     top-level definitions only, so a generalized constrained local
+  --     binding would outrun the runtime's dictionary passing);
+  --   * a matcher-literal binding (the desugarer wraps `matcher` definitions
+  --     in a letrec) stays monomorphic: generalizing it would make the body's
+  --     variable reference instantiate a fresh copy, severing the clause
+  --     trees' type variables from the definition's final type.
+  -- A let-bound matcher VALUE (e.g. `let m := something`) thus generalizes
+  -- and may serve differently-typed match sites (matcher polymorphism),
+  -- unlike a lambda-bound, monomorphic one.
+  let groupFree = Set.unions (map freeTyVars exprTypes')
+      monoExtract = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders exprTypes'
+  finalBindings <-
+    if Set.null groupFree
+      then return monoExtract
+      else do
+        envNow <- getEnv
+        envFreeImages <- mapM (applySubstWithConstraintsM emptySubst . TVar)
+                              (Set.toList (freeVarsInEnv envNow))
+        constraintsNow <- getConstraints
+        let envFreeZ = Set.unions (map freeTyVars envFreeImages)
+            consFree = Set.unions [ freeTyVars t | c <- constraintsNow, t <- constraintTypes c ]
+            genSet = groupFree `Set.difference` (envFreeZ `Set.union` consFree)
+            genOne (pat, _, _) ty (_, rhs) = case (pat, rhs) of
+              (PDPatVar _, IMatcherExpr _) -> extractIBindingsFromPattern pat ty
+              (PDPatVar _, _) ->
+                map (\(n, Forall _ _ t) ->
+                       (n, Forall (Set.toList (freeTyVars t `Set.intersection` genSet)) [] t))
+                    (extractIBindingsFromPattern pat ty)
+              _ -> extractIBindingsFromPattern pat ty
+        return (concat (zipWith3 genOne placeholders exprTypes' bindings))
+  let transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
 
   return (transformedBindings, finalBindings, finalS)
   where
@@ -3798,6 +3915,33 @@ inferITopExpr topExpr = case topExpr of
         combinedSubst = foldr composeSubst emptySubst substs
     return (Just (TIDefineMany bindingsTI), combinedSubst)
     where
+      -- An IDefineMany hash-literal binding is, by construction, a type-class
+      -- instance dictionary (Desugar's makeDictDef; the other IDefineMany
+      -- producers bind lambdas).  A dictionary is a heterogeneous record:
+      -- method entries have the methods' own types (e.g. Ord's
+      -- compare : a -> a -> Ordering next to (<) : a -> a -> Bool) and
+      -- __super_ entries hold superclass dictionaries.  It is consumed through
+      -- type-class expansion (dictionary passing / runtime dispatch), never
+      -- through the hash's value type, so the entry types are deliberately not
+      -- unified with each other — only keys are checked (String) — and the
+      -- node is typed Hash String v, v fresh.  (EnvBuilder registers the
+      -- dictionary's env scheme separately, approximating the value type by
+      -- the first method's; we leave that scheme as is and skip checking the
+      -- literal against it.)
+      inferBinding _env (var, IHashExpr pairs@(_:_)) = do
+        clearConstraints
+        clearDeferredHoleChecks
+        (pairTIs, s) <- foldM dictPair ([], emptySubst) pairs
+        v <- freshVar "dictVal"
+        let exprTI = TIExpr (Forall [] [] (THash TString v)) (TIHashExpr (reverse pairTIs))
+        exprTI' <- applySubstToTIExprM s exprTI
+        return ((var, exprTI'), s)
+        where
+          dictPair (acc, s) (k, vE) = do
+            (kTI, s1) <- inferIExprWithContext k emptyContext
+            sk <- unifyTypesWithContext (tiExprType kTI) TString emptyContext
+            (vTI, s2) <- inferIExprWithContext vE emptyContext
+            return ((kTI, vTI) : acc, foldr composeSubst s [s2, sk, s1])
       inferBinding env (var, expr) = do
         -- Check if there's an existing type signature
         case lookupEnv var env of

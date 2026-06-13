@@ -40,7 +40,7 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 | `bellman-ford.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `Expected CASData, but found: "plus"`(typeclass 展開系) |
 | `binary-counter.egi` | ✅ | 1s |  |
 | `bipartite-graph.egi` | ✅ | 2s | `inductive Edge` + `inductive pattern Edge` 宣言を追加して修復(2026-06。auto-generated ファイルに宣言が欠落していた) |
-| `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11(タプル/リスト不一致など。matcher 引数の slot 化で rigidity は解消済み、残りは既存の型不一致) |
+| `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11+(タプル/リスト不一致など既存の不一致に加え、ローカル assocMultiset の element-view clause `#$x :: $` が型付け不能 — stdlib 側は 2026-06-13 に同 clause を削除。design/paper-compliance-roadmap.md §4) |
 | `chopsticks2.egi` | ❌ 型エラー | 2s | 型エラー(`[[Integer]]` 不一致) |
 | `demo1-ja.egi` | ✅ | 1s |  |
 | `demo1.egi` | ✅ | 1s |  |
