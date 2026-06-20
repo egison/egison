@@ -7,8 +7,9 @@ It transforms TIExpr to TIExpr, replacing type class method calls with
 dictionary-based dispatch.
 
 Pipeline: Phase 7 (TypedDesugar) - TypeClassExpand
-This is executed before TensorMapInsertion to resolve type class methods
-to concrete functions first.
+This is executed after TensorMapInsertion.  TensorMapInsertion must see the
+unexpanded qualified type first; this module then resolves type class methods
+to concrete dictionary-based functions.
 
 For example, if we have:
   class Eq a where (==) : a -> a -> Bool

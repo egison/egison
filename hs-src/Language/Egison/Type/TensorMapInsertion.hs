@@ -7,16 +7,17 @@ This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.
 
-Two insertion modes:
+Two implementation forms:
 1. Direct application: When argument is Tensor and parameter expects scalar,
    wrap the application with tensorMap.
-2. Higher-order functions (simplified approach): When a binary function with
-   constrained/scalar parameter types is passed as an argument, always wrap
-   it with tensorMap2. This handles cases like `foldl1 (+) xs` where elements
-   of xs might be Tensors at runtime.
+2. Derived binary-map optimization: when two scalar parameters are lifted
+   together, emit tensorMap2 as a shortcut for the nested tensorMap term.
+   The same derived form is used for eta-expanded binary scalar operators
+   passed as values, e.g. `foldl1 (+) xs`, so those operators can consume
+   tensor elements without rebuilding the nested maps by hand.
 
 According to tensor-map-insertion-simple.md:
-- When a binary function with scalar parameter types is passed as an argument, always wrap it with tensorMap2
+- tensorMap2 is semantically equivalent to nested tensorMap
 - tensorMap/tensorMap2 act as identity for scalar values, so wrapping is safe regardless of whether the actual argument is a tensor or scalar
 
 Example:
@@ -96,7 +97,7 @@ applyOneArgType (TFun _ rest) = rest
 applyOneArgType t = t  -- No more arguments
 
 --------------------------------------------------------------------------------
--- * Simplified Approach: Always wrap binary functions with tensorMap2
+-- * Derived tensorMap2 optimization for binary functions
 --------------------------------------------------------------------------------
 
 -- | Check if a type is a scalar type (not a Tensor type)
