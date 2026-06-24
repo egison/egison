@@ -7,10 +7,12 @@ This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.
 
-Two implementation forms:
+Three implementation forms:
 1. Direct application: When argument is Tensor and parameter expects scalar,
    wrap the application with tensorMap.
-2. Derived binary-map optimization: when two scalar parameters are lifted
+2. Higher-order unary lifting: when a scalar unary function is passed as a
+   value, wrap it as `\x -> tensorMap f x`.
+3. Derived binary-map optimization: when two scalar parameters are lifted
    together, emit tensorMap2 as a shortcut for the nested tensorMap term.
    The same derived form is used for eta-expanded binary scalar operators
    passed as values, e.g. `foldl1 (+) xs`, so those operators can consume
@@ -27,6 +29,10 @@ Example:
 
   def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
   --=>  def sum {Num a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
+
+  def mapInc (xs : [Tensor Integer]) : [Tensor Integer] := map inc xs
+  --=>  def mapInc (xs : [Tensor Integer]) : [Tensor Integer] :=
+  --      map (\x -> tensorMap inc x) xs
 -}
 
 module Language.Egison.Type.TensorMapInsertion
@@ -121,6 +127,25 @@ isPotentialScalarType classEnv constraints ty =
        Right _ -> False  -- Can unify with Tensor a → not scalar
        Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
+-- | Check if a unary function should be wrapped with tensorMap.
+-- Binary functions must be checked first, since a -> b -> c is also a
+-- one-argument function returning b -> c.
+shouldWrapWithTensorMap1 :: ClassEnv -> [Constraint] -> Type -> Bool
+shouldWrapWithTensorMap1 classEnv constraints ty = case ty of
+  TFun param _result ->
+      isPotentialScalarType classEnv constraints param
+  _ -> False
+
+-- | Unary higher-order lifting is only needed when the call site expects a
+-- callback that receives tensor elements. This avoids wrapping ordinary
+-- higher-order uses such as `io $ action`.
+shouldWrapUnaryArgument :: ClassEnv -> [Constraint] -> Maybe Type -> Type -> Bool
+shouldWrapUnaryArgument classEnv constraints expectedArgType actualArgType =
+  shouldWrapWithTensorMap1 classEnv constraints actualArgType &&
+  case expectedArgType of
+    Just (TFun (TTensor _) _) -> True
+    _ -> False
+
 -- | Check if a binary function should be wrapped with tensorMap2
 -- A function should be wrapped if:
 -- 1. It's a binary function (a -> b -> c)
@@ -173,6 +198,30 @@ wrapWithTensorMap2 _constraints funcExpr =
       in TIExpr lambdaScheme lambdaNode
     _ -> funcExpr  -- Not a binary function, return unchanged
 
+-- | Wrap a unary function expression with tensorMap
+-- f : a -> b  becomes  \x -> tensorMap f x
+-- The lambda receives a TENSOR argument and returns a TENSOR result.
+wrapWithTensorMap1 :: [Constraint] -> TIExpr -> TIExpr
+wrapWithTensorMap1 _constraints funcExpr =
+  let funcType = tiExprType funcExpr
+  in case funcType of
+    TFun param result ->
+      let varName = "tmap_arg"
+          var = Var varName []
+
+          varScheme = Forall [] [] (TTensor param)
+          varTI = TIExpr varScheme (TIVarExpr varName)
+
+          resultScheme = Forall [] [] (TTensor result)
+          innerExpr = TIExpr resultScheme (TITensorMapExpr funcExpr varTI)
+
+          lambdaType = TFun (TTensor param) (TTensor result)
+          lambdaScheme = Forall [] [] lambdaType
+          lambdaNode = TILambdaExpr Nothing [var] innerExpr
+
+      in TIExpr lambdaScheme lambdaNode
+    _ -> funcExpr
+
 -- | Check if an expression is already wrapped with tensorMap2
 isAlreadyWrappedWithTensorMap2 :: TIExprNode -> Bool
 isAlreadyWrappedWithTensorMap2 (TILambdaExpr _ [_, _] body) =
@@ -180,6 +229,14 @@ isAlreadyWrappedWithTensorMap2 (TILambdaExpr _ [_, _] body) =
     TITensorMap2Expr _ _ _ -> True
     _ -> False
 isAlreadyWrappedWithTensorMap2 _ = False
+
+-- | Check if an expression is already wrapped with tensorMap
+isAlreadyWrappedWithTensorMap1 :: TIExprNode -> Bool
+isAlreadyWrappedWithTensorMap1 (TILambdaExpr _ [_] body) =
+  case tiExprNode body of
+    TITensorMapExpr _ _ -> True
+    _ -> False
+isAlreadyWrappedWithTensorMap1 _ = False
 
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Implementation
@@ -193,14 +250,14 @@ insertTensorMaps tiExpr = do
   let scheme = tiScheme tiExpr
   insertTensorMapsInExpr classEnv scheme tiExpr
 
--- | Wrap a binary function with tensorMap2 if it should be wrapped
+-- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
 -- This implements the simplified approach from tensor-map-insertion-simple.md
-wrapBinaryFunctionIfNeeded :: ClassEnv -> [Constraint] -> TIExpr -> TIExpr
-wrapBinaryFunctionIfNeeded classEnv constraints tiExpr =
+wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Maybe Type -> TIExpr -> TIExpr
+wrapFunctionArgumentIfNeeded classEnv constraints expectedArgType tiExpr =
   let exprType = tiExprType tiExpr
       node = tiExprNode tiExpr
-  in -- Don't wrap if already wrapped with tensorMap2
-     if isAlreadyWrappedWithTensorMap2 node
+  in -- Don't wrap if already wrapped with tensorMap/tensorMap2
+     if isAlreadyWrappedWithTensorMap2 node || isAlreadyWrappedWithTensorMap1 node
        then tiExpr
        else case node of
          -- For binary lambda expressions like \x y -> f x y, wrap the body with tensorMap2
@@ -208,6 +265,10 @@ wrapBinaryFunctionIfNeeded classEnv constraints tiExpr =
          TILambdaExpr mVar [var1, var2] body
            | shouldWrapWithTensorMap2 classEnv constraints exprType ->
                wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body tiExpr
+         -- For unary lambda expressions like \x -> f x, wrap the body with tensorMap
+         TILambdaExpr mVar [var1] body
+           | shouldWrapUnaryArgument classEnv constraints expectedArgType exprType ->
+               wrapLambdaBodyWithTensorMap1 constraints mVar var1 body tiExpr
          -- Don't wrap other lambda expressions
          TILambdaExpr {} -> tiExpr
          -- Don't wrap function applications (they're already being applied)
@@ -215,7 +276,30 @@ wrapBinaryFunctionIfNeeded classEnv constraints tiExpr =
          -- Wrap variable references and other expressions that represent functions
          _ | shouldWrapWithTensorMap2 classEnv constraints exprType ->
                wrapWithTensorMap2 constraints tiExpr
+           | shouldWrapUnaryArgument classEnv constraints expectedArgType exprType ->
+               wrapWithTensorMap1 constraints tiExpr
            | otherwise -> tiExpr
+
+-- | Wrap the body of a unary lambda with tensorMap
+-- Transform: \x -> f x  to  \x -> tensorMap f x
+wrapLambdaBodyWithTensorMap1 :: [Constraint] -> Maybe Var -> Var -> TIExpr -> TIExpr -> TIExpr
+wrapLambdaBodyWithTensorMap1 constraints mVar var1 body originalExpr =
+  case tiExprNode body of
+    -- Body is a function application: \x -> f x
+    TIApplyExpr func args
+      | length args == 1 ->
+          let arg1 = args !! 0
+              resultType = tiExprType body
+              resultScheme = Forall [] [] resultType
+              newBody = TIExpr resultScheme (TITensorMapExpr func arg1)
+              -- Rebuild the lambda with the new body
+              (Forall tvs cs lambdaType) = tiScheme originalExpr
+              newLambdaScheme = Forall tvs (constraints ++ cs) lambdaType
+          in TIExpr newLambdaScheme (TILambdaExpr mVar [var1] newBody)
+    -- Body is already tensorMap
+    TITensorMapExpr {} -> originalExpr
+    -- Other cases: just wrap the whole thing
+    _ -> wrapWithTensorMap1 constraints originalExpr
 
 -- | Wrap the body of a binary lambda with tensorMap2
 -- Transform: \x y -> f x y  to  \x y -> tensorMap2 f x y
@@ -271,23 +355,25 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
 
         -- Apply simplified approach: wrap binary function arguments with tensorMap2
         -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped because (+) is a binary function that takes two scalar arguments
+        -- and `map f xs` where f is a unary scalar function that may receive tensor elements.
         -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
         -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
         let (Forall _ funcConstraints _) = tiScheme func'
             baseConstraints = cs ++ funcConstraints
             -- For each argument, merge base constraints with the argument's own constraints
-            wrapArg arg =
+            funcType = tiExprType func'
+            wrapArg (index, arg) =
               let (Forall _ argConstraints _) = tiScheme arg
                   argAllConstraints = nub (baseConstraints ++ argConstraints)
-              in wrapBinaryFunctionIfNeeded env argAllConstraints arg
-            args'' = map wrapArg args'
+                  expectedArgType = getParamType funcType index
+              in wrapFunctionArgumentIfNeeded env argAllConstraints expectedArgType arg
+            args'' = map wrapArg (zip [0..] args')
 
         -- Use the INFERRED function type (after type inference)
         -- This ensures we use concrete types like Integer instead of type variables like a
         -- For example, (+) has inferred type {Num Integer} Integer -> Integer -> Integer
         -- instead of the polymorphic type {Num a} a -> a -> a
-        let funcType = tiExprType func'
-            argTypes = map tiExprType args''
+        let argTypes = map tiExprType args''
 
         -- Normal processing: check if tensorMap is needed based on parameter types
         result <- wrapWithTensorMapIfNeeded env baseConstraints func' funcType args'' argTypes
