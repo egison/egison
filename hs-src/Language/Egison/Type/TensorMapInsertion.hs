@@ -7,16 +7,18 @@ This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.
 
-Three implementation forms:
+Four implementation forms:
 1. Direct application: When argument is Tensor and parameter expects scalar,
    wrap the application with tensorMap.
-2. Higher-order unary lifting: when a scalar unary function is passed as a
-   value, wrap it as `\x -> tensorMap f x`.
-3. Derived binary-map optimization: when two scalar parameters are lifted
-   together, emit tensorMap2 as a shortcut for the nested tensorMap term.
-   The same derived form is used for eta-expanded binary scalar operators
-   passed as values, e.g. `foldl1 (+) xs`, so those operators can consume
-   tensor elements without rebuilding the nested maps by hand.
+2. Type-directed higher-order lifting: when a scalar function is passed to a
+   callback position that expects tensor arguments, eta-expand it and map those
+   tensor arguments back to scalar arguments.
+3. Feedback-aware higher-order lifting: when a lifted callback result feeds
+   back into a callback parameter, e.g. the accumulator in foldl, lift that
+   parameter too.
+4. Derived binary-map compatibility: when a binary scalar function is passed as
+   a value, e.g. `foldl1 (+) xs`, use tensorMap2 so reduction accumulators can
+   become tensors without rebuilding the nested maps by hand.
 
 According to tensor-map-insertion-simple.md:
 - tensorMap2 is semantically equivalent to nested tensorMap
@@ -30,22 +32,27 @@ Example:
   def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
   --=>  def sum {Num a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
 
-  def mapInc (xs : [Tensor Integer]) : [Tensor Integer] := map inc xs
-  --=>  def mapInc (xs : [Tensor Integer]) : [Tensor Integer] :=
-  --      map (\x -> tensorMap inc x) xs
+  map inc [t1]
+  --=>  map (\x -> tensorMap inc x) [t1]
+
+  map2 (*) [t1] [10]
+  --=>  map2 (\x y -> tensorMap (\xe -> (*) xe y) x) [t1] [10]
+
+  foldl (+) 0 [t1]
+  --=>  foldl (\acc x -> tensorMap2 (+) acc x) 0 [t1]
 -}
 
 module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
   ) where
 
-import           Data.List                  (nub)
+import           Data.List                  (nub, zipWith4)
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
                                              Var(..), tiExprType, tiScheme, tiExprNode)
 import           Language.Egison.Type.Env   (ClassEnv)
-import           Language.Egison.Type.Tensor ()
+import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
 import           Language.Egison.Type.Unify as Unify (unifyStrictWithConstraints)
 
@@ -103,7 +110,7 @@ applyOneArgType (TFun _ rest) = rest
 applyOneArgType t = t  -- No more arguments
 
 --------------------------------------------------------------------------------
--- * Derived tensorMap2 optimization for binary functions
+-- * Higher-order tensor lifting
 --------------------------------------------------------------------------------
 
 -- | Check if a type is a scalar type (not a Tensor type)
@@ -127,116 +134,157 @@ isPotentialScalarType classEnv constraints ty =
        Right _ -> False  -- Can unify with Tensor a → not scalar
        Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
--- | Check if a unary function should be wrapped with tensorMap.
--- Binary functions must be checked first, since a -> b -> c is also a
--- one-argument function returning b -> c.
-shouldWrapWithTensorMap1 :: ClassEnv -> [Constraint] -> Type -> Bool
-shouldWrapWithTensorMap1 classEnv constraints ty = case ty of
-  TFun param _result ->
-      isPotentialScalarType classEnv constraints param
+-- | Exclude effectful/resource-like types from compatibility lifting. These
+-- types are not tensors, but wrapping callbacks such as `io : IO a -> a` would
+-- change control-flow behavior in ordinary higher-order applications.
+containsNonLiftableType :: Type -> Bool
+containsNonLiftableType ty = case ty of
+  TIO _ -> True
+  TIORef _ -> True
+  TPort -> True
+  TFun _ _ -> True
+  TTuple ts -> any containsNonLiftableType ts
+  TCollection t -> containsNonLiftableType t
+  TInductive _ ts -> any containsNonLiftableType ts
+  TTensor t -> containsNonLiftableType t
+  THash k v -> containsNonLiftableType k || containsNonLiftableType v
+  TMatcher t -> containsNonLiftableType t
+  TMatcherSlot p t -> containsNonLiftableType p || containsNonLiftableType t
+  TTerm t _ -> containsNonLiftableType t
+  TFrac t -> containsNonLiftableType t
+  TPoly t _ -> containsNonLiftableType t
   _ -> False
 
--- | Unary higher-order lifting is only needed when the call site expects a
--- callback that receives tensor elements. This avoids wrapping ordinary
--- higher-order uses such as `io $ action`.
-shouldWrapUnaryArgument :: ClassEnv -> [Constraint] -> Maybe Type -> Type -> Bool
-shouldWrapUnaryArgument classEnv constraints expectedArgType actualArgType =
-  shouldWrapWithTensorMap1 classEnv constraints actualArgType &&
-  case expectedArgType of
-    Just (TFun (TTensor _) _) -> True
+isTensorLiftableScalarType :: ClassEnv -> [Constraint] -> Type -> Bool
+isTensorLiftableScalarType classEnv constraints ty =
+  isPotentialScalarType classEnv constraints ty &&
+  not (containsNonLiftableType ty)
+
+-- | Split a curried function type into its argument types and result type.
+collectFunctionType :: Type -> ([Type], Type)
+collectFunctionType (TFun param result) =
+  let (params, finalResult) = collectFunctionType result
+  in (param : params, finalResult)
+collectFunctionType ty = ([], ty)
+
+-- | Build a curried function type from argument types and a result type.
+buildFunctionType :: [Type] -> Type -> Type
+buildFunctionType params result = foldr TFun result params
+
+-- | Apply N arguments at the type level.
+applyNArgType :: Type -> Int -> Type
+applyNArgType ty 0 = ty
+applyNArgType (TFun _ result) n
+  | n > 0 = applyNArgType result (n - 1)
+applyNArgType ty _ = ty
+
+-- | A parameter in a generated higher-order callback wrapper.
+data CallbackParamPlan = CallbackParamPlan
+  { callbackParamIndex      :: Int
+  , callbackParamActualType :: Type
+  , callbackParamOuterType  :: Type
+  , callbackParamOuterVar   :: Var
+  , callbackParamOuterExpr  :: TIExpr
+  , callbackParamNeedsLift  :: Bool
+  }
+
+mkVarTIExpr :: String -> Type -> TIExpr
+mkVarTIExpr name ty = TIExpr (Forall [] [] ty) (TIVarExpr name)
+
+sameNormalizedType :: Type -> Type -> Bool
+sameNormalizedType ty1 ty2 =
+  normalizeTensorType ty1 == normalizeTensorType ty2
+
+-- | A callback parameter is a direct lift seed when the higher-order function
+-- expects a tensor argument there but the supplied function consumes a scalar.
+isDirectLiftSeed :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
+isDirectLiftSeed classEnv constraints expectedParam actualParam =
+  case expectedParam of
+    TTensor _ -> isTensorLiftableScalarType classEnv constraints actualParam
     _ -> False
 
--- | Check if a binary function should be wrapped with tensorMap2
--- A function should be wrapped if:
--- 1. It's a binary function (a -> b -> c)
--- 2. Both parameter types are scalar types (not Tensor types)
+-- | Detect whether a callback's result is fed back by the surrounding
+-- higher-order function as a naked value. This distinguishes reductions like
+-- foldl/foldr/scanl from maps, whose callback result only appears under a list.
+callbackResultFeedsBack :: Type -> Int -> Type -> Bool
+callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType =
+  let (outerParams, outerResult) = collectFunctionType outerFuncType
+      (_, callbackResult) = collectFunctionType expectedCallbackType
+      laterOuterParams = drop (callbackArgIndex + 1) outerParams
+  in any (sameNormalizedType callbackResult) (outerResult : laterOuterParams)
+
+-- | Compute the callback parameters that should be tensor-lifted.
 --
--- For example:
--- - (+) : {Num a} a -> a -> a  -- Both params are scalar → wrap with tensorMap2
--- - (.) : {Num a} Tensor a -> Tensor a -> Tensor a  -- Both params are Tensor → do NOT wrap
-shouldWrapWithTensorMap2 :: ClassEnv -> [Constraint] -> Type -> Bool
-shouldWrapWithTensorMap2 classEnv constraints ty = case ty of
-  TFun param1 (TFun param2 _result) ->
-      isPotentialScalarType classEnv constraints param1 &&
-      isPotentialScalarType classEnv constraints param2
-  _ -> False
+-- First seed the positions that the expected callback type already marks as
+-- Tensor. If such a seed makes the scalar callback result tensor-valued, and
+-- the surrounding higher-order function feeds that result back, propagate the
+-- lift to callback parameters whose expected type is the callback result type.
+callbackLiftMask ::
+    ClassEnv
+    -> [Constraint]
+    -> Bool
+    -> [Type]
+    -> Type
+    -> [Type]
+    -> Type
+    -> [Bool]
+callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedResult actualParams actualResult =
+  let initialMask = zipWith (isDirectLiftSeed classEnv constraints) expectedParams actualParams
+      resultCanBecomeTensor mask =
+        any id mask && isTensorLiftableScalarType classEnv constraints actualResult
+      step mask =
+        zipWith3
+          (\already expectedParam actualParam ->
+             already ||
+             ( resultFeedsBack
+             && resultCanBecomeTensor mask
+             && sameNormalizedType expectedParam expectedResult
+             && isTensorLiftableScalarType classEnv constraints actualParam))
+          mask
+          expectedParams
+          actualParams
+      go mask =
+        let mask' = step mask
+        in if mask' == mask then mask else go mask'
+  in go initialMask
 
--- | Wrap a binary function expression with tensorMap2
--- f : a -> b -> c  becomes  \x y -> tensorMap2 f x y
--- The lambda receives TENSOR arguments and returns a TENSOR result
-wrapWithTensorMap2 :: [Constraint] -> TIExpr -> TIExpr
-wrapWithTensorMap2 _constraints funcExpr =
-  let funcType = tiExprType funcExpr
-  in case funcType of
+-- | Check if a binary scalar function can use the compatibility tensorMap2
+-- wrapper. This keeps polymorphic scalar callbacks such as `foldl (*)` working
+-- even when the callback type itself does not mention Tensor yet.
+shouldUseTensorMap2Fallback :: ClassEnv -> [Constraint] -> Type -> Bool
+shouldUseTensorMap2Fallback classEnv constraints ty =
+  case collectFunctionType ty of
+    ([param1, param2], _result) ->
+      isTensorLiftableScalarType classEnv constraints param1 &&
+      isTensorLiftableScalarType classEnv constraints param2
+    _ -> False
+
+-- | Compatibility wrapper for binary scalar callbacks.
+wrapWithTensorMap2Fallback :: TIExpr -> TIExpr
+wrapWithTensorMap2Fallback funcExpr =
+  case tiExprType funcExpr of
     TFun param1 (TFun param2 result) ->
-      let -- Create fresh variable names
-          var1Name = "tmap2_arg1"
-          var2Name = "tmap2_arg2"
-          var1 = Var var1Name []
-          var2 = Var var2Name []
-
-          -- Variables have TENSOR types (they receive tensor arguments)
-          var1Scheme = Forall [] [] (TTensor param1)
-          var2Scheme = Forall [] [] (TTensor param2)
-          var1TI = TIExpr var1Scheme (TIVarExpr var1Name)
-          var2TI = TIExpr var2Scheme (TIVarExpr var2Name)
-
-          -- Result is also a TENSOR
-          resultScheme = Forall [] [] (TTensor result)
-
-          -- Build: tensorMap2 funcExpr var1 var2
-          innerNode = TITensorMap2Expr funcExpr var1TI var2TI
-          innerExpr = TIExpr resultScheme innerNode
-
-          -- Build lambda: \var1 var2 -> tensorMap2 funcExpr var1 var2
-          -- Lambda type: Tensor a -> Tensor b -> Tensor c
-          -- No constraints needed - this is just a wrapper
-          lambdaType = TFun (TTensor param1) (TFun (TTensor param2) (TTensor result))
+      let varName1 = "tmap2_arg1"
+          varName2 = "tmap2_arg2"
+          var1 = Var varName1 []
+          var2 = Var varName2 []
+          var1TI = mkVarTIExpr varName1 (TTensor param1)
+          var2TI = mkVarTIExpr varName2 (TTensor param2)
+          innerType = normalizeTensorType (TTensor result)
+          innerExpr = TIExpr (Forall [] [] innerType) (TITensorMap2Expr funcExpr var1TI var2TI)
+          lambdaType = TFun (TTensor param1) (TFun (TTensor param2) innerType)
           lambdaScheme = Forall [] [] lambdaType
-          lambdaNode = TILambdaExpr Nothing [var1, var2] innerExpr
-
-      in TIExpr lambdaScheme lambdaNode
-    _ -> funcExpr  -- Not a binary function, return unchanged
-
--- | Wrap a unary function expression with tensorMap
--- f : a -> b  becomes  \x -> tensorMap f x
--- The lambda receives a TENSOR argument and returns a TENSOR result.
-wrapWithTensorMap1 :: [Constraint] -> TIExpr -> TIExpr
-wrapWithTensorMap1 _constraints funcExpr =
-  let funcType = tiExprType funcExpr
-  in case funcType of
-    TFun param result ->
-      let varName = "tmap_arg"
-          var = Var varName []
-
-          varScheme = Forall [] [] (TTensor param)
-          varTI = TIExpr varScheme (TIVarExpr varName)
-
-          resultScheme = Forall [] [] (TTensor result)
-          innerExpr = TIExpr resultScheme (TITensorMapExpr funcExpr varTI)
-
-          lambdaType = TFun (TTensor param) (TTensor result)
-          lambdaScheme = Forall [] [] lambdaType
-          lambdaNode = TILambdaExpr Nothing [var] innerExpr
-
-      in TIExpr lambdaScheme lambdaNode
+      in TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerExpr)
     _ -> funcExpr
 
--- | Check if an expression is already wrapped with tensorMap2
-isAlreadyWrappedWithTensorMap2 :: TIExprNode -> Bool
-isAlreadyWrappedWithTensorMap2 (TILambdaExpr _ [_, _] body) =
-  case tiExprNode body of
-    TITensorMap2Expr _ _ _ -> True
-    _ -> False
-isAlreadyWrappedWithTensorMap2 _ = False
-
--- | Check if an expression is already wrapped with tensorMap
-isAlreadyWrappedWithTensorMap1 :: TIExprNode -> Bool
-isAlreadyWrappedWithTensorMap1 (TILambdaExpr _ [_] body) =
+-- | Check if a lambda already has a tensorMap/tensorMap2 body.
+isAlreadyWrappedWithTensorMap :: TIExprNode -> Bool
+isAlreadyWrappedWithTensorMap (TILambdaExpr _ _ body) =
   case tiExprNode body of
     TITensorMapExpr _ _ -> True
+    TITensorMap2Expr _ _ _ -> True
     _ -> False
-isAlreadyWrappedWithTensorMap1 _ = False
+isAlreadyWrappedWithTensorMap _ = False
 
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Implementation
@@ -250,79 +298,136 @@ insertTensorMaps tiExpr = do
   let scheme = tiScheme tiExpr
   insertTensorMapsInExpr classEnv scheme tiExpr
 
+-- | Wrap a higher-order scalar function according to the callback type expected
+-- by the call site. If the expected callback receives a tensor where the
+-- supplied function receives a scalar, generate an eta-expanded wrapper that
+-- maps the scalar function over that tensor argument.
+wrapWithTypeDirectedTensorLift :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe TIExpr
+wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
+  let actualFuncType = tiExprType funcExpr
+      (expectedParams, expectedResult) = collectFunctionType expectedCallbackType
+      (actualParams, actualResult) = collectFunctionType actualFuncType
+      arity = length expectedParams
+  in if arity == 0 || length actualParams < arity
+       then Nothing
+       else
+         let actualParamsForArity = take arity actualParams
+             resultFeedsBack =
+               callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType
+             liftMask =
+               callbackLiftMask
+                 classEnv
+                 constraints
+                 resultFeedsBack
+                 expectedParams
+                 expectedResult
+                 actualParamsForArity
+                 actualResult
+             callbackParams =
+               zipWith4
+                 (\index _expectedParam actualParam needsLift ->
+                    let
+                        outerType = if needsLift then TTensor actualParam else actualParam
+                        outerName = "tmap_arg" ++ show (index + 1)
+                        outerVar = Var outerName []
+                        outerExpr = mkVarTIExpr outerName outerType
+                    in CallbackParamPlan index actualParam outerType outerVar outerExpr needsLift)
+                 [0..]
+                 expectedParams
+                 actualParamsForArity
+                 liftMask
+             liftedParams = filter callbackParamNeedsLift callbackParams
+         in if null liftedParams
+              then Nothing
+              else
+                let resultType = applyNArgType actualFuncType arity
+                    body = buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams liftedParams []
+                    lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
+                    lambdaScheme = Forall [] [] lambdaType
+                    lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
+                in Just $ TIExpr lambdaScheme lambdaNode
+
+-- | Build the body of a generated callback wrapper.
+buildTypeDirectedTensorLiftBody ::
+    TIExpr
+    -> Type
+    -> [CallbackParamPlan]
+    -> [CallbackParamPlan]
+    -> [(Int, TIExpr)]
+    -> TIExpr
+buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [] scalarArgs =
+  let argFor param =
+        case lookup (callbackParamIndex param) scalarArgs of
+          Just scalarArg -> scalarArg
+          Nothing -> callbackParamOuterExpr param
+      args = map argFor callbackParams
+  in TIExpr (Forall [] [] resultType) (TIApplyExpr funcExpr args)
+buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [param] scalarArgs =
+  let index = callbackParamIndex param
+      scalarName = "tmap_elem" ++ show (index + 1)
+      scalarVar = Var scalarName []
+      scalarExpr = mkVarTIExpr scalarName (callbackParamActualType param)
+      inner = buildTypeDirectedTensorLiftBody
+                funcExpr
+                resultType
+                callbackParams
+                []
+                ((index, scalarExpr) : scalarArgs)
+      lambdaType = TFun (callbackParamActualType param) (tiExprType inner)
+      lambdaExpr = TIExpr (Forall [] [] lambdaType) (TILambdaExpr Nothing [scalarVar] inner)
+      mappedType = normalizeTensorType (TTensor (tiExprType inner))
+  in TIExpr (Forall [] [] mappedType) (TITensorMapExpr lambdaExpr (callbackParamOuterExpr param))
+buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param2:restParams) scalarArgs =
+  let index1 = callbackParamIndex param1
+      index2 = callbackParamIndex param2
+      scalarName1 = "tmap_elem" ++ show (index1 + 1)
+      scalarName2 = "tmap_elem" ++ show (index2 + 1)
+      scalarVar1 = Var scalarName1 []
+      scalarVar2 = Var scalarName2 []
+      scalarExpr1 = mkVarTIExpr scalarName1 (callbackParamActualType param1)
+      scalarExpr2 = mkVarTIExpr scalarName2 (callbackParamActualType param2)
+      inner = buildTypeDirectedTensorLiftBody
+                funcExpr
+                resultType
+                callbackParams
+                restParams
+                ((index2, scalarExpr2) : (index1, scalarExpr1) : scalarArgs)
+      lambdaType =
+        TFun (callbackParamActualType param1)
+             (TFun (callbackParamActualType param2) (tiExprType inner))
+      lambdaExpr =
+        TIExpr (Forall [] [] lambdaType) (TILambdaExpr Nothing [scalarVar1, scalarVar2] inner)
+      mappedType = normalizeTensorType (TTensor (tiExprType inner))
+  in TIExpr
+       (Forall [] [] mappedType)
+       (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
+
 -- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
 -- This implements the simplified approach from tensor-map-insertion-simple.md
-wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Maybe Type -> TIExpr -> TIExpr
-wrapFunctionArgumentIfNeeded classEnv constraints expectedArgType tiExpr =
-  let exprType = tiExprType tiExpr
-      node = tiExprNode tiExpr
-  in -- Don't wrap if already wrapped with tensorMap/tensorMap2
-     if isAlreadyWrappedWithTensorMap2 node || isAlreadyWrappedWithTensorMap1 node
+wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Type -> Int -> Maybe Type -> TIExpr -> TIExpr
+wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expectedArgType tiExpr =
+  let node = tiExprNode tiExpr
+      mBinaryFallback =
+        case node of
+          TIApplyExpr {} -> Nothing
+          _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr) ->
+                Just (wrapWithTensorMap2Fallback tiExpr)
+            | otherwise -> Nothing
+  in if isAlreadyWrappedWithTensorMap node
        then tiExpr
-       else case node of
-         -- For binary lambda expressions like \x y -> f x y, wrap the body with tensorMap2
-         -- This handles eta-expanded type class methods like \etaVar1 etaVar2 -> dict_("plus") etaVar1 etaVar2
-         TILambdaExpr mVar [var1, var2] body
-           | shouldWrapWithTensorMap2 classEnv constraints exprType ->
-               wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body tiExpr
-         -- For unary lambda expressions like \x -> f x, wrap the body with tensorMap
-         TILambdaExpr mVar [var1] body
-           | shouldWrapUnaryArgument classEnv constraints expectedArgType exprType ->
-               wrapLambdaBodyWithTensorMap1 constraints mVar var1 body tiExpr
-         -- Don't wrap other lambda expressions
-         TILambdaExpr {} -> tiExpr
-         -- Don't wrap function applications (they're already being applied)
-         TIApplyExpr {} -> tiExpr
-         -- Wrap variable references and other expressions that represent functions
-         _ | shouldWrapWithTensorMap2 classEnv constraints exprType ->
-               wrapWithTensorMap2 constraints tiExpr
-           | shouldWrapUnaryArgument classEnv constraints expectedArgType exprType ->
-               wrapWithTensorMap1 constraints tiExpr
-           | otherwise -> tiExpr
-
--- | Wrap the body of a unary lambda with tensorMap
--- Transform: \x -> f x  to  \x -> tensorMap f x
-wrapLambdaBodyWithTensorMap1 :: [Constraint] -> Maybe Var -> Var -> TIExpr -> TIExpr -> TIExpr
-wrapLambdaBodyWithTensorMap1 constraints mVar var1 body originalExpr =
-  case tiExprNode body of
-    -- Body is a function application: \x -> f x
-    TIApplyExpr func args
-      | length args == 1 ->
-          let arg1 = args !! 0
-              resultType = tiExprType body
-              resultScheme = Forall [] [] resultType
-              newBody = TIExpr resultScheme (TITensorMapExpr func arg1)
-              -- Rebuild the lambda with the new body
-              (Forall tvs cs lambdaType) = tiScheme originalExpr
-              newLambdaScheme = Forall tvs (constraints ++ cs) lambdaType
-          in TIExpr newLambdaScheme (TILambdaExpr mVar [var1] newBody)
-    -- Body is already tensorMap
-    TITensorMapExpr {} -> originalExpr
-    -- Other cases: just wrap the whole thing
-    _ -> wrapWithTensorMap1 constraints originalExpr
-
--- | Wrap the body of a binary lambda with tensorMap2
--- Transform: \x y -> f x y  to  \x y -> tensorMap2 f x y
-wrapLambdaBodyWithTensorMap2 :: [Constraint] -> Maybe Var -> Var -> Var -> TIExpr -> TIExpr -> TIExpr
-wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body originalExpr =
-  case tiExprNode body of
-    -- Body is a function application: \x y -> f x y
-    TIApplyExpr func args
-      | length args == 2 ->
-          let arg1 = args !! 0
-              arg2 = args !! 1
-              -- Create tensorMap2 f arg1 arg2
-              resultType = tiExprType body
-              resultScheme = Forall [] [] resultType
-              newBody = TIExpr resultScheme (TITensorMap2Expr func arg1 arg2)
-              -- Rebuild the lambda with the new body
-              (Forall tvs cs lambdaType) = tiScheme originalExpr
-              newLambdaScheme = Forall tvs (constraints ++ cs) lambdaType
-          in TIExpr newLambdaScheme (TILambdaExpr mVar [var1, var2] newBody)
-    -- Body is already tensorMap2
-    TITensorMap2Expr {} -> originalExpr
-    -- Other cases: just wrap the whole thing
-    _ -> wrapWithTensorMap2 constraints originalExpr
+       else
+         case expectedArgType of
+           Just expectedType ->
+             case wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType argIndex expectedType tiExpr of
+               Just wrappedExpr -> wrappedExpr
+               Nothing ->
+                 case mBinaryFallback of
+                   Just binaryFallback -> binaryFallback
+                   Nothing -> tiExpr
+           Nothing ->
+             case mBinaryFallback of
+               Just binaryFallback -> binaryFallback
+               Nothing -> tiExpr
 
 -- | Insert tensorMap in a TIExpr with type scheme information
 insertTensorMapsInExpr :: ClassEnv -> TypeScheme -> TIExpr -> EvalM TIExpr
@@ -366,7 +471,7 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
               let (Forall _ argConstraints _) = tiScheme arg
                   argAllConstraints = nub (baseConstraints ++ argConstraints)
                   expectedArgType = getParamType funcType index
-              in wrapFunctionArgumentIfNeeded env argAllConstraints expectedArgType arg
+              in wrapFunctionArgumentIfNeeded env argAllConstraints funcType index expectedArgType arg
             args'' = map wrapArg (zip [0..] args')
 
         -- Use the INFERRED function type (after type inference)

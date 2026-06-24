@@ -1,5 +1,11 @@
 # TensorMap挿入設計
 
+> 注記: 高階 callback 引数の現在の実装方針は
+> `tensor-map-higher-order-lift.md` も参照すること。この文書の「二項
+> スカラー関数を常に `tensorMap2` で包む」規則は、現在は互換 fallback
+> として残しており、期待 callback 型から lift 位置が分かる場合は型主導の
+> eta expansion を優先する。
+
 ## 目標
 
 明示的なTensor型注釈なしで、スカラー関数をテンソルに自動適用する：
