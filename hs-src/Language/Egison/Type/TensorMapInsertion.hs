@@ -46,7 +46,7 @@ module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
   ) where
 
-import           Data.List                  (nub, zipWith4)
+import           Data.List                  (nub)
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
@@ -191,6 +191,14 @@ data CallbackParamPlan = CallbackParamPlan
 mkVarTIExpr :: String -> Type -> TIExpr
 mkVarTIExpr name ty = TIExpr (Forall [] [] ty) (TIVarExpr name)
 
+mkCallbackParamPlan :: Int -> Type -> Bool -> CallbackParamPlan
+mkCallbackParamPlan index actualParam needsLift =
+  let outerType = if needsLift then TTensor actualParam else actualParam
+      outerName = "tmap_arg" ++ show (index + 1)
+      outerVar = Var outerName []
+      outerExpr = mkVarTIExpr outerName outerType
+  in CallbackParamPlan index actualParam outerType outerVar outerExpr needsLift
+
 sameNormalizedType :: Type -> Type -> Bool
 sameNormalizedType ty1 ty2 =
   normalizeTensorType ty1 == normalizeTensorType ty2
@@ -248,6 +256,44 @@ callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedRes
         in if mask' == mask then mask else go mask'
   in go initialMask
 
+-- | Build a wrapper plan for a scalar callback passed to a higher-order
+-- argument position. The plan is absent when the expected callback type does
+-- not force any tensor lifting.
+buildCallbackLiftPlan ::
+    ClassEnv
+    -> [Constraint]
+    -> Type
+    -> Int
+    -> Type
+    -> TIExpr
+    -> Maybe ([CallbackParamPlan], [CallbackParamPlan], Type)
+buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
+  let actualFuncType = tiExprType funcExpr
+      (expectedParams, expectedResult) = collectFunctionType expectedCallbackType
+      (actualParams, actualResult) = collectFunctionType actualFuncType
+      arity = length expectedParams
+  in if arity == 0 || length actualParams < arity
+       then Nothing
+       else
+         let actualParamsForArity = take arity actualParams
+             resultFeedsBack =
+               callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType
+             liftMask =
+               callbackLiftMask
+                 classEnv
+                 constraints
+                 resultFeedsBack
+                 expectedParams
+                 expectedResult
+                 actualParamsForArity
+                 actualResult
+             callbackParams = zipWith3 mkCallbackParamPlan [0..] actualParamsForArity liftMask
+             liftedParams = filter callbackParamNeedsLift callbackParams
+             resultType = applyNArgType actualFuncType arity
+         in if null liftedParams
+              then Nothing
+              else Just (callbackParams, liftedParams, resultType)
+
 -- | Check if a binary scalar function can use the compatibility tensorMap2
 -- wrapper. This keeps polymorphic scalar callbacks such as `foldl (*)` working
 -- even when the callback type itself does not mention Tensor yet.
@@ -304,48 +350,14 @@ insertTensorMaps tiExpr = do
 -- maps the scalar function over that tensor argument.
 wrapWithTypeDirectedTensorLift :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe TIExpr
 wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
-  let actualFuncType = tiExprType funcExpr
-      (expectedParams, expectedResult) = collectFunctionType expectedCallbackType
-      (actualParams, actualResult) = collectFunctionType actualFuncType
-      arity = length expectedParams
-  in if arity == 0 || length actualParams < arity
-       then Nothing
-       else
-         let actualParamsForArity = take arity actualParams
-             resultFeedsBack =
-               callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType
-             liftMask =
-               callbackLiftMask
-                 classEnv
-                 constraints
-                 resultFeedsBack
-                 expectedParams
-                 expectedResult
-                 actualParamsForArity
-                 actualResult
-             callbackParams =
-               zipWith4
-                 (\index _expectedParam actualParam needsLift ->
-                    let
-                        outerType = if needsLift then TTensor actualParam else actualParam
-                        outerName = "tmap_arg" ++ show (index + 1)
-                        outerVar = Var outerName []
-                        outerExpr = mkVarTIExpr outerName outerType
-                    in CallbackParamPlan index actualParam outerType outerVar outerExpr needsLift)
-                 [0..]
-                 expectedParams
-                 actualParamsForArity
-                 liftMask
-             liftedParams = filter callbackParamNeedsLift callbackParams
-         in if null liftedParams
-              then Nothing
-              else
-                let resultType = applyNArgType actualFuncType arity
-                    body = buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams liftedParams []
-                    lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
-                    lambdaScheme = Forall [] [] lambdaType
-                    lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
-                in Just $ TIExpr lambdaScheme lambdaNode
+  case buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
+    Nothing -> Nothing
+    Just (callbackParams, liftedParams, resultType) ->
+      let body = buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams liftedParams []
+          lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
+          lambdaScheme = Forall [] [] lambdaType
+          lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
+      in Just $ TIExpr lambdaScheme lambdaNode
 
 -- | Build the body of a generated callback wrapper.
 buildTypeDirectedTensorLiftBody ::
@@ -403,27 +415,30 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param
        (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
 
 -- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
--- This implements the simplified approach from tensor-map-insertion-simple.md
+-- Type-directed callback lifting is tried first; the binary fallback preserves
+-- older reduction behavior when no tensor seed is visible in the expected type.
+tensorMap2FallbackIfNeeded :: ClassEnv -> [Constraint] -> TIExpr -> Maybe TIExpr
+tensorMap2FallbackIfNeeded classEnv constraints tiExpr =
+  case tiExprNode tiExpr of
+    TIApplyExpr {} -> Nothing
+    _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr) ->
+          Just (wrapWithTensorMap2Fallback tiExpr)
+      | otherwise -> Nothing
+
 wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Type -> Int -> Maybe Type -> TIExpr -> TIExpr
 wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expectedArgType tiExpr =
   let node = tiExprNode tiExpr
-      mBinaryFallback =
-        case node of
-          TIApplyExpr {} -> Nothing
-          _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr) ->
-                Just (wrapWithTensorMap2Fallback tiExpr)
-            | otherwise -> Nothing
+      mTypeDirected =
+        case expectedArgType of
+          Just expectedType ->
+            wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType argIndex expectedType tiExpr
+          Nothing -> Nothing
+      mBinaryFallback = tensorMap2FallbackIfNeeded classEnv constraints tiExpr
   in if isAlreadyWrappedWithTensorMap node
        then tiExpr
        else
-         case expectedArgType of
-           Just expectedType ->
-             case wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType argIndex expectedType tiExpr of
-               Just wrappedExpr -> wrappedExpr
-               Nothing ->
-                 case mBinaryFallback of
-                   Just binaryFallback -> binaryFallback
-                   Nothing -> tiExpr
+         case mTypeDirected of
+           Just wrappedExpr -> wrappedExpr
            Nothing ->
              case mBinaryFallback of
                Just binaryFallback -> binaryFallback
