@@ -20,7 +20,7 @@ module Language.Egison.Type.Error
   , withContext
   ) where
 
-import           Data.List                  (intercalate)
+import           Data.List                  (intercalate, nub)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
@@ -75,13 +75,6 @@ data TypeWarning
   | MatcherNextMatcherWarning Type String TypeErrorContext
     -- ^ A bare-variable next matcher (rendered) at a constructor-/concrete-headed hole (the
     --   hole's type) is not structurally admissible (paper PP-Con, Def 4.2(1a)).
-  | MatcherDataArmsWarning String Type TypeErrorContext
-    -- ^ A @matcher@ clause (rendered pp pattern) of a matcher for the given matched type has
-    --   no catch-all primitive-data-pattern arm: a target that matches the clause's pattern
-    --   but none of its arms raises "Primitive data pattern match failed" at runtime.  This
-    --   is NOT ruled out by paper Def 4.2 (matcher consistency constrains the pattern side
-    --   only), so a matcher can pass strict checking and still fail; the standard-library
-    --   convention is a final @| _ -> []@ (or @| $tgt -> ...@) arm.
   deriving (Eq, Show, Generic)
 
 -- | Type errors
@@ -123,6 +116,14 @@ data TypeError
     --   (or-, loop-, not-, forall-pattern): such an occurrence may be expanded
     --   zero or several times along a matching path, breaking the binding
     --   contract.  Fields: function name, offending parameters.
+  | MatcherDataArmsNotExhaustive String Type TypeErrorContext
+    -- ^ A @matcher@ clause (rendered pp pattern) of a matcher for the given matched type
+    --   whose primitive-data-pattern arms are not exhaustive (paper Def 4.2(1c), arm
+    --   exhaustiveness): a target that matches the clause's pattern but none of its arms
+    --   raises "Primitive data pattern match failed" at runtime instead of backtracking.
+    --   Checked as a conservative syntactic approximation (see 'pdArmsExhaustive' in the
+    --   inference module); the standard-library convention is a final @| _ -> []@ (or
+    --   @| $tgt -> ...@) arm.
   deriving (Eq, Show, Generic)
 
 
@@ -211,6 +212,14 @@ formatTypeError err = case err of
       "(or-, loop-, not-, or forall-pattern), where they may be expanded zero or several times:\n" ++
       "  Parameters:  " ++ intercalate ", " (map ("~" ++) offenders)
 
+  MatcherDataArmsNotExhaustive ppStr ty ctx ->
+    formatWithContext ctx $
+      "Matcher clause `" ++ ppStr ++ "` (matcher for " ++ displayType ty ++ ")" ++
+      " has non-exhaustive data-pattern arms: a target that matches the clause's pattern but" ++
+      " none of its arms fails at runtime (\"Primitive data pattern match failed\");" ++
+      " end the arms with `| _ -> []`" ++
+      "\n  (arm exhaustiveness; paper Def 4.2(1c))"
+
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String
 formatWithContext ctx msg =
@@ -259,23 +268,65 @@ formatTypeWarning warn = case warn of
 
   MatcherCoverageWarning ty missing ctx ->
     formatWithContext ctx $
-      "Warning: matcher for " ++ prettyType ty ++
+      "Warning: matcher for " ++ displayType ty ++
       " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
       "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
 
   MatcherNextMatcherWarning holeTy comp ctx ->
     formatWithContext ctx $
       "Warning: the next matcher `" ++ comp ++ "` is a bare-variable matcher, not structurally" ++
-      " admissible at a constructor-headed hole of type " ++ prettyType holeTy ++
+      " admissible at a constructor-headed hole of type " ++ displayType holeTy ++
       "\n  (a constructor pattern there would get stuck at runtime; paper PP-Con, Def 4.2(1a))"
 
-  MatcherDataArmsWarning ppStr ty ctx ->
-    formatWithContext ctx $
-      "Warning: matcher clause `" ++ ppStr ++ "` (matcher for " ++ prettyType ty ++ ")" ++
-      " has no catch-all data-pattern arm: a target that matches the clause's pattern but" ++
-      " none of its arms fails at runtime (\"Primitive data pattern match failed\");" ++
-      " end the arms with `| _ -> []`" ++
-      "\n  (data-arm totality is beyond paper Def 4.2, which constrains the pattern side only)"
+-- | Pretty print a type after renaming its type variables, in order of first
+-- appearance, to @a@, @b@, @c@, ...  Inference-internal names such as @t143@
+-- carry no information for the user.  Used by the matcher diagnostics, which
+-- each show a single type, so the renaming cannot break cross-references
+-- between types (unification errors, which relate two types, are shown with
+-- their original variable names).
+displayType :: Type -> String
+displayType = prettyType . renameVarsForDisplay
+
+renameVarsForDisplay :: Type -> Type
+renameVarsForDisplay ty = mapVars ty
+  where
+    mapping = zip (nub (collect ty))
+                  ([TyVar [c] | c <- ['a'..'z']] ++ [TyVar ('a' : show i) | i <- [1 :: Int ..]])
+    sub v = case lookup v mapping of
+      Just v' -> v'
+      Nothing -> v
+    mapVars t = case t of
+      TVar v             -> TVar (sub v)
+      TTuple ts          -> TTuple (map mapVars ts)
+      TCollection t1     -> TCollection (mapVars t1)
+      TInductive n ts    -> TInductive n (map mapVars ts)
+      TTensor t1         -> TTensor (mapVars t1)
+      THash t1 t2        -> THash (mapVars t1) (mapVars t2)
+      TMatcher t1        -> TMatcher (mapVars t1)
+      TMatcherSlot t1 t2 -> TMatcherSlot (mapVars t1) (mapVars t2)
+      TFun t1 t2         -> TFun (mapVars t1) (mapVars t2)
+      TIO t1             -> TIO (mapVars t1)
+      TIORef t1          -> TIORef (mapVars t1)
+      TTerm t1 ss        -> TTerm (mapVars t1) ss
+      TFrac t1           -> TFrac (mapVars t1)
+      TPoly t1 ss        -> TPoly (mapVars t1) ss
+      _                  -> t
+    collect t = case t of
+      TVar v             -> [v]
+      TTuple ts          -> concatMap collect ts
+      TCollection t1     -> collect t1
+      TInductive _ ts    -> concatMap collect ts
+      TTensor t1         -> collect t1
+      THash t1 t2        -> collect t1 ++ collect t2
+      TMatcher t1        -> collect t1
+      TMatcherSlot t1 t2 -> collect t1 ++ collect t2
+      TFun t1 t2         -> collect t1 ++ collect t2
+      TIO t1             -> collect t1
+      TIORef t1          -> collect t1
+      TTerm t1 _         -> collect t1
+      TFrac t1           -> collect t1
+      TPoly t1 _         -> collect t1
+      _                  -> []
 
 -- | Pretty print a type
 prettyType :: Type -> String
