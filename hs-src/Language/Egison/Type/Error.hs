@@ -75,6 +75,13 @@ data TypeWarning
   | MatcherNextMatcherWarning Type String TypeErrorContext
     -- ^ A bare-variable next matcher (rendered) at a constructor-/concrete-headed hole (the
     --   hole's type) is not structurally admissible (paper PP-Con, Def 4.2(1a)).
+  | MatcherDataArmsWarning String Type TypeErrorContext
+    -- ^ A @matcher@ clause (rendered pp pattern) of a matcher for the given matched type has
+    --   no catch-all primitive-data-pattern arm: a target that matches the clause's pattern
+    --   but none of its arms raises "Primitive data pattern match failed" at runtime.  This
+    --   is NOT ruled out by paper Def 4.2 (matcher consistency constrains the pattern side
+    --   only), so a matcher can pass strict checking and still fail; the standard-library
+    --   convention is a final @| _ -> []@ (or @| $tgt -> ...@) arm.
   deriving (Eq, Show, Generic)
 
 -- | Type errors
@@ -261,6 +268,14 @@ formatTypeWarning warn = case warn of
       "Warning: the next matcher `" ++ comp ++ "` is a bare-variable matcher, not structurally" ++
       " admissible at a constructor-headed hole of type " ++ prettyType holeTy ++
       "\n  (a constructor pattern there would get stuck at runtime; paper PP-Con, Def 4.2(1a))"
+
+  MatcherDataArmsWarning ppStr ty ctx ->
+    formatWithContext ctx $
+      "Warning: matcher clause `" ++ ppStr ++ "` (matcher for " ++ prettyType ty ++ ")" ++
+      " has no catch-all data-pattern arm: a target that matches the clause's pattern but" ++
+      " none of its arms fails at runtime (\"Primitive data pattern match failed\");" ++
+      " end the arms with `| _ -> []`" ++
+      "\n  (data-arm totality is beyond paper Def 4.2, which constrains the pattern side only)"
 
 -- | Pretty print a type
 prettyType :: Type -> String

@@ -43,7 +43,7 @@ data EgisonOpts = EgisonOpts {
     optDumpTyped        :: Bool,       -- ^ Dump typed AST after Phase 6 (type inference & check)
     optDumpTi           :: Bool,       -- ^ Dump typed AST after TensorMap insertion (before type class expansion)
     optDumpTc           :: Bool,       -- ^ Dump typed AST after type class expansion (Phase 7 complete)
-    optMatcherConsistencyWarnings :: Bool        -- ^ Emit matcher consistency warnings (paper Def 4.2: Coverage 4.2(3) + PP-Con 4.2(1a))
+    optMatcherConsistencyWarnings :: Bool        -- ^ Emit matcher consistency warnings (paper Def 4.2: Coverage 4.2(3) + PP-Con 4.2(1a); plus the data-arm catch-all check, beyond Def 4.2)
     }
 
 defaultOption :: EgisonOpts
@@ -160,7 +160,7 @@ cmdArgParser = EgisonOpts
                   <> help "Dump typed AST after type class expansion (Phase 7 complete)")
             <*> switch
                   (long "matcher-consistency-warnings"
-                  <> help "Emit matcher consistency warnings (paper Def 4.2): Coverage (4.2(3)) — a matcher lacking a general clause for some pattern constructor of its matched type; and PP-Con (4.2(1a)) — a bare-variable matcher `something` at a constructor-headed next-matcher hole")
+                  <> help "Emit matcher consistency warnings (paper Def 4.2): Coverage (4.2(3)) — a matcher lacking a general clause for some pattern constructor of its matched type; PP-Con (4.2(1a)) — a bare-variable matcher `something` at a constructor-headed next-matcher hole; and (beyond Def 4.2) a matcher clause with no catch-all data-pattern arm, which can fail at runtime with \"Primitive data pattern match failed\"")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

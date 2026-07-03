@@ -14,10 +14,13 @@ def g~i~j : Matrix MathValue := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
 def d (A: Tensor MathValue) : Tensor MathValue := !(flip ∂/∂) x A
 
 def hodge (A: Tensor MathValue) : Tensor MathValue :=
-  let k := dfOrder A in
-    withSymbols [i, j]
-      (sqrt (M.det g_#_#)) * (foldl (.) ((subrefs A (map 1#j_$1 (between 1 k))) . (subrefs (ε' N k) (map 1#i_$1 (between 1 N))))
-                                        (map 1#g~(i_$1)~(j_$1) [1..k]))
+  let k := dfOrder A
+   in withSymbols [i, j]
+        sqrt (abs (M.det g_#_#)) *
+        foldl
+          (.)
+          ((ε' N k)_(i_1)..._(i_N) . A..._(j_1)..._(j_k))
+          (map (\n -> g~(i_n)~(j_n)) [1..k])
 
 
 def δ (A: Tensor MathValue) : Tensor MathValue :=

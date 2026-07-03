@@ -90,10 +90,13 @@ import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 data InferConfig = InferConfig
   { cfgPermissive       :: Bool  -- ^ Treat unbound variables as warnings, not errors
   , cfgCollectWarnings  :: Bool  -- ^ Collect warnings during inference
-  , cfgMatcherConsistencyWarnings :: Bool  -- ^ Emit matcher consistency warnings (paper Def 4.2):
-                                 --   Coverage (4.2(3)) and PP-Con (4.2(1a)).  Off by default, as
-                                 --   the standard library has intentionally partial / non-strict
-                                 --   matchers (opt-in diagnostic; --matcher-consistency-warnings).
+  , cfgMatcherConsistencyWarnings :: Bool  -- ^ Emit matcher consistency warnings: paper Def 4.2
+                                 --   Coverage (4.2(3)) and PP-Con (4.2(1a)), plus the data-arm
+                                 --   catch-all check (beyond Def 4.2: a clause whose
+                                 --   primitive-data-pattern arms can all miss fails at runtime).
+                                 --   Off by default, as the standard library has intentionally
+                                 --   partial / non-strict matchers (opt-in diagnostic;
+                                 --   --matcher-consistency-warnings).
   }
 
 instance Show InferConfig where
@@ -1256,6 +1259,21 @@ inferIExprWithContext expr ctx = case expr of
           then addWarning $ MatcherCoverageWarning matchedTyFinal missing exprCtx
           else return ()
       _ -> return ()
+    -- Data-arm catch-all (warning-level, BEYOND paper Def 4.2, which constrains only the
+    -- pattern side of a clause): once a clause's pp matches the pattern, the target is
+    -- matched against that clause's data-pattern arms alone, and a miss there is a runtime
+    -- failure ("Primitive data pattern match failed"), not a graceful backtrack — an arm
+    -- that cannot decompose its target must say so by returning [].  Def 4.2 does not rule
+    -- this out, so a matcher can satisfy every consistency condition, pass strict checking,
+    -- and still fail at runtime.  Warn on any clause whose arm set is not syntactically
+    -- exhaustive (see pdArmsExhaustive); the standard-library convention of a final
+    -- `| _ -> []` / `| $tgt -> ...` arm always passes.  Same gating as Coverage: opt-in,
+    -- user-facing matchers only (suppressed inside matcher bodies).
+    when (covOn && not inMB) $
+      mapM_ (\(pp, _, dataClauses) ->
+               when (not (pdArmsExhaustive (map fst dataClauses))) $
+                 addWarning $ MatcherDataArmsWarning (prettyStr pp) matchedTyFinal exprCtx)
+            patDefs
     return (mkTIExpr (TMatcher matchedTy) (TIMatcherExpr tiPatDefs), allSubst)
     where
       -- Infer a single pattern definition (matcher clause)
@@ -2643,6 +2661,39 @@ generalClauseCtor (PPInductivePat name args)
   where isHole PPPatVar = True
         isHole _        = False
 generalClauseCtor _ = Nothing
+
+-- | Conservative exhaustiveness of a matcher clause's primitive-data-pattern arms
+-- (data-arm catch-all warning; beyond paper Def 4.2).  An arm set is deemed exhaustive if
+-- some arm is irrefutable, or the arms complete a built-in closed shape: the
+-- empty-collection pattern together with a cons/snoc pattern with irrefutable components
+-- (every collection is empty or uncons-able), or the constants True and False (every Bool).
+-- Purely syntactic — no data-constructor enumeration (the type env does not distinguish
+-- constructors from functions of the same result type) — so a refutable-but-complete arm
+-- set over a user ADT (each constructor enumerated, no final catch-all) is conservatively
+-- warned about.
+pdArmsExhaustive :: [IPrimitiveDataPattern] -> Bool
+pdArmsExhaustive arms =
+     any pdIrrefutable arms
+  || (any isEmptyArm arms && any completeUncons arms)
+  || (any (isBoolArm True) arms && any (isBoolArm False) arms)
+  where
+    isEmptyArm PDEmptyPat = True
+    isEmptyArm _          = False
+    completeUncons (PDConsPat p1 p2) = pdIrrefutable p1 && pdIrrefutable p2
+    completeUncons (PDSnocPat p1 p2) = pdIrrefutable p1 && pdIrrefutable p2
+    completeUncons _                 = False
+    isBoolArm b (PDConstantPat (BoolExpr b')) = b == b'
+    isBoolArm _ _                             = False
+
+-- | An irrefutable primitive data pattern: one that matches every well-typed target.
+-- A tuple of irrefutable components is irrefutable because the arm's expected type is
+-- unified with the corresponding tuple type, so the target is always a tuple of that
+-- arity in a well-typed program.
+pdIrrefutable :: IPrimitiveDataPattern -> Bool
+pdIrrefutable PDWildCard      = True
+pdIrrefutable (PDPatVar _)    = True
+pdIrrefutable (PDTuplePat ps) = all pdIrrefutable ps
+pdIrrefutable _               = False
 
 -- | Infer match clauses type
 -- All clauses should return the same type
