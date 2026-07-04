@@ -35,6 +35,13 @@
 3. **混在表現の演算**: nested 注釈済みの値と flat の値を `+` した結果を確認。設計上は「演算出口は default canonical form に落ち、注釈で target form に戻す」(tower 不変条件 + trust-the-annotation)。この想定どおりかを検証
 4. 結果を本書 §7 (リスク) に追記する
 
+### S0 結果 (2026-07-04 実施。mini-test/125-cas-s0-spike.egi に現状をピン留め済み)
+
+1. **nested reshape (flat → nested): 動作する** — 規則付き原子 (`i`, `i^2 = -1`) 込みで atom 分離・観察型 (`Poly (Poly Integer [i]) [x]`) とも正しい (mini-test 107 §1.4 の既存確認とも整合)
+2. **flatten (nested → flat): 未実装** — `def v : Poly Integer [i,x] := <nested値>` が no-op で nested 表現のまま残る。**吸収律はこの方向で破れている** → γ′ の主作業
+3. **混在表現演算: nested 形が伝播** (左オペランドの形が残る)。設計の「演算出口はデフォルト形式」と乖離。さらに深刻な帰結として、**nested 由来と flat 由来の同類項がマージされない** — `i + (-i)` が 0 にならず、表現をまたぐ意味論的等価 (x − y = 0) が現状壊れている (mini-test 107 の範囲では顕在化していなかった既存問題)。対処は §4
+4. 性能ベースライン (本マシン): riemann S2 ≈ 0.6s、cubic ≈ 0.6s — §6 参照
+
 ---
 
 ## 2. Phase α: 透明 type alias (工数: 小)
@@ -52,6 +59,12 @@
 6. **mini-test**: 宣言・注釈・多段 alias・衝突エラー・循環エラー・表示
 
 **検収**: usecase [01](./cas-tower-usecases/01-type-alias.egi)・[02](./cas-tower-usecases/02-gaussian-integers.egi)・[05](./cas-tower-usecases/05-quadratic-extension.egi) が通る (02/05 は `substitute` ベースの conj を含む — substitute は既存関数)。
+
+### α 実施結果 (2026-07-04 実装完了)
+
+- **実装**: AST に `DeclareCasType`、parser に `declare cas-type N := T` (行境界つき型パーサ `typeExprIndented` を新設 — 既存 `typeExpr` は貪欲で、宣言末尾の型が次行の宣言を型原子として飲み込むため、インデントガードで打ち切る)。EnvBuilder が prepass で収集・検証 (大文字必須 / 組み込み・inductive・重複との衝突エラー) し、**固定点解決**で alias-in-alias を展開 (前方参照 OK = 他の declare 族と同じ宣言順不問、循環は名前つきエラー)。展開は `typeExprToType` の全 seam (EnvBuilder 全分岐 + Desugar の instance 名生成 / PatternFunctionDecl / DeclareSymbol / 式注釈 IReshape) に適用。`EvalState.casTypeAliasEnv` でロードバッチを跨いで永続化
+- **検証**: mini-test 126 (def/式注釈・多段 alias・前方参照・規則付き原子 GaussianInt の演算・substitute conj/norm) 全 pass。エラーパス 4 種 (重複・組み込み衝突・循環・小文字名) 確認済み。回帰: 代表 7 sample エラーゼロ (全て 1s 未満)・mini-test **89/89**・cabal test **21/21**
+- **意図的に後回し**: 表示側の alias 逆引き (pretty printer / 観察型で `Qx` と表示する nice-to-have)。実装は展開後の構造型を表示する。必要になったら逆引き表 (展開型 → 宣言名、宣言順優先) を Type/Pretty と prettyTypeOf に足す
 
 ---
 
@@ -80,13 +93,14 @@
 
 ## 4. Phase γ′ (縮小版): canonicalize 経路の整備 (工数: 小〜中)
 
-旧 γ/δ の残骸。**新しい機構は作らない** — 既存 `casReshapeAs` の網羅性と法則を固める。
+旧 γ/δ の残骸。**新しい機構は作らない** — 既存 `casReshapeAs` の網羅性と法則を固める。S0 の結果、作業は次の 3 点に具体化された:
 
-1. **網羅性**: alias 込みの nested target (`GaussianPoly`、`RationalGaussianPoly` = `Frac` 入り係数) への reshape を検証・補修 (S0 で見つかった穴を潰す)
-2. **吸収律の恒常テスト**: `casReshapeAs C (casReshapeAs B v) = casReshapeAs C v` を
-   - サンプル battery (`0, 1, -1, 2, i, x, x+1, (1+i)*x^2`) × 対象型ペアの mini-test
-   - 可能なら `cabal test` に QuickCheck property として追加 (coherence の実証 — 論文の定理の実装対応物)
-3. **演算とのラウンドトリップ**: nested 注釈値に演算 → 出口は default form → 再注釈で target form 復元、のパターン (usecase 04 の `∂/∂ p x`) が動くこと
+1. **flatten (nested → flat) の実装** (S0-2 の穴): `casReshapeAs` に「係数位置の `CASPoly` を外側モノミアルへ展開する」demote 方向を追加する。atom 分離 (flat → nested) は実装済みなので、これが吸収律の欠けている半分
+2. **演算出口のデフォルト形式化** (S0-3/S0-4 の穴): `casNormalize` (または算術 op の出口) で nested 係数を検出したら flatten する。これにより
+   - 混在表現の同類項マージ不全 (`i + (-i) ≠ 0`) が解消し、表現をまたぐ意味論的等価が回復する
+   - 「**nested 形は reshape 直後にのみ存在し、演算を通すとデフォルト (flat) 形式に落ちる**」という設計どおりの不変条件が立つ (usecase 04 は演算結果を再注釈して nested に戻すパターンなので影響なし)
+   - 性能: 係数が `CASPoly` かの検査だけなので、通常経路 (flat のみ) はゼロコスト
+3. **吸収律の恒常テスト**: サンプル battery (`0, 1, -1, 2, i, x, x+1, (1+i)*x^2`) × 対象型ペアの mini-test (+ 可能なら `cabal test` に QuickCheck property)。**mini-test 125 の GAP ピンを新挙動に更新**するのを忘れない
 
 **検収**: usecase [04](./cas-tower-usecases/04-gaussian-poly.egi) (中核ケーススタディ)。**ここまででタワー側は完成**。
 
@@ -109,7 +123,8 @@
 ## 6. テスト・回帰手順
 
 - mini-test は既存規約どおり番号 prefix (`NN-cas-alias.egi` 等、現状の最大番号に続ける)。フェーズごとに追加
-- **各 Phase 完了時に必ず** egison/CLAUDE.md の標準検査を実施: 代表 sample 7 本 (`riemann-curvature-tensor-of-S2` ~5s、`cubic-equation` ~4s 等の性能ガード込み)、mini-test 全件ループ、`cabal test` + warning/error grep
+- **各 Phase 完了時に必ず** egison/CLAUDE.md の標準検査を実施: 代表 sample 7 本、mini-test 全件ループ、`cabal test` + warning/error grep
+- **性能ガード (本マシン、2026-07-04 計測)**: riemann S2 ≈ **0.6s**、cubic ≈ **0.6s**。CLAUDE.md の参考値 (~5s / ~4s) は旧マシンのもので約 8 倍遅い上限として読む。本マシンで代表 sample が **1s を超えたら要調査**
 - α/β は型レベルのみの変更なので数式処理の性能は原則不変のはず。slowdown が出たら unifier の alias 展開・isSubtype 呼び出しのキャッシュ (`DeclareEnv` 参照の memo 化) を疑う
 - コード内コメントは英語 (CLAUDE.md)。`cabal` 使用・`gtimeout` 必須・自動 commit 禁止も同規約どおり
 
@@ -119,7 +134,7 @@
 
 | 項目 | 内容 | 対処 |
 |---|---|---|
-| 混在表現の演算 | nested 値 + flat 値の casPlus の挙動が「出口 default form」の想定どおりか | S0 で確認。ずれたら §3-7 の IReshape 挿入で吸収 |
+| 混在表現の演算 | ~~S0 で確認~~ → **確定**: 出口は default form にならず nested が伝播、表現またぎの項マージも不全 | γ′-2 (演算出口のデフォルト形式化) で解消する。既存挙動のピンは mini-test 125 |
 | スキームレベル半束性検査 | 原子集合の側条件込みの全ペア検査の実装精度 | 有限近似 (宣言ノード + 骨格代表) で開始、反例駆動で精密化 |
 | `⊂` トークン | Unicode のみか ASCII 代替 (`<:`) も置くか | パーサ着手時に決定 (小) |
 | alias 逆引き表示 | 同一展開型に複数 alias がある場合の表示の一意性 | 宣言順優先で固定 |

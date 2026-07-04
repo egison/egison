@@ -37,11 +37,14 @@ module Language.Egison.Type.Types
   , sanitizeMethodName
   , typeExprToType
   , normalizeInductiveTypes
+  , expandTypeAliases
   , capitalizeFirst
   , lowerFirst
   ) where
 
 import           Data.Char        (toLower, toUpper)
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import           Data.Hashable    (Hashable)
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
@@ -391,6 +394,34 @@ symbolSetExprToSymbolSet :: SymbolSetExpr -> SymbolSet
 symbolSetExprToSymbolSet (SSEClosed atoms) =
   SymbolSetClosed (map typeAtomExprToTypeAtom atoms)
 symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
+
+-- | Expand `declare cas-type` transparent aliases inside a Type (Phase alpha
+-- of the extensible CAS tower; design/type-cas-tower.md D3: aliases only).
+-- A capitalized name in type position parses to `TVar (TyVar name)` (or is
+-- concretized to `TInductive name []`), so we substitute both forms.
+-- Alias bodies stored in the map are already fully expanded, hence a single
+-- substitution pass suffices; we do not recurse into substituted bodies.
+expandTypeAliases :: HashMap String Type -> Type -> Type
+expandTypeAliases aliases ty
+  | HashMap.null aliases = ty
+  | otherwise = go ty
+  where
+    go t@(TVar (TyVar n))  = HashMap.lookupDefault t n aliases
+    go t@(TInductive n []) = HashMap.lookupDefault t n aliases
+    go (TInductive n ts)   = TInductive n (map go ts)
+    go (TTuple ts)         = TTuple (map go ts)
+    go (TCollection t)     = TCollection (go t)
+    go (TTensor t)         = TTensor (go t)
+    go (THash k v)         = THash (go k) (go v)
+    go (TMatcher t)        = TMatcher (go t)
+    go (TMatcherSlot s t)  = TMatcherSlot (go s) (go t)
+    go (TFun a b)          = TFun (go a) (go b)
+    go (TIO t)             = TIO (go t)
+    go (TIORef t)          = TIORef (go t)
+    go (TTerm t ss)        = TTerm (go t) ss
+    go (TFrac t)           = TFrac (go t)
+    go (TPoly t ss)        = TPoly (go t) ss
+    go t                   = t
 
 -- | Normalize inductive type names to primitive types if applicable
 -- This is used to convert TInductive "MathValue" [] to TMathValue, etc.

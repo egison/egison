@@ -95,6 +95,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> declareDerivativeExpr
       <|> declareApplyExpr
       <|> declareMathFuncExpr
+      <|> declareCasTypeExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
@@ -484,6 +485,47 @@ patternFunctionExpr = do
   -- Parse pattern body
   body <- pattern
   return $ PatternFunctionDecl name typeParams params retType body
+
+-- | Parse a `declare cas-type` declaration (Phase alpha of the extensible
+-- CAS tower; design/type-cas-tower.md D3: transparent aliases only).
+--
+--   declare cas-type GaussianInt := Poly Integer [i]
+--
+-- The keyword lexes as `cas`, `-`, `type` because identifiers cannot
+-- contain hyphens.
+declareCasTypeExpr :: Parser TopExpr
+declareCasTypeExpr = try $ do
+  pos <- L.indentLevel
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "cas"
+    then fail "Expected 'cas-type' after 'declare'"
+    else return ()
+  _ <- symbol "-"
+  kind <- lowerId
+  if kind /= "type"
+    then fail "Expected 'type' after 'cas-'"
+    else return ()
+  name <- upperId
+  _ <- symbol ":="
+  ty <- typeExprIndented pos
+  return $ DeclareCasType name ty
+
+-- | Like 'typeExprWithApp', but every token must be indented deeper than the
+-- given column. Used where a type ends a declaration (the alias body of
+-- `declare cas-type X := <type>`), so the greedy type-atom sequence does not
+-- swallow the next top-level declaration starting at column 1.
+typeExprIndented :: Pos -> Parser TypeExpr
+typeExprIndented base = do
+  atoms <- some (try (indentGuardGT base >> typeAtomSimple))
+  rest <- optional (try (indentGuardGT base >> symbol "->") >> typeExprIndented base)
+  let baseType = case atoms of
+                   [t]    -> t
+                   (t:ts) -> TEApp t ts
+                   []     -> error "unreachable"
+  return $ case rest of
+    Nothing -> baseType
+    Just r  -> TEFun baseType r
 
 declareSymbolExpr :: Parser TopExpr
 declareSymbolExpr = try $ do

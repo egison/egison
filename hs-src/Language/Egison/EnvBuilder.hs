@@ -20,13 +20,14 @@ module Language.Egison.EnvBuilder
   , EnvBuildResult(..)
   ) where
 
-import           Control.Monad              (foldM)
+import           Control.Monad              (foldM, when)
 import           Control.Monad.Except       (throwError)
+import           Data.Char                  (isUpper)
 import qualified Data.HashMap.Strict        as HashMap
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM, EgisonError(..))
-import           Language.Egison.EvalState  (MonadEval(getConstructorEnv), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getCasTypeAliasEnv), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
@@ -58,6 +59,10 @@ data EnvBuildResult = EnvBuildResult
   -- DeclareApply handler to enforce that `declare apply foo ...` only
   -- appears after a corresponding `declare mathfunc foo`.
   , ebrMathFuncNames :: Set.Set String
+  -- Phase alpha (extensible CAS tower): `declare cas-type` aliases declared
+  -- in THIS batch, name -> fully expanded Type. Merged into the persistent
+  -- EvalState alias env by the caller (Eval.buildAndMergeEnvironments).
+  , ebrCasTypeAliases :: HashMap.HashMap String Type
   } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -75,8 +80,20 @@ buildEnvironments exprs = do
   -- in file A must still keep that type concrete in its signature (see concretizeDeclaredTypes);
   -- B's TopExpr list alone would not mention `inductive A`.
   priorCtorEnv <- getConstructorEnv
+  priorAliases <- getCasTypeAliasEnv
   let declaredTypes = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
                                     ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ])
+
+  -- Phase alpha (extensible CAS tower): collect `declare cas-type` aliases
+  -- first (prepass, so declaration order does not matter for users of the
+  -- alias), then resolve alias-in-alias references to a fixpoint. Bodies are
+  -- stored fully expanded so a single substitution pass suffices at use sites.
+  newAliasesRaw <- foldM (collectCasTypeAlias declaredTypes priorAliases)
+                         HashMap.empty
+                         [ (n, te) | DeclareCasType n te <- exprs ]
+  newAliases <- resolveCasTypeAliases priorAliases newAliasesRaw
+  let aliasEnv = HashMap.union newAliases priorAliases
+
   -- Start with empty environments
   let initialResult = EnvBuildResult
         { ebrTypeEnv = emptyEnv
@@ -87,10 +104,60 @@ buildEnvironments exprs = do
         , ebrReductionRules = []
         , ebrDerivativeRules = []
         , ebrMathFuncNames = Set.empty
+        , ebrCasTypeAliases = newAliases
         }
-  
+
   -- Process each top-level expression to collect declarations
-  foldM (processTopExpr declaredTypes) initialResult exprs
+  foldM (processTopExpr declaredTypes aliasEnv) initialResult exprs
+
+-- | Validate and register a single `declare cas-type` alias.
+-- Rules (design/type-cas-tower-implementation.md section 2):
+--   * the alias name must be capitalized
+--   * it must not clash with builtin type names, declared inductive types,
+--     or an existing alias (no redeclaration)
+--   * the body may reference previously declared aliases only (a leftover
+--     alias name after expansion means a self/forward reference)
+collectCasTypeAlias :: Set.Set String -> HashMap.HashMap String Type
+                    -> HashMap.HashMap String Type -> (String, TypeExpr)
+                    -> EvalM (HashMap.HashMap String Type)
+collectCasTypeAlias declaredTypes priorAliases acc (name, te) = do
+  let builtinTypeNames = Set.fromList
+        [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
+        , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
+        , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol"
+        , "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr" ]
+  when (not (startsUpper name)) $ throwError $ Default $
+    "declare cas-type: alias name must be capitalized: " ++ name
+  when (Set.member name builtinTypeNames) $ throwError $ Default $
+    "declare cas-type: alias name clashes with a builtin type: " ++ name
+  when (Set.member name declaredTypes) $ throwError $ Default $
+    "declare cas-type: alias name clashes with an inductive type: " ++ name
+  when (HashMap.member name priorAliases || HashMap.member name acc) $
+    throwError $ Default $
+      "declare cas-type: alias is already declared: " ++ name
+  return (HashMap.insert name (typeExprToType te) acc)
+  where
+    startsUpper (c:_) = isUpper c
+    startsUpper _     = False
+
+-- | Resolve alias-in-alias references to a fixpoint, so aliases may refer to
+-- each other regardless of declaration order (prepass semantics, matching
+-- the other `declare` families). Each round substitutes one nesting level;
+-- a definition that keeps growing past |aliases| + 1 rounds is cyclic.
+resolveCasTypeAliases :: HashMap.HashMap String Type -> HashMap.HashMap String Type
+                      -> EvalM (HashMap.HashMap String Type)
+resolveCasTypeAliases priorAliases = go (0 :: Int)
+  where
+    go rounds m
+      | m' == m = return m
+      | rounds > HashMap.size m + 1 =
+          throwError $ Default $
+            "declare cas-type: cyclic alias definition among: " ++
+            unwords (HashMap.keys m)
+      | otherwise = go (rounds + 1) m'
+      where
+        full = HashMap.union m priorAliases
+        m'   = HashMap.map (Types.expandTypeAliases full) m
 
 -- | Rewrite bare declared-inductive-type names that 'typeExprToType' produced as
 -- type variables (e.g. @Matcher Nat@ parses to @TMatcher (TVar "Nat")@) into the
@@ -104,20 +171,23 @@ concretizeDeclaredTypes decls = applySubst subst
   where subst = foldr (\n s -> composeSubst (singletonSubst (TyVar n) (TInductive n [])) s)
                       emptySubst (Set.toList decls)
 
--- | Process a single top-level expression to collect environment information
-processTopExpr :: Set.Set String -> EnvBuildResult -> TopExpr -> EvalM EnvBuildResult
-processTopExpr declaredTypes result topExpr = case topExpr of
-  
+-- | Process a single top-level expression to collect environment information.
+-- `aliasEnv` carries `declare cas-type` aliases (prior batches + this batch);
+-- every TypeExpr conversion goes through `t2t` so alias names are expanded
+-- before types are stored anywhere (Phase alpha of the extensible tower).
+processTopExpr :: Set.Set String -> HashMap.HashMap String Type -> EnvBuildResult -> TopExpr -> EvalM EnvBuildResult
+processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
+
   -- 1. Data Constructor Definitions (from InductiveDecl)
   InductiveDecl typeName typeParams constructors -> do
     let typeParamVars = map (TVar . TyVar) typeParams
         adtType = TInductive typeName typeParamVars
         typeEnv = ebrTypeEnv result
         ctorEnv = ebrConstructorEnv result
-    
+
     -- Register each constructor
-    (typeEnv', ctorEnv') <- foldM (registerConstructor typeName typeParams adtType) 
-                                   (typeEnv, ctorEnv) 
+    (typeEnv', ctorEnv') <- foldM (registerConstructor aliasEnv typeName typeParams adtType)
+                                   (typeEnv, ctorEnv)
                                    constructors
     
     return result { ebrTypeEnv = typeEnv', ebrConstructorEnv = ctorEnv' }
@@ -137,7 +207,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         superNames = map extractConstraintName superClasses
 
         -- Build method list with types
-        methodsWithTypes = map extractMethodWithType methods
+        methodsWithTypes = map (extractMethodWithType aliasEnv) methods
 
         -- Create ClassInfo
         -- Note: Use qualified name to avoid ambiguity with ClassDecl.classMethods
@@ -151,7 +221,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         classEnv' = addClass className classInfo classEnv
 
         -- Register each class method to type environment
-        typeEnv' = foldl (registerClassMethod tyVars className) typeEnv methods
+        typeEnv' = foldl (registerClassMethod aliasEnv tyVars className) typeEnv methods
 
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
 
@@ -168,7 +238,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         typeEnv = ebrTypeEnv result
 
         -- Convert all instance types
-        instanceTypeList = map typeExprToType instTypes
+        instanceTypeList = map t2t instTypes
 
         -- Get the primary instance type (head) for backward compatibility
         mainInstType = case instanceTypeList of
@@ -177,7 +247,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
 
         -- Create InstanceInfo
         instInfo = Types.InstanceInfo
-          { Types.instContext = map constraintToInternal context
+          { Types.instContext = map (constraintToInternal aliasEnv) context
           , Types.instClass = className
           , Types.instTypes = instanceTypeList
           , Types.instMethods = []  -- Methods are handled during desugaring/evaluation
@@ -191,7 +261,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         -- Pass the full instance type list so the registered names match the
         -- ones Desugar emits (e.g. `embedMathValueMathValueEmbed`,
         -- `embedMathValueMathValue` for `instance Embed MathValue MathValue`).
-        typeEnv' = registerInstanceMethods className mainInstType instanceTypeList (map constraintToInternal context) methods classEnv' typeEnv
+        typeEnv' = registerInstanceMethods className mainInstType instanceTypeList (map (constraintToInternal aliasEnv) context) methods classEnv' typeEnv
 
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
   
@@ -206,15 +276,15 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         -- Create Var with index structure (content is Just Var, so map to Nothing)
         var = Var name (map (fmap (const Nothing)) indexTypes)
         params = typedVarParams typedVar
-        retType = typeExprToType (typedVarRetType typedVar)
-        paramTypes = map typedParamToType params
+        retType = t2t (typedVarRetType typedVar)
+        paramTypes = map (typedParamToType aliasEnv) params
         
         -- Build function type, then keep declared inductive type names concrete
         -- (e.g. `nat : Matcher Nat` stays `Matcher Nat`, not `forall a. Matcher a`).
         funType = concretizeDeclaredTypes declaredTypes (foldr TFun retType paramTypes)
 
         -- Convert constraints from AST to internal representation
-        constraints = map constraintToInternal (typedVarConstraints typedVar)
+        constraints = map (constraintToInternal aliasEnv) (typedVarConstraints typedVar)
 
         -- Generalize free type variables in the type signature
         -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
@@ -237,16 +307,16 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         patternCtorEnv = ebrPatternConstructorEnv result
     
     -- Register each pattern constructor to pattern constructor environment
-    patternCtorEnv' <- foldM (registerPatternConstructor typeName typeParams patternType) 
-                              patternCtorEnv 
+    patternCtorEnv' <- foldM (registerPatternConstructor aliasEnv typeName typeParams patternType)
+                              patternCtorEnv
                               constructors
     
     return result { ebrPatternConstructorEnv = patternCtorEnv' }
   
   -- 6. Pattern Function Declarations (from PatternFunctionDecl)
   PatternFunctionDecl name typeParams params retType _body -> do
-    let paramTypes = map (typeExprToType . snd) params
-        retType' = typeExprToType retType
+    let paramTypes = map (t2t . snd) params
+        retType' = t2t retType
         -- Pattern function type: arg1 -> arg2 -> ... -> retType (without Pattern wrapper)
         patternFuncType = foldr TFun retType' paramTypes
         
@@ -259,6 +329,10 @@ processTopExpr declaredTypes result topExpr = case topExpr of
     
     return result { ebrPatternTypeEnv = patternEnv' }
   
+  -- Phase alpha: cas-type aliases were collected in the prepass
+  -- (buildEnvironments), so nothing to do per-declaration here.
+  DeclareCasType _ _ -> return result
+
   -- Other expressions don't contribute to environment building
   Define {} -> return result
   Test {} -> return result
@@ -269,7 +343,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
   -- 7. Symbol Declarations (from DeclareSymbol)
   DeclareSymbol names mTypeExpr -> do
     let ty = case mTypeExpr of
-               Just texpr -> typeExprToType texpr
+               Just texpr -> t2t texpr
                Nothing    -> TInt  -- Default to Integer (MathValue)
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
@@ -302,7 +376,7 @@ processTopExpr declaredTypes result topExpr = case topExpr of
   -- `declare apply` based on its argument count (see DeclareApply below).
   DeclareMathFunc name mTypeExpr -> do
     let ty = case mTypeExpr of
-               Just texpr -> typeExprToType texpr
+               Just texpr -> t2t texpr
                Nothing    -> TFun TMathValue TMathValue
         scheme = Forall [] [] ty
         typeEnv = ebrTypeEnv result
@@ -332,17 +406,22 @@ processTopExpr declaredTypes result topExpr = case topExpr of
         "declare apply " ++ name ++ ": no prior `declare mathfunc " ++ name ++ "`. " ++
         "Add `declare mathfunc " ++ name ++ "` before this `declare apply` declaration."
 
+  where
+    -- typeExprToType + cas-type alias expansion (Phase alpha).
+    t2t :: TypeExpr -> Type
+    t2t = Types.expandTypeAliases aliasEnv . typeExprToType
+
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------
 
 -- | Register a single data constructor
-registerConstructor :: String -> [String] -> Type 
-                    -> (TypeEnv, ConstructorEnv) -> InductiveConstructor 
+registerConstructor :: HashMap.HashMap String Type -> String -> [String] -> Type
+                    -> (TypeEnv, ConstructorEnv) -> InductiveConstructor
                     -> EvalM (TypeEnv, ConstructorEnv)
-registerConstructor typeName typeParams resultType (typeEnv, ctorEnv) 
+registerConstructor aliasEnv typeName typeParams resultType (typeEnv, ctorEnv)
                     (InductiveConstructor ctorName argTypeExprs) = do
-  let argTypes = map typeExprToType argTypeExprs
+  let argTypes = map (Types.expandTypeAliases aliasEnv . typeExprToType) argTypeExprs
       
       -- Constructor type: argTypes -> resultType
       constructorType = foldr TFun resultType argTypes
@@ -368,10 +447,10 @@ registerConstructor typeName typeParams resultType (typeEnv, ctorEnv)
 -- The constraint carries ALL class type parameters (multi-param-friendly).
 -- For `class Coerce a b where coerce (x: a) : b`, the method is registered
 -- with `forall a b. Coerce a b => a -> b`.
-registerClassMethod :: [TyVar] -> String -> TypeEnv -> ClassMethod -> TypeEnv
-registerClassMethod tyVars className typeEnv (ClassMethod methName params retType _defaultImpl) =
-  let paramTypes = map typedParamToType params
-      methodType = foldr TFun (typeExprToType retType) paramTypes
+registerClassMethod :: HashMap.HashMap String Type -> [TyVar] -> String -> TypeEnv -> ClassMethod -> TypeEnv
+registerClassMethod aliasEnv tyVars className typeEnv (ClassMethod methName params retType _defaultImpl) =
+  let paramTypes = map (typedParamToType aliasEnv) params
+      methodType = foldr TFun (Types.expandTypeAliases aliasEnv (typeExprToType retType)) paramTypes
       -- Constraint with all class type params (single-param classes still
       -- produce a singleton list).
       constraint = Types.Constraint className (map TVar tyVars)
@@ -479,10 +558,10 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
         go (TPoly t ss) = TPoly (go t) ss
 
 -- | Extract method name and type from ClassMethod
-extractMethodWithType :: ClassMethod -> (String, Type)
-extractMethodWithType (ClassMethod name params retType _) =
-  let paramTypes = map typedParamToType params
-      methodType = foldr TFun (typeExprToType retType) paramTypes
+extractMethodWithType :: HashMap.HashMap String Type -> ClassMethod -> (String, Type)
+extractMethodWithType aliasEnv (ClassMethod name params retType _) =
+  let paramTypes = map (typedParamToType aliasEnv) params
+      methodType = foldr TFun (Types.expandTypeAliases aliasEnv (typeExprToType retType)) paramTypes
   in (name, methodType)
 
 -- | Extract class name from ConstraintExpr
@@ -491,19 +570,19 @@ extractConstraintName (ConstraintExpr clsName _) = clsName
 
 -- | Convert ConstraintExpr to internal Constraint.
 -- Multi-param classes (e.g. `Coerce a b`) carry all class type parameters.
-constraintToInternal :: ConstraintExpr -> Types.Constraint
-constraintToInternal (ConstraintExpr clsName tyExprs) =
+constraintToInternal :: HashMap.HashMap String Type -> ConstraintExpr -> Types.Constraint
+constraintToInternal aliasEnv (ConstraintExpr clsName tyExprs) =
   Types.Constraint clsName (case tyExprs of
     [] -> [TAny]
-    _  -> map typeExprToType tyExprs)
+    _  -> map (Types.expandTypeAliases aliasEnv . typeExprToType) tyExprs)
 
 -- | Register a single pattern constructor
-registerPatternConstructor :: String -> [String] -> Type 
-                           -> PatternConstructorEnv -> PatternConstructor 
+registerPatternConstructor :: HashMap.HashMap String Type -> String -> [String] -> Type
+                           -> PatternConstructorEnv -> PatternConstructor
                            -> EvalM PatternConstructorEnv
-registerPatternConstructor _typeName typeParams resultType patternCtorEnv 
+registerPatternConstructor aliasEnv _typeName typeParams resultType patternCtorEnv
                           (PatternConstructor ctorName argTypeExprs) = do
-  let argTypes = map typeExprToType argTypeExprs
+  let argTypes = map (Types.expandTypeAliases aliasEnv . typeExprToType) argTypeExprs
       
       -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType (without Pattern wrapper)
       patternCtorType = foldr TFun resultType argTypes
@@ -517,12 +596,15 @@ registerPatternConstructor _typeName typeParams resultType patternCtorEnv
   
   return patternCtorEnv'
 
--- | Convert TypedParam to Type
-typedParamToType :: TypedParam -> Type
-typedParamToType (TPVar _ ty) = typeExprToType ty
-typedParamToType (TPInvertedVar _ ty) = typeExprToType ty
-typedParamToType (TPTuple elems) = TTuple (map typedParamToType elems)
-typedParamToType (TPWildcard ty) = typeExprToType ty
-typedParamToType (TPUntypedVar _) = TVar (TyVar "a")  -- Will be inferred
-typedParamToType TPUntypedWildcard = TVar (TyVar "a")  -- Will be inferred
+-- | Convert TypedParam to Type (cas-type aliases expanded)
+typedParamToType :: HashMap.HashMap String Type -> TypedParam -> Type
+typedParamToType aliasEnv = go
+  where
+    go (TPVar _ ty) = t2t ty
+    go (TPInvertedVar _ ty) = t2t ty
+    go (TPTuple elems) = TTuple (map go elems)
+    go (TPWildcard ty) = t2t ty
+    go (TPUntypedVar _) = TVar (TyVar "a")  -- Will be inferred
+    go TPUntypedWildcard = TVar (TyVar "a")  -- Will be inferred
+    t2t = Types.expandTypeAliases aliasEnv . typeExprToType
 

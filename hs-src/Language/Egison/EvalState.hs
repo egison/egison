@@ -80,6 +80,10 @@ data EvalState = EvalState
                                        --   Each `declare derivative` redefines `chainPartialDiff` using only
                                        --   the names *up to and including* itself, avoiding forward references
                                        --   to derivatives declared later (which would emit warnings).
+  , casTypeAliasEnv :: HashMap String Type -- ^ Phase alpha (extensible CAS tower):
+                                       --   `declare cas-type` transparent aliases, name -> fully
+                                       --   expanded Type. Persists across load batches so aliases
+                                       --   declared in a library apply to later files.
   }
 
 initialEvalState :: EvalState
@@ -99,6 +103,7 @@ initialEvalState = EvalState
   , autoRuleVarNames = []
   , autoRuleTriggers = []
   , derivativesDesugared = []
+  , casTypeAliasEnv = HashMap.empty
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -157,6 +162,9 @@ class (Applicative m, Monad m) => MonadEval m where
   getDerivativesDesugared :: m [String]
   setDerivativesDesugared :: [String] -> m ()
   appendDerivativeDesugared :: String -> m ()
+  -- Phase alpha (extensible CAS tower): `declare cas-type` alias environment.
+  getCasTypeAliasEnv :: m (HashMap String Type)
+  setCasTypeAliasEnv :: HashMap String Type -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -276,6 +284,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { derivativesDesugared = derivativesDesugared st ++ [n] }
 
+  getCasTypeAliasEnv = casTypeAliasEnv <$> get
+  setCasTypeAliasEnv env = do
+    st <- get
+    put $ st { casTypeAliasEnv = env }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -314,6 +327,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   getDerivativesDesugared = lift getDerivativesDesugared
   setDerivativesDesugared = lift . setDerivativesDesugared
   appendDerivativeDesugared = lift . appendDerivativeDesugared
+  getCasTypeAliasEnv = lift getCasTypeAliasEnv
+  setCasTypeAliasEnv = lift . setCasTypeAliasEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

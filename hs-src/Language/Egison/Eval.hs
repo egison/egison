@@ -244,6 +244,11 @@ buildAndMergeEnvironments exprs opts = do
   setPatternEnv mergedPatternEnv
   setPatternFuncEnv mergedPatternFuncEnv
 
+  -- Phase alpha (extensible CAS tower): persist `declare cas-type` aliases so
+  -- Desugar (this batch) and later load batches can expand annotation types.
+  prevAliases <- getCasTypeAliasEnv
+  setCasTypeAliasEnv (HashMap.union (ebrCasTypeAliases envResult) prevAliases)
+
   -- Phase 7.4/7.5/6.3: surface declaration counts and names to the runtime
   -- so that inspection primitives (`numReductionRules`, `ruleNames`,
   -- `numDerivativeRules`, `derivativeNames`) can read them. The full data

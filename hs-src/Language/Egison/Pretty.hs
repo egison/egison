@@ -57,6 +57,9 @@ instance Pretty TopExpr where
           parens (pretty pname <+> pretty ":" <+> pretty ptype)) params
     in pretty "def" <+> pretty "pattern" <+> pretty name <+> typeParamsDoc <+> 
        paramsDoc <+> pretty ":" <+> pretty retType <+> pretty ":=" <+> pretty body
+  pretty (DeclareCasType name typeExpr) =
+    pretty "declare" <+> pretty "cas-type" <+> pretty name <+>
+    pretty ":=" <+> pretty typeExpr
   pretty (DeclareSymbol names mTypeExpr) =
     let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
         typeDoc = case mTypeExpr of

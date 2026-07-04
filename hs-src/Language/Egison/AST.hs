@@ -114,6 +114,12 @@ data TopExpr
     --   def <name> (x : MathValue) : MathValue := '<name> x
     -- Combined with `declare derivative`, this gives the user a callable
     -- function and a registered derivative under one umbrella.
+  | DeclareCasType String TypeExpr
+    -- ^ Transparent CAS type alias (Phase alpha of the extensible tower;
+    -- design/type-cas-tower.md D3: transparent aliases only, no nominal types).
+    -- e.g.  declare cas-type GaussianInt := Poly Integer [i]
+    -- String: alias name (must be capitalized), TypeExpr: the aliased type.
+    -- Expanded away during environment building / desugaring; no runtime artifact.
   | DeclareApply String [String] Expr
     -- ^ Math function application rule (Phase A of declare apply impl).
     -- e.g.  declare apply sin x := if x = 0 then 0 else 'sin x

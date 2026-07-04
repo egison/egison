@@ -39,7 +39,8 @@ import           Language.Egison.RState
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.Type.Env   (lookupClass, ClassInfo(..))
 import           Language.Egison.Type.Types (sanitizeMethodName, typeToName,
-                                             typeExprToType, capitalizeFirst, lowerFirst, TyVar(..))
+                                             typeExprToType, expandTypeAliases,
+                                             capitalizeFirst, lowerFirst, TyVar(..))
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
@@ -148,7 +149,10 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
       -- inner parameters) rather than `typeConstructorName` (outer only) so
       -- that e.g. `Coerce (Frac Integer) Integer` and
       -- `Coerce (Frac (Poly Integer [..])) Integer` get distinct names.
-      let instTypeNames = map (typeToName . typeExprToType) instTypes
+      -- cas-type aliases are expanded first so the generated names agree
+      -- with EnvBuilder's registerInstanceMethods (Phase alpha).
+      aliasEnv <- getCasTypeAliasEnv
+      let instTypeNames = map (typeToName . expandTypeAliases aliasEnv . typeExprToType) instTypes
           instTypeName  = concat instTypeNames
       -- Generate individual method definitions with constraint parameters
       methodDefs <- mapM (desugarInstanceMethod constraints classNm instTypeName) methods
@@ -211,14 +215,20 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
 -- Constructor registration is handled by the type system
 desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 
+-- cas-type aliases are fully handled during environment building
+-- (Phase alpha of the extensible tower); no runtime artifact.
+desugarTopExpr (DeclareCasType _ _) = return Nothing
+
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
 desugarTopExpr (PatternInductiveDecl _ _ _) = return Nothing  -- Handled in environment building phase
 
 -- Pattern function declarations need type checking, so convert to IPatternFunctionDecl
 desugarTopExpr (PatternFunctionDecl name typeParams params retType body) = do
-  let paramTypes = map (\(pname, pty) -> (pname, typeExprToType pty)) params
-      retType' = typeExprToType retType
+  aliasEnv <- getCasTypeAliasEnv
+  let t2t = expandTypeAliases aliasEnv . typeExprToType
+      paramTypes = map (\(pname, pty) -> (pname, t2t pty)) params
+      retType' = t2t retType
       tyVars = map TyVar typeParams
   body' <- desugarPattern body
   return . Just $ IPatternFunctionDecl name tyVars paramTypes retType' body'
@@ -226,8 +236,9 @@ desugarTopExpr (PatternFunctionDecl name typeParams params retType body) = do
 -- Symbol declarations
 desugarTopExpr (DeclareSymbol names mTypeExpr) = do
   -- Convert type expression to type (defaults to Integer if not specified)
+  aliasEnv <- getCasTypeAliasEnv
   let ty = case mTypeExpr of
-             Just texpr -> typeExprToType texpr
+             Just texpr -> expandTypeAliases aliasEnv (typeExprToType texpr)
              Nothing    -> typeExprToType TEInt
   return . Just $ IDeclareSymbol names (Just ty)
 desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
@@ -1102,7 +1113,8 @@ desugar (FunctionExpr args) = return $ IFunctionExpr args
 -- non-CAS types `T`, the eval handler is a no-op (passes the value through).
 desugar (TypeAnnotation expr typeExpr) = do
   inner <- desugar expr
-  return $ IReshape (typeExprToType typeExpr) inner
+  aliasEnv <- getCasTypeAliasEnv
+  return $ IReshape (expandTypeAliases aliasEnv (typeExprToType typeExpr)) inner
 
 -- `simplify <expr> using <ruleName>` (Phase 7.6).
 -- Desugars to a direct call of the registered rule lambda:
