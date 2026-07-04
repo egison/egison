@@ -1,0 +1,149 @@
+# 拡張可能 CAS タワー実装手順書
+
+[type-cas-tower.md](./type-cas-tower.md) (D1–D5 全決定済み) と [type-cas-quotient.md](./type-cas-quotient.md) を実装に落とすための手順書。検収基準は [cas-tower-usecases/](./cas-tower-usecases/) の 8 本。
+
+設計指針 (tower.md §8): **理論をできるだけ単純に** — 実装でも、迷ったらメタ理論が単純になる方・コードが減る方に倒す。
+
+最終更新: 2026-07-04 (初版)
+
+---
+
+## 0. 決定事項の実装への写像
+
+| 決定 | 実装上の帰結 |
+|---|---|
+| D3 (透明エイリアスのみ) | nominal 型機構は**タワーには不要**。unifier への追加は「alias 展開」だけ |
+| D5 (`where embed` 廃止) | embed 実行系・dispatch table・菱形列挙器・宣言時 PBT が**すべて不要**。runtime の昇格は既存 `casReshapeAs` 一本 |
+| D2 (型スコープ規則なし) | 規則機構 (`declare rule` / `iterateRulesCAS` / trigger filter) は**一切変更しない** |
+| D1 (単一順序の一意 LUB) | 新規実装の中心 = **順序の動的化 + join + 半束性検査** (型レベルのみ) |
+| D4 (商はタワー外) | 商機構 q1–q4 は**独立した実装線** (§5)。タワー側は何も背負わない |
+
+**重要な帰結**: tower.md §4 の当初見積 (γ 大・δ 中) は D2/D5 で大幅に縮小した。旧 γ (CASCanonical class + primCASNormalizeAs + instance 群) と旧 δ (coerce の dispatch 化) は、canonicalize = 構造選択 = **既存の `casReshapeAs`**、coerce = **既存の注釈 reshape** に潰れたため、ほぼ消滅している。runtime 側の新規コードは商機構を除きゼロに近く、**実装の重心は型レベル (parser / prepass / unifier / join)** にある。
+
+---
+
+## 1. S0: 事前スパイク — 現状能力の棚卸し (半日)
+
+実装前に、既存実装がどこまで動くかを mini-test で確認する。結果次第で β/γ′ の作業量が変わる。
+
+1. **nested reshape の現状**: alias なしの生の型で usecase 04 相当を書き、atom 分離が動くか:
+   ```egison
+   def p : Poly (Poly Integer [i]) [x] := (2 + 3*i) + (1 - i)*x + 4*x^2
+   ```
+   設計上は実装済みのはず (type-cas.md §reshape の `Poly (Poly Integer [z]) [..]` 例)。`Frac (Poly Integer [i])` 係数などの深い入れ子も試す
+2. **吸収律の現状**: `casReshapeAs C (casReshapeAs B v) = casReshapeAs C v` をいくつかの (B, C, v) で確認 (D5 の要検証項目)
+3. **混在表現の演算**: nested 注釈済みの値と flat の値を `+` した結果を確認。設計上は「演算出口は default canonical form に落ち、注釈で target form に戻す」(tower 不変条件 + trust-the-annotation)。この想定どおりかを検証
+4. 結果を本書 §7 (リスク) に追記する
+
+---
+
+## 2. Phase α: 透明 type alias (工数: 小)
+
+**変更ファイル**: `hs-src/Language/Egison/Parser/NonS.hs`、prepass (EnvBuilder)、`Type/Types.hs`、`Type/Unify.hs`、型 pretty printer、`Math/CAS.hs` (prettyTypeOf の表示のみ)
+
+1. **構文**: `declare cas-type <Name> := <Type>`。declare 族に追加し、既存の型パーサを再利用。引数付き alias は不可 (MVP)
+2. **prepass 登録**: `DeclareEnv` に `"cas-type" : Map String Type` を追加 (動的 Map + 型付きアクセサの既存パターン)。登録時検査:
+   - 組み込み型名 (`Integer` / `Frac` / `Poly` / ...) との衝突 → エラー
+   - 再宣言 → エラー
+   - **多段 alias は登録時に完全展開**して格納 (`Qx := Poly Q [x]` は `Poly (Frac Integer) [x]` で保存)。循環は展開時に検出してエラー
+3. **単一化**: 型検査の入口 (と注釈型の受け取り口) に `expandAlias :: DeclareEnv -> Type -> Type` を挟む。登録時に展開済みなので、参照位置での 1 段引き + 深い位置の置換だけで済む。unifier 本体のロジックは不変
+4. **注釈 reshape との接続**: `IReshape T e` の `T` が alias を含む場合、展開後の型を `casReshapeAs` に渡す
+5. **表示**: 逆引き表 (展開後の型 → alias 名) を持ち、型の pretty print と観察型 (`prettyTypeOf` / `inspect`) は一致する alias があれば名前を優先表示。同一型に複数 alias があれば先に宣言された方
+6. **mini-test**: 宣言・注釈・多段 alias・衝突エラー・循環エラー・表示
+
+**検収**: usecase [01](./cas-tower-usecases/01-type-alias.egi)・[02](./cas-tower-usecases/02-gaussian-integers.egi)・[05](./cas-tower-usecases/05-quadratic-extension.egi) が通る (02/05 は `substitute` ベースの conj を含む — substitute は既存関数)。
+
+---
+
+## 3. Phase β: cas-subtype + 動的 isSubtype + join (D1) (工数: 中)
+
+**変更ファイル**: `NonS.hs`、prepass、`Type/Subtype.hs` (新規)、`Type/Join.hs`、elaboration (`Type/Check.hs`)
+
+1. **構文**: `declare cas-subtype <Type> ⊂ <Type>` — 関係のみ (D5)。`⊂` の ASCII 代替 (`<:` 等) を用意するかはパーサ着手時に決める (§7)
+2. **prepass 登録**: alias 展開後の型 (スキーム) 対を `DeclareEnv "cas-subtype"` に登録
+3. **`Type/Subtype.hs` (新規)**:
+   - 現在 `Type/Join.hs` に hard-code されている骨格規則 (5 段タワー + 原子集合包含 + 係数伝播) を導出規則としてデータ化
+   - 宣言辺 + 骨格規則の**推移閉包**。宣言ノードは有限個、スキームは構造再帰 (部分型判定は「宣言辺の graph 到達 + 骨格規則の構造分解」の交互適用。構造規則は型サイズを減らすので停止)
+   - `isSubtype :: DeclareEnv -> Type -> Type -> Bool` を提供し、既存の hard-code 呼び出しを置換
+4. **join の動的化**: 極小上界の列挙 → 一意ならそれ、非一意は内部エラー (D1 の検査が防いでいるはず)。`MathValue` が常に top
+5. **D1 半束性検査 (declare 時)**: 新辺 `A ⊂ N` の追加時、
+   - N の下錐にある既存型ペア (a, b) について、既存 join J(a,b) が N の下に導出できるかを検査 (**下錐の join 閉性**)
+   - 破れたら: エラー + 欠落辺 `declare cas-subtype J ⊂ N` の**提案をメッセージに埋め込む**
+   - 新 join が旧 join より真に小さくなるペアがあれば: **warning** (細化単調性 — 値は不変、静的型のみ精密化)
+   - 検査対象は「宣言ノード + 骨格の代表ノード」の有限集合で開始し、原子集合はスキームの側条件として扱う (取りこぼしが見つかったら精密化 — §7)
+6. **冗長辺**: 骨格 + alias 展開から導出可能な辺 (例: `Integer ⊂ GaussianInt`) は no-op として受理し、その旨 warning (usecase 03 の implementation note の検証を兼ねる)
+7. **elaboration**: 二項演算で join 型が operand と異なるとき、現状の runtime 内部昇格 (casPlus 等の混在レベル処理) で足りるか、明示 `IReshape` 挿入が要るか — S0 の結果で確定。原則: **値の正しさは runtime 昇格で既に保たれている**ので、挿入が要るのは「join 型の canonical form で保持したい」場合のみ
+
+**検収**: usecase [03](./cas-tower-usecases/03-subtype-promotion.egi)・[06](./cas-tower-usecases/06-combined-extensions.egi)・[08](./cas-tower-usecases/08-join-completion.egi) (08 は半束性検査のエラーメッセージ・完備化提案・細化 warning まで含む)。
+
+---
+
+## 4. Phase γ′ (縮小版): canonicalize 経路の整備 (工数: 小〜中)
+
+旧 γ/δ の残骸。**新しい機構は作らない** — 既存 `casReshapeAs` の網羅性と法則を固める。
+
+1. **網羅性**: alias 込みの nested target (`GaussianPoly`、`RationalGaussianPoly` = `Frac` 入り係数) への reshape を検証・補修 (S0 で見つかった穴を潰す)
+2. **吸収律の恒常テスト**: `casReshapeAs C (casReshapeAs B v) = casReshapeAs C v` を
+   - サンプル battery (`0, 1, -1, 2, i, x, x+1, (1+i)*x^2`) × 対象型ペアの mini-test
+   - 可能なら `cabal test` に QuickCheck property として追加 (coherence の実証 — 論文の定理の実装対応物)
+3. **演算とのラウンドトリップ**: nested 注釈値に演算 → 出口は default form → 再注釈で target form 復元、のパターン (usecase 04 の `∂/∂ p x`) が動くこと
+
+**検収**: usecase [04](./cas-tower-usecases/04-gaussian-poly.egi) (中核ケーススタディ)。**ここまででタワー側は完成**。
+
+---
+
+## 5. 商機構 q1–q4 (独立線、工数: 中)
+
+タワーと独立に進められる (α のパーサ基盤にだけ乗る)。詳細設計は [type-cas-quotient.md](./type-cas-quotient.md)。
+
+1. **q1 nominal 型導入**: `Type` に商型コンストラクタ (`TQuotient String` 等) を追加。unifier は同名同士のみ単一化。**⊂ 関係はどこにも張らない** (`MathValue` とも)。`Type/TypeClassResolve.hs` の sibling fallback (親型 instance への委譲) を商型では**遮断** — `Eq MathValue` に落ちると等価性が壊れるため (quotient.md §5)
+2. **q2 構文 + 登録**: `declare cas-quotient <Name> := <Type> by <expr>`。prepass で `DeclareEnv "quotient" : Map String (Type, reduce closure)` に登録。reduce の closure 評価タイミングは `preBindDeclaredSymbols` と同様に Phase 8 (`recursiveBindAll`) 前後の順序に注意。
+   - **未決の確定**: 注釈による暗黙 proj (`def a : Mod7 := 5`) を**許す** (推奨) — elaboration が商型注釈に `IProj` (reshape の商版) を挿入。usecase 07 の open question をここで閉じる
+3. **q3 instance 自動導出**: declare 時に準同型 instance (`AddMonoid`/`MulMonoid`/`Ring` 等: `(+) a b := proj (repr a + repr b)`) と `Eq` (`reduce (repr a - repr b) = 0`) を `instanceEnv` に機械生成で登録。`proj`/`repr` primitive を追加。パターン2 演算 (`inv`/`gcd`/比較) はユーザ定義に委ね、base への自動委譲はしない
+4. **q4 合同律検査**: declare 時にサンプル battery で冪等 (`reduce . reduce = reduce`) と合同 (`reduce (x∘y) = reduce (reduce x ∘ reduce y)`, ∘ = +, *) を検査。失敗はエラー、opt-out フラグ付き
+
+**検収**: usecase [07](./cas-tower-usecases/07-modular.egi) (混在演算が型エラーになることのテスト含む)。q5 (`Poly 商型 atoms`) はスコープ外 (optional)。
+
+---
+
+## 6. テスト・回帰手順
+
+- mini-test は既存規約どおり番号 prefix (`NN-cas-alias.egi` 等、現状の最大番号に続ける)。フェーズごとに追加
+- **各 Phase 完了時に必ず** egison/CLAUDE.md の標準検査を実施: 代表 sample 7 本 (`riemann-curvature-tensor-of-S2` ~5s、`cubic-equation` ~4s 等の性能ガード込み)、mini-test 全件ループ、`cabal test` + warning/error grep
+- α/β は型レベルのみの変更なので数式処理の性能は原則不変のはず。slowdown が出たら unifier の alias 展開・isSubtype 呼び出しのキャッシュ (`DeclareEnv` 参照の memo 化) を疑う
+- コード内コメントは英語 (CLAUDE.md)。`cabal` 使用・`gtimeout` 必須・自動 commit 禁止も同規約どおり
+
+---
+
+## 7. リスクと未知 (S0 で更新する)
+
+| 項目 | 内容 | 対処 |
+|---|---|---|
+| 混在表現の演算 | nested 値 + flat 値の casPlus の挙動が「出口 default form」の想定どおりか | S0 で確認。ずれたら §3-7 の IReshape 挿入で吸収 |
+| スキームレベル半束性検査 | 原子集合の側条件込みの全ペア検査の実装精度 | 有限近似 (宣言ノード + 骨格代表) で開始、反例駆動で精密化 |
+| `⊂` トークン | Unicode のみか ASCII 代替 (`<:`) も置くか | パーサ着手時に決定 (小) |
+| alias 逆引き表示 | 同一展開型に複数 alias がある場合の表示の一意性 | 宣言順優先で固定 |
+| 商型の fallback 遮断 | sibling fallback の例外化が既存 typeclass 解決に波及しないか | q1 で mini-test を先に書く |
+| reduce closure の束縛順序 | `declare cas-quotient` の reduce がユーザ関数を参照する場合の prepass/eval 順序 | `preBindDeclaredSymbols` の前例に倣う |
+
+---
+
+## 8. マイルストーン
+
+| M | 内容 | 検収 |
+|---|---|---|
+| M0 | S0 スパイク完了、§7 更新 | — |
+| M1 | Phase α | usecases 01・02・05 |
+| M2 | Phase β (D1 検査込み) | usecases 03・06・08 |
+| M3 | Phase γ′ (吸収律テスト恒常化) | usecase 04 — **タワー完成** |
+| M4 | 商機構 q1–q4 | usecase 07 — **論文の実験に着手可能** |
+
+M1→M2→M3 は直列。M4 は M1 完了後いつでも並行可 (q1 の nominal はタワーに依存しない)。
+
+論文側の実験 (観察型の注釈分類測定、コーパス評価) は本書のスコープ外 — タワー/商機構完成後に別途計画する。
+
+---
+
+## 9. 改訂履歴
+
+- 2026-07-04: 初版。D1–D5 全決定 (コミット a90b9b23) を受けて作成。旧 γ/δ が D2/D5 により縮小したことを §0 に明記し、フェーズ構成を α / β / γ′ / q1–q4 に再編。
