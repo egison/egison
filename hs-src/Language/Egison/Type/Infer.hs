@@ -177,6 +177,14 @@ data InferState = InferState
                                           --   so the conflict is unified — and reported — instead of
                                           --   shadowed.  Reset per top-level item (a fresh InferState
                                           --   is seeded for each).
+  , inferCasSubtypeEdges :: Subtype.SubtypeEnv
+                                          -- ^ Declared `cas-subtype` edges (alias-expanded), seeded
+                                          --   from EvalState per top-level item.  Consulted by the
+                                          --   application-site CAS join: when two CAS operand types
+                                          --   fail to unify, their unique join in the declared order
+                                          --   (D1) becomes the promotion target and both operands are
+                                          --   reshaped to it (elaboration inserts the coercion; the
+                                          --   unifier itself never joins).
   } deriving (Show)
 
 -- | Shape classification of a matcher-clause hole's next-matcher component,
@@ -194,11 +202,11 @@ data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst []
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst []
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -3307,14 +3315,49 @@ inferIApplication funcName funcType args initSubst = do
 -- before trying to match the callback type.
 inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
-  -- Infer argument types
+  -- Infer argument types (once; shared by the main attempt and the CAS-join retry)
   argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
   let argTIExprs = map fst argResults
       argTypes = map (tiExprType . fst) argResults
       argSubst = foldr composeSubst initSubst (map snd argResults)
 
+  -- Application-site CAS join (design/type-cas-tower.md, join table): when
+  -- unifying two CAS operand types fails (in practice: closed atom sets or
+  -- canonical forms that unification deliberately keeps unrelated, e.g.
+  -- Poly Integer [i] vs Poly Integer [sqrt2]), compute their unique join in
+  -- the declared order and retry once with every CAS argument below the
+  -- join reshaped to it. Promotion is thus a coercion inserted at the
+  -- application site (D5: casReshapeAs only) — the unifier itself never
+  -- joins, so type errors outside the CAS order are unaffected. On retry
+  -- failure the ORIGINAL mismatch is reported.
+  savedCs <- getConstraints
+  savedG  <- gets inferGlobalSubst
+  inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
+    `catchError` \e -> case e of
+      UnificationError t1 t2 _
+        | Subtype.isCasType t1, Subtype.isCasType t2 -> do
+            edges <- gets inferCasSubtypeEdges
+            case Subtype.joinTypesWith edges t1 t2 of
+              Just j -> do
+                modify $ \st -> st { inferConstraints = savedCs, inferGlobalSubst = savedG }
+                let promote ti at
+                      | Subtype.isCasType at, at /= j, Subtype.isSubtypeWith edges at j =
+                          (TIExpr (Forall [] [] j) (TIReshape j ti), j)
+                      | otherwise = (ti, at)
+                    (argTIExprs', argTypes') = unzip (zipWith promote argTIExprs argTypes)
+                inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs' argTypes' argSubst ctx
+                  `catchError` \_ -> throwError e
+              Nothing -> throwError e
+      _ -> throwError e
+
+-- | The unification half of application inference: fresh parameter/result
+-- variables, function-shape unification, then argument/parameter
+-- unification (data arguments before callbacks). Factored out so the
+-- CAS-join retry above can re-run it with reshaped arguments.
+inferIApplicationUnifyPhase :: TIExpr -> Type -> [TIExpr] -> [Type] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx = do
   -- Create fresh type variables for parameters and result
-  paramVars <- mapM (\i -> freshVar ("param" ++ show i)) [1..length args]
+  paramVars <- mapM (\i -> freshVar ("param" ++ show i)) [1..length argTypes]
   resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType paramVars
   appliedFuncType <- applySubstWithConstraintsM argSubst funcType

@@ -18,7 +18,7 @@ import           Language.Egison.Type.Types (Type, InstanceInfo, instType, instT
                                               freeTyVars)
 import           Language.Egison.Type.Unify (unifyStrict)
 import           Language.Egison.Type.Subst (Subst, emptySubst, composeSubst, applySubst)
-import           Language.Egison.Type.Join  (isSubtype)
+import           Language.Egison.Type.Subtype (SubtypeEnv, isSubtypeWith, sameCasHead)
 
 -- | Single-type lookup. Used by sites that intentionally check only the
 -- principal class type (e.g. Tensor unwrapping in `Type/Infer.hs`).
@@ -80,41 +80,51 @@ data AmbiguityError
 -- subtype of every other candidate's principal type (= the minimum element
 -- in the subtype partial order). If no unique minimum exists, returns an
 -- ambiguity error.
-findMostSpecificInstance :: Type -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
-findMostSpecificInstance target insts =
-  case filter (\inst -> isCompatible target (instType inst)) insts of
+--
+-- The subtype order is the declared CAS order (complete skeleton plus
+-- `declare cas-subtype` edges), so user-declared embeddings participate
+-- in dispatch the same way built-in tower embeddings do.
+findMostSpecificInstance :: SubtypeEnv -> Type -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
+findMostSpecificInstance edges target insts =
+  case filter (\inst -> isCompatible edges target (instType inst)) insts of
     []  -> Left NoMatchingInstance
     [x] -> Right x
     cs  ->
       let isMostSpecific x =
             all (\y -> instType y == instType x
-                       || isSubtype (instType x) (instType y))
+                       || isSubtypeWith edges (instType x) (instType y))
                 cs
           mostSpecific = filter isMostSpecific cs
       in case mostSpecific of
            [unique] -> Right unique
            []       -> Left AmbiguousIncomparable
-           _        -> Left AmbiguousMultipleMaxima
+           -- Several most-specific candidates are order-equivalent (same
+           -- value set, different canonical forms): follow the target's
+           -- representation head.
+           several  ->
+             case filter (sameCasHead target . instType) several of
+               [unique] -> Right unique
+               _        -> Left AmbiguousMultipleMaxima
 
 -- | A target is compatible with an instance type. The check is mode-aware:
 -- if the instance type has free type variables (e.g. `Eq a`, `Coerce a [a]`),
 -- we fall back to strict unification so type-variable instances can match.
 -- Otherwise the instance is fully concrete and we require the target to be
 -- a subtype of it (no cross-CAS-type slippage from unifyStrict's broad rules).
-isCompatible :: Type -> Type -> Bool
-isCompatible target inst
+isCompatible :: SubtypeEnv -> Type -> Type -> Bool
+isCompatible edges target inst
   | not (Set.null (freeTyVars inst)) = case unifyStrict inst target of
       Right _ -> True
       Left _  -> False
-  | otherwise = isSubtype target inst
+  | otherwise = isSubtypeWith edges target inst
 
 -- | Multi-parameter version of `findMostSpecificInstance`.
 -- Generalises the single-target specificity rule pairwise: instance A is
 -- "more specific" than instance B if A's type list is pointwise a subtype
 -- of B's type list (and A != B). Single-param classes (one target type) get
 -- the same behaviour as `findMostSpecificInstance`.
-findMostSpecificInstanceForTypes :: [Type] -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
-findMostSpecificInstanceForTypes targets insts =
+findMostSpecificInstanceForTypes :: SubtypeEnv -> [Type] -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
+findMostSpecificInstanceForTypes edges targets insts =
   case filter (\inst -> isCompatibleAll targets (instTypes inst)) insts of
     []  -> Left NoMatchingInstance
     [x] -> Right x
@@ -127,11 +137,17 @@ findMostSpecificInstanceForTypes targets insts =
       in case mostSpecific of
            [unique] -> Right unique
            []       -> Left AmbiguousIncomparable
-           _        -> Left AmbiguousMultipleMaxima
+           several  ->
+             case filter (sameHeadAll targets . instTypes) several of
+               [unique] -> Right unique
+               _        -> Left AmbiguousMultipleMaxima
   where
+    sameHeadAll ts is
+      | length ts /= length is = False
+      | otherwise = and (zipWith sameCasHead ts is)
     isCompatibleAll ts is
       | length ts /= length is = False
-      | otherwise = and (zipWith isCompatible ts is)
+      | otherwise = and (zipWith (isCompatible edges) ts is)
     isSubtypeList xs ys
       | length xs /= length ys = False
-      | otherwise = and (zipWith isSubtype xs ys)
+      | otherwise = and (zipWith (isSubtypeWith edges) xs ys)

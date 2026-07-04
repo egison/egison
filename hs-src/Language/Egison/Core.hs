@@ -77,7 +77,7 @@ import           Language.Egison.RState
 import           Language.Egison.Tensor
 import           Language.Egison.Type.Types      (Type(..))
 import qualified Language.Egison.Type.RuntimeType as RT
-import           Language.Egison.Type.Join       (isSubtype)
+import           Language.Egison.Type.Subtype    (SubtypeEnv, isSubtypeWith, sameCasHead)
 
 -- | Get the Type of an EgisonValue
 -- Used for type class method dispatch
@@ -638,7 +638,8 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
         _ -> throwErrorWithTrace
                (TypeMismatch ("CASData (for " ++ className ++ "." ++ methodName ++ " runtime dispatch)") firstWhnf)
       let rt = RT.runtimeTypeOfCAS cv
-      case findBestRuntimeCandidate rt candidates of
+      edges <- getCasSubtypeEdges
+      case findBestRuntimeCandidate edges rt candidates of
         Just dictName -> do
           -- Look up the dictionary and index it with the method name —
           -- once, not via re-emitted IExpr.
@@ -653,19 +654,26 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
               ++ className ++ " on value of runtime type " ++ show rt
   where
     -- Pick the dictionary name whose instance type is the most specific
-    -- supertype of `target`. Mirrors `findMostSpecificInstance` in
+    -- supertype of `target`, in the declared CAS order (skeleton +
+    -- `declare cas-subtype` edges). Mirrors `findMostSpecificInstance` in
     -- Type.Instance, but specialised to (Type, dictName) pairs.
-    findBestRuntimeCandidate :: Type -> [(Type, String)] -> Maybe String
-    findBestRuntimeCandidate target cands =
-      case filter (\(t, _) -> isSubtype target t) cands of
+    findBestRuntimeCandidate :: SubtypeEnv -> Type -> [(Type, String)] -> Maybe String
+    findBestRuntimeCandidate edges target cands =
+      case filter (\(t, _) -> isSubtypeWith edges target t) cands of
         []        -> Nothing
         [(_, dn)] -> Just dn
         cs        ->
           let isMostSpec (t, _) =
-                all (\(t', _) -> t == t' || isSubtype t t') cs
+                all (\(t', _) -> t == t' || isSubtypeWith edges t t') cs
           in case filter isMostSpec cs of
                [(_, dn)] -> Just dn
-               _         -> Nothing  -- ambiguous
+               -- Order-equivalent most-specific candidates (same value
+               -- set, different canonical forms): follow the target's
+               -- representation head.
+               several   ->
+                 case filter (\(t, _) -> sameCasHead target t) several of
+                   [(_, dn)] -> Just dn
+                   _         -> Nothing  -- ambiguous
 
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 

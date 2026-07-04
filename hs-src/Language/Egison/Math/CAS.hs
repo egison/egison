@@ -91,9 +91,10 @@ module Language.Egison.Math.CAS
     , casSingleTermM
     ) where
 
-import           Data.List (sortBy, groupBy, intercalate)
+import           Data.List (sortBy, groupBy, intercalate, nub)
 import           Data.Ord (comparing)
 import           Data.Function (on)
+import           Data.Ratio ((%), numerator, denominator)
 
 import           Control.Egison
 import           Control.Monad (MonadPlus (..))
@@ -746,12 +747,19 @@ casNormalizeFrac num denom =
              ts' = map (divTermByMonomial denomCoef denomMono) numTerms
          in casNormalizePoly ts'
        -- Poly / Poly (non-monomial denominator): try to reduce by monomial GCD,
-       -- otherwise keep as level 5 Frac.
+       -- then by the univariate polynomial GCD; otherwise keep as level 5 Frac.
+       -- After a proper polynomial-GCD reduction we re-enter casNormalizeFrac:
+       -- the reduced pair is coprime (the second pass finds a constant GCD and
+       -- stops), and a denominator that collapsed to a constant or a monomial
+       -- is absorbed by the earlier branches.
        (CASPoly ts1, CASPoly ts2) ->
          let (ts1', ts2') = simplifyPolyDiv ts1 ts2
          in case (ts1', ts2') of
               (ts1'', [CASTerm (CASInteger 1) []]) -> casNormalizePoly ts1''
-              _ -> CASFrac (casNormalizePoly ts1') (casNormalizePoly ts2')
+              _ -> case univariateGcdReduce ts1' ts2' of
+                     Just (ts1'', ts2'') ->
+                       casNormalizeFrac (casNormalizePoly ts1'') (casNormalizePoly ts2'')
+                     Nothing -> CASFrac (casNormalizePoly ts1') (casNormalizePoly ts2')
        -- a / (b / c) = (a * c) / b
        (n, CASFrac b c) -> casNormalizeFrac (casMult n c) b
        -- (a / b) / c = a / (b * c)
@@ -922,6 +930,103 @@ casTermsGcd terms = foldl1 termGcd terms
   where
     termGcd (CASTerm c1 m1) (CASTerm c2 m2) =
       CASTerm (casGcd c1 c2) (monoGcd m1 m2)
+
+-- | Reduce a Poly/Poly fraction by the univariate polynomial GCD over Q,
+-- e.g. (x^2 - 1)/(x - 1) -> (x + 1)/1.
+--
+-- Stage-1 scope (design/type-cas-tower-implementation.md section 7): both
+-- term lists must be univariate in the SAME single symbol with positive
+-- exponents (the common monomial content has already been divided out by
+-- 'simplifyPolyDiv', but per-side Laurent exponents may remain — those
+-- bail out) and integer or integer-fraction coefficients. Anything else
+-- returns Nothing and the fraction is left untouched.
+--
+-- The reduced pair is rescaled by a COMMON factor — integer coefficients,
+-- joint content 1, positive leading denominator coefficient — so the
+-- fraction's value is preserved exactly.
+univariateGcdReduce :: [CASTerm] -> [CASTerm] -> Maybe ([CASTerm], [CASTerm])
+univariateGcdReduce ts1 ts2
+  | null ts1 || null ts2 = Nothing
+  | otherwise = do
+      sym <- singleCommonSymbol
+      p1 <- toDense sym ts1
+      p2 <- toDense sym ts2
+      let g = polyGcdQ p1 p2
+      if length g < 2  -- constant gcd: nothing to reduce
+        then Nothing
+        else do
+          q1 <- exactDivQ p1 g
+          q2 <- exactDivQ p2 g
+          let l  = foldr (lcm . denominator) 1 (q1 ++ q2)
+              i1 = map (numerator . (* (l % 1))) q1
+              i2 = map (numerator . (* (l % 1))) q2
+              c0 = foldr gcd 0 (i1 ++ i2)
+              c  = if c0 == 0 then 1 else c0
+              d  = if head i2 < 0 then negate c else c
+          return (fromDense sym (map (`div` d) i1), fromDense sym (map (`div` d) i2))
+  where
+    -- Euclid on dense rationals is cheap for the degrees CAS code meets;
+    -- the cutoff only guards against pathological inputs.
+    maxGcdDegree :: Integer
+    maxGcdDegree = 200
+
+    singleCommonSymbol =
+      case nub [ s | CASTerm _ m <- ts1 ++ ts2, (s, _) <- m ] of
+        [s] -> Just s
+        _   -> Nothing
+
+    coefToRational (CASInteger n) = Just (n % 1)
+    coefToRational (CASFrac (CASInteger a) (CASInteger b))
+      | b /= 0 = Just (a % b)
+    coefToRational _ = Nothing
+
+    termExponent sym (CASTerm _ m) = case m of
+      []                           -> Just 0
+      [(s, e)] | s == sym && e > 0 -> Just e
+      _                            -> Nothing
+
+    -- Dense, highest-degree-first coefficient list over Q.
+    toDense sym ts = do
+      pairs <- mapM (\t@(CASTerm c _) ->
+                       (,) <$> termExponent sym t <*> coefToRational c) ts
+      let deg = maximum (map fst pairs)
+      if deg > maxGcdDegree
+        then Nothing
+        else Just [ sum [ c | (e, c) <- pairs, e == d ] | d <- [deg, deg-1 .. 0] ]
+
+    fromDense sym cs =
+      [ CASTerm (CASInteger c) (if e == 0 then [] else [(sym, e)])
+      | (e, c) <- zip [toInteger (length cs) - 1, toInteger (length cs) - 2 .. 0] cs
+      , c /= 0 ]
+
+    trim = dropWhile (== 0)
+
+    -- Position-preserving long division (no mid-loop trimming: a zero that
+    -- appears at the head after cancellation is a zero QUOTIENT coefficient,
+    -- not a shorter polynomial). One quotient coefficient per step.
+    polyDivModQ x0 y0 =
+      let y = trim y0
+          m = length y
+          go r | length r < m = ([], r)
+               | otherwise =
+                   let k  = head r / head y
+                       r' = zipWith (-) (tail r)
+                                        (map (* k) (tail y ++ replicate (length r - m) 0))
+                       (qs, rest) = go r'
+                   in (k : qs, rest)
+      in go (trim x0)
+
+    polyGcdQ a b = go (trim a) (trim b)
+      where
+        go x [] = monic x
+        go x y  = go y (trim (snd (polyDivModQ x y)))
+
+    monic []        = []
+    monic xs@(x0:_) = map (/ x0) xs
+
+    exactDivQ x y =
+      let (q, r) = polyDivModQ x y
+      in if all (== 0) r then Just q else Nothing
 
 -- | GCD of two monomials: take minimum exponent for each shared symbol
 monoGcd :: Monomial -> Monomial -> Monomial

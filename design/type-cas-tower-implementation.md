@@ -93,13 +93,13 @@
 
 - **実装**: AST `DeclareCasSubtype` / parser `declare cas-subtype A ⊂ B` (ASCII 代替 `<:` 両対応) / **`Type/Subtype.hs` 新設**:
   1. `skeletonSubtype` — 設計の包含表を係数再帰まで完全化 (nested ↔ flat は**意図的に無関係** = 宣言辺の存在理由)
-  2. `skeletonJoin` — 設計 join 表どおり (**level 2 ⊔ level 3 = level 4 を実装**。旧 `Type/Join.joinTypes` は level 5 を返す設計不一致があるが、呼び出し元ゼロのため温存 — §7)
+  2. `skeletonJoin` — 設計 join 表どおり (**level 2 ⊔ level 3 = level 4 を実装**。level 5 を返す設計不一致があった旧 `Type/Join.joinTypes` はリファクタで削除済み、`Type/Join.hs` 自体も 2026-07-05 の一本化で削除)
   3. `isSubtypeWith` / `joinTypesWith` — 宣言辺込みの順序 (worklist 閉包 + 極小上界の一意性)
   4. `checkEdgeAddition` — D1 検査 5 分類 (OK / 冗長 / 循環 / 曖昧 + 完備化提案 / 細化)
 - EnvBuilder が prepass で辺を収集し宣言順に D1 検査: 冗長 → warning + **保存** (端点を後続検査のノード集合に残す)、循環・曖昧 (提案つき)・非 CAS → エラー、細化 → witness つき warning。`EvalState.casSubtypeEdges` でバッチ跨ぎ永続
 - **検証**: mini-test 127 (EdgeOk 2 種・冗長 warning・評価非干渉)。誤りパス 5 種を確認 — 曖昧性エラーは usecase 08 どおり**数学的に真の完備化辺を提案** (`Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]`)、完備化後は受理 (冗長化)、細化 warning は witness (`join(Poly Integer [i], Poly Integer [x]): Poly Integer [i, x] -> Poly (Poly Integer [i]) [x]`) つき。回帰: 代表 7 sample エラーゼロ・mini-test 90/90・cabal test PASS
 - **既知の近似**: ペア列挙は宣言ノード集合上の有限近似 — 骨格のみで target の下に入る型は、どこかでノード宣言 (冗長辺でよい) されていなければ検査対象外。反例駆動で精密化 (§7)
-- **未接続 (意図的)**: instance 解決 (`Type/Join.isSubtype`) と型推論への動的順序の配線は dispatch への影響評価が必要なため保留 (§7)。現状の辺の意味論的効果は宣言時検証のみ — これは D1 の設計どおり (join は現状 static footprint を持たない)
+- ~~**未接続 (意図的)**~~ **2026-07-05 に両方接続済み** (§7): instance 解決は `Subtype.isSubtypeWith` (完全骨格 + 宣言辺 + 順序同値 tie-break) に一本化、動的順序は適用位置 CAS join として推論に配線 (`InferState.inferCasSubtypeEdges` に per-top-expr で種付け)。辺の意味論的効果は宣言時検証 + join 計算の両方になった
 
 ---
 
@@ -172,8 +172,9 @@
 | alias 逆引き表示 | 同一展開型に複数 alias がある場合の表示の一意性 | 宣言順優先で固定 |
 | 商型の fallback 遮断 | sibling fallback の例外化が既存 typeclass 解決に波及しないか | q1 で mini-test を先に書く |
 | ~~`Type/Join.joinTypes` の設計不一致~~ (**解消**: 2026-07-04 リファクタで削除) | 旧実装 (Poly ⊔ Frac → level 5) は呼び出し元ゼロの dead code だったため、`JoinError`/`joinCoeff`/`extractCoeff`/`joinSymbolSets` ごと削除。join は `Type/Subtype.skeletonJoin` (設計どおり level 4) に一本化された | — |
-| **isSubtype の二重化** (β の意図的判断) | instance 解決は旧 `Join.isSubtype` (部分的な骨格) のまま。完全骨格 `Subtype.skeletonSubtype` に切り替えると適用可能 instance が広がり dispatch が変わりうる | 影響評価 + 全回帰つきで別途一本化 (γ′ 以降) |
-| **暗黙 join の推論未配線** (usecase 実行可能化で顕在化、2026-07-04) | 閉じた原子集合が異なる operand の `+` は typeclass の単一化 (`a -> a -> a`) で型エラーになる (例: `GaussianInt + Zsqrt2`)。runtime の値は正しく計算できるのに static が先に落ちる | 当面は明示注釈で共通型へ上げる (usecase 06 に記載)。恒久対応は `joinTypesWith` の二項演算推論への配線 — isSubtype 一本化と同じ影響評価枠で実施 |
+| ~~**isSubtype の二重化**~~ **解消 (2026-07-05)** | instance 解決 (`Type/Instance` の静的マッチング + `Core` の runtime dispatch) を完全骨格 + 宣言辺 (`Subtype.isSubtypeWith`) に一本化し、旧 `Type/Join.hs` を削除。影響評価で発見した dispatch 回帰が 1 件: 完全骨格では `Poly MathValue [..]` と `Frac MathValue` が**順序同値** (MathValue 係数のときだけ相互埋め込みが成立) になり最特異が曖昧化 → 「順序同値な候補 = 同じ値集合の異なる正規形」なので **target の頭部構成子で tie-break** (`sameCasHead`、設計原理「型は表現を選ぶ」どおり) を導入して解消。全回帰 green | — |
+| ~~**暗黙 join の推論未配線**~~ **配線済み (2026-07-05)** | 適用位置 CAS join を実装: apply 推論で operand の単一化が CAS 型同士で失敗したとき (実質: 非可換な閉原子集合、例 `GaussianInt + Zsqrt2`)、`joinTypesWith` で一意 join を計算し、join 以下の CAS 引数すべてに `TIReshape` を挿入して単一化フェーズを 1 回だけ再試行 (`Infer.inferIApplicationWithContext`)。**join は unifier に入れない** (単一化は対称・coercion なし) — 昇格は D5 どおり適用位置の casReshapeAs 挿入。商型 (TInductive、非 CAS) には発火せず M4 の明示横断は維持。再試行も失敗した場合は元のエラーを報告。検収 = usecase 06 (自然形 `def c := a + b`)・mini-test/130 | — |
+| ~~**多項式 GCD の欠如**~~ **第 1 段実装 (2026-07-05)** | `casNormalizeFrac` の Poly/Poly 分岐に単変数多項式 GCD (`univariateGcdReduce`、ℚ 上 Euclid、次数上限 200) を配線: `(x²−1)/(x−1) → x+1`。約分後は num/den を**共通の**倍率で整数係数・joint content 1・分母先頭正に正規化 (値保存)。同一シンボル単変数・整数(分数)係数のみ対象で、それ以外は従来どおり素通し。多変数 (content/PRS) は第 2 段として保留。検収 = mini-test/131 | 多変数は必要になったら subresultant PRS で拡張 |
 | reduce closure の束縛順序 | `declare cas-quotient` の reduce がユーザ関数を参照する場合の prepass/eval 順序 | `preBindDeclaredSymbols` の前例に倣う |
 
 ---

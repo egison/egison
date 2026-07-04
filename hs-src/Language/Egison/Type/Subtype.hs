@@ -24,16 +24,19 @@ declared, including redundant edges) — a finite approximation of the
 full scheme-level check, to be refined counterexample-driven
 (implementation plan, section 7).
 
-Note: `Type.Join.isSubtype` (used by instance resolution) intentionally
-still implements the older, partial skeleton; switching instance
-resolution to this module's complete skeleton is deferred until its
-dispatch impact is assessed.
+This order also backs instance resolution (Type.Instance and Core's
+runtime dispatch) through 'isSubtypeWith', which additionally treats
+'TAny' as the top element for arbitrary (non-CAS) instance types. The
+older, partial relation that instance resolution used to carry
+separately ('Type.Join.isSubtype') has been retired.
 -}
 
 module Language.Egison.Type.Subtype
   ( SubtypeEdge
   , SubtypeEnv
   , isCasType
+  , symbolSetSubset
+  , sameCasHead
   , skeletonSubtype
   , skeletonJoin
   , isSubtypeWith
@@ -44,7 +47,6 @@ module Language.Egison.Type.Subtype
 
 import           Data.List                  (nub)
 
-import           Language.Egison.Type.Join  (symbolSetSubset)
 import           Language.Egison.Type.Types (SymbolSet (..), Type (..))
 
 -- | A declared subtype edge (lhs ⊂ rhs), with cas-type aliases expanded.
@@ -63,6 +65,29 @@ isCasType (TTerm t _)  = isCasType t
 isCasType (TPoly t _)  = isCasType t
 isCasType (TFrac t)    = isCasType t
 isCasType _            = False
+
+-- | Same top-level CAS constructor. Instance dispatch uses this to break
+-- ties among order-EQUIVALENT most-specific candidates: with the complete
+-- skeleton, types like Poly MathValue [..] and Frac MathValue embed into
+-- each other (constant embedding one way, numerator embedding the other —
+-- only possible at the MathValue-coefficient level, where both denote the
+-- full value domain). Order-equivalent types are the same value set in
+-- different canonical forms, so specificity cannot decide between them;
+-- per the design principle (types select representations), dispatch
+-- follows the target's own representation head.
+sameCasHead :: Type -> Type -> Bool
+sameCasHead (TPoly _ _) (TPoly _ _) = True
+sameCasHead (TTerm _ _) (TTerm _ _) = True
+sameCasHead (TFrac _)   (TFrac _)   = True
+sameCasHead a b = a == b
+
+-- | Check if one symbol set is a subset of another.
+symbolSetSubset :: SymbolSet -> SymbolSet -> Bool
+symbolSetSubset _ SymbolSetOpen = True  -- Everything is subset of open
+symbolSetSubset SymbolSetOpen (SymbolSetClosed _) = False  -- Open not subset of closed
+symbolSetSubset (SymbolSetClosed s1) (SymbolSetClosed s2) = all (`elem` s2) s1
+symbolSetSubset (SymbolSetVar _) _ = True  -- Assume vars are subset (will be resolved)
+symbolSetSubset _ (SymbolSetVar _) = True
 
 --------------------------------------------------------------------------------
 -- Structural skeleton
@@ -169,7 +194,11 @@ unionSymbolSets ss (SymbolSetVar _) = Just ss
 -- through declared edges (entering an edge from anything skeleton-below
 -- its source). Worklist over edge targets; terminates because the
 -- visited set only grows within the finite edge-target set.
+-- TAny is the top element (instance resolution compares arbitrary
+-- instance types through this relation, and TAny-typed heads accept
+-- everything; TAny never occurs in declared CAS edges).
 isSubtypeWith :: SubtypeEnv -> Type -> Type -> Bool
+isSubtypeWith _ _ TAny = True
 isSubtypeWith edges a b = go [a] [a]
   where
     go [] _ = False

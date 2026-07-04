@@ -8,7 +8,7 @@
 > for f in design/cas-tower-usecases/0*.egi; do gtimeout 30 cabal run egison -- -t "$f"; done
 > ```
 >
-> 唯一の既知の制限は 06 に明記: 閉じた原子集合が異なる operand の暗黙 join は推論に未配線 (明示注釈で共通型へ上げる。implementation.md §7)。
+> **2026-07-05 更新**: 暗黙 join が推論に配線された (適用位置 CAS join — implementation.md §7)。06 は明示注釈なしの自然形 `def c := a + b` で通る。
 
 **収録基準 (2026-07-04)**: **本機構で簡潔に書けるものだけ**を置く。確定済みの設計判断 D1–D5 ([type-cas-tower.md §8](../type-cas-tower.md)) の構文・意味論に整合し、`...` の穴や長いアルゴリズム本体を含まないこと。基準を満たさないものは [deferred/](./deferred/) に隔離する。
 

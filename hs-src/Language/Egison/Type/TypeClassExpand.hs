@@ -61,10 +61,12 @@ import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
 -- order; fall back to the first unifying instance if specificity returns
 -- an ambiguity error or no match. This keeps backward compatibility while
 -- enabling deterministic specialization (see design/runtime-type-dispatch.md
--- §4).
-findInstanceForDispatch :: [Type] -> [InstanceInfo] -> Maybe InstanceInfo
-findInstanceForDispatch tys insts =
-  case findMostSpecificInstanceForTypes tys insts of
+-- §4). Runs in EvalM to consult the declared CAS subtype order
+-- (`declare cas-subtype` edges) alongside the structural skeleton.
+findInstanceForDispatch :: [Type] -> [InstanceInfo] -> EvalM (Maybe InstanceInfo)
+findInstanceForDispatch tys insts = do
+  edges <- getCasSubtypeEdges
+  return $ case findMostSpecificInstanceForTypes edges tys insts of
     Right inst -> Just inst
     Left _     -> findMatchingInstanceForTypes tys insts
 
@@ -530,7 +532,8 @@ expandTypeClassMethodsT tiExpr = do
                       -- Concrete type: find matching instance using all
                       -- constraint types (single-param classes pass [t]).
                       let instances = lookupInstances className classEnv'
-                      case findInstanceForDispatch tyArgs instances of
+                      mInst <- findInstanceForDispatch tyArgs instances
+                      case mInst of
                         Just inst -> do
                           -- Found instance: eta-expand with concrete dictionary
                           typeEnv <- getTypeEnv
@@ -805,8 +808,9 @@ expandTypeClassMethodsT tiExpr = do
                 let candidates = runtimeDispatchCandidates instances
                 return $ Just $
                   TIRuntimeDispatch ownerClass methodKey candidates expandedArgs
-              else
-                case findInstanceForDispatch actualTypes instances of
+              else do
+                mInst <- findInstanceForDispatch actualTypes instances
+                case mInst of
                   Just inst -> do
                     let instTypeName = concatMap typeToName (instTypes inst)
                         dictName = lowerFirst ownerClass ++ instTypeName
@@ -857,7 +861,8 @@ expandTypeClassMethodsT tiExpr = do
         _ -> do
           -- Concrete type: find matching instance using all constraint types.
           let instances = lookupInstances className classEnv
-          case findInstanceForDispatch tyArgs instances of
+          mInst <- findInstanceForDispatch tyArgs instances
+          case mInst of
             Just inst -> do
               -- Found instance: generate dictionary name (e.g., "numInteger", "eqCollection")
               let instTypeName = concatMap typeToName (instTypes inst)
@@ -1298,7 +1303,8 @@ applyConcreteConstraintDictionaries expr = do
                               _    -> t
           normalizedTypes = map normalizeType tyArgs
           instances = lookupInstances className classEnv
-      case findInstanceForDispatch normalizedTypes instances of
+      mInst <- findInstanceForDispatch normalizedTypes instances
+      case mInst of
         Just inst -> do
           -- Generate dictionary name (e.g., "eqInteger", "numInteger")
           let instTypeName = concatMap typeToName (instTypes inst)

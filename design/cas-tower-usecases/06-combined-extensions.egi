@@ -39,11 +39,10 @@ declare cas-type ZiSqrt2 := Poly Integer [i, sqrt2]
 def a : GaussianInt := 1 + i
 def b : Zsqrt2 := 1 + sqrt2
 
--- 制限 (2026-07-04 時点): 閉じた原子集合同士の暗黙 join は推論に未配線
--- (implementation.md §7 — 動的順序の推論配線は dispatch 影響評価つきで保留)。
--- `a + b` を直接書くと (+) の単一化が [i] と [sqrt2] で失敗するため、
--- 明示注釈で共通の上位型に上げてから演算する:
-def c : ZiSqrt2 := (a : ZiSqrt2) + (b : ZiSqrt2)
+-- 暗黙 join (2026-07-04 配線済み): [i] と [sqrt2] は単一化不能だが、適用位置で
+-- join = Poly Integer [i, sqrt2] が計算され、両 operand に reshape が挿入される
+-- (mini-test/130)。明示注釈なしの自然な形で書ける:
+def c := a + b
 inspect c        -- 表示: 2 + i + sqrt2 相当 (flat [i, sqrt2] 形)
 assertEqual "sum in the combined ring" ((c - (2 + i + sqrt2)) = 0) True
 
