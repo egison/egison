@@ -1,32 +1,23 @@
--- Use case 02: 代数拡大 Z[i] = Gaussian integers (Phase α + 既存 declare rule + typeclass)
+-- Use case 02: 代数拡大 Z[i] = Gaussian integers (Phase α + 既存 declare rule)
 --
 -- Intent:
---   虚数単位 i の最小多項式 i^2 = -1 を declare rule で登録し、
---   `Z[i]` を `Poly Integer [i]` の alias として扱う。
---   さらに、`Z[i]` が Euclidean domain (UFD) であることを利用して、
---   既存の typeclass hierarchy (Ring → GCDDomain → EuclideanDomain → UFD)
---   に instance を提供。これにより `gcd`, `divMod`, `factor`, `isPrime` 等の
---   汎用 API が GaussianInt にも一様に使える。
+--   虚数単位 i の最小多項式 i^2 = -1 を declare rule で登録し (シンボル担持商 —
+--   D2、type-cas-quotient.md §2)、`Z[i]` を `Poly Integer [i]` の透明 alias として
+--   扱う。基本演算・共役・ノルムが既存機構 + Phase α だけで簡潔に書けることを示す。
 --
 -- Required machinery:
---   - Phase α (型 alias)
---   - 既存 typeclass: AddSemigroup, MulSemigroup, ..., Ring, GCDDomain, EuclideanDomain
---     (lib/core/base.egi で定義済)
---   - 新 typeclass: `UFD` (UniqueFactorizationDomain) with `isPrime` and `factor`
---     (Integer 用に既存の `isPrime` / `primeFactors` があるが class 化されてない)
---   - 既存 `declare rule auto term i^2 = -1`
+--   - Phase α (透明型 alias、D3)
+--   - 既存 `declare rule auto term i^2 = -1` (大域規則)
+--   - 既存 `substitute` (conj 用)
 --
--- Open questions:
---   - typeclass instance の dispatch: `gcd (1+i) (3+2i)` で `EuclideanDomain GaussianInt`
---     instance が呼ばれる。`MathValue` の instance との競合は?
---     → GaussianInt は MathValue の subtype なので、より specific な instance を
---       優先する必要がある。既存の type class resolver が specificity に対応
---       しているか要確認 (Type/TypeClassResolve.hs)
---   - `factor` の戻り値型: `[(GaussianInt, Integer)]` (素因数, 重複度) で良いか?
---     unit (±1, ±i) の処理はどうする?
---     → `factor` は (unit, [(prime, multiplicity)]) のタプルで返す方針
---   - declare instance を新型に書く負担: typeclass derivation 機構があると楽
---     `deriving (Ring, EuclideanDomain)` のような構文が将来欲しい
+-- Resolved (2026-07-04, D3):
+--   - GaussianInt は透明エイリアスなので、Ring 系の構造的 instance (パターン1) は
+--     Poly Integer [i] のものがそのまま適用され、個別宣言は不要
+--
+-- Note (2026-07-04): Euclidean 構造 (divMod/gcd) と UFD 素因数分解は
+--   deferred/gaussian-factorization.egi に分離した。パターン2 instance として
+--   機構的には書けるが、丸めや factor アルゴリズム本体が長く
+--   「簡潔に書ける」基準を満たさないため。
 --
 -- Tests:
 
@@ -35,8 +26,9 @@ declare rule auto term i^2 = -1
 declare cas-type GaussianInt := Poly Integer [i]
 
 --
--- Section 1: 基本演算 (既存 Ring instance を流用)
+-- Section 1: 基本演算 (既存 Ring instance をそのまま流用)
 --
+
 def z1 : GaussianInt := 2 + 3 * i
 def z2 : GaussianInt := 1 - i
 
@@ -49,187 +41,18 @@ assertEqual "Gaussian square (1+i)^2 = 2i"
   (2 * i)
 
 --
--- Section 2: 共役・ノルム
+-- Section 2: 共役・ノルム (substitute で 1 行)
 --
+
 def conj (z : GaussianInt) : GaussianInt :=
-  -- z = a + b*i → a - b*i
-  -- termExpr matcher で i の係数 term だけ符号反転
-  match z as termExpr with
-    | term $a [(i, 1)] :: $rest -> -a*i + (foldl (+) 0 (map (\(c, ms) -> c * (foldl (*) 1 (map (\(p, k) -> p^k) ms))) rest))
-    | _ -> z   -- i を含まなければ実数なので unchanged
+  (substitute [(i, - i)] z : GaussianInt)
+  -- i ↦ -i の代入だけで書ける (substitute は MathValue 上の既存関数、
+  -- 式レベル注釈が reshape を挿入)。matcher での係数分解は不要
 
 def norm (z : GaussianInt) : Integer := coerce (z * conj z)
-  -- 期待: norm(a + b*i) = a^2 + b^2 (Integer)
-  -- coerce: Frac → Integer (denom=1 の確認込み)
+  -- z * conj z は i^2 = -1 の規則で実数に落ちる。coerce (注釈 reshape) で Integer へ
 
 assertEqual "norm(3+4i) = 25" (norm (3 + 4*i)) 25
 assertEqual "norm(1+i) = 2" (norm (1 + i)) 2
 assertEqual "norm(5) = 25" (norm 5) 25
 assertEqual "conj(3+4i) = 3-4i" (conj (3 + 4*i)) (3 - 4*i)
-
---
--- Section 3: Z[i] の Euclidean structure (instance)
---
--- 既存 typeclass: EuclideanDomain a extends GCDDomain a where
---                   divMod (x: a) (y: a) : (a, a)
-
-instance AddSemigroup GaussianInt where
-  (+) x y := plusForMathValue x y     -- 既存 MathValue の演算を継承
-instance AddMonoid GaussianInt where
-  zero := 0
-instance AddGroup GaussianInt where
-  neg x := minusForMathValue 0 x
-instance MulSemigroup GaussianInt where
-  (*) x y := multForMathValue x y
-instance MulMonoid GaussianInt where
-  one := 1
-instance Ring GaussianInt
-
-instance EuclideanDomain GaussianInt where
-  divMod x y :=
-    -- Gaussian division: x/y = (x * conj y) / norm y を最近 Gaussian 整数に丸める
-    let conj_y := conj y
-        nm     := norm y                            -- Integer
-        num    := x * conj_y                        -- GaussianInt
-        -- num の実部・虚部を取り出して nm で割って round
-        re     := -- num の実部 (1 の係数) / nm を round
-                  ...
-        im     := -- num の i の係数 / nm を round
-                  ...
-        q      := re + im * i                       -- 商の候補
-        r      := x - q * y                         -- 剰余
-     in (q, r)
-
-instance GCDDomain GaussianInt where
-  gcd x y :=
-    -- Euclidean algorithm: gcd(a, b) = if b = 0 then a else gcd(b, a mod b)
-    if y = 0
-      then x
-      else gcd y (modulo x y)
-
-assertEqual "gcd(2+3i, 1-i) = 1+0i (or unit)"
-  (gcd (2 + 3*i) (1 - i))
-  1   -- up to unit ±1, ±i
-
-assertEqual "gcd(6+8i, 4+4i) = 2+2i"
-  (gcd (6 + 8*i) (4 + 4*i))
-  (2 + 2 * i)
-
---
--- Section 4: 素数判定 (UFD instance)
---
--- 新 typeclass を追加 (lib/core/base.egi に提案):
---   class UFD a extends GCDDomain a where
---     isPrime (x : a) : Bool
---     factor  (x : a) : (a, [(a, Integer)])     -- (unit, [(prime, multiplicity)])
-
-instance UFD GaussianInt where
-  isPrime z :=
-    let n := norm z in
-      if n = 1
-        then False                          -- units (±1, ±i) は素元ではない
-      else if isPrime n
-        then True                           -- norm が Z で素数 → Gaussian prime
-      else if isSquare n && isPrime (i.sqrt n)
-        then True                           -- norm = p^2, p ≡ 3 mod 4 の場合
-        else False
-
-  factor z := factorGaussianInt z   -- 下記で定義
-
--- Gaussian 素因数分解アルゴリズム:
--- 1. norm(z) を Z で素因数分解
--- 2. 各 Z 素数 p について:
---    - p = 2: z は (1+i) で割れる回数を数える
---    - p ≡ 1 (mod 4): p = a^2 + b^2 と書ける、(a+bi) が Gaussian 素数。
---                     z を (a+bi) と (a-bi) で割る
---    - p ≡ 3 (mod 4): p 自体が Gaussian 素数。z を p で割る
--- 3. 残った unit を返す
-
-def factorGaussianInt (z : GaussianInt) : (GaussianInt, [(GaussianInt, Integer)]) :=
-  ...   -- 実装は割愛、概念的に上記アルゴリズム
-
---
--- 期待される結果
---
-
-assertEqual "5 = (1+2i) * (1-2i) * unit"
-  -- factor 5 should give units * (1+2i)^1 * (1-2i)^1 (or symmetric pairs)
-  (snd (factor (5 : GaussianInt)))
-  [(1 + 2*i, 1), (1 - 2*i, 1)]   -- prime factors with multiplicity
-
-assertEqual "2 = -i * (1+i)^2"
-  (factor (2 : GaussianInt))
-  ((-1) * i, [(1 + i, 2)])
-
-assertEqual "isPrime 7 in Z[i]"   -- 7 ≡ 3 mod 4, 自身が Gaussian 素数
-  (isPrime (7 : GaussianInt))
-  True
-
-assertEqual "isPrime 5 in Z[i]"   -- 5 = (1+2i)(1-2i), 合成数
-  (isPrime (5 : GaussianInt))
-  False
-
-assertEqual "isPrime (1+2i) in Z[i]"  -- norm 5 (素数) → 素数
-  (isPrime (1 + 2*i))
-  True
-
-assertEqual "isPrime (3) in Z[i]"   -- 3 ≡ 3 mod 4, 自身が Gaussian 素数
-  (isPrime (3 : GaussianInt))
-  True
-
---
--- Section 5: 既存 Z での素因数分解と比較
---
--- 既に動いている: sample/math/number/gaussian-primes.egi (norm ベース、generic)
--- 本 use case の追加価値:
---   - generic な `factor` / `isPrime` を `EuclideanDomain` typeclass で
---     dispatch することで、ユーザは型を切り替えるだけで動作が変わる
---   - 例えば `factor (n : Integer) = ...` と `factor (n : GaussianInt) = ...`
---     を同じ呼び出しで使い分けられる
---   - 既存の `lib/math/number/prime.egi` の `isPrime` を class 化して
---     overload 可能にすると、Eisenstein 整数 (Z[ω]) も同じパターンで足せる
-
-assertEqual "factor 12 in Integer"
-  (factor (12 : Integer))
-  (1, [(2, 2), (3, 1)])
-
-assertEqual "factor 12 in GaussianInt"
-  -- 12 = -i * (1+i)^4 * 3
-  (factor (12 : GaussianInt))
-  ((-1) * i, [(1 + i, 4), (3, 1)])
-
---
--- Section 6: GCDDomain typeclass を介した汎用関数の流用
---
--- 既存 lib に `def lcm a b := a * b / gcd a b` があれば、Z[i] でも自動で動く
-
-def lcm {EuclideanDomain a} (x : a) (y : a) : a := x * y `quotient` gcd x y
-
-assertEqual "lcm in Z[i]"
-  (lcm (2 + 3*i) (1 + 4*i))
-  ...   -- 期待値は手計算
-
--- 双子素数様の概念 (Gaussian primes in conjugate pairs)
-def gaussianPrimePairsUpTo (n : Integer) : [(GaussianInt, GaussianInt)] :=
-  -- norm ≤ n の Gaussian 素数で、共役ペアが両方とも素数になるもの
-  ...
-
---
--- Section 7: 設計上のメリット
---
--- 1. **型注釈一発で動作が変わる**:
---    `factor 12` は `Integer` (default) でも `GaussianInt` (注釈で指定) でも書ける
---
--- 2. **既存 generic 関数の流用**:
---    `lcm`, `gcd-coprime?`, `extended-gcd` 等の typeclass 上の汎用関数が
---    新型に declare instance するだけで動く
---
--- 3. **Phase β との連携**:
---    `Integer ⊂ GaussianInt` の subtype 宣言により、Integer リテラルが
---    GaussianInt に自動昇格。`factor (12 : GaussianInt)` の代わりに
---    `factor (12 + 0*i)` のように書ける
---
--- 4. **新代数構造への一般化**:
---    - Eisenstein 整数 Z[ω]: 同じ pattern (UFD instance) で書ける
---    - Z[√-2], Z[√-3], Z[(1+√-7)/2]: imaginary quadratic UFD
---    - これらに対し、汎用の `gcd`, `factor`, `isPrime` が一様に使える

@@ -1,4 +1,9 @@
--- Use case 09: 四元数 H (Phase ε — 新 CASValue 構造、非可換)
+-- (deferred) 四元数 H (Phase ε — 新 CASValue 構造、非可換)
+--
+-- 位置づけ (2026-07-04): **スコープ外 (将来課題)**。ε は実装・論文スコープから
+--   除外済み (tower.md §8 既定 3)。非可換乗算は可換性前提の CASTerm/Monomial
+--   表現では表せず、論文の主張 (順序・coherence・商) に新しい論点も足さない。
+--   本ファイルは将来のための aspirational sample として残す。
 --
 -- Intent:
 --   ハミルトン四元数 H = R + R*i + R*j + R*k (i² = j² = k² = ijk = -1)
@@ -24,7 +29,8 @@
 --
 -- Tests:
 
-declare cas-type Quaternion := <組込み>  -- 構文未定。新 CASValue constructor を持つ
+declare cas-type Quaternion := <組込み>  -- 構文未定。D3 で cas-type は透明 alias 専用に
+                                          -- なったため、ε では新構造用の宣言形が別途必要
 
 -- 構成
 def q1 : Quaternion := 1 + 2*i + 3*j + 4*k

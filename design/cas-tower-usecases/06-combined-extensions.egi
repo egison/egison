@@ -1,4 +1,4 @@
--- Use case 06: 複数代数拡大の組合せ Z[i, √2] (Phase α + β + γ)
+-- Use case 06: 複数代数拡大の組合せ Z[i, √2] (Phase α + β)
 --
 -- Intent:
 --   `Z[i]` と `Z[√2]` を両方使うとき、自動的に `Z[i, √2]` に昇格させたい。
@@ -8,15 +8,18 @@
 --   - Phase β: subtype 関係の lattice 計算
 --   - join: 各代数拡大の symbol set の和を取る
 --     `Poly Integer [i] ⊔ Poly Integer [sqrt2] = Poly Integer [i, sqrt2]`
---   - Phase γ: target type ごとに canonical form を選ぶ
+--   - (γ は不要になった: flat な原子集合の和だけで済み、正規形選択は発生しない
+--     — 2026-07-04 更新)
 --
--- Open questions:
---   - 自動的に「両方の symbol を持つ拡大」を生成する? それとも明示的 declare 要?
---     A. 明示的: ユーザが `declare cas-type ZiS2 := Poly Integer [i, sqrt2]` を書く
---     B. 自動: 既存の Poly subtype 規則が `[i] ∪ [sqrt2] = [i, sqrt2]` を計算
---     → B が自然 (現状のタワーが既に多変数 Poly の subtype を計算する)
---   - 代数拡大の minimal polynomial (i^2=-1, sqrt2^2=2) は declare rule で個別に
---     登録されている前提。両方アクティブな状態で計算する。
+-- Resolved (2026-07-04, D1/D3):
+--   - B で確定: join は骨格規則 (原子集合の和集合) が Poly Integer [i, sqrt2] を
+--     自動計算する。Z_i_sqrt2 のような alias は表示用の命名にすぎず、宣言の有無で
+--     join の結果は変わらない (透明エイリアス)。cas-subtype 宣言も不要
+--     (原子集合の包含は骨格規則で導出済み)
+--
+-- Notes:
+--   - 代数拡大の minimal polynomial (i^2=-1, sqrt2^2=2) は大域 declare rule で個別に
+--     登録されている前提 (シンボル担持商のパターン — D2、type-cas-quotient.md §2)
 --   - 代数 dependency: `i*sqrt2` と `sqrt(-2)` は等価 (体論的) だが、
 --     Egison は両者を別 symbol として扱う (denesting しない方針)
 --
@@ -60,11 +63,15 @@ def x : Z_i_sqrt2 := (1 + i + sqrt2)^4
 --       = ... (CAS で展開)
 inspect x
 
--- ノルム (4 つの共役の積)
-def norms (z : Z_i_sqrt2) : Integer :=
-  -- 4 つの自己同型 σ で (i,sqrt2) → (±i, ±sqrt2)
-  -- N(z) = ∏ σ(z) ∈ Z
-  -- ここでは概念だけ示す (本格実装は declare cas-subtype + galois 機構が要る)
-  ...
+-- Galois ノルム (4 つの共役の積 N(z) = ∏ σ(z) ∈ Z)。
+-- 旧版は「galois 機構が要る」として stub にしていたが、共役 = シンボルの
+-- 符号反転代入なので substitute で簡潔に書ける (2026-07-04 書き直し):
+def galoisNorm (z : Z_i_sqrt2) : Integer :=
+  coerce (z * (substitute [(i, - i)] z : Z_i_sqrt2)
+            * (substitute [(sqrt2, - sqrt2)] z : Z_i_sqrt2)
+            * (substitute [(i, - i), (sqrt2, - sqrt2)] z : Z_i_sqrt2))
 
--- ノルム計算が定義可能なら、Open: norms (1 + i + sqrt2) = ?
+assertEqual "N(1 + sqrt2) = 1"       (galoisNorm (1 + sqrt2)) 1    -- ((1+√2)(1-√2))^2
+assertEqual "N(1 + i) = 4"           (galoisNorm (1 + i)) 4        -- ((1+i)(1-i))^2
+assertEqual "N(1 + i + sqrt2) = 8"   (galoisNorm (1 + i + sqrt2)) 8
+  -- (4+2√2)(4-2√2) = 16 - 8 = 8 (旧版の open question の答え)

@@ -11,6 +11,11 @@
 --   - 既存の sqrt 機構との衝突回避: ユーザは生 symbol `sqrt2` を使う
 --     (組み込み `sqrt` 関数とは別)
 --
+-- 位置づけ (2026-07-04): これは「**シンボル担持商**」のパターン
+--   (type-cas-quotient.md §2)。商 Z[X]/(X^2 - 2) をシンボル sqrt2 が担い、
+--   シンボルの大域一意性がスコープを代替するため、大域 declare rule だけで健全
+--   (D2: 型スコープ規則は不要)。係数領域の商 (Z/nZ、07 参照) と違いタワー内に住む。
+--
 -- Open questions:
 --   - 既存の `sqrt 2` (lib の sqrt 関数呼び出し) と
 --     declare cas-type の `sqrt2` symbol の関係は?
@@ -38,12 +43,9 @@ assertEqual "(1 + √2)^2 = 3 + 2√2"
   (a^2)
   (3 + 2 * sqrt2)
 
--- 共役
+-- 共役 (substitute で 1 行 — matcher での係数分解は不要)
 def conj (z : Z_sqrt2) : Z_sqrt2 :=
-  -- sqrt2 の係数を符号反転 - termExpr matcher で処理
-  match z as termExpr with
-    | term $c (sqrt2, 1) :: $rest -> -c * sqrt2 + (foldl (+) 0 rest)
-    | _ -> z
+  (substitute [(sqrt2, - sqrt2)] z : Z_sqrt2)
 
 assertEqual "conj(3 + 2*sqrt2) = 3 - 2*sqrt2"
   (conj (3 + 2 * sqrt2))

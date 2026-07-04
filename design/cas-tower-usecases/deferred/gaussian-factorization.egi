@@ -1,0 +1,106 @@
+-- (deferred) Z[i] の Euclidean 構造・UFD 素因数分解
+--
+-- 02-gaussian-integers.egi から分離 (2026-07-04)。分離理由:
+--   パターン2 instance (型固有アルゴリズム) として設計スコープ内 — 機構的には
+--   書ける — が、divMod の実部/虚部の取り出しと丸め、factor のアルゴリズム本体が
+--   長く、「本機構で簡潔に書ける」という親ディレクトリの収録基準を満たさない。
+--   coefficient ベースの丸めが 1-2 行で書けるようになったら親へ戻す候補。
+--
+-- 前提 (02 と同じ宣言・定義):
+--   declare symbol i
+--   declare rule auto term i^2 = -1
+--   declare cas-type GaussianInt := Poly Integer [i]
+--   def conj (z : GaussianInt) : GaussianInt := (substitute [(i, - i)] z : GaussianInt)
+--   def norm (z : GaussianInt) : Integer := coerce (z * conj z)
+
+--
+-- Section 1: Z[i] の Euclidean structure (パターン2 instance)
+--
+-- 既存 typeclass: EuclideanDomain a extends GCDDomain a where
+--                   divMod (x: a) (y: a) : (a, a)
+
+instance EuclideanDomain GaussianInt where
+  divMod x y :=
+    -- Gaussian division: x/y = (x * conj y) / norm y を最近 Gaussian 整数に丸める
+    let conj_y := conj y
+        nm     := norm y                            -- Integer
+        num    := x * conj_y                        -- GaussianInt
+        re     := ...   -- num の 1 の係数 / nm を round (coefficient 利用)
+        im     := ...   -- num の i の係数 / nm を round
+        q      := re + im * i                       -- 商の候補
+        r      := x - q * y                         -- 剰余
+     in (q, r)
+
+instance GCDDomain GaussianInt where
+  gcd x y :=
+    if y = 0
+      then x
+      else gcd y (modulo x y)   -- Euclidean algorithm
+
+assertEqual "gcd(2+3i, 1-i) = 1 (up to unit)"
+  (gcd (2 + 3*i) (1 - i))
+  1   -- up to unit ±1, ±i
+
+assertEqual "gcd(6+8i, 4+4i) = 2+2i"
+  (gcd (6 + 8*i) (4 + 4*i))
+  (2 + 2 * i)
+
+--
+-- Section 2: 素数判定・素因数分解 (新 typeclass `UFD` の提案)
+--
+--   class UFD a extends GCDDomain a where
+--     isPrime (x : a) : Bool
+--     factor  (x : a) : (a, [(a, Integer)])     -- (unit, [(prime, multiplicity)])
+
+instance UFD GaussianInt where
+  isPrime z :=
+    let n := norm z in
+      if n = 1
+        then False                          -- units (±1, ±i) は素元ではない
+      else if isPrime n
+        then True                           -- norm が Z で素数 → Gaussian prime
+      else if isSquare n && isPrime (i.sqrt n)
+        then True                           -- norm = p^2, p ≡ 3 mod 4 の場合
+        else False
+
+  factor z := factorGaussianInt z
+
+-- Gaussian 素因数分解アルゴリズム:
+-- 1. norm(z) を Z で素因数分解
+-- 2. 各 Z 素数 p について:
+--    - p = 2: z が (1+i) で割れる回数を数える
+--    - p ≡ 1 (mod 4): p = a^2 + b^2 と書け、(a+bi) と (a-bi) で割る
+--    - p ≡ 3 (mod 4): p 自体が Gaussian 素数。z を p で割る
+-- 3. 残った unit を返す
+def factorGaussianInt (z : GaussianInt) : (GaussianInt, [(GaussianInt, Integer)]) :=
+  ...
+
+assertEqual "5 = (1+2i)(1-2i) * unit"
+  (snd (factor (5 : GaussianInt)))
+  [(1 + 2*i, 1), (1 - 2*i, 1)]
+
+assertEqual "2 = -i * (1+i)^2"
+  (factor (2 : GaussianInt))
+  ((-1) * i, [(1 + i, 2)])
+
+assertEqual "isPrime 7 in Z[i]" (isPrime (7 : GaussianInt)) True    -- 7 ≡ 3 mod 4
+assertEqual "isPrime 5 in Z[i]" (isPrime (5 : GaussianInt)) False   -- 5 = (1+2i)(1-2i)
+assertEqual "isPrime (1+2i)"    (isPrime (1 + 2*i)) True            -- norm 5 が素数
+assertEqual "isPrime 3 in Z[i]" (isPrime (3 : GaussianInt)) True
+
+--
+-- Section 3: 型で動作が切り替わる (typeclass dispatch のメリット)
+--
+
+assertEqual "factor 12 in Integer"
+  (factor (12 : Integer))
+  (1, [(2, 2), (3, 1)])
+
+assertEqual "factor 12 in GaussianInt"     -- 12 = -i * (1+i)^4 * 3
+  (factor (12 : GaussianInt))
+  ((-1) * i, [(1 + i, 4), (3, 1)])
+
+-- 汎用関数の流用: typeclass 上の generic 関数は instance を書くだけで動く
+def lcm {EuclideanDomain a} (x : a) (y : a) : a := x * y `quotient` gcd x y
+
+-- 一般化の展望: Eisenstein 整数 Z[ω]、Z[√-2] 等の虚二次 UFD も同じパターンで書ける

@@ -11,11 +11,14 @@
 --   - 型推論時に alias を unfold して既存の比較ロジックに渡す
 --   - エラーメッセージや `inspect` での表示は alias の名前を保持したい
 --
--- Open questions:
---   - alias は型推論時に展開する? それとも fully-applied な type term として残す?
---   - 部分適用 (`declare cas-type Pair a := (a, a)`) はサポートするか?
---     → MVP では「無引数 alias」のみで開始すべき
---   - 既存の組み込み型 (Integer 等) と同名の alias は禁止?
+-- Resolved (2026-07-04, D3):
+--   - cas-type は**透明エイリアスのみ** (nominal は無い — 表現と意味づけが乖離する型は
+--     タワーに存在できない: 商は商機構 [07]、再解釈はスコープ外 [08])。
+--     単一化時に展開し、表示・エラーメッセージ・観察型の報告では宣言名を優先する
+--   - 部分適用は当面なし (無引数 alias のみ、MVP どおり)
+--
+-- Open questions (残存):
+--   - 既存の組み込み型 (Integer 等) と同名の alias は禁止? (既定: 禁止でよい)
 --
 -- Examples below show what we want to write.
 
@@ -44,7 +47,8 @@ declare cas-type Z := Integer
 declare cas-type Zxy := Poly Z [x, y]
 def p : Zxy := x*y + 2*x + 3*y + 4
 
--- alias 同士の互換性
--- Qx は Z 係数の多項式の上位型なので、Z 係数の多項式は Qx に embed できる
-def p_in_qx : Qx := coerce p   -- ここはエラーになる (Poly Z [x, y] vs Poly Q [x] は違う)
-                                -- → Qxy 経由で経由するか、明示的に書くか?
+-- alias 同士の互換性 (透明なので骨格の subtype 規則がそのまま効く)
+def p_in_qxy : Qxy := coerce p  -- OK: Poly Z [x, y] ⊂ Poly Q [x, y] (係数昇格の骨格規則)
+def p_in_qx : Qx := coerce p    -- 注釈と値の不整合 (原子 y は [x] に無い)。
+                                 -- trust-the-annotation によりエラーにはならず、
+                                 -- 値は canonical 形のまま残って下流で顕在化する

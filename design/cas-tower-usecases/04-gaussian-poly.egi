@@ -12,13 +12,13 @@
 --   - Phase γ (`class CASCanonical` + `primCASNormalizeAs`)
 --     → 同じ抽象値に対する複数の正規形を、target type ごとに切り替え
 --
--- Open questions:
---   - Poly (Poly Integer [i]) [..] の内部表現は?
---     A. ネストした CASPoly: CASPoly [CASTerm <coef-as-CASPoly> mono]
---     B. flat CASPoly with marker: 内部は flat、表示時に re-format
---     → A が型推論との整合性で素直。casReshapeAs で A ↔ B 変換
---   - 主変数選択は declare 側? 使用側?
---     → 設計書では type level で `Poly GaussianInt [x]` のように明示
+-- Resolved (2026-07-04):
+--   - 内部表現は A (ネストした CASPoly)。flat ↔ nested の変換は casReshapeAs が担い、
+--     型注釈 (coerce) が変換の trigger (trust-the-annotation、検証なし)
+--   - 主変数選択は型レベル (`Poly GaussianInt [x]` の注釈) —
+--     「型注釈 = 正規形指令」の中核例で、本ファイルが論文の中心ケーススタディ
+--   - flat → nested → flat の round-trip 一致は D5 の吸収律
+--     (casReshapeAs C ∘ casReshapeAs B = casReshapeAs C) から従う
 --
 -- Tests:
 

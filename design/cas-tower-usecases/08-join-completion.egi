@@ -1,0 +1,55 @@
+-- Use case 08: join 半束性の declare 時検査と完備化 (Phase β — D1 決定の動作例)
+--
+-- Intent:
+--   半順序に辺を足したとき join の一意性 (半束性) が保たれることを declare 時に
+--   検査し、破れる場合は欠落辺を提案してエラーにする (D1)。完備化後は
+--   join が常に単一宣言順序上の一意な LUB として計算される。
+--
+-- Required machinery:
+--   - Phase β: dynamic isSubtype + 推移閉包 + join 計算
+--   - declare 時の join 半束性検査 (骨格 + 宣言ノードの全ペア、原子集合つき
+--     型スキームレベル)
+--   - エラーメッセージへの欠落辺の提案の埋め込み
+--   - 既存 join を細化する宣言への warning (細化単調性 — 値は不変、静的型のみ精密化)
+--
+-- Tests:
+
+declare symbol i, x, y
+declare rule auto term i^2 = -1
+
+-- Q(i) 係数の多項式 (透明エイリアス、D3)
+declare cas-type RationalGaussianPoly := Poly (Frac (Poly Integer [i])) [..]
+
+declare cas-subtype Poly Integer [..] ⊂ RationalGaussianPoly    -- ℤ[x..] ↪ ℚ(i)[x..]
+
+-- 次を completion なしでいきなり宣言すると declare 時エラーになる (D1):
+--
+--   declare cas-subtype Frac Integer ⊂ RationalGaussianPoly
+--   -- error: pair (Poly Integer [..], Frac Integer) の極小上界が一意でなくなる:
+--   --   {Poly (Frac Integer) [..], RationalGaussianPoly}
+--   -- hint: 次の辺を宣言して完備化してください:
+--   --   declare cas-subtype Poly (Frac Integer) [..] ⊂ RationalGaussianPoly
+--
+-- 提案される辺は数学的に真 (ℚ[x..] ⊂ ℚ(i)[x..]) — 完備化が偽の辺を強いることは
+-- ない (曖昧ペアの極小上界はいずれも生成部分環を含む。tower.md §8 D1)
+
+-- 完備化を先に宣言すれば順に通る:
+declare cas-subtype Poly (Frac Integer) [..] ⊂ RationalGaussianPoly
+declare cas-subtype Frac Integer ⊂ RationalGaussianPoly         -- 今度は OK
+
+-- 完備化後: 既存 (骨格) ペアの join は従来どおり level 4 が一意の極小
+def p : Poly Integer [x] := x + 1
+def q : Frac Integer := 1/2
+def r := p + q       -- join = Poly (Frac Integer) [x] (拡張前と不変)
+inspect r
+
+-- ユーザ型が絡む join は宣言辺で解決される
+def g : RationalGaussianPoly := coerce (x / 2 + i * x)
+def s := g + q       -- join = RationalGaussianPoly
+inspect s
+
+-- 細化単調性 (D1) のメモ:
+--   既存 join の真下にノードを挿す宣言 (例: N = Q(y)[x] 相当の型を
+--   Poly Integer [x] と Frac (Poly Integer [y]) の上・level 5 の下に置く) は
+--   エラーではなく warning。join(Poly Integer [x], Frac (Poly Integer [y])) は
+--   level 5 → N に細化するが、値は決して変わらず静的型だけが精密化する。

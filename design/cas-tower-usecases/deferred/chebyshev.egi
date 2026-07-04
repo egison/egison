@@ -1,0 +1,18 @@
+-- (deferred) 異なる正規化基底 (Chebyshev) — **機構スコープ外 (2026-07-04)**
+--
+-- 本 use case は設計整理により対象外となった。理由 (type-cas-tower.md §6.2):
+--
+--   Chebyshev 基底は、同じ CASPoly 係数列を別の基底 (T_k) で読む「**再解釈型**」。
+--   タワーの基盤前提「表現の読み ⟦·⟧ : CASValue → 値 が型に依存しない」
+--   (観察型・trust-the-annotation・semantic Eq はすべてこの上に立つ) を壊す点で
+--   商型と同型の問題を持つ。商 (値領域を変える) は商機構 (type-cas-quotient.md、
+--   07 参照) に分離されたが、再解釈 (読みを変える) は当面スコープ外とし、
+--   必要になったら「全単射再解釈型」として別機構を設計する。
+--
+-- 旧版の内容 (StdPoly / ChebyshevPoly を CASCanonical で相互変換する案) は
+-- git 履歴を参照。実装する日のための数学的補足は tower.md §6.2 に残してある:
+--   - base は Poly (Frac Integer) [..] が必須 (T_k の Z-span は乗法で閉じない:
+--     x^2 = (T_2 + T_0)/2 など、基底変換は 2 冪分母の分数を生む)
+--   - 例: x^3 - 2*x + 1 = (1/4) T_3 - (5/4) T_1 + T_0
+--   - 乗算の線形化規則: T_m T_n = (T_{m+n} + T_{|m-n|}) / 2
+--   - Bernstein / Legendre 基底も同じ「再解釈型」に分類される

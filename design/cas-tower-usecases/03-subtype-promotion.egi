@@ -12,13 +12,19 @@
 --   - join lattice 計算: 任意 2 型の LUB を求める
 --   - `Type/Join.hs:joinTypes` を DeclareEnv 参照に拡張
 --
--- Open questions:
---   - `declare cas-subtype A ⊂ B` の embed 関数は省略可能? (alias なら identity)
---     → 構造的に CASValue 表現が同じなら identity (省略可)、違うなら明示要
---   - 推移閉包 (`A ⊂ B`, `B ⊂ C` から `A ⊂ C` を自動導出) はランタイム計算?
---     parse 時計算? → 推移閉包は parse 時に DAG として保持、lookup は O(log n)
---   - 多重ルートからの join (lattice の正方性) はユーザの責任?
---     → meet/join 演算は推移閉包後の DAG で確定的、衝突したらエラー
+-- Resolved (2026-07-04):
+--   - D5: embed 関数は**存在しない**。`declare cas-subtype A ⊂ B` は関係のみを宣言し、
+--     昇格は常に casReshapeAs (構造書き換え・値不変)。coherence は吸収律で無条件保証
+--   - 推移閉包は宣言プリパスで DAG として計算・保持 (Phase β、Type/Subtype.hs)
+--   - join の一意性は D1: declare 時に join 半束性を検査し、破れる辺は
+--     欠落辺の提案つきでエラー (08-join-completion.egi 参照)
+--
+-- Implementation note (β 着手時に確認):
+--   D3 (透明エイリアス) の帰結として GaussianInt = Poly Integer [i] なので、
+--   Integer ⊂ GaussianInt は骨格規則 (Integer ⊂ Poly Integer atoms) +
+--   エイリアス展開から導出可能のはず。cas-subtype 宣言が本当に必要になるのは
+--   骨格から導出できない辺 (例: nested と flat の正規形間の順序配置) に
+--   限られる可能性がある — β 実装時に「宣言が必須な辺」の範囲を確定する
 --
 -- Tests:
 
@@ -27,12 +33,9 @@ declare rule auto term i^2 = -1
 declare cas-type GaussianInt := Poly Integer [i]
 
 declare cas-subtype Integer ⊂ GaussianInt
-  -- embed は省略 (identity) — Integer は CASInteger n、GaussianInt の中では
-  -- CASPoly [CASTerm (CASInteger n) []] と等価扱い
-  -- ↑ どう書くべきか? embed 関数の sigunature 案:
-  --    embed (n : Integer) : GaussianInt := n
-  --   または structure-only な形:
-  --    declare cas-subtype Integer ⊂ GaussianInt   -- embed 自動
+  -- 関係のみの宣言 (D5)。昇格 n : Integer → GaussianInt は casReshapeAs が
+  -- CASInteger n を CASPoly [CASTerm (CASInteger n) []] に書き換える
+  -- (骨格規則から導出可能なら本宣言は冗長 — 上の Implementation note 参照)
 
 -- 自動昇格: Integer + GaussianInt → GaussianInt
 def z := 5 + 3 * i
@@ -48,6 +51,8 @@ assertEqual "promotion in arithmetic"
 
 -- 通常のタワー (Integer ⊂ Frac Integer) との共存
 def q : Frac Integer := 1 / 2
-def r := q + 3 * i  -- 期待: Frac GaussianInt = Frac (Poly Integer [i])
-                    -- ここで join lattice の計算が必要
+def r := q + 3 * i  -- 期待: Poly (Frac Integer) [i]
+                    -- 骨格 join: level 2 ⊔ level 3 → level 4 (2026-07-04 修正 —
+                    -- 旧版の「Frac (Poly Integer [i])」は誤り。level 5 に上がるのは
+                    -- 分母が非モノミアルのときだけで、ここでは該当しない)
 inspect r
