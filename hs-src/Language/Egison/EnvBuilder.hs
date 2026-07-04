@@ -22,12 +22,16 @@ module Language.Egison.EnvBuilder
 
 import           Control.Monad              (foldM, when)
 import           Control.Monad.Except       (throwError)
+import           Control.Monad.IO.Class     (liftIO)
 import           Data.Char                  (isUpper)
 import qualified Data.HashMap.Strict        as HashMap
+import           System.IO                  (hPutStrLn, stderr)
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM, EgisonError(..))
-import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getCasTypeAliasEnv), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getCasTypeAliasEnv, getCasSubtypeEdges), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.Type.Pretty (prettyType)
+import qualified Language.Egison.Type.Subtype as Subtype
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
@@ -63,6 +67,10 @@ data EnvBuildResult = EnvBuildResult
   -- in THIS batch, name -> fully expanded Type. Merged into the persistent
   -- EvalState alias env by the caller (Eval.buildAndMergeEnvironments).
   , ebrCasTypeAliases :: HashMap.HashMap String Type
+  -- Phase beta: `declare cas-subtype` edges declared in THIS batch
+  -- (alias-expanded, D1-checked, redundant ones included). Appended to the
+  -- persistent EvalState edge list by the caller.
+  , ebrCasSubtypeEdges :: [(Type, Type)]
   } deriving (Show)
 
 --------------------------------------------------------------------------------
@@ -94,6 +102,12 @@ buildEnvironments exprs = do
   newAliases <- resolveCasTypeAliases priorAliases newAliasesRaw
   let aliasEnv = HashMap.union newAliases priorAliases
 
+  -- Phase beta: collect `declare cas-subtype` edges (alias-expanded) and run
+  -- the D1 join-semilattice check per edge, in declaration order.
+  priorEdges <- getCasSubtypeEdges
+  newEdges <- foldM (collectCasSubtypeEdge aliasEnv priorEdges) []
+                    [ (l, r) | DeclareCasSubtype l r <- exprs ]
+
   -- Start with empty environments
   let initialResult = EnvBuildResult
         { ebrTypeEnv = emptyEnv
@@ -105,6 +119,7 @@ buildEnvironments exprs = do
         , ebrDerivativeRules = []
         , ebrMathFuncNames = Set.empty
         , ebrCasTypeAliases = newAliases
+        , ebrCasSubtypeEdges = newEdges
         }
 
   -- Process each top-level expression to collect declarations
@@ -139,6 +154,51 @@ collectCasTypeAlias declaredTypes priorAliases acc (name, te) = do
   where
     startsUpper (c:_) = isUpper c
     startsUpper _     = False
+
+-- | Validate and register a `declare cas-subtype A ⊂ B` edge (Phase beta;
+-- D1 declare-time semilattice check, design/type-cas-tower.md §8 D1).
+-- Redundant edges are stored anyway — their endpoints then participate in
+-- the node set of later checks — with a warning.
+collectCasSubtypeEdge :: HashMap.HashMap String Type -> [(Type, Type)]
+                      -> [(Type, Type)] -> (TypeExpr, TypeExpr)
+                      -> EvalM [(Type, Type)]
+collectCasSubtypeEdge aliasEnv priorEdges acc (lhsTE, rhsTE) = do
+  let lhs = Types.expandTypeAliases aliasEnv (typeExprToType lhsTE)
+      rhs = Types.expandTypeAliases aliasEnv (typeExprToType rhsTE)
+      edges = priorEdges ++ acc
+      pp = prettyType
+  when (not (Subtype.isCasType lhs) || not (Subtype.isCasType rhs)) $
+    throwError $ Default $
+      "declare cas-subtype: both sides must be CAS types: " ++
+      pp lhs ++ " <: " ++ pp rhs
+  case Subtype.checkEdgeAddition edges (lhs, rhs) of
+    Subtype.EdgeCycle -> throwError $ Default $
+      "declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
+      ": the reverse relation already holds; adding this edge would " ++
+      "collapse the two types into one order point (cycle)"
+    Subtype.EdgeAmbiguous witnesses -> throwError $ Default $
+      "declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
+      ": join would become ambiguous (D1 semilattice check).\n" ++
+      concatMap (\(x, y, j) ->
+        "  pair (" ++ pp x ++ ", " ++ pp y ++ ") would get minimal upper bounds {" ++
+        pp j ++ ", " ++ pp rhs ++ "}\n" ++
+        "  hint: declare the completing edge first:\n" ++
+        "    declare cas-subtype " ++ pp j ++ " <: " ++ pp rhs ++ "\n")
+        witnesses
+    Subtype.EdgeRedundant -> do
+      liftIO $ hPutStrLn stderr $
+        "Warning: declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
+        " is already derivable (redundant edge)"
+      return (acc ++ [(lhs, rhs)])
+    Subtype.EdgeRefines witnesses -> do
+      liftIO $ hPutStrLn stderr $
+        "Warning: declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
+        " refines existing joins (values unchanged, static types get more precise):" ++
+        concatMap (\(x, y, j) ->
+          "\n  join(" ++ pp x ++ ", " ++ pp y ++ "): " ++ pp j ++ " -> " ++ pp rhs)
+          witnesses
+      return (acc ++ [(lhs, rhs)])
+    Subtype.EdgeOk -> return (acc ++ [(lhs, rhs)])
 
 -- | Resolve alias-in-alias references to a fixpoint, so aliases may refer to
 -- each other regardless of declaration order (prepass semantics, matching
@@ -329,9 +389,10 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     
     return result { ebrPatternTypeEnv = patternEnv' }
   
-  -- Phase alpha: cas-type aliases were collected in the prepass
-  -- (buildEnvironments), so nothing to do per-declaration here.
+  -- Phase alpha/beta: cas-type aliases and cas-subtype edges were collected
+  -- in the prepass (buildEnvironments), so nothing to do per-declaration here.
   DeclareCasType _ _ -> return result
+  DeclareCasSubtype _ _ -> return result
 
   -- Other expressions don't contribute to environment building
   Define {} -> return result

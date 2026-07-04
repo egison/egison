@@ -249,6 +249,10 @@ buildAndMergeEnvironments exprs opts = do
   prevAliases <- getCasTypeAliasEnv
   setCasTypeAliasEnv (HashMap.union (ebrCasTypeAliases envResult) prevAliases)
 
+  -- Phase beta: persist `declare cas-subtype` edges (D1-checked in EnvBuilder).
+  prevEdges <- getCasSubtypeEdges
+  setCasSubtypeEdges (prevEdges ++ ebrCasSubtypeEdges envResult)
+
   -- Phase 7.4/7.5/6.3: surface declaration counts and names to the runtime
   -- so that inspection primitives (`numReductionRules`, `ruleNames`,
   -- `numDerivativeRules`, `derivativeNames`) can read them. The full data

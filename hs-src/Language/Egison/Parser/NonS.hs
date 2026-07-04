@@ -95,6 +95,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> declareDerivativeExpr
       <|> declareApplyExpr
       <|> declareMathFuncExpr
+      <|> declareCasSubtypeExpr
       <|> declareCasTypeExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
@@ -510,6 +511,29 @@ declareCasTypeExpr = try $ do
   _ <- symbol ":="
   ty <- typeExprIndented pos
   return $ DeclareCasType name ty
+
+-- | Parse a `declare cas-subtype` declaration (Phase beta of the extensible
+-- CAS tower; design/type-cas-tower.md D1/D5: relation only, no embed clause).
+--
+--   declare cas-subtype Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]
+--   declare cas-subtype Integer ⊂ GaussianInt
+declareCasSubtypeExpr :: Parser TopExpr
+declareCasSubtypeExpr = try $ do
+  pos <- L.indentLevel
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "cas"
+    then fail "Expected 'cas-subtype' after 'declare'"
+    else return ()
+  _ <- symbol "-"
+  kind <- lowerId
+  if kind /= "subtype"
+    then fail "Expected 'subtype' after 'cas-'"
+    else return ()
+  lhs <- typeExprIndented pos
+  _ <- try (symbol "⊂") <|> symbol "<:"
+  rhs <- typeExprIndented pos
+  return $ DeclareCasSubtype lhs rhs
 
 -- | Like 'typeExprWithApp', but every token must be indented deeper than the
 -- given column. Used where a type ends a declaration (the alias body of

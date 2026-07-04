@@ -89,6 +89,18 @@
 
 **検収**: usecase [03](./cas-tower-usecases/03-subtype-promotion.egi)・[06](./cas-tower-usecases/06-combined-extensions.egi)・[08](./cas-tower-usecases/08-join-completion.egi) (08 は半束性検査のエラーメッセージ・完備化提案・細化 warning まで含む)。
 
+### β 実施結果 (2026-07-04 実装完了)
+
+- **実装**: AST `DeclareCasSubtype` / parser `declare cas-subtype A ⊂ B` (ASCII 代替 `<:` 両対応) / **`Type/Subtype.hs` 新設**:
+  1. `skeletonSubtype` — 設計の包含表を係数再帰まで完全化 (nested ↔ flat は**意図的に無関係** = 宣言辺の存在理由)
+  2. `skeletonJoin` — 設計 join 表どおり (**level 2 ⊔ level 3 = level 4 を実装**。旧 `Type/Join.joinTypes` は level 5 を返す設計不一致があるが、呼び出し元ゼロのため温存 — §7)
+  3. `isSubtypeWith` / `joinTypesWith` — 宣言辺込みの順序 (worklist 閉包 + 極小上界の一意性)
+  4. `checkEdgeAddition` — D1 検査 5 分類 (OK / 冗長 / 循環 / 曖昧 + 完備化提案 / 細化)
+- EnvBuilder が prepass で辺を収集し宣言順に D1 検査: 冗長 → warning + **保存** (端点を後続検査のノード集合に残す)、循環・曖昧 (提案つき)・非 CAS → エラー、細化 → witness つき warning。`EvalState.casSubtypeEdges` でバッチ跨ぎ永続
+- **検証**: mini-test 127 (EdgeOk 2 種・冗長 warning・評価非干渉)。誤りパス 5 種を確認 — 曖昧性エラーは usecase 08 どおり**数学的に真の完備化辺を提案** (`Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]`)、完備化後は受理 (冗長化)、細化 warning は witness (`join(Poly Integer [i], Poly Integer [x]): Poly Integer [i, x] -> Poly (Poly Integer [i]) [x]`) つき。回帰: 代表 7 sample エラーゼロ・mini-test 90/90・cabal test PASS
+- **既知の近似**: ペア列挙は宣言ノード集合上の有限近似 — 骨格のみで target の下に入る型は、どこかでノード宣言 (冗長辺でよい) されていなければ検査対象外。反例駆動で精密化 (§7)
+- **未接続 (意図的)**: instance 解決 (`Type/Join.isSubtype`) と型推論への動的順序の配線は dispatch への影響評価が必要なため保留 (§7)。現状の辺の意味論的効果は宣言時検証のみ — これは D1 の設計どおり (join は現状 static footprint を持たない)
+
 ---
 
 ## 4. Phase γ′ (縮小版): canonicalize 経路の整備 (工数: 小〜中)
@@ -139,6 +151,8 @@
 | `⊂` トークン | Unicode のみか ASCII 代替 (`<:`) も置くか | パーサ着手時に決定 (小) |
 | alias 逆引き表示 | 同一展開型に複数 alias がある場合の表示の一意性 | 宣言順優先で固定 |
 | 商型の fallback 遮断 | sibling fallback の例外化が既存 typeclass 解決に波及しないか | q1 で mini-test を先に書く |
+| **`Type/Join.joinTypes` の設計不一致** (β で発見) | 旧実装は Poly ⊔ Frac → level 5 を返すが、設計は level 4。呼び出し元ゼロなので実害なし | `Type/Subtype.skeletonJoin` が設計どおりの正。呼び出し元が現れる時点で Subtype 版に一本化 |
+| **isSubtype の二重化** (β の意図的判断) | instance 解決は旧 `Join.isSubtype` (部分的な骨格) のまま。完全骨格 `Subtype.skeletonSubtype` に切り替えると適用可能 instance が広がり dispatch が変わりうる | 影響評価 + 全回帰つきで別途一本化 (γ′ 以降) |
 | reduce closure の束縛順序 | `declare cas-quotient` の reduce がユーザ関数を参照する場合の prepass/eval 順序 | `preBindDeclaredSymbols` の前例に倣う |
 
 ---

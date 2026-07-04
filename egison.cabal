@@ -132,6 +132,7 @@ Library
                    Language.Egison.Type.Index
                    Language.Egison.Type.Infer
                    Language.Egison.Type.Join
+                   Language.Egison.Type.Subtype
                    Language.Egison.Type.Subst
                    Language.Egison.Type.TensorMapInsertion
                    Language.Egison.Type.TypeClassExpand

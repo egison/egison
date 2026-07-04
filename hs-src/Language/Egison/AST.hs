@@ -120,6 +120,12 @@ data TopExpr
     -- e.g.  declare cas-type GaussianInt := Poly Integer [i]
     -- String: alias name (must be capitalized), TypeExpr: the aliased type.
     -- Expanded away during environment building / desugaring; no runtime artifact.
+  | DeclareCasSubtype TypeExpr TypeExpr
+    -- ^ Subtype-order edge declaration (Phase beta; design D1/D5).
+    -- e.g.  declare cas-subtype Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]
+    --       declare cas-subtype Integer ⊂ GaussianInt
+    -- Relation only (D5: no embed clause — promotion is always casReshapeAs).
+    -- Checked at declare time for the D1 join-semilattice invariant.
   | DeclareApply String [String] Expr
     -- ^ Math function application rule (Phase A of declare apply impl).
     -- e.g.  declare apply sin x := if x = 0 then 0 else 'sin x

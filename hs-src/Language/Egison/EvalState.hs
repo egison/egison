@@ -84,6 +84,9 @@ data EvalState = EvalState
                                        --   `declare cas-type` transparent aliases, name -> fully
                                        --   expanded Type. Persists across load batches so aliases
                                        --   declared in a library apply to later files.
+  , casSubtypeEdges :: [(Type, Type)] -- ^ Phase beta: `declare cas-subtype` edges (alias-expanded,
+                                       --   declaration order, redundant edges included for node
+                                       --   bookkeeping). Persists across load batches.
   }
 
 initialEvalState :: EvalState
@@ -104,6 +107,7 @@ initialEvalState = EvalState
   , autoRuleTriggers = []
   , derivativesDesugared = []
   , casTypeAliasEnv = HashMap.empty
+  , casSubtypeEdges = []
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -165,6 +169,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Phase alpha (extensible CAS tower): `declare cas-type` alias environment.
   getCasTypeAliasEnv :: m (HashMap String Type)
   setCasTypeAliasEnv :: HashMap String Type -> m ()
+  -- Phase beta: `declare cas-subtype` edges.
+  getCasSubtypeEdges :: m [(Type, Type)]
+  setCasSubtypeEdges :: [(Type, Type)] -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -289,6 +296,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { casTypeAliasEnv = env }
 
+  getCasSubtypeEdges = casSubtypeEdges <$> get
+  setCasSubtypeEdges es = do
+    st <- get
+    put $ st { casSubtypeEdges = es }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -329,6 +341,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   appendDerivativeDesugared = lift . appendDerivativeDesugared
   getCasTypeAliasEnv = lift getCasTypeAliasEnv
   setCasTypeAliasEnv = lift . setCasTypeAliasEnv
+  getCasSubtypeEdges = lift getCasSubtypeEdges
+  setCasSubtypeEdges = lift . setCasSubtypeEdges
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

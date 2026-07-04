@@ -215,9 +215,11 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
 -- Constructor registration is handled by the type system
 desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 
--- cas-type aliases are fully handled during environment building
--- (Phase alpha of the extensible tower); no runtime artifact.
+-- cas-type aliases and cas-subtype edges are fully handled during
+-- environment building (Phase alpha/beta of the extensible tower);
+-- no runtime artifact.
 desugarTopExpr (DeclareCasType _ _) = return Nothing
+desugarTopExpr (DeclareCasSubtype _ _) = return Nothing
 
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
