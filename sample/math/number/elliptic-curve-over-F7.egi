@@ -1,0 +1,50 @@
+--
+-- Point counting and the group law on an elliptic curve over F7
+--
+-- The quotient mechanism (design/type-cas-quotient.md) makes Z/7Z a
+-- first-class nominal ring: `declare cas-quotient` derives the homomorphic
+-- ring operations with per-operation reduction and a type-dispatched
+-- equality, and checks the congruence laws at declaration time.
+--
+
+declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
+
+-- E : y^2 = x^3 + 2 over F7
+def rhs (x : Mod7) : Mod7 := x * x * x + projMod7 2
+
+def elems := map projMod7 (between 0 6)
+
+-- affine points: pairs (x, y) with y^2 = x^3 + 2
+def affineCount :=
+  sum (map (\x -> length (filter (\y -> (y * y) == rhs x) elems)) elems)
+
+assertEqual "affine points of y^2 = x^3 + 2 over F7" affineCount 8
+
+-- the projective count adds the point at infinity
+def pointCount := affineCount + 1
+assertEqual "#E(F7) = 9" pointCount 9
+
+-- Hasse bound: |#E(F7) - (7 + 1)| <= 2 sqrt 7 < 6
+assertEqual "Hasse bound"
+  ((pointCount >= 3) && (pointCount <= 13)) True
+
+--
+-- Group law: doubling P = (3, 1) along the tangent line.
+-- Field inversion comes from Fermat's little theorem, a^(-1) = a^5 in F7 —
+-- a non-homomorphic (pattern-2) operation defined directly on the quotient.
+--
+
+def inv7 (a : Mod7) : Mod7 := a * a * a * a * a
+
+def px := projMod7 3
+def py := projMod7 1
+assertEqual "P = (3, 1) lies on E" ((py * py) == rhs px) True
+
+-- lambda = (3 x^2) / (2 y),  x' = lambda^2 - 2 x,  y' = lambda (x - x') - y
+def lam := (projMod7 3 * px * px) * inv7 (projMod7 2 * py)
+def qx := lam * lam - projMod7 2 * px
+def qy := lam * (px - qx) - py
+
+assertEqual "2P = (3, 6)" ((qx == projMod7 3) && (qy == projMod7 6)) True
+assertEqual "2P lies on E" ((qy * qy) == rhs qx) True
+-- 2P = -P, so P has order 3 — consistent with #E(F7) = 9

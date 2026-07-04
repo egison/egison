@@ -1,0 +1,85 @@
+--
+-- Kaehler geometry of CP1 in Wirtinger calculus (Fubini-Study metric)
+--
+-- Wirtinger calculus treats z and zbar as independent symbols; the complex
+-- structure enters through the library symbol i (i^2 = -1, a symbol-carried
+-- quotient). This sample showcases the extensible CAS tower
+-- (design/type-cas-tower.md):
+--   * cas-type aliases for complex-coefficient rings (Phase alpha)
+--   * annotation-selected canonical forms: the same value viewed flat
+--     (Z[i, z, zbar]) or nested (coefficients in Z[i], organized by z and
+--     zbar), with the reshape absorption law making round trips safe
+--     (Phase gamma-prime)
+--
+
+declare symbol z
+declare symbol zbar
+declare symbol ztmp   -- scratch symbol for the z <-> zbar swap in conjC
+
+declare cas-type GaussianInt := Poly Integer [i]
+declare cas-type CPoly := Poly (Poly Integer [i]) [z, zbar]   -- Z[i][z, zbar]
+
+--
+-- 1. Complex-coefficient polynomials: one value, two canonical forms
+--
+
+def gaussNorm : GaussianInt := (2 + 3 * i) * (2 - 3 * i)
+assertEqual "norm in Z[i]" gaussNorm 13
+
+def f := (1 + i) * z^2 + (2 - i) * z * zbar + 3 * i
+
+def fNested : CPoly := f                       -- coefficients collected in Z[i]
+def fFlat : Poly Integer [i, z, zbar] := f     -- fully flat form
+
+assertEqual "the annotation selects the nested canonical form"
+  (typeOf fNested) "Poly (Poly Integer [i]) [z, zbar]"
+assertEqual "flat and nested forms agree semantically"
+  ((fNested - fFlat) = 0) True
+assertEqual "absorption law: nested -> flat = direct flat"
+  (show (fNested : Poly Integer [i, z, zbar])) (show fFlat)
+
+-- anti-holomorphic conjugation as a substitution. `substitute` applies its
+-- pairs sequentially, so the z <-> zbar swap goes through a scratch symbol
+def conjC (v : MathValue) : MathValue :=
+  substitute [(i, - i), (z, ztmp), (zbar, z), (ztmp, zbar)] v
+
+assertEqual "|f|^2 is real (fixed by conjugation)"
+  ((conjC (f * conjC f) - f * conjC f) = 0) True
+
+-- Cauchy-Riemann: holomorphic expressions are annihilated by d/dzbar
+assertEqual "d/dzbar kills holomorphic polynomials"
+  (partialDiff (z^3 + (1 + i) * z + 2) zbar) 0
+
+--
+-- 2. Fubini-Study metric from the Kaehler potential
+--    K = log(1 + z zbar),  g = d2 K / dz dzbar = 1 / (1 + z zbar)^2
+--
+
+def K := log (1 + z * zbar)
+def g := partialDiff (partialDiff K z) zbar
+
+assertEqual "g = 1/(1 + z zbar)^2"
+  ((g - 1 / (1 + z * zbar)^2) = 0) True
+assertEqual "g is real" ((conjC g - g) = 0) True
+
+--
+-- 3. Ricci form and the Kaehler-Einstein property
+--    Ric = - d2 (log g) / dz dzbar = 2 g
+--    (Einstein constant 2: constant positive curvature, the round sphere)
+--
+
+def ricci := 0 - partialDiff (partialDiff (log g) z) zbar
+
+assertEqual "Kaehler-Einstein: Ric = 2 g"
+  ((ricci - 2 * g) = 0) True
+
+--
+-- 4. A Laplace eigenfunction on the sphere
+--    u = (1 - z zbar)/(1 + z zbar) is the first spherical harmonic:
+--    Delta u = (1/g) d2u/dz dzbar = -2 u
+--
+
+def u := (1 - z * zbar) / (1 + z * zbar)
+
+assertEqual "first eigenfunction: d2u/dzdzbar = -2 u g"
+  ((partialDiff (partialDiff u z) zbar - (-2) * u * g) = 0) True
