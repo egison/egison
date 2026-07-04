@@ -2,7 +2,7 @@
 
 このドキュメントは、Egison の CAS 型システムにおける **型昇格タワー (type promotion tower)** をユーザが拡張可能にする将来の設計をまとめる。実装はまだ着手しておらず、現状の 5 段階固定タワーで運用している。
 
-最終更新: 2026-05-06 (初版)
+最終更新: 2026-07-04 (type-cas.md との構文統一 + 未決事項の明文化)
 
 ---
 
@@ -23,6 +23,7 @@
 5. [既存機構との関係](#5-既存機構との関係)
 6. [具体例](#6-具体例)
 7. [代替案・トレードオフ](#7-代替案トレードオフ)
+8. [未決事項 (実装前に要判断)](#8-未決事項-実装前に要判断)
 
 ---
 
@@ -139,7 +140,7 @@ declare cas-subtype GaussianPoly ⊂ Frac (Poly Integer [i, ...]) where
   embed v := primCASReshape v <Frac form>
 ```
 
-各 edge は **canonical embedding 関数** (向きあり) を持つ。
+各 edge は **canonical embedding 関数** (向きあり) を持つ。`embed` は**単射な埋め込み**を想定する — `ℤ → ℤ/nℤ` のような**射影 (非単射)** は ⊂ 辺では表現しない (商型の扱いは [§8 D4](#8-未決事項-実装前に要判断))。
 
 **実装方針**:
 - `Type/Join.hs` の `isSubtype` を dynamic にする
@@ -168,6 +169,13 @@ instance CASCanonical RationalGaussianPoly where
 - ユーザは新型を declare すると同時に instance を登録
 - 内部で `primCASNormalizeAs :: TypeRep -> CASValue -> CASValue` Haskell primitive を呼ぶ
 - `primCASNormalizeAs` は target type ごとの reshape ロジックを Haskell 側に持つ
+
+**規則の帰属の原則 (2026-07-04 確定)**: 等式理論 (`declare rule`) は**型にスコープ**する。既存の global `declare rule auto` は「`MathValue` スコープの規則」と読み替え、部分順序の下位すべてに継承される (後方互換)。`ℤ/nℤ` の `mod n` 簡約のように**他の型へ漏れてはならない理論**のみ、型スコープ規則 (構文候補: `declare rule auto term ... = ... in T`) として宣言する。`canonicalize` の責務はその合成:
+
+1. **構造選択** — target type の入れ子形への書き換え (`primCASNormalizeAs` = `casReshapeAs` の拡張)
+2. **型スコープ規則の固定点適用** — その型 (と上位型から継承した) 規則群での正規化
+
+`canonicalize` のシグネチャは `MathValue → a` の **retraction** (型内の endo 関数 `a → a` ではない)。coerce/reshape の入口では値がまだ target 型の形をしておらず、trust-the-annotation 原則により所属保証もないため。像上での冪等性 (`canonicalize (canonicalize v) = canonicalize v`) は法則として課す。型スコープ規則の発火点は未決 ([§8 D2](#8-未決事項-実装前に要判断))。
 
 ### 3.5 Component 4: `coerce` の進化
 
@@ -221,9 +229,9 @@ def r : Frac (Poly (Frac Integer) [x]) := coerce expr  -- 深いネストでも
 
 > **2026-05 更新**: 旧設計案では `Embed` typeclass を介して widening を行う想定だったが、Phase C で `Embed` typeclass と `coerceTo*` 関数群はすべて廃止され、**`reshape` primitive 一本に統一**された。型注釈 (`def x : T := e` または `(e : T)`) を書くだけで AST elaboration が `IReshape T e` を挿入し、`casReshapeAs T v` が runtime に CAS 構造を target type に書き換える。
 
-将来の `declare cas-subtype` は `reshape` 経路上で **target-type-specific な `casReshapeAs` 拡張** として統合する形になる:
+将来の `declare cas-subtype` は `reshape` 経路上で **target-type-specific な `casReshapeAs` 拡張** として統合する形になる (辺の関数名は §3.3 と同じく `embed` に統一):
 ```egison
-declare cas-subtype A ⊂ B where reshape v := f v
+declare cas-subtype A ⊂ B where embed v := f v
 -- ↓ desugar
 -- (内部で casReshapeAs を拡張する Haskell primitive 経路に登録)
 ```
@@ -279,6 +287,9 @@ def p : GaussianPoly := coerce ((2 + 3*i) + (1 - i)*x + 4*x^2)
 ```egison
 declare cas-type ChebyshevPoly := Poly Integer [..]
   -- 表現は同じ Poly だが意味づけが異なる
+  -- 注意: 透明エイリアスにすると標準基底の Poly と単一化されて unsound。
+  -- nominal (不透明) 宣言が必須 (§8 D3)。表現から型を復元できないため
+  -- 観察型でも報告されない (注釈必須の intentional 型)
 
 instance CASCanonical ChebyshevPoly where
   canonicalize v := primConvertToChebyshev v
@@ -336,13 +347,61 @@ def cf : ContinuedFraction := coerce (355 / 113)
 
 ---
 
-## 8. 関連ドキュメント
+## 8. 未決事項 (実装前に要判断)
+
+構文の統一 (cas-type は `:=` / cas-subtype は `⊂ where embed` / `canonicalize` は `MathValue → a` の retraction) と規則帰属の原則 (§3.4) は 2026-07-04 に確定済み。以下は**まだ設計判断が必要**な項目。
+
+### D1: join の曖昧性と保守性ポリシー
+
+半順序では極小上界が複数になりうる。特に危険なのは、辺の追加が**新型に言及しない既存プログラム**の暗黙昇格 (`join`) を変えるケース: 例えば level 3 と 5 の間に GaussianPoly を挿すと、`join(Poly Integer [..], Frac Integer)` の極小上界が level 4 と GaussianPoly 系の 2 つになりうる。選択肢:
+
+- (i) declare 時に「既存ペアの join を変える辺」を拒否する ambiguity check
+- (ii) 曖昧なら `MathValue` にフォールバック
+- (iii) **層化 join**: 暗黙昇格は組み込み骨格 (5 段) を優先し、ユーザ型はオペランドの型が既にユーザ型のときのみ join に参加
+
+推奨は (iii) + declare 時警告。保守性定理「well-formed な拡張は、新型に言及しないプログラムの値と観察型を変えない」が素直に立つ。
+
+### D2: 型スコープ規則の発火点
+
+- (a) **境界のみ**: coerce/reshape 境界の `canonicalize` でのみ型スコープ規則を適用。演算中は `MathValue` スコープ規則のみ。実装が単純で完全に後方互換だが、中間結果は型固有理論で簡約されない (def 注釈が境界になるため実用上は概ね足りる)
+- (b) **演算ごと**: elaboration が静的型で規則環境を dispatch。現行の trigger filter (「正しさに影響しない最適化」) を**意味論に昇格**させる形で、論文のストーリーとは整合的。ただし `mathNormalize` / `iterateRulesCAS` 経路に型情報の配管が必要で、性能への影響も要測定
+
+### D3: cas-type の透明性 (エイリアス vs nominal)
+
+- `GaussianInt := Poly Integer [i]` のような型は**透明エイリアス** (単一化で展開) が便利
+- ChebyshevPoly / `ℤ/nℤ` は**表現が同一で意味づけだけ違う**ため、透明にすると unsound — **nominal (不透明、newtype 相当)** が必須。これらは観察型からも復元不能 (注釈必須の intentional 型)
+- 判断: 両方を持つか (構文で区別、例: `:=` = 透明 / 別キーワード = nominal)、全部 nominal に倒すか。Phase α の工数見積 (小) は透明エイリアスのみを想定している
+
+### D4: 商型の扱い (⊂ 辺の単射性)
+
+`ℤ → ℤ/nℤ` は射影であり非単射。「embed」に射影を許すと値保存 (`⟦embed v⟧ = ⟦v⟧`) と coherence 定理が壊れる。推奨: **⊂ 辺は単射 embedding に限定**し、商型は nominal 型 + `canonicalize` (= 射影) で接続、順序上は `MathValue` の直下に孤立配置する。
+
+### D5: coherence 検査の実装水準
+
+複数 embed 経路の可換性 (coherence) は、embed が任意の Egison 関数である限り自動検証できない。選択肢:
+
+- 法則として文書化のみ (型クラス法則と同じ地位)
+- declare 時に可換図式 (同一端点への複数経路) を列挙し、サンプル値で property-based testing
+- embed を制限された言語 (`primCASReshape` の合成のみ) に絞り構成的に保証
+
+推奨: 法則明記 + declare 時サンプルテスト (opt-out 可)。論文では「per-edge 法則を満たす拡張について coherence が成り立つ」という条件付き定理として述べる。
+
+### 既定として採用済み (異議があれば変更)
+
+- `canonicalize` 失敗 (値が target 型に所属しない場合) は trust-the-annotation 原則を踏襲し**素通し** (エラーにしない)
+- 型スコープ規則の構文は `declare rule ... in T` を仮置き
+- 実装・論文スコープは **Phase α–δ** (ε の新 `CASValue` constructor は対象外。Chebyshev / `ℤ/nℤ` / 中間型は既存 `CASValue` で表現可能なため ε なしでケーススタディが揃う)
+
+---
+
+## 9. 関連ドキュメント
 
 - [type-cas.md](./type-cas.md) §実行時の型昇格タワー — 現状の 5 段階タワーの定義
 - [type-cas.md](./type-cas.md) §「自動変換の仕組み」 — 現状の `reshape` primitive 実装 (将来拡張への hook)
 - [type-cas.md](./type-cas.md) §「既知の制限と未解決課題」 — 残された課題
 
-## 9. 改訂履歴
+## 10. 改訂履歴
 
 - 2026-05-06: 初版。半順序タワー拡張の構想をまとめる。実装は将来課題。
 - 2026-05-07: §5.2 を更新 — `Embed` typeclass は Phase C で廃止済 (`reshape` primitive に統一) のため、cas-subtype 宣言の統合先を `reshape` dispatch table に変更。
+- 2026-07-04: type-cas.md 側スケッチとの不整合を解消 (cas-type は `:=`、cas-subtype は `⊂ where embed` 形式に統一 — §5.2 の `where reshape` 表記も `embed` に修正、`canonicalize` は `MathValue → a` の retraction に統一)。規則帰属の原則 (等式理論は型スコープ、global は MathValue スコープとして下位に継承) を §3.4 に明記。§8 未決事項 (D1–D5) を新設。
