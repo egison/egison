@@ -49,8 +49,9 @@ def conj (z : GaussianInt) : GaussianInt :=
   -- i ↦ -i の代入だけで書ける (substitute は MathValue 上の既存関数、
   -- 式レベル注釈が reshape を挿入)。matcher での係数分解は不要
 
-def norm (z : GaussianInt) : Integer := coerce (z * conj z)
-  -- z * conj z は i^2 = -1 の規則で実数に落ちる。coerce (注釈 reshape) で Integer へ
+def norm (z : GaussianInt) : Integer := ((z * conj z) : Integer)
+  -- z * conj z は i^2 = -1 の規則で実数に落ちる。式レベル注釈で Integer へ
+  -- (coerce 関数は廃止済み — 注釈が reshape を挿入する)
 
 assertEqual "norm(3+4i) = 25" (norm (3 + 4*i)) 25
 assertEqual "norm(1+i) = 2" (norm (1 + i)) 2

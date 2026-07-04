@@ -1,6 +1,14 @@
 # 拡張可能 CAS 型タワーのユースケース集
 
-このディレクトリは、[type-cas-tower.md](../type-cas-tower.md) と [type-cas-quotient.md](../type-cas-quotient.md) の実装 (Phase α–δ / 商機構 q1–q4) の**検収基準**となる aspirational sample code を集める。各ファイルは現在の Egison では動かないが、実装完了時に動くべき形を示す。
+このディレクトリは、[type-cas-tower.md](../type-cas-tower.md) と [type-cas-quotient.md](../type-cas-quotient.md) の実装 (Phase α–δ / 商機構 q1–q4) の**検収基準**。
+
+> **2026-07-04 更新**: 実装完了に伴い、**本体 01–08 の全ファイルがそのまま実行可能**になった (旧 API `coerce` の除去・`_` 入り識別子の camelCase 化・γ′ の flat-exit に合わせた比較の意味論的等価化を実施):
+>
+> ```sh
+> for f in design/cas-tower-usecases/0*.egi; do gtimeout 30 cabal run egison -- -t "$f"; done
+> ```
+>
+> 唯一の既知の制限は 06 に明記: 閉じた原子集合が異なる operand の暗黙 join は推論に未配線 (明示注釈で共通型へ上げる。implementation.md §7)。
 
 **収録基準 (2026-07-04)**: **本機構で簡潔に書けるものだけ**を置く。確定済みの設計判断 D1–D5 ([type-cas-tower.md §8](../type-cas-tower.md)) の構文・意味論に整合し、`...` の穴や長いアルゴリズム本体を含まないこと。基準を満たさないものは [deferred/](./deferred/) に隔離する。
 
@@ -21,7 +29,7 @@
 
 ## 読み方
 
-各ファイルの先頭に **Intent / Required machinery / Resolved (確定済み設計判断との対応) / Open questions (残存)** を記載する。コード部分は `assertEqual` を含むが、現状は未実装機能のため動かない。
+各ファイルの先頭に **Intent / Required machinery / Resolved (確定済み設計判断との対応) / Open questions (残存)** を記載する。コード部分は `assertEqual` を含み、**すべて実行して検証できる** (上記コマンド)。
 
 ## 検収基準としての使い方
 

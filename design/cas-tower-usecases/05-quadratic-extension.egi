@@ -30,10 +30,10 @@
 
 declare symbol sqrt2
 declare rule auto term sqrt2^2 = 2
-declare cas-type Z_sqrt2 := Poly Integer [sqrt2]
+declare cas-type Zsqrt2 := Poly Integer [sqrt2]
 
-def a : Z_sqrt2 := 1 + sqrt2
-def b : Z_sqrt2 := 1 - sqrt2
+def a : Zsqrt2 := 1 + sqrt2
+def b : Zsqrt2 := 1 - sqrt2
 
 assertEqual "norm (1+√2)(1-√2) = -1"
   (a * b)
@@ -44,15 +44,15 @@ assertEqual "(1 + √2)^2 = 3 + 2√2"
   (3 + 2 * sqrt2)
 
 -- 共役 (substitute で 1 行 — matcher での係数分解は不要)
-def conj (z : Z_sqrt2) : Z_sqrt2 :=
-  (substitute [(sqrt2, - sqrt2)] z : Z_sqrt2)
+def conj (z : Zsqrt2) : Zsqrt2 :=
+  (substitute [(sqrt2, - sqrt2)] z : Zsqrt2)
 
 assertEqual "conj(3 + 2*sqrt2) = 3 - 2*sqrt2"
   (conj (3 + 2 * sqrt2))
   (3 - 2 * sqrt2)
 
 -- ノルム N(a + b√2) = a^2 - 2b^2 ∈ Z
-def norm (z : Z_sqrt2) : Integer := coerce (z * conj z)
+def norm (z : Zsqrt2) : Integer := ((z * conj z) : Integer)
 
 assertEqual "N(1+√2) = -1" (norm (1 + sqrt2)) (-1)
 assertEqual "N(3+2√2) = 1" (norm (3 + 2*sqrt2)) 1

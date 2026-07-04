@@ -1,0 +1,44 @@
+--
+-- Canonical-form selection by type annotations, and the absorption law
+--
+-- One value, several canonical forms: annotations select among the flat
+-- form over Z[i, x] and nested forms with Z[i] (or Z[x]) coefficients.
+-- Promotion/reshape is path-independent (the absorption law of the
+-- extensible-tower design, design/type-cas-tower.md D5):
+--
+--   reshape_C (reshape_B v) = reshape_C v
+--
+-- and arithmetic always exits in the default flat form, so terms coming
+-- from different representations merge (i + (-i) = 0 across forms).
+--
+
+declare symbol x
+
+def v := (2 + 3*i) + (1 - i)*x + 4*x^2
+
+-- one value, three canonical forms
+def flat : Poly Integer [i, x] := v
+def byX : Poly (Poly Integer [i]) [x] := v      -- coefficients in Z[i]
+def byI : Poly (Poly Integer [x]) [i] := v      -- coefficients in Z[x]
+
+assertEqual "forms agree semantically (flat vs byX)" ((flat - byX) = 0) True
+assertEqual "forms agree semantically (flat vs byI)" ((flat - byI) = 0) True
+assertEqual "annotation selects the nested form" (typeOf byX) "Poly (Poly Integer [i]) [x]"
+
+-- absorption: stacking annotations equals annotating once
+assertEqual "absorb: (byX then flat) = flat"
+  (show (byX : Poly Integer [i, x])) (show flat)
+assertEqual "absorb: (flat then byX) = byX"
+  (show (flat : Poly (Poly Integer [i]) [x])) (show byX)
+assertEqual "absorb: cross-nesting (byX then byI) = byI"
+  (show (byX : Poly (Poly Integer [x]) [i])) (show byI)
+assertEqual "round trip byX -> flat -> byX"
+  (show ((byX : Poly Integer [i, x]) : Poly (Poly Integer [i]) [x])) (show byX)
+
+-- arithmetic exits in the default flat form, even on nested operands,
+-- so cross-representation terms merge
+assertEqual "op exit is flat" (typeOf (byX + 0)) "Poly Integer [i, x]"
+assertEqual "cross-representation cancellation"
+  ((byX - flat) = 0) True
+def onlyI : Poly (Poly Integer [i]) [x] := i
+assertEqual "i + (-i) = 0 across forms" ((onlyI + (0 - i)) = 0) True

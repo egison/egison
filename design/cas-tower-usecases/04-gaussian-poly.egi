@@ -40,11 +40,12 @@ inspect p
 --     CASTerm <CASPoly [CASTerm 4 []]> [(x,2)]
 --   ]
 
--- p の x について微分: GaussianPoly のまま
+-- p の x について微分: 演算出口は flat、def 注釈が GaussianPoly へ再整形。
+-- flat リテラルとの比較は意味論的等価 (x - y = 0) で行う (γ′ の flat-exit 不変条件)
 def p' : GaussianPoly := ∂/∂ p x
 assertEqual "derivative w.r.t. x"
-  p'
-  ((1 - i) + 8 * x)
+  ((p' - ((1 - i) + 8 * x)) = 0)
+  True
 
 -- p^2 の展開
 def q : GaussianPoly := p^2
@@ -53,16 +54,17 @@ def q : GaussianPoly := p^2
 inspect q
 
 -- 同じ値を flat な Poly Integer [i, x] として見ることもできる
+-- (def 注釈が reshape を挿入するので coerce 関数は不要 — 旧 API は廃止済み)
 declare cas-type FlatGaussianPoly := Poly Integer [i, x]
 
-def p_flat : FlatGaussianPoly := coerce p
-inspect p_flat
--- 期待: 2 + 3*i + x - i*x + 4*x^2  (i も x も symbol として並列)
+def pFlat : FlatGaussianPoly := p
+inspect pFlat
+-- 期待: 4*x^2 - i x + x + 3*i + 2  (i も x も symbol として並列)
 
--- 双方向変換
-def p_back : GaussianPoly := coerce p_flat
-assertEqual "round-trip flat ↔ nested" p_back p
+-- 双方向変換 (吸収律により round-trip は構造まで一致する)
+def pBack : GaussianPoly := pFlat
+assertEqual "round-trip flat <-> nested" pBack p
 
 -- 複素根の方程式: x^2 - 2*i*x - 1 = 0  →  x = i (重根)
-def disc : GaussianInt := coerce ((2*i)^2 - 4*(-1))
+def disc : GaussianInt := (2*i)^2 - 4*(-1)
 assertEqual "discriminant is 0 (double root)" disc 0

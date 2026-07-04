@@ -173,6 +173,7 @@
 | 商型の fallback 遮断 | sibling fallback の例外化が既存 typeclass 解決に波及しないか | q1 で mini-test を先に書く |
 | ~~`Type/Join.joinTypes` の設計不一致~~ (**解消**: 2026-07-04 リファクタで削除) | 旧実装 (Poly ⊔ Frac → level 5) は呼び出し元ゼロの dead code だったため、`JoinError`/`joinCoeff`/`extractCoeff`/`joinSymbolSets` ごと削除。join は `Type/Subtype.skeletonJoin` (設計どおり level 4) に一本化された | — |
 | **isSubtype の二重化** (β の意図的判断) | instance 解決は旧 `Join.isSubtype` (部分的な骨格) のまま。完全骨格 `Subtype.skeletonSubtype` に切り替えると適用可能 instance が広がり dispatch が変わりうる | 影響評価 + 全回帰つきで別途一本化 (γ′ 以降) |
+| **暗黙 join の推論未配線** (usecase 実行可能化で顕在化、2026-07-04) | 閉じた原子集合が異なる operand の `+` は typeclass の単一化 (`a -> a -> a`) で型エラーになる (例: `GaussianInt + Zsqrt2`)。runtime の値は正しく計算できるのに static が先に落ちる | 当面は明示注釈で共通型へ上げる (usecase 06 に記載)。恒久対応は `joinTypesWith` の二項演算推論への配線 — isSubtype 一本化と同じ影響評価枠で実施 |
 | reduce closure の束縛順序 | `declare cas-quotient` の reduce がユーザ関数を参照する場合の prepass/eval 順序 | `preBindDeclaredSymbols` の前例に倣う |
 
 ---

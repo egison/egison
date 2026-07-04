@@ -39,16 +39,18 @@ assertEqual "half is rational" half (1/2)
 def h := f + 2  -- 推論型: Qx (= Poly (Frac Integer) [x])
 inspect h       -- 表示: f が "Qx" で、結果も "Qx" と出るとよい
 
--- 単純 alias なので reshape は no-op
-def f' := coerce f  -- 型を Qx と推論、内部表現は変わらない
+-- 単純 alias なので reshape は no-op (def 注釈で書く — coerce 関数は廃止済み)
+def f' : Qx := f    -- 内部表現は変わらない
 
 -- 多段 alias
 declare cas-type Z := Integer
 declare cas-type Zxy := Poly Z [x, y]
 def p : Zxy := x*y + 2*x + 3*y + 4
 
--- alias 同士の互換性 (透明なので骨格の subtype 規則がそのまま効く)
-def p_in_qxy : Qxy := coerce p  -- OK: Poly Z [x, y] ⊂ Poly Q [x, y] (係数昇格の骨格規則)
-def p_in_qx : Qx := coerce p    -- 注釈と値の不整合 (原子 y は [x] に無い)。
-                                 -- trust-the-annotation によりエラーにはならず、
-                                 -- 値は canonical 形のまま残って下流で顕在化する
+-- alias 同士の互換性 (透明なので骨格の subtype 規則がそのまま効く)。
+-- def 注釈が reshape を挿入するので coerce 関数は不要 (旧 API は廃止済み)。
+-- 識別子に _ は使えない (添字構文と衝突) ので camelCase で書く
+def pInQxy : Qxy := p   -- OK: Poly Z [x, y] ⊂ Poly Q [x, y] (係数昇格の骨格規則)
+def pInQx : Qx := p     -- 注釈と値の不整合 (原子 y は [x] に無い)。
+                        -- trust-the-annotation によりエラーにはならず、
+                        -- 値は canonical 形のまま残って下流で顕在化する
