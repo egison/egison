@@ -2497,16 +2497,24 @@ inferIExprWithContext expr ctx = case expr of
 -- fresh variables (a variable-headed slot admits any matcher — never a false rejection).
 patternDualType :: IPattern -> TypeErrorContext -> Infer (Type, Type)
 patternDualType pat ctx = do
-  saved <- getConstraints
-  savedG <- gets inferGlobalSubst
+  snapshot <- saveConstraintState
   result <- (do tv <- freshVar "taut"
                 (_, _, st, taup) <- inferIPattern pat tv ctx
                 taut  <- applySubstWithConstraintsM st tv
                 taup' <- applySubstWithConstraintsM st taup
                 return (taup', taut))
               `catchError` \_ -> (,) <$> freshVar "taup" <*> freshVar "taut"
-  modify $ \st -> st { inferConstraints = saved, inferGlobalSubst = savedG }
+  restoreConstraintState snapshot
   return result
+
+-- | Snapshot of the state that speculative inference must not leak: the
+-- type-class constraint store and the global zonk substitution.
+saveConstraintState :: Infer ([Constraint], Subst)
+saveConstraintState = (,) <$> getConstraints <*> gets inferGlobalSubst
+
+restoreConstraintState :: ([Constraint], Subst) -> Infer ()
+restoreConstraintState (cs, g) =
+  modify $ \st -> st { inferConstraints = cs, inferGlobalSubst = g }
 
 -- | Run an action but discard its effect on the type-class constraint store and the global
 -- zonk substitution.  Used for the structural-type τ_p reassembly unifications, which involve
@@ -2514,10 +2522,9 @@ patternDualType pat ctx = do
 -- speculative unifications whose failure is swallowed by a 'catchError' fallback.
 withIsolatedConstraints :: Infer a -> Infer a
 withIsolatedConstraints act = do
-  saved <- getConstraints
-  savedG <- gets inferGlobalSubst
+  snapshot <- saveConstraintState
   r <- act
-  modify $ \st -> st { inferConstraints = saved, inferGlobalSubst = savedG }
+  restoreConstraintState snapshot
   return r
 
 -- | τ_p of an and/or/forall/loop/seq-cons pattern: the two sub-patterns describe the same value,
@@ -3330,8 +3337,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   -- application site (D5: casReshapeAs only) — the unifier itself never
   -- joins, so type errors outside the CAS order are unaffected. On retry
   -- failure the ORIGINAL mismatch is reported.
-  savedCs <- getConstraints
-  savedG  <- gets inferGlobalSubst
+  snapshot <- saveConstraintState
   inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
     `catchError` \e -> case e of
       UnificationError t1 t2 _
@@ -3339,7 +3345,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
             edges <- gets inferCasSubtypeEdges
             case Subtype.joinTypesWith edges t1 t2 of
               Just j -> do
-                modify $ \st -> st { inferConstraints = savedCs, inferGlobalSubst = savedG }
+                restoreConstraintState snapshot
                 let promote ti at
                       | Subtype.isCasType at, at /= j, Subtype.isSubtypeWith edges at j =
                           (TIExpr (Forall [] [] j) (TIReshape j ti), j)

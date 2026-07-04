@@ -8,8 +8,8 @@ This module provides utilities for matching type class instances.
 module Language.Egison.Type.Instance
   ( findMatchingInstanceForType
   , findMatchingInstanceForTypes
-  , findMostSpecificInstance
   , findMostSpecificInstanceForTypes
+  , selectMostSpecific
   , AmbiguityError(..)
   ) where
 
@@ -58,7 +58,7 @@ findMatchingInstanceForTypes targetTypes = go
         Right s' -> unifyAll (s' `composeSubst` s) rs
         Left e   -> Left (show e)
 
--- | Errors raised by `findMostSpecificInstance`.
+-- | Errors raised by most-specific instance selection.
 -- See design/runtime-type-dispatch.md §4 for the full rationale.
 data AmbiguityError
   = NoMatchingInstance
@@ -67,42 +67,40 @@ data AmbiguityError
     -- ^ Multiple candidates exist and at least two are not comparable
     -- via the subtype partial order, so no unique most-specific exists.
   | AmbiguousMultipleMaxima
-    -- ^ Multiple incomparable minima (most-specific) candidates exist.
-    -- Should be unreachable when instances are pairwise distinct;
-    -- kept defensively.
+    -- ^ Multiple most-specific candidates remain (order-equivalent
+    -- types — mutual embeddings at the MathValue-coefficient level)
+    -- and the representation-head tie-break could not single one out.
   deriving (Eq, Show)
 
--- | Pick the most specific instance accepting `target`.
+-- | Most-specific selection among candidates that are already known to
+-- accept the targets. `proj` projects a candidate to its type list.
 --
--- An instance is a candidate iff the target type is a subtype of the
--- instance's principal type (or unifies with it for type-variable instances).
--- Among candidates, the most specific is the one whose principal type is a
--- subtype of every other candidate's principal type (= the minimum element
--- in the subtype partial order). If no unique minimum exists, returns an
--- ambiguity error.
---
--- The subtype order is the declared CAS order (complete skeleton plus
--- `declare cas-subtype` edges), so user-declared embeddings participate
--- in dispatch the same way built-in tower embeddings do.
-findMostSpecificInstance :: SubtypeEnv -> Type -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
-findMostSpecificInstance edges target insts =
-  case filter (\inst -> isCompatible edges target (instType inst)) insts of
+-- The most specific candidate is the one whose projected list is
+-- pointwise below every other's in the declared CAS order (complete
+-- skeleton plus `declare cas-subtype` edges), so user-declared
+-- embeddings participate in dispatch the same way built-in tower
+-- embeddings do. Among order-EQUIVALENT survivors (the same value set
+-- in different canonical forms, e.g. Poly MathValue [..] vs
+-- Frac MathValue) the tie is broken by the targets' representation
+-- heads — per the design principle, types select representations, so
+-- dispatch follows the target's own head.
+selectMostSpecific :: SubtypeEnv -> (c -> [Type]) -> [Type] -> [c] -> Either AmbiguityError c
+selectMostSpecific edges proj targets cands =
+  case cands of
     []  -> Left NoMatchingInstance
     [x] -> Right x
     cs  ->
-      let isMostSpecific x =
-            all (\y -> instType y == instType x
-                       || isSubtypeWith edges (instType x) (instType y))
-                cs
-          mostSpecific = filter isMostSpecific cs
-      in case mostSpecific of
+      let leqList xs ys = length xs == length ys
+                          && and (zipWith (isSubtypeWith edges) xs ys)
+          isMostSpecific x =
+            all (\y -> proj y == proj x || leqList (proj x) (proj y)) cs
+          sameHeads x = length (proj x) == length targets
+                        && and (zipWith sameCasHead targets (proj x))
+      in case filter isMostSpecific cs of
            [unique] -> Right unique
            []       -> Left AmbiguousIncomparable
-           -- Several most-specific candidates are order-equivalent (same
-           -- value set, different canonical forms): follow the target's
-           -- representation head.
            several  ->
-             case filter (sameCasHead target . instType) several of
+             case filter sameHeads several of
                [unique] -> Right unique
                _        -> Left AmbiguousMultipleMaxima
 
@@ -118,36 +116,15 @@ isCompatible edges target inst
       Left _  -> False
   | otherwise = isSubtypeWith edges target inst
 
--- | Multi-parameter version of `findMostSpecificInstance`.
--- Generalises the single-target specificity rule pairwise: instance A is
--- "more specific" than instance B if A's type list is pointwise a subtype
--- of B's type list (and A != B). Single-param classes (one target type) get
--- the same behaviour as `findMostSpecificInstance`.
+-- | Pick the most specific instance accepting the targets (pointwise).
+-- Single-param classes pass `[t]`. An instance is a candidate iff each
+-- target is compatible with the corresponding instance type
+-- ('isCompatible'); selection is 'selectMostSpecific'.
 findMostSpecificInstanceForTypes :: SubtypeEnv -> [Type] -> [InstanceInfo] -> Either AmbiguityError InstanceInfo
 findMostSpecificInstanceForTypes edges targets insts =
-  case filter (\inst -> isCompatibleAll targets (instTypes inst)) insts of
-    []  -> Left NoMatchingInstance
-    [x] -> Right x
-    cs  ->
-      let isMostSpecific x =
-            all (\y -> instTypes y == instTypes x
-                       || isSubtypeList (instTypes x) (instTypes y))
-                cs
-          mostSpecific = filter isMostSpecific cs
-      in case mostSpecific of
-           [unique] -> Right unique
-           []       -> Left AmbiguousIncomparable
-           several  ->
-             case filter (sameHeadAll targets . instTypes) several of
-               [unique] -> Right unique
-               _        -> Left AmbiguousMultipleMaxima
+  selectMostSpecific edges instTypes targets
+    (filter (isCompatibleAll targets . instTypes) insts)
   where
-    sameHeadAll ts is
-      | length ts /= length is = False
-      | otherwise = and (zipWith sameCasHead ts is)
     isCompatibleAll ts is
       | length ts /= length is = False
       | otherwise = and (zipWith (isCompatible edges) ts is)
-    isSubtypeList xs ys
-      | length xs /= length ys = False
-      | otherwise = and (zipWith (isSubtypeWith edges) xs ys)

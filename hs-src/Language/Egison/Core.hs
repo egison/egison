@@ -77,7 +77,8 @@ import           Language.Egison.RState
 import           Language.Egison.Tensor
 import           Language.Egison.Type.Types      (Type(..))
 import qualified Language.Egison.Type.RuntimeType as RT
-import           Language.Egison.Type.Subtype    (SubtypeEnv, isSubtypeWith, sameCasHead)
+import           Language.Egison.Type.Instance   (selectMostSpecific)
+import           Language.Egison.Type.Subtype    (SubtypeEnv, isSubtypeWith)
 
 -- | Get the Type of an EgisonValue
 -- Used for type class method dispatch
@@ -655,25 +656,15 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
   where
     -- Pick the dictionary name whose instance type is the most specific
     -- supertype of `target`, in the declared CAS order (skeleton +
-    -- `declare cas-subtype` edges). Mirrors `findMostSpecificInstance` in
-    -- Type.Instance, but specialised to (Type, dictName) pairs.
+    -- `declare cas-subtype` edges). Candidate filtering is by plain
+    -- subtyping (runtime types are concrete); selection is the shared
+    -- `Type.Instance.selectMostSpecific`.
     findBestRuntimeCandidate :: SubtypeEnv -> Type -> [(Type, String)] -> Maybe String
     findBestRuntimeCandidate edges target cands =
-      case filter (\(t, _) -> isSubtypeWith edges target t) cands of
-        []        -> Nothing
-        [(_, dn)] -> Just dn
-        cs        ->
-          let isMostSpec (t, _) =
-                all (\(t', _) -> t == t' || isSubtypeWith edges t t') cs
-          in case filter isMostSpec cs of
-               [(_, dn)] -> Just dn
-               -- Order-equivalent most-specific candidates (same value
-               -- set, different canonical forms): follow the target's
-               -- representation head.
-               several   ->
-                 case filter (\(t, _) -> sameCasHead target t) several of
-                   [(_, dn)] -> Just dn
-                   _         -> Nothing  -- ambiguous
+      case selectMostSpecific edges (\(t, _) -> [t]) [target]
+             (filter (\(t, _) -> isSubtypeWith edges target t) cands) of
+        Right (_, dn) -> Just dn
+        Left _        -> Nothing
 
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 
