@@ -116,6 +116,18 @@
 
 **検収**: usecase [04](./cas-tower-usecases/04-gaussian-poly.egi) (中核ケーススタディ)。**ここまででタワー側は完成**。
 
+### γ′ 実施結果 (2026-07-04 実装完了) — **M3: タワー完成**
+
+- **flatten の実装**: `casNormalizePoly` を `casNormalizePolyWith flatten` に一般化。flatten モード (全算術経路のデフォルト) では nested 係数 (`CASPoly` 係数、`CASFrac (CASPoly _) (CASInteger _)` 係数) を `flattenNestedTerm` が外側モノミアルへ分配展開。ガードは係数コンストラクタ検査のみで、nested が現れない通常経路は実質ゼロコスト
+- **reshape 側は keep-nested モード**: `reshapeAsPoly` の最終グルーピングのみ `casNormalizePolyWith False` (係数の再正規化も抑止 — 多段 nested の保護)。**reshape 入口の `casNormalize` が入力を flat に正規化するため reshape は「値のみの関数」になり、吸収律 `casReshapeAs C . casReshapeAs B = casReshapeAs C` が構成から成立** (D5 coherence の実装対応物)
+- **S0 の 3 ギャップすべて解消** (mini-test 125 を fixed-behavior ピンに全面更新): flatten reshape / 演算出口のデフォルト flat 形式 / 表現またぎの項マージ (`i + (-i) = 0` が全表現組合せで成立)
+- **吸収律バッテリ = mini-test 128**: nested→flat・flat→nested・**cross-nesting (主変数の付け替え)**・round-trip (usecase 04 の p_back パターン)・微分+再注釈、を構造的等価+show 等価で検証
+- **付随修正 2 件**:
+  1. `Infer.hs` IReshape に **representation-directive 寛容化** — CAS 型間の注釈重ね掛け (`((v : nested) : flat)` 等) を型エラーにしない (trust-the-annotation の型検査側対応。非 CAS の不整合は従来どおりエラー)
+  2. `Pretty.hs` の IExpr instance の `IReshape` ケース欠落 (pre-existing — 型エラー表示時に non-exhaustive でクラッシュ) を補修
+- **発見してピン留めした既存挙動**: `def x := e` (注釈なし) は TypedDesugar の define-site reshape により**推論スキームへ再整形**され、推論は左オペランドの型を採る — `def m := p + pFlat` は束縛時に nested へ戻る (演算出口自体は flat。値保存であり設計と整合。125 S0-3b/3c にピン)
+- **回帰**: 代表 7 sample エラーゼロ・**性能劣化なし** (riemann S2 572ms / cubic 575ms — ベースライン同等)・mini-test 91/91・cabal test PASS
+
 ---
 
 ## 5. 商機構 q1–q4 (独立線、工数: 中)

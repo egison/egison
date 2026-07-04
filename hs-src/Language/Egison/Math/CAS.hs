@@ -567,11 +567,35 @@ casNormalize (CASFrac num denom) = casNormalizeFrac num denom
 -- 4. Remove zero-coefficient terms
 -- 5. Sort terms in descending order
 casNormalizePoly :: [CASTerm] -> CASValue
-casNormalizePoly terms =
+casNormalizePoly = casNormalizePolyWith True
+
+-- | Core polynomial normalization, parametrized by the flatten mode
+-- (Phase gamma-prime of the extensible-tower plan,
+-- design/type-cas-tower-implementation.md section 4).
+--
+-- When `flatten` is True (the default; every arithmetic path), nested
+-- coefficients — a coefficient that is itself a CASPoly, i.e. the nested
+-- canonical form produced by reshape — are distributed out into the outer
+-- monomial first, so operations always exit in the default flat canonical
+-- form. Terms coming from nested and flat representations then share
+-- monomial keys and merge (i + (-i) = 0 across representations).
+--
+-- Reshape's final grouping passes False to build and KEEP the nested form
+-- it just constructed: coefficients are neither re-normalized (they were
+-- just produced by a recursive reshape and re-normalizing would flatten
+-- deeper nesting levels) nor distributed. Invariant: nested forms exist
+-- only as the direct output of reshape (annotation sites).
+casNormalizePolyWith :: Bool -> [CASTerm] -> CASValue
+casNormalizePolyWith flatten terms =
   let -- Normalize each term's monomial
-      terms1 = map normalizeTermMonomial terms
+      terms1 = map (normalizeTermMonomialWith flatten) terms
+      -- Distribute nested coefficients (flat exit form) when asked to
+      terms1' = if flatten && any hasNestedCoeff terms1
+                  then map (normalizeTermMonomialWith flatten)
+                           (concatMap flattenNestedTerm terms1)
+                  else terms1
       -- Fold terms with equal monomials
-      terms2 = foldTerms terms1
+      terms2 = foldTermsWith flatten terms1'
       -- Remove zero-coefficient terms
       terms3 = filter (not . isZeroTerm) terms2
       -- Sort in descending order (standard polynomial order)
@@ -587,15 +611,38 @@ casNormalizePoly terms =
     extractInteger (CASInteger n) = CASInteger n
     extractInteger _ = error "extractInteger: not an integer"
 
--- | Normalize a term's monomial: combine duplicate symbols, remove zero exponents
-normalizeTermMonomial :: CASTerm -> CASTerm
-normalizeTermMonomial (CASTerm coeff mono) =
+-- | Does the term carry a nested coefficient that 'flattenNestedTerm'
+-- would distribute? Cheap constructor check used as a fast-path guard.
+hasNestedCoeff :: CASTerm -> Bool
+hasNestedCoeff (CASTerm (CASPoly _) _) = True
+hasNestedCoeff (CASTerm (CASFrac (CASPoly _) (CASInteger _)) _) = True
+hasNestedCoeff _ = False
+
+-- | Distribute a nested coefficient into flat terms: a CASPoly coefficient
+-- is multiplied out into the outer monomial; a CASFrac coefficient with a
+-- CASPoly numerator over an integer denominator is distributed likewise.
+-- Recursion terminates because each step strictly reduces nesting.
+flattenNestedTerm :: CASTerm -> [CASTerm]
+flattenNestedTerm t@(CASTerm c mono) = case c of
+  CASPoly inner ->
+    concatMap (\(CASTerm ic im) -> flattenNestedTerm (CASTerm ic (im ++ mono))) inner
+  CASFrac (CASPoly inner) d@(CASInteger _) ->
+    concatMap (\(CASTerm ic im) ->
+                 flattenNestedTerm (CASTerm (casNormalizeFrac ic d) (im ++ mono))) inner
+  _ -> [t]
+
+-- | Normalize a term's monomial: combine duplicate symbols, remove zero
+-- exponents. When `renormCoeff` is False the coefficient is left untouched
+-- (reshape's keep-nested mode — the coefficient was just built by a
+-- recursive reshape and re-normalizing it would flatten deeper nesting).
+normalizeTermMonomialWith :: Bool -> CASTerm -> CASTerm
+normalizeTermMonomialWith renormCoeff (CASTerm coeff mono) =
   let -- Fold duplicate symbols
       mono1 = foldMonomialSymbols mono
       -- Remove zero-exponent symbols
       mono2 = filter (\(_, exp) -> exp /= 0) mono1
-      -- Normalize the coefficient recursively
-      coeff' = casNormalize coeff
+      -- Normalize the coefficient recursively (flatten mode only)
+      coeff' = if renormCoeff then casNormalize coeff else coeff
   in CASTerm coeff' mono2
 
 -- | Fold duplicate symbols in a monomial by adding their exponents
@@ -610,7 +657,13 @@ foldMonomialSymbols mono =
 
 -- | Fold terms with equal monomials by adding their coefficients
 foldTerms :: [CASTerm] -> [CASTerm]
-foldTerms terms =
+foldTerms = foldTermsWith True
+
+-- | Like 'foldTerms'; in keep-nested mode (False) merged coefficients are
+-- normalized without flattening, so a nested coefficient produced by
+-- reshape survives the grouping.
+foldTermsWith :: Bool -> [CASTerm] -> [CASTerm]
+foldTermsWith flatten terms =
   let grouped = groupBy equalMonos (sortBy (comparing termMonoKey) terms)
   in concatMap combineTerms grouped
   where
@@ -618,11 +671,16 @@ foldTerms terms =
     termMonoKey (CASTerm _ m) = map (\(s, e) -> (show s, e)) (sortBy (comparing (show . fst)) m)
     termMono (CASTerm _ m) = sortBy (comparing (show . fst)) m
     equalMonos t1 t2 = termMono t1 == termMono t2
+    normalizeCoeff c
+      | flatten = casNormalize c
+      | otherwise = case c of
+          CASPoly ts -> casNormalizePolyWith False ts
+          _          -> casNormalize c
     combineTerms [] = []
     combineTerms grp@((CASTerm _ m):_) =
       let mono = sortBy (comparing (show . fst)) m
           coeffSum = foldr casPlus' (CASInteger 0) [c | CASTerm c _ <- grp]
-      in [CASTerm (casNormalize coeffSum) mono]
+      in [CASTerm (normalizeCoeff coeffSum) mono]
 
 -- | Sort terms in descending order (highest degree first)
 -- Order: by total degree, then lexicographically by symbols
@@ -745,13 +803,18 @@ reshapeAsFrac innerTy v = case casNormalize v of
 --
 -- If the inner type has an open or variable symbol set, no atom separation
 -- is performed; we just recurse on coefficients (basic widening).
+-- Note (Phase gamma-prime): the entry `casNormalize v` flattens any nested
+-- shape the input may carry, so reshape is a function of the VALUE only —
+-- this is what makes the absorption law `casReshapeAs C . casReshapeAs B =
+-- casReshapeAs C` hold (D5 coherence). The final grouping then uses the
+-- keep-nested normalizer so the structure just built is not re-flattened.
 reshapeAsPoly :: Type -> SymbolSet -> CASValue -> CASValue
 reshapeAsPoly innerTy _outerSS v = case casNormalize v of
   CASInteger n -> CASInteger n
   CASPoly ts   ->
     case innerClosedAtoms innerTy of
-      Just inAtoms -> casNormalizePoly (map (separateTerm innerTy inAtoms) ts)
-      Nothing      -> casNormalizePoly
+      Just inAtoms -> casNormalizePolyWith False (map (separateTerm innerTy inAtoms) ts)
+      Nothing      -> casNormalizePolyWith False
                         [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
   cv           -> cv
 

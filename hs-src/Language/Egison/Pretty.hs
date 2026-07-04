@@ -502,6 +502,11 @@ instance Pretty IExpr where
   
   pretty (IFunctionExpr xs) = pretty "function" <+> tupled (map pretty xs)
 
+  -- Type-annotated expression `(e : T)` (reshape node). Shown with the
+  -- internal type's show form; used mainly in type-error contexts.
+  pretty (IReshape ty e) =
+    parens (pretty' e <+> pretty ":" <+> pretty (show ty))
+
 prettyRefExpr :: IExpr -> Doc ann
 prettyRefExpr e = if isAtom e then pretty e else parens (pretty e)
 

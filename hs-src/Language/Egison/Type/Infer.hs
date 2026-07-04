@@ -72,6 +72,7 @@ import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
                                               emptyContext, withExpr)
+import qualified Language.Egison.Type.Subtype as Subtype
 import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstConstraint,
                                               applySubstScheme, composeSubst, emptySubst,
                                               singletonSubst)
@@ -2451,7 +2452,18 @@ inferIExprWithContext expr ctx = case expr of
     (innerTI, s) <- inferIExprWithContext inner exprCtx
     let innerType = tiExprType innerTI
     ty' <- applySubstWithConstraintsM s ty
+    -- Representation-directive leniency (Phase gamma-prime of the
+    -- extensible-tower plan): between CAS-family types the annotation
+    -- selects a canonical form of the same value domain (trust the
+    -- annotation; the runtime reshape is total on CAS values), so a
+    -- structural mismatch such as a nested Poly re-annotated to its flat
+    -- form — ((v : Poly (Poly Integer [i]) [x]) : Poly Integer [i, x]) —
+    -- must not be a type error. Non-CAS mismatches keep failing.
     s2 <- unifyTypesWithContext innerType ty' exprCtx
+            `catchError` \e ->
+              if Subtype.isCasType innerType && Subtype.isCasType ty'
+                then return emptySubst
+                else throwError e
     let finalSubst = composeSubst s2 s
     finalTy <- applySubstWithConstraintsM finalSubst ty
     -- Apply the substitution to innerTI as well so the inner expression's
