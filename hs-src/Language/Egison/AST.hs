@@ -126,6 +126,13 @@ data TopExpr
     --       declare cas-subtype Integer ⊂ GaussianInt
     -- Relation only (D5: no embed clause — promotion is always casReshapeAs).
     -- Checked at declare time for the D1 join-semilattice invariant.
+  | DeclareCasQuotient String TypeExpr Expr
+    -- ^ Coefficient-domain quotient declaration (M4; design/type-cas-quotient.md).
+    -- e.g.  declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
+    -- String: nominal quotient type name; TypeExpr: base type; Expr: the
+    -- idempotent reduce (representative selector). Macro-expanded before
+    -- environment building into reduce<Q>/proj<Q>/repr<Q> definitions,
+    -- homomorphic Ring/Eq instances, and congruence-law assertions.
   | DeclareApply String [String] Expr
     -- ^ Math function application rule (Phase A of declare apply impl).
     -- e.g.  declare apply sin x := if x = 0 then 0 else 'sin x

@@ -142,6 +142,14 @@
 
 **検収**: usecase [07](./cas-tower-usecases/07-modular.egi) (混在演算が型エラーになることのテスト含む)。q5 (`Poly 商型 atoms`) はスコープ外 (optional)。
 
+### M4 実施結果 (2026-07-04 実装完了) — **全マイルストーン達成**
+
+- **実装形態は「素朴なマクロ」**: `declare cas-quotient Q := T by f` は評価パイプライン冒頭 (`Eval.expandCasQuotientDecls`、環境構築より前) で通常の TopExpr 列に展開 — `def reduceQ := f` (ユーザ AST 直挿し) + `projQ`/`reprQ` + 準同型 instance 群 (`Eq`/`AddSemigroup`〜`Ring`) + **q4 の合同律 assertion 3 本** (冪等・`+'`/`*'` 合同、整数バッテリ)。生成部はテンプレート文字列を既存パーサで再パース。新機構は unsafe cast primitive `casQuotientCast : ∀ a b. a → b` (生成コード専用) の 1 個だけ
+- **q1 (nominal) は alias 環境への登録で獲得**: `Q → TInductive Q []` を cas-type alias 環境に入れるだけで、全注釈 seam が名前を不透明型に写す。同名同士しか単一化せず、`declare cas-subtype` は非 CAS として拒否 (D4 の順序不参加が自動成立)。EvalState の新フィールドはゼロ
+- **横断は明示で確定** (usecase 07 の open question): `projQ` / `reprQ`。注釈による暗黙 proj は将来の糖衣候補
+- **混在演算** (`Mod7 + Integer`): instance 不一致で dispatch 不成立 — gradual では Warning + 未解決シンボリック値として可視的に失敗、strict モードでは型エラー
+- **検証** (mini-test 129): 準同型演算 (per-op reduce、代表元 0..6 維持)・型 dispatch Eq (`12 == 5 in Mod7` = True)・repr・パターン2 演算 (Fermat 逆元)・複数商の共存 (Mod7/Mod5)・宣言時合同律検査、すべて動作。回帰: 代表 sample エラーゼロ性能不変・mini-test 92/92・cabal test PASS
+
 ---
 
 ## 6. テスト・回帰手順

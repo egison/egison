@@ -1,63 +1,51 @@
 -- Use case 07: 剰余環 Z/nZ — 商機構 (タワー外、type-cas-quotient.md)
 --
--- 2026-07-04 全面改訂: 旧版は Phase ε (新 CASValue constructor `CASModular`) と
--- `declare cas-subtype Integer ⊂ Mod7 where embed n := n mod 7` を想定していたが、
--- 設計決定を受けて書き直した:
---   - D4: Z/nZ は商であり、タワー (単射埋め込みの束) には入れない。
---     Integer との ⊂ 関係は張らず、join にも参加しない
---   - D5: `where embed` 句は廃止済みなので、射影 embed はそもそも書けない
---   - ε 不要になった: 表現は CASInteger のまま。商の意味は nominal 型 + reduce が担う
+-- 2026-07-04 実装済み (M4)。mini-test/129-cas-quotient.egi が検収テスト。
 --
--- Intent:
---   Z/7Z を宣言し、常に mod 7 簡約された代表元 (0..6) で計算したい。
+-- 実装形態: `declare cas-quotient` は評価パイプライン冒頭の**マクロ展開**で
+--   reduce<Q> / proj<Q> / repr<Q> の def、準同型 Ring/Eq instance、
+--   合同律 assertion (q4) に展開される。nominal 性 (q1) は Q を
+--   「Q → TInductive Q []」として cas-type alias 環境に登録することで獲得
+--   (同名同士しか単一化せず、⊂ 順序にも join にも参加しない — D4)。
 --
--- Required machinery (type-cas-quotient.md §8):
---   - q1: nominal 型導入 (cas-quotient 宣言は新型を導入 — タワーの透明 alias とは別機構)
---   - q2: `declare cas-quotient` 構文 + DeclareEnv "quotient" 登録
---   - q3: 準同型 instance (Ring 等) の自動導出 + Eq の型 dispatch
---   - q4: 合同律の宣言時検査 (冪等性・reduce (x∘y) = reduce (reduce x ∘ reduce y))
+-- 確定した設計判断:
+--   - 横断は明示: projQ : MathValue -> Q / reprQ : Q -> MathValue。
+--     注釈による暗黙 proj (`def a : Mod7 := 5`) は導入せず、将来の糖衣候補
+--   - 混在演算 (Mod7 + Integer) は instance 不一致で dispatch 不成立 —
+--     gradual typing では Warning + 未解決シンボリック値として可視的に失敗し、
+--     strict モード (optTypeCheckStrict) では型エラー。projQ/reprQ で明示的に
+--     渡ることを強制する防壁は機能している
+--   - 準同型でない演算 (inv/gcd/比較) はパターン2: Q 上に直接定義する
 --
--- Open questions (残存):
---   - 型注釈による暗黙 proj (`def a : Mod7 := 5` を `proj 5` と読む) を許すか。
---     reshape (注釈 = 境界) の文化と一貫するので許す方向が自然 → q2 で確定
---   - `Poly Mod7 [x]` (商型を係数にする Poly、GF(7)[x]) は q5 (optional)
---   - dependent typing (`Modular n` の n を型パラメタ化) は不採用のまま:
---     n ごとの個別宣言で十分
---
--- Tests:
+-- Tests (mini-test/129 と同内容):
 
 declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
-  -- 新しい nominal 型 Mod7 を導入。表現は CASInteger のまま、reduce = mod 7 射影
+  -- 展開結果: reduceMod7 / projMod7 / reprMod7、Eq・AddSemigroup・AddMonoid・
+  -- AddGroup・MulSemigroup・MulMonoid・Ring の各 instance、
+  -- 合同律 assertion 3 本 (冪等・+' 合同・*' 合同、整数バッテリ)
 
--- 出入りは明示 (proj : Integer → Mod7 / repr : Mod7 → Integer)。
--- 以下では注釈による暗黙 proj (open question) を許す書き方を使う
-def a : Mod7 := 5
-def b : Mod7 := 4
+def a : Mod7 := projMod7 5
+def b : Mod7 := projMod7 4
 
--- 準同型演算は自動導出: (+) a b = proj (repr a + repr b)。
--- per-op reduce なので代表元は常に 0..6 に保たれる (表示乖離・中間肥大が構造的に起きない)
-assertEqual "5 + 4 mod 7" (a + b) (2 : Mod7)
-assertEqual "5 * 4 mod 7" (a * b) (6 : Mod7)
-assertEqual "(-1) mod 7" (neg (1 : Mod7)) (6 : Mod7)
+-- 準同型演算は自動導出 (per-op reduce → 代表元は常に 0..6)
+assertEqual "5 + 4 mod 7" (a + b) (projMod7 2)
+assertEqual "5 * 4 mod 7" (a * b) (projMod7 6)
+assertEqual "neg 1 mod 7" (neg (projMod7 1)) (projMod7 6)
 
--- Eq は型 dispatch (Eq MathValue への sibling fallback 禁止):
+-- Eq は型 dispatch (Eq MathValue への fallback なし):
 --   x == y ⟺ reduce (repr x - repr y) = 0
-assertEqual "12 ≡ 5 (mod 7)" ((12 : Mod7) == (5 : Mod7)) True
+assertEqual "12 == 5 in Mod7" (projMod7 12 == projMod7 5) True
 
--- 混在演算は型エラー (Mod7 は join に参加しない — mod の世界と Z を暗黙に混ぜない防壁)
--- def bad := a + (3 : Integer)   -- 型エラー: Mod7 と Integer に共通の上位型が無い
-def ok := a + (3 : Mod7)          -- 明示的に商へ入れてから演算する
+-- 明示的な戻り
+assertEqual "repr of reduced" (reprMod7 (projMod7 12)) 5
 
--- 準同型でない演算はパターン2 (商上に直接実装、Z への委譲禁止)。
--- Fermat の小定理による逆元:
-def inv (z : Mod7) : Mod7 := z^5
-assertEqual "inverse of 3 mod 7" (inv (3 : Mod7)) (5 : Mod7)   -- 3*5 = 15 ≡ 1
+-- パターン2 (商上に直接定義)。Fermat の小定理による逆元 z^5:
+def inv7 (z : Mod7) : Mod7 := z * z * z * z * z
+assertEqual "inv 3 mod 7" (inv7 (projMod7 3)) (projMod7 5)
 
--- 大きな n も同様 (n ごとに宣言)
-declare cas-quotient Mod1000003 := Integer by (\n -> modulo n 1000003)
-def big : Mod1000003 := 999999
-assertEqual "big * 2" (big * 2) (999995 : Mod1000003)   -- 1999998 mod 1000003
+-- 複数の商が共存する (別 nominal 型・別 instance)
+declare cas-quotient Mod5 := Integer by (\n -> modulo n 5)
+assertEqual "3 * 4 mod 5" ((projMod5 3) * (projMod5 4)) (projMod5 2)
 
--- GF(7)[x] (Poly Mod7 [x]) と GF(p^k) 合成 (係数商 × シンボル担持商) は
--- q5 (optional) の管轄 — type-cas-quotient.md §7–8 を参照
--- (係数スロットに商型を許す拡張が必要なため、簡潔な usecase になった時点で追加する)
+-- q5 (optional・未実装): 商型を係数にした多項式 GF(7)[x] (Poly Mod7 [x]) と
+-- GF(p^k) 合成は type-cas-quotient.md §7-8 を参照

@@ -149,8 +149,14 @@ evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe E
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
 
+  -- M4 (quotient mechanism, design/type-cas-quotient.md): macro-expand
+  -- `declare cas-quotient` into ordinary defs/instances/assertions BEFORE
+  -- environment building, so the generated instances and signatures flow
+  -- through the normal prepass.
+  exprs' <- expandCasQuotientDecls exprs
+
   -- Phase 2: Environment Building
-  buildAndMergeEnvironments exprs opts
+  buildAndMergeEnvironments exprs' opts
 
   -- Pre-bind declared symbols. `declare symbol K` (uppercase) would
   -- otherwise fall through to the InductiveData fallback in IVarExpr at
@@ -160,12 +166,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   -- this pre-binding the def closure captures an env where K is missing.
   -- Binding here makes the symbol visible to subsequent defs and to the
   -- IDeclareSymbol pass itself (which is then a no-op).
-  envWithSymbols <- preBindDeclaredSymbols env exprs
+  envWithSymbols <- preBindDeclaredSymbols env exprs'
 
   let permissive = not (optTypeCheckStrict opts)
 
   -- Phases 3-8: Desugar, type-infer, typed-desugar each expression
-  accum <- foldM (processOneExpr opts permissive printValues) emptyAccum exprs
+  accum <- foldM (processOneExpr opts permissive printValues) emptyAccum exprs'
 
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
@@ -210,6 +216,89 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     (err:_) -> throwError err
 
   return (lastVal, finalEnv)
+
+--------------------------------------------------------------------------------
+-- M4: cas-quotient macro expansion (design/type-cas-quotient.md q1-q4)
+--------------------------------------------------------------------------------
+
+-- | Expand `declare cas-quotient Q := Base by reduce` into ordinary
+-- definitions, instances, and congruence-law assertions:
+--
+--   def reduceQ := <reduce>                      (user AST, spliced directly)
+--   def projQ (x : MathValue) : Q := casQuotientCast (reduceQ x)
+--   def reprQ (v : Q) : MathValue := casQuotientCast v
+--   instance Eq/AddSemigroup/../Ring Q           (homomorphic ops:
+--                                                 projQ (reprQ a ∘' reprQ b))
+--   assertEqual ... (q4: idempotence + congruence over a sample battery)
+--
+-- Nominal typing (q1) comes from registering Q in the cas-type alias
+-- environment as Q -> TInductive Q [], so every annotation seam maps the
+-- bare name to an opaque type that unifies only with itself and joins no
+-- subtype order (D4: quotients live outside the tower; `declare
+-- cas-subtype` rejects them as non-CAS types).
+--
+-- Notes: crossing is explicit (projQ / reprQ). The homomorphic delegation
+-- is sound because reduce is a ring-homomorphism kernel projection (checked
+-- by the generated congruence assertions); non-homomorphic operations
+-- (inv, gcd, comparisons) must be defined on Q directly (pattern 2).
+expandCasQuotientDecls :: [TopExpr] -> EvalM [TopExpr]
+expandCasQuotientDecls exprs = concat <$> mapM expand exprs
+  where
+    expand (DeclareCasQuotient name _baseTE reduceExpr) = do
+      aliases <- getCasTypeAliasEnv
+      ctorEnv <- getConstructorEnv
+      let builtinTypeNames =
+            [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
+            , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
+            , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol" ]
+      when (name `elem` builtinTypeNames) $ throwError $ Default $
+        "declare cas-quotient: name clashes with a builtin type: " ++ name
+      when (HashMap.member name aliases) $ throwError $ Default $
+        "declare cas-quotient: name is already declared (cas-type alias or quotient): " ++ name
+      when (any ((== name) . ctorTypeName) (HashMap.elems ctorEnv)) $
+        throwError $ Default $
+          "declare cas-quotient: name clashes with an inductive type: " ++ name
+      -- q1: nominal registration through the alias environment
+      setCasTypeAliasEnv (HashMap.insert name (Types.TInductive name []) aliases)
+      generated <- readTopExprs (casQuotientTemplate name)
+      return (Define (VarWithIndices ("reduce" ++ name) []) reduceExpr : generated)
+    expand e = return [e]
+
+-- | The generated program for one quotient declaration (q2/q3/q4).
+-- Kept as concrete source text and re-parsed: every piece is ordinary
+-- Egison, which keeps the mechanism a plain macro.
+casQuotientTemplate :: String -> String
+casQuotientTemplate q = unlines
+  [ "def proj" ++ q ++ " (x : MathValue) : " ++ q ++ " := casQuotientCast (" ++ red ++ " x)"
+  , "def repr" ++ q ++ " (v : " ++ q ++ ") : MathValue := casQuotientCast v"
+  , "instance Eq " ++ q ++ " where"
+  , "  (==) a b := (" ++ red ++ " ((repr" ++ q ++ " a) -' (repr" ++ q ++ " b))) = 0"
+  , "  (/=) a b := not ((" ++ red ++ " ((repr" ++ q ++ " a) -' (repr" ++ q ++ " b))) = 0)"
+  , "instance AddSemigroup " ++ q ++ " where"
+  , "  (+) a b := proj" ++ q ++ " ((repr" ++ q ++ " a) +' (repr" ++ q ++ " b))"
+  , "instance AddMonoid " ++ q ++ " where"
+  , "  zero := proj" ++ q ++ " 0"
+  , "instance AddGroup " ++ q ++ " where"
+  , "  neg a := proj" ++ q ++ " (0 -' (repr" ++ q ++ " a))"
+  , "instance MulSemigroup " ++ q ++ " where"
+  , "  (*) a b := proj" ++ q ++ " ((repr" ++ q ++ " a) *' (repr" ++ q ++ " b))"
+  , "instance MulMonoid " ++ q ++ " where"
+  , "  one := proj" ++ q ++ " 1"
+  , "instance Ring " ++ q
+  , "assertEqual \"cas-quotient " ++ q ++ ": reduce is idempotent (sample battery)\""
+  , "  (map (\\s -> " ++ red ++ " (" ++ red ++ " s)) " ++ battery ++ ")"
+  , "  (map (\\s -> " ++ red ++ " s) " ++ battery ++ ")"
+  , "assertEqual \"cas-quotient " ++ q ++ ": reduce is a congruence for +' (sample battery)\""
+  , "  (map (\\p -> " ++ red ++ " ((fst p) +' (snd p))) " ++ pairs ++ ")"
+  , "  (map (\\p -> " ++ red ++ " ((" ++ red ++ " (fst p)) +' (" ++ red ++ " (snd p)))) " ++ pairs ++ ")"
+  , "assertEqual \"cas-quotient " ++ q ++ ": reduce is a congruence for *' (sample battery)\""
+  , "  (map (\\p -> " ++ red ++ " ((fst p) *' (snd p))) " ++ pairs ++ ")"
+  , "  (map (\\p -> " ++ red ++ " ((" ++ red ++ " (fst p)) *' (" ++ red ++ " (snd p)))) " ++ pairs ++ ")"
+  ]
+  where
+    red = "reduce" ++ q
+    battery = "[0, 1, -1, 2, 5, 12]"
+    pairs = "[(0, 1), (1, 2), (-1, 5), (2, 12), (5, -1), (12, 7)]"
 
 --------------------------------------------------------------------------------
 -- Phase 2: Environment Building & Merging

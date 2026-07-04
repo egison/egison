@@ -93,6 +93,7 @@ primitives =
         , ("termMonomial", termMonomialPrim)
         , ("typeOf", typeOfPrim)
         , ("inspect", inspectPrim)
+        , ("casQuotientCast", casQuotientCastPrim)
         , ("differentialClosed", differentialClosedPrim)
         , ("isInPolyAtoms", isInPolyAtomsPrim)
         , ("isPureInteger", isPureIntegerPrim)
@@ -662,6 +663,13 @@ inspectPrim = oneArg' $ \v -> case v of
 
 -- | Phase 8 observed type: report the most specific runtime type of a value
 -- as a string.
+-- | Identity at runtime; typed `forall a b. a -> b` (Type/Check.hs).
+-- The unsafe static cast used ONLY by the code generated from
+-- `declare cas-quotient` (projQ / reprQ between a quotient's nominal type
+-- and its base representation). Not intended for user code.
+casQuotientCastPrim :: String -> PrimitiveFunc
+casQuotientCastPrim = oneArg' return
+
 typeOfPrim :: String -> PrimitiveFunc
 typeOfPrim = oneArg' $ \v -> case v of
   CASData cv -> return $ String (T.pack (CAS.prettyTypeOf cv))

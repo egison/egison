@@ -80,6 +80,11 @@ builtinTypes = concat
       , ("termMonomial", Forall [] [] $ TFun TMathValue (TCollection (TTuple [TMathValue, TMathValue])))
       , ("typeOf", forallA $ TFun (TVar a) TString)
       , ("inspect", forallA $ TFun (TVar a) TString)
+      -- Unsafe cast for cas-quotient generated code only (M4;
+      -- design/type-cas-quotient.md): projQ/reprQ cross between a
+      -- quotient's nominal type and its base representation.
+      , ("casQuotientCast", Forall [TyVar "a", TyVar "b"] []
+          (TFun (TVar (TyVar "a")) (TVar (TyVar "b"))))
       , ("differentialClosed", Forall [] [] $ TFun TMathValue (TFun TMathValue TBool))
       , ("isInPolyAtoms", Forall [] [] $ TFun TMathValue (TFun (TCollection TString) TBool))
       , ("isPureInteger", forallA $ TFun (TVar a) TBool)

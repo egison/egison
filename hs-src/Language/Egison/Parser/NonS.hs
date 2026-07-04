@@ -96,6 +96,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> declareApplyExpr
       <|> declareMathFuncExpr
       <|> declareCasSubtypeExpr
+      <|> declareCasQuotientExpr
       <|> declareCasTypeExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
@@ -534,6 +535,52 @@ declareCasSubtypeExpr = try $ do
   _ <- try (symbol "⊂") <|> symbol "<:"
   rhs <- typeExprIndented pos
   return $ DeclareCasSubtype lhs rhs
+
+-- | Parse a `declare cas-quotient` declaration (M4 of the extensible CAS
+-- tower; design/type-cas-quotient.md). Coefficient-domain quotients are
+-- nominal types outside the subtype order (D4).
+--
+--   declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
+declareCasQuotientExpr :: Parser TopExpr
+declareCasQuotientExpr = try $ do
+  pos <- L.indentLevel
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "cas"
+    then fail "Expected 'cas-quotient' after 'declare'"
+    else return ()
+  _ <- symbol "-"
+  kind <- lowerId
+  if kind /= "quotient"
+    then fail "Expected 'quotient' after 'cas-'"
+    else return ()
+  name <- upperId
+  _ <- symbol ":="
+  base <- typeExprIndentedUntilBy pos
+  sep <- lowerId
+  if sep /= "by"
+    then fail "Expected 'by' after the base type of declare cas-quotient"
+    else return ()
+  reduceE <- expr
+  return $ DeclareCasQuotient name base reduceE
+
+-- | Like 'typeExprIndented' but stops in front of the keyword `by`
+-- (which would otherwise be consumed as a lowercase type atom).
+typeExprIndentedUntilBy :: Pos -> Parser TypeExpr
+typeExprIndentedUntilBy base = do
+  atoms <- some (try (indentGuardGT base >> notFollowedBy keywordBy >> typeAtomSimple))
+  rest <- optional (try (indentGuardGT base >> notFollowedBy keywordBy >> symbol "->")
+                    >> typeExprIndentedUntilBy base)
+  let baseType = case atoms of
+                   [t]    -> t
+                   (t:ts) -> TEApp t ts
+                   []     -> error "unreachable"
+  return $ case rest of
+    Nothing -> baseType
+    Just r  -> TEFun baseType r
+  where
+    keywordBy = try (do w <- lowerId
+                        if w == "by" then return () else fail "not 'by'")
 
 -- | Like 'typeExprWithApp', but every token must be indented deeper than the
 -- given column. Used where a type ends a declaration (the alias body of

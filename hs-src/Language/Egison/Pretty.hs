@@ -63,6 +63,9 @@ instance Pretty TopExpr where
   pretty (DeclareCasSubtype lhs rhs) =
     pretty "declare" <+> pretty "cas-subtype" <+> pretty lhs <+>
     pretty "<:" <+> pretty rhs
+  pretty (DeclareCasQuotient name base reduceE) =
+    pretty "declare" <+> pretty "cas-quotient" <+> pretty name <+>
+    pretty ":=" <+> pretty base <+> pretty "by" <+> pretty reduceE
   pretty (DeclareSymbol names mTypeExpr) =
     let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
         typeDoc = case mTypeExpr of

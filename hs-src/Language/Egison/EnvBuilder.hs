@@ -393,6 +393,9 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
   -- in the prepass (buildEnvironments), so nothing to do per-declaration here.
   DeclareCasType _ _ -> return result
   DeclareCasSubtype _ _ -> return result
+  -- M4: cas-quotient declarations are macro-expanded away before environment
+  -- building (Eval.expandCasQuotientDecls); nothing should reach here.
+  DeclareCasQuotient {} -> return result
 
   -- Other expressions don't contribute to environment building
   Define {} -> return result

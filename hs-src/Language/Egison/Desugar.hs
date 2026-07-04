@@ -220,6 +220,7 @@ desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 -- no runtime artifact.
 desugarTopExpr (DeclareCasType _ _) = return Nothing
 desugarTopExpr (DeclareCasSubtype _ _) = return Nothing
+desugarTopExpr (DeclareCasQuotient {}) = return Nothing  -- expanded before EnvBuilder
 
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
