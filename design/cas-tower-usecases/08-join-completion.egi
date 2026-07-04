@@ -20,22 +20,22 @@ declare rule auto term i^2 = -1
 -- Q(i) 係数の多項式 (透明エイリアス、D3)
 declare cas-type RationalGaussianPoly := Poly (Frac (Poly Integer [i])) [..]
 
+-- 注 (β の完全骨格化後): 以下の 3 辺はすべて骨格 (係数再帰) から導出可能なため
+-- 「redundant edge」warning つきで受理・保存される (端点を宣言ノード集合に
+-- 登録する効果だけが残る)。曖昧性エラー + 完備化提案が実際に発火する例は
+-- 骨格が意図的に関係づけない nested/flat ペア:
+--
+--   declare cas-subtype Poly Integer [i] ⊂ Poly (Poly Integer [i]) [x]
+--   -- error: pair (Poly Integer [i], Poly Integer [x]) の極小上界が一意でなくなる:
+--   --   {Poly Integer [i, x], Poly (Poly Integer [i]) [x]}
+--   -- hint: declare cas-subtype Poly Integer [i, x] ⊂ Poly (Poly Integer [i]) [x]
+--
+-- (mini-test/127 で検証。) 提案される辺は数学的に真 — 曖昧ペアの極小上界は
+-- いずれも生成部分環 (上の例では ℤ[i, x]) を含む (tower.md §8 D1)
+
 declare cas-subtype Poly Integer [..] ⊂ RationalGaussianPoly    -- ℤ[x..] ↪ ℚ(i)[x..]
-
--- 次を completion なしでいきなり宣言すると declare 時エラーになる (D1):
---
---   declare cas-subtype Frac Integer ⊂ RationalGaussianPoly
---   -- error: pair (Poly Integer [..], Frac Integer) の極小上界が一意でなくなる:
---   --   {Poly (Frac Integer) [..], RationalGaussianPoly}
---   -- hint: 次の辺を宣言して完備化してください:
---   --   declare cas-subtype Poly (Frac Integer) [..] ⊂ RationalGaussianPoly
---
--- 提案される辺は数学的に真 (ℚ[x..] ⊂ ℚ(i)[x..]) — 完備化が偽の辺を強いることは
--- ない (曖昧ペアの極小上界はいずれも生成部分環を含む。tower.md §8 D1)
-
--- 完備化を先に宣言すれば順に通る:
 declare cas-subtype Poly (Frac Integer) [..] ⊂ RationalGaussianPoly
-declare cas-subtype Frac Integer ⊂ RationalGaussianPoly         -- 今度は OK
+declare cas-subtype Frac Integer ⊂ RationalGaussianPoly
 
 -- 完備化後: 既存 (骨格) ペアの join は従来どおり level 4 が一意の極小
 def p : Poly Integer [x] := x + 1
@@ -43,10 +43,11 @@ def q : Frac Integer := 1/2
 def r := p + q       -- join = Poly (Frac Integer) [x] (拡張前と不変)
 inspect r
 
--- ユーザ型が絡む join は宣言辺で解決される
-def g : RationalGaussianPoly := coerce (x / 2 + i * x)
+-- ユーザ型が絡む join は宣言順序で解決される
+def g : RationalGaussianPoly := x / 2 + i * x
 def s := g + q       -- join = RationalGaussianPoly
 inspect s
+assertEqual "sum lands in Q(i)[x..]" ((s - (x / 2 + i * x + 1 / 2)) = 0) True
 
 -- 細化単調性 (D1) のメモ:
 --   既存 join の真下にノードを挿す宣言 (例: N = Q(y)[x] 相当の型を
