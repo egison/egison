@@ -136,17 +136,19 @@ collectCasTypeAlias :: Set.Set String -> HashMap.HashMap String Type
                     -> HashMap.HashMap String Type -> (String, TypeExpr)
                     -> EvalM (HashMap.HashMap String Type)
 collectCasTypeAlias declaredTypes priorAliases acc (name, te) = do
-  let builtinTypeNames = Set.fromList
-        [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
-        , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
-        , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol"
-        , "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr" ]
   when (not (startsUpper name)) $ throwError $ Default $
     "declare cas-type: alias name must be capitalized: " ++ name
-  when (Set.member name builtinTypeNames) $ throwError $ Default $
+  when (Set.member name Types.reservedCasTypeNames) $ throwError $ Default $
     "declare cas-type: alias name clashes with a builtin type: " ++ name
   when (Set.member name declaredTypes) $ throwError $ Default $
     "declare cas-type: alias name clashes with an inductive type: " ++ name
+  -- A nominal entry `name -> TInductive name []` in the alias env is a
+  -- cas-quotient type (registered by Eval.expandCasQuotientDecls).
+  case HashMap.lookup name priorAliases of
+    Just (TInductive n []) | n == name ->
+      throwError $ Default $
+        "declare cas-type: name is already a cas-quotient type: " ++ name
+    _ -> return ()
   when (HashMap.member name priorAliases || HashMap.member name acc) $
     throwError $ Default $
       "declare cas-type: alias is already declared: " ++ name

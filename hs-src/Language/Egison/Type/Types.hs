@@ -38,6 +38,7 @@ module Language.Egison.Type.Types
   , typeExprToType
   , normalizeInductiveTypes
   , expandTypeAliases
+  , reservedCasTypeNames
   , capitalizeFirst
   , lowerFirst
   ) where
@@ -394,6 +395,16 @@ symbolSetExprToSymbolSet :: SymbolSetExpr -> SymbolSet
 symbolSetExprToSymbolSet (SSEClosed atoms) =
   SymbolSetClosed (map typeAtomExprToTypeAtom atoms)
 symbolSetExprToSymbolSet SSEOpen = SymbolSetOpen
+
+-- | Builtin type names that user-facing CAS declarations (`declare
+-- cas-type` aliases, `declare cas-quotient` types) must not shadow.
+-- Single source of truth for the name-clash validations.
+reservedCasTypeNames :: Set String
+reservedCasTypeNames = Set.fromList
+  [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
+  , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
+  , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol"
+  , "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr" ]
 
 -- | Expand `declare cas-type` transparent aliases inside a Type (Phase alpha
 -- of the extensible CAS tower; design/type-cas-tower.md D3: aliases only).

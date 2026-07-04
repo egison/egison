@@ -95,9 +95,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> declareDerivativeExpr
       <|> declareApplyExpr
       <|> declareMathFuncExpr
-      <|> declareCasSubtypeExpr
-      <|> declareCasQuotientExpr
-      <|> declareCasTypeExpr
+      <|> declareCasExpr
       <|> declareSymbolExpr
       <|> try patternInductiveExpr
       <|> inductiveExpr
@@ -488,108 +486,61 @@ patternFunctionExpr = do
   body <- pattern
   return $ PatternFunctionDecl name typeParams params retType body
 
--- | Parse a `declare cas-type` declaration (Phase alpha of the extensible
--- CAS tower; design/type-cas-tower.md D3: transparent aliases only).
+-- | Parse the `declare cas-*` family of the extensible CAS tower:
 --
---   declare cas-type GaussianInt := Poly Integer [i]
+--   declare cas-type Q := <type>                     (transparent alias, D3)
+--   declare cas-subtype A ⊂ B      (or A <: B)       (order edge, D1/D5)
+--   declare cas-quotient Q := <base> by <reduce>     (quotient, M4)
 --
--- The keyword lexes as `cas`, `-`, `type` because identifiers cannot
--- contain hyphens.
-declareCasTypeExpr :: Parser TopExpr
-declareCasTypeExpr = try $ do
+-- The keyword lexes as `cas`, `-`, `<kind>` because identifiers cannot
+-- contain hyphens; the three kinds share this prefix and dispatch on the
+-- kind word.
+declareCasExpr :: Parser TopExpr
+declareCasExpr = try $ do
   pos <- L.indentLevel
   reserved "declare"
   keyword <- lowerId
   if keyword /= "cas"
-    then fail "Expected 'cas-type' after 'declare'"
+    then fail "Expected 'cas-type', 'cas-subtype', or 'cas-quotient' after 'declare'"
     else return ()
   _ <- symbol "-"
   kind <- lowerId
-  if kind /= "type"
-    then fail "Expected 'type' after 'cas-'"
-    else return ()
-  name <- upperId
-  _ <- symbol ":="
-  ty <- typeExprIndented pos
-  return $ DeclareCasType name ty
-
--- | Parse a `declare cas-subtype` declaration (Phase beta of the extensible
--- CAS tower; design/type-cas-tower.md D1/D5: relation only, no embed clause).
---
---   declare cas-subtype Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]
---   declare cas-subtype Integer ⊂ GaussianInt
-declareCasSubtypeExpr :: Parser TopExpr
-declareCasSubtypeExpr = try $ do
-  pos <- L.indentLevel
-  reserved "declare"
-  keyword <- lowerId
-  if keyword /= "cas"
-    then fail "Expected 'cas-subtype' after 'declare'"
-    else return ()
-  _ <- symbol "-"
-  kind <- lowerId
-  if kind /= "subtype"
-    then fail "Expected 'subtype' after 'cas-'"
-    else return ()
-  lhs <- typeExprIndented pos
-  _ <- try (symbol "⊂") <|> symbol "<:"
-  rhs <- typeExprIndented pos
-  return $ DeclareCasSubtype lhs rhs
-
--- | Parse a `declare cas-quotient` declaration (M4 of the extensible CAS
--- tower; design/type-cas-quotient.md). Coefficient-domain quotients are
--- nominal types outside the subtype order (D4).
---
---   declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
-declareCasQuotientExpr :: Parser TopExpr
-declareCasQuotientExpr = try $ do
-  pos <- L.indentLevel
-  reserved "declare"
-  keyword <- lowerId
-  if keyword /= "cas"
-    then fail "Expected 'cas-quotient' after 'declare'"
-    else return ()
-  _ <- symbol "-"
-  kind <- lowerId
-  if kind /= "quotient"
-    then fail "Expected 'quotient' after 'cas-'"
-    else return ()
-  name <- upperId
-  _ <- symbol ":="
-  base <- typeExprIndentedUntilBy pos
-  sep <- lowerId
-  if sep /= "by"
-    then fail "Expected 'by' after the base type of declare cas-quotient"
-    else return ()
-  reduceE <- expr
-  return $ DeclareCasQuotient name base reduceE
-
--- | Like 'typeExprIndented' but stops in front of the keyword `by`
--- (which would otherwise be consumed as a lowercase type atom).
-typeExprIndentedUntilBy :: Pos -> Parser TypeExpr
-typeExprIndentedUntilBy base = do
-  atoms <- some (try (indentGuardGT base >> notFollowedBy keywordBy >> typeAtomSimple))
-  rest <- optional (try (indentGuardGT base >> notFollowedBy keywordBy >> symbol "->")
-                    >> typeExprIndentedUntilBy base)
-  let baseType = case atoms of
-                   [t]    -> t
-                   (t:ts) -> TEApp t ts
-                   []     -> error "unreachable"
-  return $ case rest of
-    Nothing -> baseType
-    Just r  -> TEFun baseType r
+  case kind of
+    "type" -> do
+      name <- upperId
+      _ <- symbol ":="
+      ty <- typeExprIndented pos
+      return $ DeclareCasType name ty
+    "subtype" -> do
+      lhs <- typeExprIndented pos
+      _ <- try (symbol "⊂") <|> symbol "<:"
+      rhs <- typeExprIndented pos
+      return $ DeclareCasSubtype lhs rhs
+    "quotient" -> do
+      name <- upperId
+      _ <- symbol ":="
+      base <- typeExprIndentedStop keywordBy pos
+      sep <- lowerId
+      if sep /= "by"
+        then fail "Expected 'by' after the base type of declare cas-quotient"
+        else return ()
+      reduceE <- expr
+      return $ DeclareCasQuotient name base reduceE
+    other -> fail ("Expected type/subtype/quotient after 'cas-', got: " ++ other)
   where
     keywordBy = try (do w <- lowerId
                         if w == "by" then return () else fail "not 'by'")
 
 -- | Like 'typeExprWithApp', but every token must be indented deeper than the
--- given column. Used where a type ends a declaration (the alias body of
--- `declare cas-type X := <type>`), so the greedy type-atom sequence does not
--- swallow the next top-level declaration starting at column 1.
-typeExprIndented :: Pos -> Parser TypeExpr
-typeExprIndented base = do
-  atoms <- some (try (indentGuardGT base >> typeAtomSimple))
-  rest <- optional (try (indentGuardGT base >> symbol "->") >> typeExprIndented base)
+-- given column, and parsing stops in front of `stop`. Used where a type ends
+-- a declaration (the alias body of `declare cas-type X := <type>`) or is
+-- followed by a keyword (`by` in `declare cas-quotient`), so the greedy
+-- type-atom sequence does not swallow what comes next.
+typeExprIndentedStop :: Parser () -> Pos -> Parser TypeExpr
+typeExprIndentedStop stop base = do
+  atoms <- some (try (indentGuardGT base >> notFollowedBy stop >> typeAtomSimple))
+  rest <- optional (try (indentGuardGT base >> notFollowedBy stop >> symbol "->")
+                    >> typeExprIndentedStop stop base)
   let baseType = case atoms of
                    [t]    -> t
                    (t:ts) -> TEApp t ts
@@ -597,6 +548,10 @@ typeExprIndented base = do
   return $ case rest of
     Nothing -> baseType
     Just r  -> TEFun baseType r
+
+-- | 'typeExprIndentedStop' with no stop keyword.
+typeExprIndented :: Pos -> Parser TypeExpr
+typeExprIndented = typeExprIndentedStop (fail "no stop keyword")
 
 declareSymbolExpr :: Parser TopExpr
 declareSymbolExpr = try $ do

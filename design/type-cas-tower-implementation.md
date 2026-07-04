@@ -171,7 +171,7 @@
 | `⊂` トークン | Unicode のみか ASCII 代替 (`<:`) も置くか | パーサ着手時に決定 (小) |
 | alias 逆引き表示 | 同一展開型に複数 alias がある場合の表示の一意性 | 宣言順優先で固定 |
 | 商型の fallback 遮断 | sibling fallback の例外化が既存 typeclass 解決に波及しないか | q1 で mini-test を先に書く |
-| **`Type/Join.joinTypes` の設計不一致** (β で発見) | 旧実装は Poly ⊔ Frac → level 5 を返すが、設計は level 4。呼び出し元ゼロなので実害なし | `Type/Subtype.skeletonJoin` が設計どおりの正。呼び出し元が現れる時点で Subtype 版に一本化 |
+| ~~`Type/Join.joinTypes` の設計不一致~~ (**解消**: 2026-07-04 リファクタで削除) | 旧実装 (Poly ⊔ Frac → level 5) は呼び出し元ゼロの dead code だったため、`JoinError`/`joinCoeff`/`extractCoeff`/`joinSymbolSets` ごと削除。join は `Type/Subtype.skeletonJoin` (設計どおり level 4) に一本化された | — |
 | **isSubtype の二重化** (β の意図的判断) | instance 解決は旧 `Join.isSubtype` (部分的な骨格) のまま。完全骨格 `Subtype.skeletonSubtype` に切り替えると適用可能 instance が広がり dispatch が変わりうる | 影響評価 + 全回帰つきで別途一本化 (γ′ 以降) |
 | reduce closure の束縛順序 | `declare cas-quotient` の reduce がユーザ関数を参照する場合の prepass/eval 順序 | `preBindDeclaredSymbols` の前例に倣う |
 

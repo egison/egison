@@ -120,8 +120,8 @@ skeletonSubtype _ _ = False
 --   join(Poly a s, Frac X) = Poly (join a (Frac X)) s   -- X non-Poly
 --   join(Poly a s, Frac (Poly b s')) = Frac (Poly (join a b) (s ∪ s'))
 --
--- (The legacy 'Type.Join.joinTypes' returns level 5 for the first case;
--- it has no callers and is left untouched for now.)
+-- (The legacy 'Type.Join.joinTypes', which returned level 5 for the first
+-- case in disagreement with the design, had no callers and was removed.)
 skeletonJoin :: Type -> Type -> Maybe Type
 skeletonJoin a b
   | not (isCasType a) || not (isCasType b) = Nothing

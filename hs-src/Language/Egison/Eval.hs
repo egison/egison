@@ -64,6 +64,7 @@ import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
 import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.EvalState (ConstructorInfo(..))
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Set as Set
 
 
 -- | Evaluate an Egison expression.
@@ -247,11 +248,7 @@ expandCasQuotientDecls exprs = concat <$> mapM expand exprs
     expand (DeclareCasQuotient name _baseTE reduceExpr) = do
       aliases <- getCasTypeAliasEnv
       ctorEnv <- getConstructorEnv
-      let builtinTypeNames =
-            [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
-            , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
-            , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol" ]
-      when (name `elem` builtinTypeNames) $ throwError $ Default $
+      when (Set.member name Types.reservedCasTypeNames) $ throwError $ Default $
         "declare cas-quotient: name clashes with a builtin type: " ++ name
       when (HashMap.member name aliases) $ throwError $ Default $
         "declare cas-quotient: name is already declared (cas-type alias or quotient): " ++ name
