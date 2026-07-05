@@ -1275,12 +1275,15 @@ functionExpr = FunctionExpr <$> (reserved "function" >> parens (sepBy ident comm
 
 refsExpr :: Parser Expr
 refsExpr =
-      (reserved "subrefs"   >> SubrefsExpr  False <$> atomExpr <*> atomExpr)
-  <|> (reserved "subrefs!"  >> SubrefsExpr  True  <$> atomExpr <*> atomExpr)
-  <|> (reserved "suprefs"   >> SuprefsExpr  False <$> atomExpr <*> atomExpr)
+      -- The "!" variants must come first: `reserved "subrefs"` succeeds on
+      -- the input "subrefs!" (the "!" is not an identifier character), which
+      -- would make the "!" variants unreachable if they were tried second.
+      (reserved "subrefs!"  >> SubrefsExpr  True  <$> atomExpr <*> atomExpr)
+  <|> (reserved "subrefs"   >> SubrefsExpr  False <$> atomExpr <*> atomExpr)
   <|> (reserved "suprefs!"  >> SuprefsExpr  True  <$> atomExpr <*> atomExpr)
-  <|> (reserved "userRefs"  >> UserrefsExpr False <$> atomExpr <*> atomExpr)
+  <|> (reserved "suprefs"   >> SuprefsExpr  False <$> atomExpr <*> atomExpr)
   <|> (reserved "userRefs!" >> UserrefsExpr True  <$> atomExpr <*> atomExpr)
+  <|> (reserved "userRefs"  >> UserrefsExpr False <$> atomExpr <*> atomExpr)
 
 collectionExpr :: Parser Expr
 collectionExpr = symbol "[" >> betweenOrFromExpr <|> elementsExpr

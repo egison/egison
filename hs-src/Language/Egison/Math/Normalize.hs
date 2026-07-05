@@ -4,9 +4,10 @@
 Module      : Language.Egison.Math.Normalize
 Licence     : MIT
 
-This module implements the normalization of polynomials. Normalization rules
-for particular mathematical functions (such as sqrt and sin/cos) are defined
-in Rewrite.hs.
+This module implements the normalization of polynomials. Rewrite rules for
+particular mathematical functions (such as sqrt and sin/cos) live as
+`declare rule auto` declarations in lib/math/normalize.egi; the only residual
+Haskell-side rule is casRewriteDd in Rewrite.hs (kept there for performance).
 -}
 
 module Language.Egison.Math.Normalize
