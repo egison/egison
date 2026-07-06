@@ -1,0 +1,27 @@
+--
+-- declare ideal (design/cas-simplification.md G3): Groebner completion
+-- at declaration time.  The generated term-level rules are batch-scoped
+-- (like declare rule auto), so they apply to every expression in this
+-- file -- which is why these tests live apart from the value-level
+-- groebner.egi tests.
+--
+
+declare symbol s2, s3, s6
+declare symbol θ, φ
+
+declare ideal [s2^2 - 2, s3^2 - 3, s6 - s2 * s3]
+
+assertEqual "square" (s2^2) 2
+assertEqual "product folds" (s2 * s3) s6
+assertEqual "completed rule" (s2 * s6) (2 * s3)
+assertEqual "binomial square" ((s2 + s3)^2) (2 * s6 + 5)
+assertEqual "conjugate product" ((s2 + s3) * (s2 - s3)) (-1)
+
+-- Pythagorean ideal on the trig atoms; sin θ appears first in the
+-- generator, so sin survives (appearance-order priority).
+declare ideal [(sin θ)^2 + (cos θ)^2 - 1]
+
+assertEqual "sin^4 - cos^4" ((sin θ)^4 - (cos θ)^4) (2 * (sin θ)^2 - 1)
+assertEqual "sin^2 + 2 cos^2" ((sin θ)^2 + 2 * (cos θ)^2) (2 - (sin θ)^2)
+assertEqual "other angles untouched"
+  (show ((sin φ)^4 - (cos φ)^4)) "'sin φ^4 - 'cos φ^4"

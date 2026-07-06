@@ -35,6 +35,10 @@ testCases =
   , "test/lib/core/sort.egi"
   , "test/lib/core/string.egi"
   , "test/lib/math/algebra.egi"
+  , "test/lib/math/gcd.egi"        -- multivariate polynomial GCD reduction (G1)
+  , "test/lib/math/groebner.egi"   -- groebnerBasis / polyNF value-level engine (G2)
+  , "test/lib/math/ideal.egi"      -- declare ideal: rule generation from Groebner bases (G3)
+  , "test/lib/math/normalize-rules.egi" -- '( ) quote, negative sqrt powers, w ideal
   -- , "test/lib/math/analysis.egi"   -- Skipped due to infinite loop
   -- , "test/lib/math/arithmetic.egi"  -- Skipped due to infinite loop
   -- , "test/lib/math/tensor.egi"     -- Skipped due to infinite loop
@@ -59,14 +63,17 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
     putStrLn $ "\n=== Testing: " ++ file ++ " ==="
     hFlush stdout
   env <- initialEnv
-  -- Load core libraries and math normalization library
+  -- Load core libraries, the math normalization library, and the test
+  -- file in ONE batch, mirroring the interpreter's initial load (see
+  -- Interpreter/egison.hs: the test file is included in the initial
+  -- load).  A separate batch would keep the library operators' closures
+  -- pointing at the library-time mathNormalize, so rules declared in
+  -- the test file (declare rule auto / declare ideal) would never fire.
   let coreLibExprs = map Load coreLibraries
       mathLibExpr = [Load "lib/math/normalize.egi"]
       allLibExprs = coreLibExprs ++ mathLibExpr
-  env' <- evalTopExprsNoPrint env allLibExprs
-  -- Then load the test file
   exprs <- loadFile file
-  evalTopExprsNoPrint env' exprs
+  evalTopExprsNoPrint env (allLibExprs ++ exprs)
   where
     assertEvalM :: EvalM a -> Assertion
     assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")

@@ -1,0 +1,38 @@
+--
+-- Multivariate polynomial GCD reduction (design/cas-simplification.md G1).
+--
+-- Stage 2 of the Poly/Poly fraction reduction: cancel the multivariate
+-- polynomial GCD (subresultant PRS over the rationals), treating every
+-- atom -- symbols, parameters, symbolic applications such as 'cos --
+-- uniformly as a variable. Fail-open outside the supported shape.
+--
+
+declare symbol x, y, a, b, c, r, G, M, X, Y, θ
+
+-- Basic multivariate cancellations.
+assertEqual "linear factor" ((x * y + y^2) / (x + y)) y
+assertEqual "square over factor" ((x + y)^2 / (x + y)) (x + y)
+assertEqual "difference of squares" ((x^2 - y^2) / (x - y)) (x + y)
+
+-- Schwarzschild-style: a common polynomial factor containing parameters
+-- cancels; the remaining X / Y folds into Laurent form.
+assertEqual "parametric common factor"
+  (((c^2 * r - 2 * G * M) * X) / ((c^2 * r - 2 * G * M) * Y))
+  (X / Y)
+
+-- T2-style: the common factor contains an application atom (cos θ).
+assertEqual "application atom factor"
+  ((b + a * cos θ)^2 / (b + a * cos θ))
+  (b + a * cos θ)
+
+-- Rational coefficients are cleared by a common scale (value preserved).
+assertEqual "rational coefficients" (((x + y) / 2) / (x + y)) (1 / 2)
+
+-- Coprime fractions stay untouched.
+assertEqual "coprime untouched"
+  (show ((x^2 - y) / (x - 1)))
+  "(x^2 - y) / (x - 1)"
+
+-- Value preservation.
+assertEqual "value preserved 1" ((x * y + y^2) / (x + y) - y) 0
+assertEqual "value preserved 2" ((x^2 - y^2) / (x - y) - (x + y)) 0
