@@ -82,14 +82,13 @@ assertEqual "keep x" (polyNFWith [x] [x + y] (y^3)) (- x^3)
 --
 -- `sin θ` and `cos θ` are factors of the flat representation, so the
 -- Pythagorean ideal works on them directly.  The generator is built
--- with the non-normalizing constructors ('f, ^', +', -'), the same
--- idiom as `declare rule` right-hand sides; a plain `(sin θ)^2 +
+-- inside the rule-suppression quote '( ): a plain `(sin θ)^2 +
 -- (cos θ)^2 - 1` would be collapsed to 0 by the built-in Pythagorean
 -- auto rules before polyNF ever sees it.
 --
 
 def trigIdeal (t: MathValue) : [MathValue] :=
-  [('sin t)^'2 +' ('cos t)^'2 -' 1]
+  ['((sin t)^2 + (cos t)^2 - 1)]
 
 assertEqual "the generator survives construction"
   (show (trigIdeal θ)) "['sin θ^2 + 'cos θ^2 - 1]"
@@ -105,5 +104,5 @@ assertEqual "cos^6"
 
 -- membership works independently of the chosen direction
 assertEqual "trig membership"
-  (polyNF (trigIdeal θ) (((sin θ)^2 +' (cos θ)^2 -' 1) * (3 + sin θ)))
+  (polyNF (trigIdeal θ) ('((sin θ)^2 + (cos θ)^2 - 1) * (3 + sin θ)))
   0

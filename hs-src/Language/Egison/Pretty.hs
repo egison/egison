@@ -82,6 +82,9 @@ instance Pretty TopExpr where
                      FracRuleLevel -> pretty "frac"
     in pretty "declare" <+> pretty "rule" <+> nameDoc <+> levelDoc <+>
        pretty lhs <+> pretty "=" <+> pretty rhs
+  pretty (DeclareIdeal gens) =
+    pretty "declare" <+> pretty "ideal" <+>
+    pretty "[" <> hsep (punctuate comma (map pretty gens)) <> pretty "]"
   pretty (DeclareDerivative name rhs) =
     pretty "declare" <+> pretty "derivative" <+> pretty name <+>
     pretty "=" <+> pretty rhs

@@ -450,6 +450,11 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     return result { ebrReductionRules = ebrReductionRules result ++
                                           [(mname, level, lhs, rhs)] }
 
+  -- 8b. Ideal declarations (G3 of cas-simplification).  They desugar to
+  -- ordinary definitions (idealRules.N / autoRule.N / mathNormalize),
+  -- which are typed like any other define; nothing to register here.
+  DeclareIdeal _ -> return result
+
   -- 9. Derivative Declarations (from DeclareDerivative, Phase 6.3)
   -- Stash the (name, expr) pair in `ebrDerivativeRules`. Wiring into
   -- `Differentiable Factor`'s connection rule is still pending.

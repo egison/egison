@@ -129,28 +129,26 @@ def monoLcm (s: MathValue) (t: MathValue) : MathValue :=
 -- enumerate a basis element g and a term u of f such that the
 -- leading term of g divides u, and eliminate u.
 --
--- The combination is built with the non-normalizing operators and
--- normalized once at the end -- the same discipline as a `declare
--- rule` right-hand side.  Normalizing `q * g` on its own would let
--- the auto rules of g's atoms see g intact (e.g. the built-in
--- Pythagorean rules collapse q * ((sin θ)^2 + (cos θ)^2 - 1) to 0);
--- combining first lets the cancellation against f happen before the
--- rules run.  Candidates that still do not change f (auto rules
--- undoing the reduction) are skipped, so a fixpoint under the active
--- rules is reported as irreducible rather than looping.  Returns []
--- when f is irreducible (in particular when f = 0).
+-- The whole engine computes in the FREE theory: all arithmetic uses
+-- the rule-free structural operators (-', *', /'), so no `declare
+-- rule` rewriting can fire during the computation.  This keeps the
+-- division exact (the auto rules of the atoms, e.g. the built-in
+-- Pythagorean rules, can neither collapse a generator inside a
+-- product nor undo a reduction step), and it lets rule generation
+-- (`declare ideal`) call the engine while the very rule being
+-- generated is already registered, without re-entering itself.
+-- Results re-enter the rule-aware world only at the public API
+-- boundary: polyNF normalizes its result once.  Returns [] when f
+-- is irreducible (in particular when f = 0).
 def polyNFStep (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : [MathValue] :=
   take 1
-    (filter
-      (\f' -> not (f' = f))
-      (matchAll (gs, f) as (multiset mathValue, mathValue) with
-        | ($g :: _, poly ((?(monoDivides (leadingTerm atoms g)) & $u) :: _)) ->
-            mathNormalize (f -' ((u / leadingTerm atoms g) *' g))))
+    (matchAll (gs, f) as (multiset mathValue, mathValue) with
+      | ($g :: _, poly ((?(monoDivides (leadingTerm atoms g)) & $u) :: _)) ->
+          f -' ((u /' leadingTerm atoms g) *' g))
 
 -- Reduce until no term is divisible.  Each step eliminates one
 -- occurrence of a divisible monomial and only introduces strictly
--- smaller ones, so this terminates; the fuel is a safety net for
--- atoms that carry interfering auto rules.
+-- smaller ones, so this terminates; the fuel is a cheap safety net.
 def polyNFLoop (fuel: Integer) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
   if fuel = 0
     then f
@@ -177,25 +175,27 @@ def isGbPoly (f: MathValue) : Bool :=
 -- the quotient ring; in particular `polyNF gb f = 0` decides ideal
 -- membership.  `polyNFWith` additionally takes the atoms to keep
 -- (see extendAtoms); `polyNF` uses the name-order default.
+-- The reduction itself runs in the free theory; the result is
+-- normalized once here, at the boundary back to the rule-aware
+-- world.
 def polyNF (gs: [MathValue]) (f: MathValue) : MathValue :=
   polyNFWith [] gs f
 
 def polyNFWith (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
   if all isGbPoly (f :: gs)
-    then polyNFEngine (extendAtoms atoms (polyAtoms (f :: gs))) gs f
+    then mathNormalize (polyNFEngine (extendAtoms atoms (polyAtoms (f :: gs))) gs f)
     else f
 
 --
 -- Buchberger's algorithm
 --
 
--- Combined non-normalized and normalized once, for the same reason
--- as in polyNFStep.
+-- Free-theory arithmetic, for the same reason as in polyNFStep.
 def sPolynomial (atoms: [MathValue]) (f: MathValue) (g: MathValue) : MathValue :=
   let ltf := leadingTerm atoms f
       ltg := leadingTerm atoms g
       m := monoLcm ltf ltg
-   in mathNormalize (((m / ltf) *' f) -' ((m / ltg) *' g))
+   in ((m /' ltf) *' f) -' ((m /' ltg) *' g)
 
 def basisPairs (gs: [MathValue]) : [(MathValue, MathValue)] :=
   matchAll gs as list mathValue with
@@ -239,7 +239,7 @@ def minimizeBasis (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
 
 def makeMonic (atoms: [MathValue]) (g: MathValue) : MathValue :=
   match leadingTerm atoms g as mathValue with
-    | term $c _ -> g / c
+    | term $c _ -> g /' c
 
 def reduceBasis (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
   let minimal := minimizeBasis atoms (sortByLeadingTerm atoms (filter (\g -> not (g = 0)) gs))
@@ -255,6 +255,10 @@ def reduceBasis (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
 -- rule set is terminating and confluent by construction.
 -- `groebnerBasisWith` additionally takes the atoms to keep (see
 -- extendAtoms); `groebnerBasis` uses the name-order default.
+-- The elements are returned in free form (not re-normalized): like a
+-- rule right-hand side, a basis element for atoms that carry auto
+-- rules (e.g. a Pythagorean generator) would collapse under its own
+-- rules if normalized.
 def groebnerBasis (gens: [MathValue]) : [MathValue] :=
   groebnerBasisWith [] gens
 
@@ -264,3 +268,33 @@ def groebnerBasisWith (atoms: [MathValue]) (gens: [MathValue]) : [MathValue] :=
    in if all isGbPoly gs
         then reduceBasis atoms' (buchbergerLoop atoms' gs (basisPairs gs))
         else gens
+
+--
+-- Rule generation for `declare ideal`
+--
+
+-- Rewrite pairs (leading term, leading term - g) for each element g of
+-- the reduced Groebner basis.  This is the value-level half of
+-- `declare ideal`: the declaration desugars to one auto rule that folds
+-- these pairs over the value with applyTermRule.  Everything here runs
+-- in the free theory (see polyNFStep), so forcing the pair list while
+-- the very rule being generated is already registered cannot re-enter
+-- the rule engine.  Fail-open: non-polynomial or Laurent generators
+-- yield no rules.
+def idealTermRules (atoms: [MathValue]) (gens: [MathValue]) : [(MathValue, MathValue)] :=
+  let gs := filter (\g -> not (g = 0)) gens
+   in if all isGbPoly gs
+        then
+          let atoms' := extendAtoms atoms (polyAtoms gs)
+           in map
+                (\g -> let lt := leadingTerm atoms' g in (lt, lt -' g))
+                (groebnerBasisWith atoms gs)
+        else []
+
+-- Apply the generated rewrite pairs once each (term-level, with the
+-- same monomial-containment matching as hand-written
+-- `declare rule auto term` rules).  iterateRulesCAS drives this to a
+-- fixpoint, and termination and confluence hold because the pairs come
+-- from a Groebner basis.
+def applyIdealRules (rules: [(MathValue, MathValue)]) (v: MathValue) : MathValue :=
+  foldl (\w (l, r) -> applyTermRule l r w) v rules

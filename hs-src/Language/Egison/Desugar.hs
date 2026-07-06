@@ -29,7 +29,7 @@ module Language.Egison.Desugar
 import           Control.Monad.Except   (throwError)
 import           Data.Char              (toUpper)
 import           Data.Foldable          (foldrM)
-import           Data.List              (union)
+import           Data.List              (nubBy, union)
 import           Data.Text              (pack)
 
 import           Language.Egison.AST
@@ -40,7 +40,8 @@ import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.Type.Env   (lookupClass, ClassInfo(..))
 import           Language.Egison.Type.Types (sanitizeMethodName, typeToName,
                                              typeExprToType, expandTypeAliases,
-                                             capitalizeFirst, lowerFirst, TyVar(..))
+                                             capitalizeFirst, lowerFirst, TyVar(..),
+                                             Type(TInt, TMathValue))
 
 
 desugarTopExpr :: TopExpr -> EvalM (Maybe ITopExpr)
@@ -243,6 +244,12 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
   let ty = case mTypeExpr of
              Just texpr -> expandTypeAliases aliasEnv (typeExprToType texpr)
              Nothing    -> typeExprToType TEInt
+  -- Record the declaration order of CAS symbols for `declare ideal`
+  -- (DG1: declared earlier = ranks lower = survives in normal forms).
+  case ty of
+    TInt       -> appendDeclaredSymbols names
+    TMathValue -> appendDeclaredSymbols names
+    _          -> return ()
   return . Just $ IDeclareSymbol names (Just ty)
 desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
   -- Phase 7.5 (literal LHS) + Phase A (pattern variables `$x`, `#x`).
@@ -301,20 +308,6 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
         , (stringToVar "mathNormalize", mathNormBody)
         ]
   where
-    -- Build the body of the redefined `mathNormalize`:
-    --   \v -> iterateRulesCAS [autoRule.0, ..., autoRule.N]
-    --                         (mathNormalizeBuiltin v)
-    -- iterateRulesCAS reads trigger sets from EvalState (cached as
-    -- [Set String] at desugar time) and runs the rule-application +
-    -- fixpoint loop, scanning the value once per iteration to skip any
-    -- rule whose trigger set is disjoint from the value's symbols.
-    buildMathNormalizeRedef :: [String] -> EvalM IExpr
-    buildMathNormalizeRedef autoVars = do
-      let rulesList = ICollectionExpr $ map IVarExpr autoVars
-          mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
-          iterCall = IApplyExpr (IVarExpr "iterateRulesCAS") [rulesList, mathBuiltinCall]
-      return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
-
     -- Literal LHS path: \v -> applyTermRule lhs rhs v  (term-level)
     --                or \v -> if v = lhs then rhs else v  (poly/frac)
     buildLiteralRuleBody :: String -> RuleLevel -> IExpr -> IExpr -> EvalM IExpr
@@ -373,6 +366,48 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest)) newBody =
       IMatchExpr m tgt mtcher ((p, newBody) : rest)
     patchFirstMatchRhs e _ = e
+-- G3 (design/cas-simplification.md): `declare ideal [g1, ..., gk]`.
+--
+--   declare ideal [w^2 + w + 1]
+--     =>  def idealRules.N := idealTermRules [<priority atoms>] [g1', ..., gk']
+--         def autoRule.N   := \v -> applyIdealRules idealRules.N v
+--         def mathNormalize := ...   (same redefinition as declare rule auto)
+--
+-- The generators receive the same rule-free treatment as declare-rule
+-- right-hand sides (unNormalizeOps), so generators that the active auto
+-- rules would collapse are safe to write plainly.  The priority list is
+-- the declaration order of `declare symbol` (DG1: earlier = survives),
+-- extended by the compound atoms (symbolic applications, quotes) in the
+-- order they appear in the generators.  idealTermRules computes the
+-- reduced Groebner basis once (lazily, in the rule-free engine of
+-- lib/math/algebra/groebner.egi -- the free-theory arithmetic is what
+-- makes it safe to force the list while autoRule.N is already active)
+-- and turns each element into a term-level rewrite pair (LT, LT - g).
+desugarTopExpr (DeclareIdeal gens) = do
+  gensI <- map unNormalizeOps <$> mapM desugar gens
+  symOrder <- getDeclaredSymbolOrder
+  let compounds = collectCompoundAtomExprs gensI
+      piExprs   = map IVarExpr symOrder ++ compounds
+      triggers  = concatMap iexprVarNames gensI
+  appendAutoRuleTriggers triggers
+  prevAutoNames <- getAutoRuleVarNames
+  let idx         = show (length prevAutoNames)
+      rulesVar    = "idealRules." ++ idx
+      autoVar     = "autoRule." ++ idx
+      allAutoVars = prevAutoNames ++ [autoVar]
+  appendAutoRuleVarName autoVar
+  let rulesBody = IApplyExpr (IVarExpr "idealTermRules")
+                    [ICollectionExpr piExprs, ICollectionExpr gensI]
+      ruleBody  = ILambdaExpr Nothing [stringToVar "v"]
+                    (IApplyExpr (IVarExpr "applyIdealRules")
+                                [IVarExpr rulesVar, IVarExpr "v"])
+  mathNormBody <- buildMathNormalizeRedef allAutoVars
+  return . Just $ IDefineMany
+    [ (stringToVar rulesVar, rulesBody)
+    , (stringToVar autoVar, ruleBody)
+    , (stringToVar "mathNormalize", mathNormBody)
+    ]
+
 desugarTopExpr (DeclareDerivative name rhs) = do
   -- Phase 6.3 part 4-6: emit
   --   def deriv.<name> := <rhs>
@@ -713,6 +748,60 @@ unNormalizeOps e = case e of
       , ("*", "i.*")
       , ("/", "i./")
       ]
+
+-- Build the body of the redefined `mathNormalize`:
+--   \v -> iterateRulesCAS [autoRule.0, ..., autoRule.N]
+--                         (mathNormalizeBuiltin v)
+-- iterateRulesCAS reads trigger sets from EvalState (cached as
+-- [Set String] at desugar time) and runs the rule-application +
+-- fixpoint loop, scanning the value once per iteration to skip any
+-- rule whose trigger set is disjoint from the value's symbols.
+-- Shared by `declare rule auto` and `declare ideal`.
+buildMathNormalizeRedef :: [String] -> EvalM IExpr
+buildMathNormalizeRedef autoVars = do
+  let rulesList = ICollectionExpr $ map IVarExpr autoVars
+      mathBuiltinCall = IApplyExpr (IVarExpr "mathNormalizeBuiltin") [IVarExpr "v"]
+      iterCall = IApplyExpr (IVarExpr "iterateRulesCAS") [rulesList, mathBuiltinCall]
+  return $ ILambdaExpr Nothing [stringToVar "v"] iterCall
+
+-- Candidate compound atoms (symbolic applications, quoted expressions)
+-- of desugared ideal generators, in appearance order (deduplicated).
+-- They extend the declaration-order priority list: compound atoms are
+-- not declared with `declare symbol`, so their rank comes from where
+-- they first appear in the generators (DG1, cas-simplification 3.5).
+collectCompoundAtomExprs :: [IExpr] -> [IExpr]
+collectCompoundAtomExprs es = nubBy (\a b -> show a == show b) (concatMap go es)
+  where
+    structuralOps =
+      ["i.+", "i.-", "i.*", "i./", "+'", "-'", "*'", "/'", "^'", "power", "power'"]
+    go e = case e of
+      IApplyExpr (IVarExpr nm) args
+        | nm `elem` structuralOps -> concatMap go args
+        | otherwise               -> e : concatMap go args
+      IApplyExpr f args  -> go f ++ concatMap go args
+      IQuoteExpr _       -> [e]
+      ITupleExpr xs      -> concatMap go xs
+      ICollectionExpr xs -> concatMap go xs
+      IConsExpr a b      -> go a ++ go b
+      IJoinExpr a b      -> go a ++ go b
+      _                  -> []
+
+-- All variable names occurring in an IExpr.  Conservative superset used
+-- for the trigger-symbol set of `declare ideal` (extra names only make
+-- the rule fire more often, never less).
+iexprVarNames :: IExpr -> [String]
+iexprVarNames e = case e of
+  IVarExpr nm         -> [nm]
+  IApplyExpr f args   -> iexprVarNames f ++ concatMap iexprVarNames args
+  IQuoteExpr a        -> iexprVarNames a
+  IQuoteSymbolExpr a  -> iexprVarNames a
+  ITupleExpr xs       -> concatMap iexprVarNames xs
+  ICollectionExpr xs  -> concatMap iexprVarNames xs
+  IConsExpr a b       -> iexprVarNames a ++ iexprVarNames b
+  IJoinExpr a b       -> iexprVarNames a ++ iexprVarNames b
+  ILambdaExpr _ _ b   -> iexprVarNames b
+  IIfExpr a b c       -> iexprVarNames a ++ iexprVarNames b ++ iexprVarNames c
+  _                   -> []
 
 -- | Convert TypedParam to Arg ArgPattern for lambda expressions
 typedParamToArgPattern :: TypedParam -> Arg ArgPattern
@@ -1102,8 +1191,20 @@ desugar (AnonListParamFuncExpr n expr) = do
 desugar (QuoteExpr expr) =
   IQuoteExpr <$> desugar expr
 
-desugar (QuoteSymbolExpr expr) =
-  IQuoteSymbolExpr <$> desugar expr
+-- `'e` has two meanings, discriminated by the desugared inner form:
+--   * `'f` (a variable, including operator sections like `'(^)`):
+--     quote the function/symbol itself (QuoteSymbolExpr semantics).
+--   * `'(expr)` (anything else): the rule-suppression quote -- build
+--     expr with the rule-free structural arithmetic (i.+, i.*, ...),
+--     the same treatment declare-rule right-hand sides receive.
+--     `declare rule` rewriting does not fire inside, so ideal
+--     generators such as '((sin θ)^2 + (cos θ)^2 - 1) survive
+--     construction instead of collapsing under their own auto rules.
+desugar (QuoteSymbolExpr expr) = do
+  e <- desugar expr
+  case e of
+    IVarExpr _ -> return $ IQuoteSymbolExpr e
+    _          -> return $ unNormalizeOps e
 
 desugar (WedgeApplyExpr expr args) =
   IWedgeApplyExpr <$> desugar expr <*> mapM desugar args

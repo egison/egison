@@ -87,6 +87,10 @@ data EvalState = EvalState
   , casSubtypeEdges :: [(Type, Type)] -- ^ Phase beta: `declare cas-subtype` edges (alias-expanded,
                                        --   declaration order, redundant edges included for node
                                        --   bookkeeping). Persists across load batches.
+  , declaredSymbolOrder :: [String]  -- ^ G3 (cas-simplification): CAS symbols in `declare symbol`
+                                       --   declaration order (deduplicated).  DG1: symbols declared
+                                       --   earlier rank lower in the monomial order used by
+                                       --   `declare ideal`, i.e. they survive in normal forms.
   }
 
 initialEvalState :: EvalState
@@ -108,6 +112,7 @@ initialEvalState = EvalState
   , derivativesDesugared = []
   , casTypeAliasEnv = HashMap.empty
   , casSubtypeEdges = []
+  , declaredSymbolOrder = []
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -166,6 +171,10 @@ class (Applicative m, Monad m) => MonadEval m where
   getDerivativesDesugared :: m [String]
   setDerivativesDesugared :: [String] -> m ()
   appendDerivativeDesugared :: String -> m ()
+  -- G3 (cas-simplification): `declare symbol` declaration order for the
+  -- `declare ideal` priority list.
+  getDeclaredSymbolOrder :: m [String]
+  appendDeclaredSymbols :: [String] -> m ()
   -- Phase alpha (extensible CAS tower): `declare cas-type` alias environment.
   getCasTypeAliasEnv :: m (HashMap String Type)
   setCasTypeAliasEnv :: HashMap String Type -> m ()
@@ -290,6 +299,13 @@ instance Monad m => MonadEval (StateT EvalState m) where
   appendDerivativeDesugared n = do
     st <- get
     put $ st { derivativesDesugared = derivativesDesugared st ++ [n] }
+
+  getDeclaredSymbolOrder = declaredSymbolOrder <$> get
+  appendDeclaredSymbols names = do
+    st <- get
+    let existing = declaredSymbolOrder st
+        newNames = filter (`notElem` existing) names
+    put $ st { declaredSymbolOrder = existing ++ newNames }
 
   getCasTypeAliasEnv = casTypeAliasEnv <$> get
   setCasTypeAliasEnv env = do

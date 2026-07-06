@@ -92,6 +92,12 @@ data TopExpr
     -- e.g., declare symbol a11, a12, a21, a22
     --       declare symbol x, y, z : Float
     -- [String]: symbol names, Maybe TypeExpr: optional type (defaults to Integer)
+  | DeclareIdeal [Expr]
+    -- ^ Ideal declaration (G3 of design/cas-simplification.md).
+    -- e.g.  declare ideal [w^2 + w + 1]
+    -- Computes the reduced Groebner basis of the generators once (lazily,
+    -- via the Egison-level engine in lib/math/algebra/groebner.egi) and
+    -- registers the whole basis as one term-level auto rewrite rule.
   | DeclareRule (Maybe String) RuleLevel Pattern Expr
     -- ^ Reduction rule declaration (Phase 7.4 of type-cas design).
     -- e.g.  declare rule auto term i^2 = -1

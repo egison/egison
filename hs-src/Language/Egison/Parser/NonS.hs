@@ -92,6 +92,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
       <|> Execute  <$> (reserved "execute" >> expr)
       <|> (reserved "def" >> try patternFunctionExpr <|> defineExpr)
       <|> declareRuleExpr
+      <|> declareIdealExpr
       <|> declareDerivativeExpr
       <|> declareApplyExpr
       <|> declareMathFuncExpr
@@ -607,6 +608,27 @@ declareRuleExpr = try $ do
   -- trailing `where` that belongs to subsequent declarations.
   rhs <- exprWithoutWhere
   return $ DeclareRule ruleName level lhs rhs
+
+-- | Parse a `declare ideal` declaration (G3 of design/cas-simplification.md).
+--
+--   declare ideal [w^2 + w + 1]
+--   declare ideal [(sin θ)^2 + (cos θ)^2 - 1]
+--
+-- The generators are ordinary expressions; at desugar time they receive
+-- the same rule-free treatment as `declare rule` right-hand sides, so a
+-- generator that the active auto rules would collapse (e.g. a Pythagorean
+-- relation) is safe to write plainly.
+declareIdealExpr :: Parser TopExpr
+declareIdealExpr = try $ do
+  reserved "declare"
+  keyword <- lowerId
+  if keyword /= "ideal"
+    then fail "Expected 'ideal' after 'declare'"
+    else return ()
+  _ <- symbol "["
+  gens <- sepBy expr (symbol ",")
+  _ <- symbol "]"
+  return $ DeclareIdeal gens
 
 -- | Split a parsed expression at the top-level `=` operator, returning the LHS
 -- and RHS sub-expressions. Returns `Nothing` if the expression does not have

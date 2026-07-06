@@ -5,9 +5,10 @@ declare symbol θ, φ, a, b : MathValue
 def x : Vector MathValue := [| θ, φ |]
 
 -- Use backtick `(...)` for opaque-atom quoting (so `(a*cos θ + b)^k stays
--- unexpanded). Apostrophe `'(...)` does NOT preserve the expression as an
--- opaque atom in current Egison NonS — it's only for QuoteSymbolExpr —
--- and would let intermediate computations explode the polynomial.
+-- unexpanded). Apostrophe `'(...)` is the rule-suppression quote — it only
+-- turns off `declare rule` rewriting during construction, it does not make
+-- an opaque atom — so it would let intermediate computations explode the
+-- polynomial.
 def X : Vector MathValue := [| `(a * cos θ + b) * cos φ, `(a * cos θ + b) * sin φ, a * sin θ |]
 
 -- Local basis
