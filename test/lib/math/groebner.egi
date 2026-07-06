@@ -45,3 +45,16 @@ assertEqual "empty ideal" (groebnerBasis []) []
 assertEqual "unit ideal" (groebnerBasis [5]) [1]
 assertEqual "laurent fail-open" (groebnerBasis [x / y]) [x / y]
 assertEqual "univariate power" (polyNF [x^2 - 2] (x^6)) 8
+
+--
+-- Observability and the safe one-call forms.
+--
+
+assertEqual "polyNFStatus ok" (polyNFStatus [x^2 - 2] (x^4)) ("ok", 4)
+assertEqual "polyNFStatus fail-open"
+  (fst (polyNFStatus [x^2 - 2] (x / y))) "fail-open"
+assertEqual "idealNF completes its generators"
+  (idealNF [s2^2 - 2, s3^2 - 3, s6 - s2 * s3] (s2 * s6)) (2 * s3)
+assertEqual "idealEquals via one difference test"
+  (idealEquals [s2^2 - 2, s3^2 - 3, s6 - s2 * s3] ((s2 + s3)^2) (2 * s6 + 5))
+  True

@@ -149,15 +149,18 @@ def polyNFStep (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : [MathValu
 -- Reduce until no term is divisible.  Each step eliminates one
 -- occurrence of a divisible monomial and only introduces strictly
 -- smaller ones, so this terminates; the fuel is a cheap safety net.
-def polyNFLoop (fuel: Integer) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+-- The Integer in the result reports how the loop ended:
+-- 0 = irreducible reached, 1 = fuel exhausted (result reduced but
+-- possibly not a normal form).
+def polyNFLoop (fuel: Integer) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : (Integer, MathValue) :=
   if fuel = 0
-    then f
+    then (1, f)
     else match polyNFStep atoms gs f as list mathValue with
-      | [] -> f
+      | [] -> (0, f)
       | $f' :: _ -> polyNFLoop (fuel - 1) atoms gs f'
 
 def polyNFEngine (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
-  polyNFLoop 10000 atoms (filter (\g -> not (g = 0)) gs) f
+  snd (polyNFLoop 10000 atoms (filter (\g -> not (g = 0)) gs) f)
 
 -- Guard: a polynomial with non-negative exponents (the value is not
 -- a proper fraction, and no factor has a negative power).
@@ -182,9 +185,49 @@ def polyNF (gs: [MathValue]) (f: MathValue) : MathValue :=
   polyNFWith [] gs f
 
 def polyNFWith (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  snd (polyNFStatusWith atoms gs f)
+
+-- Diagnosed variants.  polyNF returns its input unchanged in two
+-- silent situations that are painful to tell apart from a genuine
+-- nonzero normal form; these return a status string alongside:
+--   "ok"        -- an irreducible normal form was reached
+--   "fail-open" -- the input was outside the polynomial fragment
+--                  (a proper fraction or Laurent exponents);
+--                  returned unchanged
+--   "fuel"      -- the step budget ran out; the result is reduced
+--                  but possibly not a normal form
+def polyNFStatus (gs: [MathValue]) (f: MathValue) : (String, MathValue) :=
+  polyNFStatusWith [] gs f
+
+def polyNFStatusWith (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : (String, MathValue) :=
   if all isGbPoly (f :: gs)
-    then mathNormalize (polyNFEngine (extendAtoms atoms (polyAtoms (f :: gs))) gs f)
-    else f
+    then
+      let (st, r) := polyNFLoop
+                       10000
+                       (extendAtoms atoms (polyAtoms (f :: gs)))
+                       (filter (\g -> not (g = 0)) gs)
+                       f
+       in (if st = 0 then "ok" else "fuel", mathNormalize r)
+    else ("fail-open", f)
+
+-- The safe one-call forms.  polyNF reduces by the polynomials it is
+-- GIVEN; on raw (uncompleted) generators the result is not confluent.
+-- idealNF completes them first.  For repeated reduction modulo the
+-- same ideal, bind `groebnerBasis gens` once instead.
+def idealNF (gens: [MathValue]) (f: MathValue) : MathValue :=
+  polyNF (groebnerBasis gens) f
+
+def idealNFWith (atoms: [MathValue]) (gens: [MathValue]) (f: MathValue) : MathValue :=
+  polyNFWith atoms (groebnerBasisWith atoms gens) f
+
+-- Equality modulo an ideal, as ONE zero test of the difference.
+-- Normalizing the two sides separately can pick different default
+-- priority lists (their atom sets differ), giving equal values
+-- different normal forms.  Inputs must be polynomials: on fractions
+-- or Laurent values the reduction fails open and the test returns
+-- False even for equal values -- clear denominators first.
+def idealEquals (gens: [MathValue]) (a: MathValue) (b: MathValue) : Bool :=
+  idealNF gens (a - b) = 0
 
 --
 -- Buchberger's algorithm

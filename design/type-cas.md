@@ -575,6 +575,9 @@ groebnerBasis     : [MathValue] -> [MathValue]   -- 被約 GB (Buchberger)
 groebnerBasisWith : [MathValue] -> [MathValue] -> [MathValue]
 polyNF            : [MathValue] -> MathValue -> MathValue  -- 基底 -> 式 -> 正規形
 polyNFWith        : [MathValue] -> [MathValue] -> MathValue -> MathValue
+polyNFStatus(With): ... -> (String, MathValue)   -- "ok"/"fail-open"/"fuel" つき
+idealNF(With)     : 生成元を完備化してから polyNF する一発形
+idealEquals       : 差 1 回のゼロ判定によるイデアル法等価 (多項式限定)
 ```
 
 `With` 系の第 1 引数は「**残したい原子**の接頭辞」(残りは名前順で上位に自動延長)。
