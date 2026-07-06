@@ -371,7 +371,7 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 — **実施済 (下記; w 規則の置換+三角イデアル自動適用まで確認、規則抑制クオート `'( )` も同時導入)** | 小〜中 | G2 |
 | **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 — **実施済 (下記; T2 は共存中立、thurston は前提誤認が判明し原因を特定 → G6 へ)** | 小〜中 | G2, G3 |
 | **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 | 小 | なし (G0 の結果次第で不要になる可能性あり) |
-| **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。thurston は sqrt 負冪修正+明示 polyNF で**成立済 (79.7s)** のため、検収 = sqrt 維持計算の演算単価 (op-cost プローブ 12s → 1s 未満) と thurston のさらなる短縮 | 中 | G4 (分析) |
+| **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。thurston は sqrt 負冪修正+明示 polyNF で**成立済 (79.7s)** のため、検収 = sqrt 維持計算の演算単価 (op-cost プローブ 12s → 1s 未満) と thurston のさらなる短縮 — **実施済 (下記; sqrt 2 規則の移植で 0.48s / thurston 13.2s)** | 中 | G4 (分析) |
 
 **検収** (フェーズごとに egison/CLAUDE.md の標準検査 + 以下):
 
@@ -596,6 +596,47 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
   sample/groebner-basis.egi は lib 参照に変更。ローカル再定義 (shadowing) との
   共存も確認。
 - **回帰**: mini-test 99/99・cabal test PASS・代表 7 sample 劣化なし (riemann 0.60s)。
+
+### G6 実施結果 (2026-07-06 実装完了 — sqrt 2 規則の Haskell 移植)
+
+- **移植対象の絞り込み**: トリガーフィルタにより sqrt-only 値で実際に走るのは
+  sqrt 冪規則と sqrt ペア融合規則の **2 本だけ** (rt/rtu/exp/abs は trigger 不一致で
+  既にスキップ) — ファミリー全部ではなくこの 2 本を `Math/Rewrite.hs` の
+  `casRewriteSqrt` に移植し、lib の該当 declare rule 2 本を削除。
+- **実装**: `casRewriteSymbol = casRewriteDd . casRewriteSqrt`。
+  **項レベル fast-path** が本体 — 「|冪|≥2 の sqrt 因子」か「冪 1 の sqrt 因子 2 個以上」を
+  持つ項だけ書き換え、**単独 (√a)^±1 の項 (曲率計算の大半) は再構築すら
+  しない** (lib 規則では不可能だった省略)。冪縮約は q=quot n 2・r=n−2q (負冪込み)。
+  ペア融合は「全 radicand を casMult で融合 → 単項なら平方部を抽出
+  (整数係数は試し割り・上限 10⁶ で fail-open、指数は div/mod 2)」の単一経路 —
+  旧 lib の整数 gcd 経路と同値なことは契約テストで確認
+  (`√2·√8→4`、`√6·√10→2√15`、`√(2x)·√(2y)→2√(xy)`、`√x·√(xy²)→xy`、
+  多項式積は `√(x+1)·√(x−1)→√(x²−1)` のまま)。
+  負の radicand 冪が多項式 radicand で真の分数を作るため、結合は
+  casPlus/casDivide 経由 (生の CASPoly 再構築ではなく)。
+- **契約**: 移植前に 14 ケースの show 出力をピン留めし、
+  移植後 (Haskell 単独) で **diff ゼロ**を確認。
+- **入れ子 radicand の後追い対応 (mini-test 117・test/lib/math/algebra.egi が検出)**:
+  旧 lib 規則は mapTermAll 経由で **Apply 引数・quote の中まで再帰**し、
+  さらに applyRuleFix の**不動点反復**と「lib sqrt 呼び出しによる content 再分離」の
+  往復で入れ子根号 (5 乗根の radical 形など) を畳んでいた。移植版も
+  (i) 因子引数・quote 内容・level-4 係数への再帰、
+  (ii) 融合 radicand への再帰適用、
+  (iii) **多項 radicand の整数 content 分離** (平方部は外へ、残りは独立の √int 原子 —
+  `√5·√(−10√5−50) = 5·√(−2√5−10)` の正準化)、
+  (iv) **等価判定つき不動点駆動** (fuel 100; content 分離ペアは同形再生成 → 等価で停止)
+  を実装して一致。`z⁵ = 1` (z = 5 乗根の radical 形)・3 因子積など全ケース回復、
+  op-cost は 0.47s のまま。
+- **効果**: op-cost プローブ **12.01s → 0.48s (25 倍、検収 <1s クリア)** —
+  素シンボル比 1.5 倍まで縮小 (G4 時点は >100 倍)。
+  **thurston 79.7s → 13.2s** (sqrt 負冪修正からの累積では **623.8s → 13.2s = 47 倍**)、
+  全 assert 通過。サンプル横断でも劣化なし
+  (cubic 0.59→0.43s と改善、Schwarzschild 1.15s、hodge-Minkowski 1.69s、
+  polar-3d 3.69s、groebner-basis 1.20s)。
+- **規則数**: 組み込み declare rule 18 → **16** (mini-test 83/84/88/92/96 の期待値更新)。
+- **残り (このフェーズのスコープ外)**: exp ペア規則の同様の移植は必要になったら
+  (exp-heavy 計算が遅ければ同じ手順)。規則エンジン自体の per-term 単価削減は
+  ユーザ定義規則の一般問題として別課題。
 
 ---
 

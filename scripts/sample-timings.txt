@@ -39,7 +39,7 @@ sample/math/geometry/riemann-curvature-tensor-of-Schwarzschild-metric.egi 12
 sample/math/geometry/riemann-curvature-tensor-of-T2-non-sym.egi 11
 sample/math/geometry/riemann-curvature-tensor-of-T2.egi 9
 sample/math/geometry/surface.egi 4
-sample/math/geometry/thurston.egi 80
+sample/math/geometry/thurston.egi 13
 sample/math/geometry/thurston-non-sym.egi 200
 sample/math/geometry/wedge-product.egi 1
 sample/math/geometry/yang-mills-equation-of-U1-gauge-theory.egi 224

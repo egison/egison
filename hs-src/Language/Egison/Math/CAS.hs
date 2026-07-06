@@ -47,6 +47,8 @@ module Language.Egison.Math.CAS
     , casNormalize
     , casNormalizePoly
     , casReshapeAs
+    -- * Re-exports for Rewrite.hs (avoids a direct Data import cycle)
+    , prettyFunctionName
     -- * Predicates
     , casIsZero
     , casIsAtom

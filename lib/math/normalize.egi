@@ -110,33 +110,11 @@ declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
         else c *' ('rtu n)^'k
     else c *' ('rtu n)^'k
 
--- Square root power reduction (replaces casRewriteSqrt's `(sqrt x)^k` branch).
--- The LHS pattern `(apply1 #sqrt $aa, $nn) :: $rr` exists to put `sqrt`
--- in the rule's trigger set (so the rule is skipped on values without
--- sqrt). Inside the body, we reconstruct the full assoc list and re-match
--- with a predicate to find a sqrt factor whose exponent has |n| >= 2
--- (the predicate isn't supported in declare rule LHS but works in body
--- match). This avoids the n=1 identity-match issue that would
--- prematurely stop applyRuleFix.
---
--- Negative exponents arise when fraction normalization folds a
--- single-term denominator into Laurent powers (1/(sqrt a * x) ->
--- (sqrt a)^-1 x^-1) and such factors then multiply up; without the
--- negative branch, (sqrt a)^-8 survives normalization (observed in
--- thurston.egi's S).  The remainder is computed as n - 2*q with q =
--- i.quotient n 2 (truncating), so it lies in {-1, 0, 1} and matches
--- the power-evaluation path's normal form ((sqrt a)^-3 =
--- (sqrt a)^-1 * a^-1).  NB: i.quotient (truncating) and i.modulo
--- (flooring) are not a consistent pair on negatives, so i.modulo
--- must not be used here.
-declare rule auto term term $c ((apply1 #sqrt $aa, $nn) :: $rr) =
-  let xs := ('sqrt aa, nn) :: rr
-   in match xs as assocMultiset mathValue with
-        | (apply1 #sqrt $a, $n & ?(\k -> k >= 2 || k <= -2)) :: $rest ->
-            let q := i.quotient n 2
-             in c *' a^'q *' ('sqrt a)^'(n - 2 * q)
-                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rest)
-        | _ -> c *' foldl (*') 1 (map (\(p, k) -> p ^' k) xs)
+-- Square root power reduction and pair merging are implemented in
+-- Haskell (Math/Rewrite.hs, casRewriteSqrt): the declare-rule versions
+-- paid a pattern-match attempt on every term of every sqrt-carrying
+-- value per normalization, making arithmetic on such values ~20x
+-- slower (thurston.egi's bottleneck; design/cas-simplification.md G6).
 
 -- Note: FunctionData same-shape term merging stays in casRewriteDd
 -- (Math/Rewrite.hs). The poly-level declare rule version
@@ -165,35 +143,6 @@ declare rule auto term term $c ((apply1 #abs $a, $n) :: $rr) =
                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
     | _ -> c *' ('abs a) ^' n
              *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
-
--- Square root pair merge using Euclidean GCD.
--- Mathematically: a = g*a', b = g*b' (with g = gcd(|a|, |b|)) implies
---   sqrt a * sqrt b = sqrt (a*b) = g * sqrt (a'*b').
--- The Euclidean GCD `gcd' |a| |b|` is cheap (no prime factorisation).
--- The remaining `sqrt (a'*b')` is then a SMALLER integer than `a*b`,
--- and its prime factorisation is done only ONCE in `declare apply sqrt`.
---
--- For symbolic args (non-integer a or b), GCD doesn't apply: just merge
--- via `sqrt (a*b)` so declare apply can take over (or stay symbolic).
---
--- The LHS pattern uses `:: $rr` (not `:: []`) so the rule fires on terms
--- with 3+ sqrt factors as well (e.g. `sqrt(a) * sqrt(b) * sqrt(c) * x`):
--- the body re-matches via assocMultiset to find any pair of sqrt factors
--- with exponent 1 and reduces them, leaving the rest in place.
-declare rule auto term term $c ((apply1 #sqrt $aa, #1) :: $rr) =
-  let xs := ('sqrt aa, 1) :: rr
-   in match xs as assocMultiset mathValue with
-        | (apply1 #sqrt $a, #1) :: (apply1 #sqrt $b, #1) :: $rest ->
-            let merged :=
-                  if isInteger a && isInteger b
-                    then let g  := gcd' (i.abs a) (i.abs b)
-                             a' := i.quotient a g
-                             b' := i.quotient b g
-                          in g *' sqrt (i.* a' b')
-                    else sqrt (a *' b)
-             in c *' merged
-                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rest)
-        | _ -> c *' foldl (*') 1 (map (\(p, k) -> p ^' k) xs)
 
 --
 -- sin/cos pythagorean identity (replaces lib's rewriteRuleForSinAndCos)
