@@ -49,7 +49,7 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringT
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName,
-                                            sanitizeMethodName, freeTyVars, instType, classParam)
+                                            sanitizeMethodName, freeTyVars, instType, classParam, mapType)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)
 
@@ -117,40 +117,16 @@ applySubstsToConstraint substs (Constraint cName cTypes) =
   Constraint cName (map (applySubstsToType substs) cTypes)
 
 
--- | Apply type substitutions to a type
+-- | Apply type substitutions to a type. Built on 'mapType', so the
+-- recursion lives in one place; symbol sets contain atoms, not types, and
+-- are left untouched.
 applySubstsToType :: [(TyVar, Type)] -> Type -> Type
-applySubstsToType substs = go
+applySubstsToType substs = mapType replace
   where
-    go t@(TVar v) = case lookup v substs of
-                      Just newType -> newType
-                      Nothing -> t
-    go TInt = TInt
-    go TFloat = TFloat
-    go TBool = TBool
-    go TChar = TChar
-    go TString = TString
-    go (TCollection t) = TCollection (go t)
-    go (TTuple ts) = TTuple (map go ts)
-    go (TInductive name ts) = TInductive name (map go ts)
-    go (TTensor t) = TTensor (go t)
-    go (THash k v) = THash (go k) (go v)
-    go (TMatcher t) = TMatcher (go t)
-    go (TMatcherSlot s t) = TMatcherSlot (go s) (go t)
-    go (TFun t1 t2) = TFun (go t1) (go t2)
-    go (TIO t) = TIO (go t)
-    go (TIORef t) = TIORef (go t)
-    go TPort = TPort
-    go TAny = TAny
-    go TMathValue = TMathValue
-    go TPolyExpr = TPolyExpr
-    go TTermExpr = TTermExpr
-    go TSymbolExpr = TSymbolExpr
-    go TIndexExpr = TIndexExpr
-    go TFactor = TFactor
-    go (TFrac t) = TFrac (go t)
-    -- Symbol sets contain atoms, not types; nothing to substitute there.
-    go (TTerm t ss) = TTerm (go t) ss
-    go (TPoly t ss) = TPoly (go t) ss
+    replace t@(TVar v) = case lookup v substs of
+                           Just newType -> newType
+                           Nothing      -> t
+    replace t          = t
 
 -- | Get the arity of a function type (number of parameters)
 getMethodArity :: Type -> Int

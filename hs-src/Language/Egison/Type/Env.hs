@@ -46,7 +46,7 @@ import           Language.Egison.IExpr      (Var(..), Index(..))
 import           Language.Egison.VarEntry   (VarEntry(..))
 import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
                                              Constraint(..), ClassInfo(..), InstanceInfo(..),
-                                             freeTyVars, freshTyVar)
+                                             freeTyVars, freshTyVar, substTyVar)
 
 -- | Type environment: uses same data structure as evaluation environment
 -- Maps base variable names to all bindings with that name
@@ -187,43 +187,13 @@ generalize env t =
 instantiate :: TypeScheme -> Int -> ([Constraint], Type, Int)
 instantiate (Forall vs cs t) counter =
   let freshVars = zipWith (\v i -> (v, TVar (freshTyVar "t" (counter + i)))) vs [0..]
-      substType = foldr (\(old, new) acc -> substVar old new acc) t freshVars
+      substType = foldr (\(old, new) acc -> substTyVar old new acc) t freshVars
       substCs = map (substConstraint freshVars) cs
   in (substCs, substType, counter + length vs)
   where
     substConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
     substConstraint vars (Constraint cls tys) =
-      Constraint cls (map (\ty -> foldr (\(old, new) acc -> substVar old new acc) ty vars) tys)
-    substVar :: TyVar -> Type -> Type -> Type
-    substVar _ _ TInt = TInt
-    substVar _ _ TMathValue = TMathValue
-    substVar _ _ TPolyExpr = TPolyExpr
-    substVar _ _ TTermExpr = TTermExpr
-    substVar _ _ TSymbolExpr = TSymbolExpr
-    substVar _ _ TIndexExpr = TIndexExpr
-    substVar _ _ TFloat = TFloat
-    substVar _ _ TBool = TBool
-    substVar _ _ TChar = TChar
-    substVar _ _ TString = TString
-    substVar old new (TVar v)
-      | v == old = new
-      | otherwise = TVar v
-    substVar old new (TTuple ts) = TTuple (map (substVar old new) ts)
-    substVar old new (TCollection t') = TCollection (substVar old new t')
-    substVar old new (TInductive name ts) = TInductive name (map (substVar old new) ts)
-    substVar old new (TTensor t') = TTensor (substVar old new t')
-    substVar old new (THash k v) = THash (substVar old new k) (substVar old new v)
-    substVar old new (TMatcher t') = TMatcher (substVar old new t')
-    substVar old new (TMatcherSlot s' t') = TMatcherSlot (substVar old new s') (substVar old new t')
-    substVar old new (TFun t1 t2) = TFun (substVar old new t1) (substVar old new t2)
-    substVar old new (TIO t') = TIO (substVar old new t')
-    substVar old new (TIORef t') = TIORef (substVar old new t')
-    substVar _ _ TPort = TPort
-    substVar _ _ TAny = TAny
-    substVar _ _ TFactor = TFactor
-    substVar old new (TTerm t' ss) = TTerm (substVar old new t') ss
-    substVar old new (TFrac t') = TFrac (substVar old new t')
-    substVar old new (TPoly t' ss) = TPoly (substVar old new t') ss
+      Constraint cls (map (\ty -> foldr (\(old, new) acc -> substTyVar old new acc) ty vars) tys)
 
 --------------------------------------------------------------------------------
 -- Class Environment

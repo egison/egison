@@ -617,36 +617,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
     
     -- Substitute type variable with concrete type in a type expression
     substituteTypeVar :: TyVar -> Type -> Type -> Type
-    substituteTypeVar oldVar newType = go
-      where
-        go TInt = TInt
-        go TMathValue = TMathValue
-        go TPolyExpr = TPolyExpr
-        go TTermExpr = TTermExpr
-        go TSymbolExpr = TSymbolExpr
-        go TIndexExpr = TIndexExpr
-        go TFloat = TFloat
-        go TBool = TBool
-        go TChar = TChar
-        go TString = TString
-        go (TVar v) | v == oldVar = newType
-                    | otherwise = TVar v
-        go (TTuple ts) = TTuple (map go ts)
-        go (TCollection t) = TCollection (go t)
-        go (TInductive name ts) = TInductive name (map go ts)
-        go (TTensor t) = TTensor (go t)
-        go (THash k v) = THash (go k) (go v)
-        go (TMatcher t) = TMatcher (go t)
-        go (TMatcherSlot s t) = TMatcherSlot (go s) (go t)
-        go (TFun t1 t2) = TFun (go t1) (go t2)
-        go (TIO t) = TIO (go t)
-        go (TIORef t) = TIORef (go t)
-        go TPort = TPort
-        go TAny = TAny
-        go TFactor = TFactor
-        go (TTerm t ss) = TTerm (go t) ss
-        go (TFrac t) = TFrac (go t)
-        go (TPoly t ss) = TPoly (go t) ss
+    substituteTypeVar = Types.substTyVar
 
 -- | Extract method name and type from ClassMethod
 extractMethodWithType :: HashMap.HashMap String Type -> ClassMethod -> (String, Type)

@@ -296,9 +296,9 @@ prettyTypeOf (CASFrac n d) =
 joinObservedTypes :: [String] -> String
 joinObservedTypes []  = "Integer"
 joinObservedTypes ts  = case filter (/= "Integer") ts of
-  []                                       -> "Integer"
-  ts' | all (== head ts') (tail ts')        -> head ts'
-      | otherwise                           -> "MathValue"
+  []                        -> "Integer"
+  t : ts' | all (== t) ts'  -> t
+          | otherwise       -> "MathValue"
 
 -- | Phase 8 differential closure: collect the set of atoms (as their canonical
 -- pretty form) appearing in a CASValue's monomials, recursing into nested
@@ -661,13 +661,9 @@ foldMonomialSymbols mono =
     combineGroup [] = []
     combineGroup grp@((sym, _):_) = [(sym, sum (map snd grp))]
 
--- | Fold terms with equal monomials by adding their coefficients
-foldTerms :: [CASTerm] -> [CASTerm]
-foldTerms = foldTermsWith FlattenNested
-
--- | Like 'foldTerms'; under 'KeepNested' merged coefficients are
--- normalized without flattening, so a nested coefficient produced by
--- reshape survives the grouping.
+-- | Fold terms with equal monomials by adding their coefficients; under
+-- 'KeepNested' merged coefficients are normalized without flattening, so a
+-- nested coefficient produced by reshape survives the grouping.
 foldTermsWith :: NestedCoeffPolicy -> [CASTerm] -> [CASTerm]
 foldTermsWith policy terms =
   let grouped = groupBy equalMonos (sortBy (comparing termMonoKey) terms)
@@ -1005,7 +1001,8 @@ univariateGcdReduce ts1 ts2
               i2 = map (numerator . (* (l % 1))) q2
               c0 = foldr gcd 0 (i1 ++ i2)
               c  = if c0 == 0 then 1 else c0
-              d  = if head i2 < 0 then negate c else c
+              d  = case i2 of (x : _) | x < 0 -> negate c
+                              _               -> c
           return (fromDense sym (map (`div` d) i1), fromDense sym (map (`div` d) i2))
   where
     -- Euclid on dense rationals is cheap for the degrees CAS code meets;
@@ -1051,12 +1048,14 @@ univariateGcdReduce ts1 ts2
       let y = trim y0
           m = length y
           go r | length r < m = ([], r)
-               | otherwise =
-                   let k  = head r / head y
-                       r' = zipWith (-) (tail r)
-                                        (map (* k) (tail y ++ replicate (length r - m) 0))
-                       (qs, rest) = go r'
-                   in (k : qs, rest)
+               | otherwise = case (r, y) of
+                   (rh : rt, yh : yt) ->
+                     let k  = rh / yh
+                         r' = zipWith (-) rt
+                                      (map (* k) (yt ++ replicate (length r - m) 0))
+                         (qs, rest) = go r'
+                     in (k : qs, rest)
+                   _ -> error "polyDivModQ: division by the zero polynomial"
       in go (trim x0)
 
     polyGcdQ a b = go (trim a) (trim b)

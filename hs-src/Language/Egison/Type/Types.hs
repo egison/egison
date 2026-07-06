@@ -32,6 +32,8 @@ module Language.Egison.Type.Types
   , isCASType
   , isSubsetSymbolSet
   , hasAmbiguousOpenTower
+  , mapType
+  , substTyVar
   , typeAtomExprToTypeAtom
   , typeToName
   , typeConstructorName
@@ -110,10 +112,14 @@ data SymbolSet
 data Type
   = TInt                              -- ^ Integer
   | TMathValue                         -- ^ MathValue (mathematical expression, unifies with Integer)
-  | TPolyExpr                         -- ^ PolyExpr (polynomial expression) - legacy
-  | TTermExpr                         -- ^ TermExpr (term in polynomial) - legacy
-  | TSymbolExpr                       -- ^ SymbolExpr (symbolic variable) - legacy
-  | TIndexExpr                        -- ^ IndexExpr (subscript/superscript index) - legacy
+  -- The four *Expr types below type the views of the internal
+  -- mathematical-expression data: primitive data patterns in matcher
+  -- definitions (Plus / Term / Symbol / Apply1..4 / Quote / Function, as in
+  -- lib/math/expression.egi) are given these types by the inference.
+  | TPolyExpr                         -- ^ PolyExpr (a polynomial view: Plus)
+  | TTermExpr                         -- ^ TermExpr (a term view: Term)
+  | TSymbolExpr                       -- ^ SymbolExpr (a factor view: Symbol, Apply1..4, Quote, Function)
+  | TIndexExpr                        -- ^ IndexExpr (an index view: Sub/Sup/User; also a surface type name)
   | TFloat                            -- ^ Float (Double)
   | TBool                             -- ^ Bool
   | TChar                             -- ^ Char
@@ -230,6 +236,44 @@ freeTyVarsSymbolSet :: SymbolSet -> Set TyVar
 freeTyVarsSymbolSet (SymbolSetClosed _) = Set.empty
 freeTyVarsSymbolSet SymbolSetOpen       = Set.empty
 freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
+
+-- | Bottom-up transformation of a type: rebuild every composite node from
+-- its transformed children, then apply @f@ to the rebuilt node (so @f@ sees
+-- leaves as-is and composite nodes with already-transformed children).
+-- Nodes produced by @f@ are not re-visited. Symbol sets of Poly/Term are
+-- left untouched; a transformation that needs to rewrite them can do so in
+-- its @f@ at the TPoly/TTerm node.
+--
+-- This is the single recursion used by the type-variable substitution
+-- walkers (Env.instantiate, EnvBuilder.substituteTypeVar,
+-- TypeClassExpand.applySubstsToType), which only differ in their leaf
+-- function.
+mapType :: (Type -> Type) -> Type -> Type
+mapType f = go
+  where
+    go t = f (descend t)
+    descend (TTuple ts)        = TTuple (map go ts)
+    descend (TCollection t)    = TCollection (go t)
+    descend (TInductive n ts)  = TInductive n (map go ts)
+    descend (TTensor t)        = TTensor (go t)
+    descend (THash k v)        = THash (go k) (go v)
+    descend (TMatcher t)       = TMatcher (go t)
+    descend (TMatcherSlot a b) = TMatcherSlot (go a) (go b)
+    descend (TFun a b)         = TFun (go a) (go b)
+    descend (TIO t)            = TIO (go t)
+    descend (TIORef t)         = TIORef (go t)
+    descend (TFrac t)          = TFrac (go t)
+    descend (TTerm t ss)       = TTerm (go t) ss
+    descend (TPoly t ss)       = TPoly (go t) ss
+    descend leaf               = leaf
+
+-- | Substitute a single type variable, leaving symbol sets untouched.
+-- Shared leaf function for the substitution walkers built on 'mapType'.
+substTyVar :: TyVar -> Type -> Type -> Type
+substTyVar old new = mapType replace
+  where
+    replace (TVar v) | v == old = new
+    replace t                   = t
 
 -- | Check if a type is a tensor type
 isTensorType :: Type -> Bool
