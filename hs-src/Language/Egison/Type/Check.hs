@@ -107,6 +107,9 @@ builtinTypes = concat
       , ("iterateRulesCAS", Forall [] [] $
           TFun (TCollection (TFun TMathValue TMathValue))
                (TFun TMathValue TMathValue))
+      -- Per-term trigger guard for generated pattern-rule steps.
+      , ("casContainsAnySymbol", Forall [] [] $
+          TFun (TCollection TString) (TFun TMathValue TBool))
       -- Phase A.5 deep-traversal primitives.
       -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
       , ("mapPolyAll", Forall [] [] $

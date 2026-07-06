@@ -273,8 +273,9 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
   fr <- fresh
   let paramName = "__rule_input." ++ filter (\c -> c /= '$' && c /= '_') fr
   rhsI <- unNormalizeOps <$> desugar rhs
+  let ruleTriggers = extractTriggerSymbols lhsPat
   body <- if patternHasPatVar lhsPat
-            then buildPatternRuleBody paramName level lhsPat rhsI
+            then buildPatternRuleBody paramName level lhsPat rhsI ruleTriggers
             else case patternToLiteralExpr lhsPat of
                    Just lhsExpr -> do
                      lhsI <- unNormalizeOps <$> desugar lhsExpr
@@ -296,8 +297,7 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
       --
       -- Triggers are stored in EvalState (already converted to `Set String`)
       -- and read inside iterateRulesCAS, so they aren't passed as arguments.
-      let triggers = extractTriggerSymbols lhsPat
-      appendAutoRuleTriggers triggers
+      appendAutoRuleTriggers ruleTriggers
       prevAutoNames <- getAutoRuleVarNames
       let autoVar    = "autoRule." ++ show (length prevAutoNames)
           allAutoVars = prevAutoNames ++ [autoVar]
@@ -335,8 +335,8 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     -- These primitives recurse into Apply1-4 / Quote / Function arguments
     -- automatically, so the rule fires at any sub-expression and iterates to
     -- a fixpoint at each visited node.
-    buildPatternRuleBody :: String -> RuleLevel -> Pattern -> IExpr -> EvalM IExpr
-    buildPatternRuleBody paramName lvl pat rhsI = do
+    buildPatternRuleBody :: String -> RuleLevel -> Pattern -> IExpr -> [String] -> EvalM IExpr
+    buildPatternRuleBody paramName lvl pat rhsI triggers = do
       -- Use a separate fresh inner-arg name so the inner match is independent
       -- from the outer lambda parameter.
       frInner <- fresh
@@ -355,7 +355,23 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
                          (WildCard,   VarExpr innerArg)]
       matchI <- desugar matchExpr
       let patchedMatchI = patchFirstMatchRhs matchI rhsI
-          oneStepLambda = ILambdaExpr Nothing [stringToVar innerArg] patchedMatchI
+          -- Per-term trigger guard: skip the matcher entirely on
+          -- sub-values that contain none of the rule's trigger symbols.
+          -- Sound with ANY-of semantics -- a sub-value the LHS can match
+          -- necessarily contains the pattern's head symbol -- and cheap
+          -- (one short-circuit scan vs. matcher startup).  The
+          -- value-level filter in iterateRulesCAS already skips whole
+          -- values; this covers the mixed case where only a few terms
+          -- of a large value carry the trigger.
+          guardedMatchI = case triggers of
+            [] -> patchedMatchI
+            _  -> IIfExpr
+                    (IApplyExpr (IVarExpr "casContainsAnySymbol")
+                      [ ICollectionExpr (map (IConstantExpr . StringExpr . pack) triggers)
+                      , IVarExpr innerArg ])
+                    patchedMatchI
+                    (IVarExpr innerArg)
+          oneStepLambda = ILambdaExpr Nothing [stringToVar innerArg] guardedMatchI
           mapCall       = IApplyExpr (IVarExpr mapPrim)
                                      [oneStepLambda, IVarExpr paramName]
       return $ ILambdaExpr Nothing [stringToVar paramName] mapCall

@@ -106,6 +106,7 @@ primitives =
         , ("hasDerivativeRule", hasDerivativeRulePrim)
         , ("containsAnySymbol", containsAnySymbolPrim)
         , ("iterateRulesCAS", iterateRulesCASPrim)
+        , ("casContainsAnySymbol", casContainsAnySymbolPrim)
         , ("applyTermRule", applyTermRulePrim)
         , ("mapPolyAll", mapPolyPrim)
         , ("mapTermAll", mapTermPrim)
@@ -375,6 +376,42 @@ iterateRulesCASPrim name args = case args of
     CASData <$> iterateRulesLoopWithTriggers pairs v0
   [_, v] -> return v
   _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
+
+-- | Per-term trigger guard for the generated pattern-rule steps
+-- (Desugar.buildPatternRuleBody): does the sub-value contain any of the
+-- given names?  Short-circuits on the first hit.  Sound as a guard with
+-- ANY-of semantics: a sub-value the rule's LHS can match necessarily
+-- contains the pattern's head symbol, which is in the trigger set
+-- (extra names in the set only let more sub-values through).
+casContainsAnySymbolPrim :: String -> PrimitiveFunc
+casContainsAnySymbolPrim name args = case args of
+  [Collection nameSeq, CASData v] -> do
+    names <- mapM fromStringValue (toList nameSeq)
+    return (Bool (casContainsAny (Set.fromList names) v))
+  [_, _] -> return (Bool True)  -- fail open: never block a rule
+  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
+ where
+  fromStringValue (String t) = return (T.unpack t)
+  fromStringValue v          = throwErrorWithTrace (TypeMismatch "string" (Value v))
+
+casContainsAny :: Set.Set String -> CAS.CASValue -> Bool
+casContainsAny names = goV
+ where
+  goV (CAS.CASInteger _)  = False
+  goV (CAS.CASFactor sym) = goSym sym
+  goV (CAS.CASPoly terms) = any goTerm terms
+  goV (CAS.CASFrac n d)   = goV n || goV d
+  goTerm (CAS.CASTerm coeff mono) = goV coeff || any (goSym . fst) mono
+  goSym (CAS.Symbol _ nm _)        = Set.member nm names
+  goSym (CAS.Apply1 f a1)          = goV f || goV a1
+  goSym (CAS.Apply2 f a1 a2)       = goV f || goV a1 || goV a2
+  goSym (CAS.Apply3 f a1 a2 a3)    = goV f || goV a1 || goV a2 || goV a3
+  goSym (CAS.Apply4 f a1 a2 a3 a4) = goV f || goV a1 || goV a2 || goV a3 || goV a4
+  goSym (CAS.Quote v)              = goV v
+  goSym (CAS.QuoteFunction whnf)   = case prettyFunctionName whnf of
+                                       Just n  -> Set.member n names
+                                       Nothing -> False
+  goSym (CAS.FunctionData fn as)   = goV fn || any goV as
 
 -- | Walks the CASValue once and collects the set of every Symbol /
 -- QuoteFunction / FunctionData name that appears anywhere in the tree.
