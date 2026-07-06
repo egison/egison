@@ -56,3 +56,15 @@ assertEqual "sqrt^-3"
 assertEqual "sqrt^16" ((sqrt β)^16) (β^8)
 assertEqual "integer radicand ^-2" ((sqrt 2)^(-2)) (1 / 2)
 assertEqual "negative power value preserved" ((v * v * v) * (sqrt β * x)^3) 1
+
+--
+-- Depth-2 sqrt denesting (declare apply sqrt, root.egi):
+-- sqrt(a + b sqrt c) with a^2 - b^2 c a perfect square opens up.
+--
+
+assertEqual "denest 9 - 4 sqrt 5" (sqrt (9 - 4 * sqrt 5)) (sqrt 5 - 2)
+assertEqual "denest 7 + 4 sqrt 3" (sqrt (7 + 4 * sqrt 3)) (2 + sqrt 3)
+assertEqual "denest rational halves" (sqrt (2 + sqrt 3)) ((sqrt 6 + sqrt 2) / 2)
+assertEqual "non-denestable stays"
+  (show (sqrt (5 - 2 * sqrt 5))) "'sqrt (-2 * 'sqrt 5 + 5)"
+assertEqual "denested square recovers" ((sqrt (9 - 4 * sqrt 5))^2) (9 - 4 * sqrt 5)

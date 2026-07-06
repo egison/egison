@@ -65,8 +65,38 @@ def rtPositiveTerm (n: MathValue) (x: MathValue) : MathValue :=
 
 def rt'' (n: MathValue) (x: MathValue) : MathValue :=
   match (n, x) as (integer, integer) with
-    | (#2, _) -> 'sqrt x
+    | (#2, _) -> sqrtDenest x
     | (_, _) -> 'rt n x
+
+-- Depth-2 denesting (design/cas-simplification.md 3.6; the classic
+-- Borodin-Fagin-Hopcroft-Tompa condition):
+--   sqrt (a + b sqrt c), with integers a > 0, b /= 0, c > 0 and
+--   a^2 - b^2 c = d^2 a perfect square, denests to
+--   sqrt ((a+d)/2) + sign(b) * sqrt ((a-d)/2).
+-- Example: sqrt (9 - 4 sqrt 5) = sqrt 5 - 2.  Anything outside this
+-- shape (or with a non-square a^2 - b^2 c, e.g. sqrt (-10 - 2 sqrt 5))
+-- stays symbolic.  The perfect-square test factorizes a^2 - b^2 c, so
+-- it is guarded by a size cap.
+def sqrtDenest (x: MathValue) : MathValue :=
+  match x as mathValue with
+    | poly [term $a [], term $b [(apply1 #sqrt $c, #1)]] ->
+        if isInteger a && isInteger b && isInteger c && a > 0 && c > 0
+          then
+            let r := a^2 - b^2 * c
+             in if r > 0 && r <= 1000000000000
+                  then sqrtDenest' x a b r
+                  else 'sqrt x
+          else 'sqrt x
+    | _ -> 'sqrt x
+
+def sqrtDenest' (x: MathValue) (a: MathValue) (b: MathValue) (r: MathValue) : MathValue :=
+  let facs := toAssoc (pF r)
+   in if all (\(_, k) -> i.modulo k 2 = 0) facs
+        then
+          let d := foldl (\acc (p, k) -> acc * p ^ (i.quotient k 2)) 1 facs
+              s := if b > 0 then 1 else -1
+           in sqrt ((a + d) / 2) + s * sqrt ((a - d) / 2)
+        else 'sqrt x
 
 -- sqrt is split into `declare mathfunc` (declares the function name and
 -- registers default symbolic behaviour) plus `declare apply` (the

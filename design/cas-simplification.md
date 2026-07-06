@@ -370,7 +370,7 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 | **G2** | **Buchberger + NF** を Egison ライブラリでスパイク (`groebnerBasis` / `polyNF`)。教科書例 (cyclic-3 等) で検収し、性能を計測。遅ければ Haskell (`Math/Groebner.hs`) へ移植し、lib 版は仕様の実行可能ドキュメントとして残す — **実施済 (下記; Egison 実装のままで十分高速、Haskell 移植は不要)** | 中〜大 | G1 (PRS の部品を再利用) |
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 — **実施済 (下記; w 規則の置換+三角イデアル自動適用まで確認、規則抑制クオート `'( )` も同時導入)** | 小〜中 | G2 |
 | **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 — **実施済 (下記; T2 は共存中立、thurston は前提誤認が判明し原因を特定 → G6 へ)** | 小〜中 | G2, G3 |
-| **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 | 小 | なし (G0 の結果次第で不要になる可能性あり) |
+| **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 — **実施済 (下記)** | 小 | なし (G0 の結果次第で不要になる可能性あり) |
 | **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。thurston は sqrt 負冪修正+明示 polyNF で**成立済 (79.7s)** のため、検収 = sqrt 維持計算の演算単価 (op-cost プローブ 12s → 1s 未満) と thurston のさらなる短縮 — **実施済 (下記; sqrt 2 規則の移植で 0.48s / thurston 13.2s)** | 中 | G4 (分析) |
 
 **検収** (フェーズごとに egison/CLAUDE.md の標準検査 + 以下):
@@ -637,6 +637,32 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 - **残り (このフェーズのスコープ外)**: exp ペア規則の同様の移植は必要になったら
   (exp-heavy 計算が遅ければ同じ手順)。規則エンジン自体の per-term 単価削減は
   ユーザ定義規則の一般問題として別課題。
+
+### G5 実施結果 (2026-07-06 実装完了 — 深さ 2 denesting)
+
+- **実装**: `root.egi` の `rt''` の n=2 分岐を `sqrtDenest` に差し替え。
+  適用経路は content 分離済みの原始 poly radicand を受けるので、
+  「整数 a>0, b≠0, c>0 の `a + b√c`」形を poly/term パターンで判定し、
+  `a² − b²c = d²` (完全平方; `pF` で判定、r ≤ 10¹² の fail-open ガード) のとき
+  `√((a+d)/2) + sign(b)·√((a−d)/2)` に開く (古典 BFHT 条件)。
+  半分が有理数になる場合も再帰的な sqrt 適用が処理 (`√(2+√3) = (√6+√2)/2`)。
+- **検収** (mini-test **138** + 委員会スイート normalize-rules.egi に追補):
+  `√(9−4√5) = √5−2`・`√(7+4√3) = 2+√3`・`√(3+2√2) = 1+√2`・`√(11−6√2) = 3−√2`・
+  有理半・**非対象形は不変** (`√(5−2√5)`、`√(2+√2)`)・平方の復元 (値保存)。
+- **4 項 root-of-unity (§1.2-4) の再測定**: `z₄⁵` は G0(i) 時点の ~10 項から
+  **6 項に縮小 (部分達成)**。残差の `√(±2√5−5)` は a²−b²c = 5 (非平方) で
+  denesting 対象外 — §3.6 の予測どおり、完全に 1 へ畳むには根号原子の関係式を
+  添加したイデアル計算+分枝 (符号) 追跡が必要 (将来課題として据え置き)。
+- **注意 (設計メモ)**: denesting は**適用時のみ** (`declare apply sqrt` 経路)。
+  Haskell 側 casRewriteSqrt の融合が直接生成する原子には適用されない
+  (明示適用の原則どおりホットパスに乗せない)。
+- **回帰**: 10 sample 基準どおり (riemann 0.62s / Schwarzschild 1.19s / polar-3d 3.80s)・
+  thurston 13.9s 成立・mini-test **101/101**・cabal test PASS
+  (denesting の追補を含む committed スイートで)。
+
+**これで G0–G6 全フェーズ完了** (2026-07-06)。据え置きの将来課題:
+根号原子の関係式イデアル+分枝追跡 (4 項 root-of-unity の完全解決)、
+exp ペア規則の Haskell 移植 (必要になったら)、GF(p^k) (商機構 q5 との合成)。
 
 ---
 
