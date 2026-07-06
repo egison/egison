@@ -72,6 +72,7 @@ import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
                                               emptyContext, withExpr)
+import qualified Language.Egison.Type.Pretty as TP
 import qualified Language.Egison.Type.Subtype as Subtype
 import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstConstraint,
                                               applySubstScheme, composeSubst, emptySubst,
@@ -2457,6 +2458,14 @@ inferIExprWithContext expr ctx = case expr of
   -- to fit T (or passes through unchanged for non-CAS types).
   IReshape ty inner -> do
     let exprCtx = withExpr (prettyStr expr) ctx
+    -- A nested Poly tower may contain at most one open atom set [..]:
+    -- with two open slots the atom routing of the runtime reshape would
+    -- be ambiguous (see Types.hasAmbiguousOpenTower).
+    when (hasAmbiguousOpenTower ty) $
+      throwError $ TE.UnsupportedFeature
+        ("at most one open atom set [..] may appear in a nested Poly tower: "
+         ++ TP.prettyType ty)
+        exprCtx
     (innerTI, s) <- inferIExprWithContext inner exprCtx
     let innerType = tiExprType innerTI
     ty' <- applySubstWithConstraintsM s ty

@@ -804,29 +804,42 @@ reshapeAsFrac innerTy v = case casNormalize v of
 
 -- | Poly inner [..]: structural reshape with atom-set separation.
 --
--- If the inner type carries a closed symbol set (e.g. `Poly Integer [i]`
--- inside `Poly (Poly Integer [i]) [..]`), each input term's monomial is
--- split into atoms that belong inside (those listed in the inner set) and
--- atoms that stay outside. The inside atoms are folded into the coefficient
--- (which is then recursively reshaped to the inner type), the outside atoms
--- form the new term's monomial. `casNormalizePoly` then groups terms with
--- the same outer monomial, summing their inner-coefficient polynomials.
+-- Atom routing is driven by the whole inner tower — the chain of nested
+-- Poly/Term coefficient types, descending through Frac — under the
+-- restriction that a nested Poly tower contains AT MOST ONE open symbol
+-- set `[..]` (checked statically at annotation and declaration sites,
+-- Types.hasAmbiguousOpenTower):
 --
--- If the inner type has an open or variable symbol set, no atom separation
--- is performed; we just recurse on coefficients (basic widening).
+--   * The inner tower is all closed (e.g. `Poly (Poly Integer [i]) [x]`,
+--     or with an open OUTER set `Poly (Poly Integer [i]) [..]`): atoms
+--     listed anywhere in the inner tower go into the coefficient (the deep
+--     union, so towers of depth 3+ route correctly), the rest stay at this
+--     level.
+--   * The inner tower contains the open slot and this level's set is
+--     closed (e.g. `Poly (Poly Integer [..]) [i]`): complement split —
+--     atoms of this level's closed set stay here, everything else goes
+--     into the coefficient.
+--   * No routing information at all (base coefficient type such as
+--     Integer, or both this level and the inner tower open — excluded by
+--     the static check): no separation; just recurse on coefficients
+--     (basic widening).
+--
+-- The inside atoms are folded into the coefficient (which is then
+-- recursively reshaped to the inner type, repeating the same routing one
+-- level deeper), the outside atoms form the new term's monomial.
 -- Note (Phase gamma-prime): the entry `casNormalize v` flattens any nested
 -- shape the input may carry, so reshape is a function of the VALUE only —
 -- this is what makes the absorption law `casReshapeAs C . casReshapeAs B =
 -- casReshapeAs C` hold (D5 coherence). The final grouping then uses the
 -- keep-nested normalizer so the structure just built is not re-flattened.
 reshapeAsPoly :: Type -> SymbolSet -> CASValue -> CASValue
-reshapeAsPoly innerTy _outerSS v = case casNormalize v of
+reshapeAsPoly innerTy outerSS v = case casNormalize v of
   CASInteger n -> CASInteger n
   CASPoly ts   ->
-    case innerClosedAtoms innerTy of
-      Just inAtoms -> casNormalizePolyWith KeepNested (map (separateTerm innerTy inAtoms) ts)
-      Nothing      -> casNormalizePolyWith KeepNested
-                        [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
+    case atomSplit innerTy outerSS of
+      Just split -> casNormalizePolyWith KeepNested (map (separateTerm innerTy split) ts)
+      Nothing    -> casNormalizePolyWith KeepNested
+                      [CASTerm (casReshapeAs innerTy c) m | CASTerm c m <- ts]
   cv           -> cv
 
 -- | Term inner [...]: like Poly but expected to be a single-term form.
@@ -835,20 +848,50 @@ reshapeAsPoly innerTy _outerSS v = case casNormalize v of
 reshapeAsTerm :: Type -> SymbolSet -> CASValue -> CASValue
 reshapeAsTerm = reshapeAsPoly
 
--- | Extract the closed atom list from the *outermost* CAS-poly wrapper of a
--- type, if any. For nested types like `Poly Integer [z]` returns
--- `Just [TANameAtom "z"]`. Returns `Nothing` for open or variable sets.
-innerClosedAtoms :: Type -> Maybe [TypeAtom]
-innerClosedAtoms (TPoly _ (SymbolSetClosed atoms)) = Just atoms
-innerClosedAtoms (TTerm _ (SymbolSetClosed atoms)) = Just atoms
-innerClosedAtoms _                                  = Nothing
+-- | Which atoms of a term go into the coefficient at this Poly level.
+data AtomSplit
+  = InsideAtoms [TypeAtom]   -- ^ an atom goes inside iff it is listed
+  | OutsideAtoms [TypeAtom]  -- ^ an atom goes inside iff it is NOT listed
+                             --   (complement split for an open inner tower)
 
--- | Split a single CASTerm given the inner atom set: atoms in `inAtoms` are
+-- | Decide the atom split at one Poly level from the inner tower and this
+-- level's own symbol set. Returns Nothing when there is no routing
+-- information (basic widening).
+atomSplit :: Type -> SymbolSet -> Maybe AtomSplit
+atomSplit innerTy outerSS =
+  let (innerClosed, innerOpens) = towerInfo innerTy
+  in if innerOpens >= 1
+       then case outerSS of
+              SymbolSetClosed outerAtoms -> Just (OutsideAtoms outerAtoms)
+              _                          -> Nothing
+       else if null innerClosed
+              then Nothing
+              else Just (InsideAtoms innerClosed)
+
+-- | Collect, over the whole inner tower (nested Poly/Term levels, descending
+-- through Frac), the union of closed atom sets and the number of open
+-- symbol sets.
+towerInfo :: Type -> ([TypeAtom], Int)
+towerInfo (TPoly inner ss) = combineSS ss (towerInfo inner)
+towerInfo (TTerm inner ss) = combineSS ss (towerInfo inner)
+towerInfo (TFrac inner)    = towerInfo inner
+towerInfo _                = ([], 0)
+
+combineSS :: SymbolSet -> ([TypeAtom], Int) -> ([TypeAtom], Int)
+combineSS (SymbolSetClosed atoms) (as, n) = (atoms ++ as, n)
+combineSS SymbolSetOpen           (as, n) = (as, n + 1)
+combineSS (SymbolSetVar _)        (as, n) = (as, n)
+
+-- | Split a single CASTerm given the atom split: the inside atoms are
 -- multiplied into the coefficient and reshaped to `innTy`; the remaining
 -- atoms become the new term's monomial.
-separateTerm :: Type -> [TypeAtom] -> CASTerm -> CASTerm
-separateTerm innTy inAtoms (CASTerm c mono) =
-  let (innerMono, outerMono) = splitMonomialByAtoms inAtoms mono
+separateTerm :: Type -> AtomSplit -> CASTerm -> CASTerm
+separateTerm innTy split (CASTerm c mono) =
+  let (innerMono, outerMono) =
+        case split of
+          InsideAtoms atoms  -> splitMonomialByAtoms atoms mono
+          OutsideAtoms atoms -> let (out, inn) = splitMonomialByAtoms atoms mono
+                                in (inn, out)
       coeffWithInner =
         if null innerMono
           then c

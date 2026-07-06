@@ -100,6 +100,16 @@ buildEnvironments exprs = do
                          HashMap.empty
                          [ (n, te) | DeclareCasType n te <- exprs ]
   newAliases <- resolveCasTypeAliases priorAliases newAliasesRaw
+  -- Restriction on open atom sets, checked on the fully expanded alias
+  -- bodies (alias-in-alias expansion can only be judged after resolution):
+  -- a nested Poly tower may contain at most one [..]
+  -- (Types.hasAmbiguousOpenTower; the runtime reshape's atom routing would
+  -- otherwise be ambiguous).
+  mapM_ (\(n, t) ->
+          when (Types.hasAmbiguousOpenTower t) $ throwError $ Default $
+            "declare cas-type " ++ n ++ ": at most one open atom set [..] " ++
+            "may appear in a nested Poly tower: " ++ prettyType t)
+        (HashMap.toList newAliases)
   let aliasEnv = HashMap.union newAliases priorAliases
 
   -- Phase beta: collect `declare cas-subtype` edges (alias-expanded) and run
@@ -173,6 +183,11 @@ collectCasSubtypeEdge aliasEnv priorEdges acc (lhsTE, rhsTE) = do
     throwError $ Default $
       "declare cas-subtype: both sides must be CAS types: " ++
       pp lhs ++ " <: " ++ pp rhs
+  mapM_ (\side ->
+          when (Types.hasAmbiguousOpenTower side) $ throwError $ Default $
+            "declare cas-subtype: at most one open atom set [..] may " ++
+            "appear in a nested Poly tower: " ++ pp side)
+        [lhs, rhs]
   case Subtype.checkEdgeAddition edges (lhs, rhs) of
     Subtype.EdgeCycle -> throwError $ Default $
       "declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
@@ -355,9 +370,19 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv var typeScheme typeEnv
-    
+
+    -- Restriction on open atom sets in the declared signature: a nested
+    -- Poly tower may contain at most one [..] (the runtime reshape's atom
+    -- routing would otherwise be ambiguous; Types.hasAmbiguousOpenTower).
+    -- Definitions reach the reshape through TypedDesugar.maybeReshape, not
+    -- the IReshape inference path, so the check lives at signature
+    -- collection.
+    when (Types.hasAmbiguousOpenTower funType) $ throwError $ Default $
+      "def " ++ name ++ ": at most one open atom set [..] may appear " ++
+      "in a nested Poly tower: " ++ prettyType funType
+
     return result { ebrTypeEnv = typeEnv' }
-  
+
   -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
   PatternInductiveDecl typeName typeParams constructors -> do
     let typeParamVars = map (TVar . TyVar) typeParams

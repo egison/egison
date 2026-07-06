@@ -31,6 +31,7 @@ module Language.Egison.Type.Types
   , isScalarType
   , isCASType
   , isSubsetSymbolSet
+  , hasAmbiguousOpenTower
   , typeAtomExprToTypeAtom
   , typeToName
   , typeConstructorName
@@ -260,6 +261,44 @@ isSubsetSymbolSet (SymbolSetClosed s1) (SymbolSetClosed s2) =
 -- Variables require unification
 isSubsetSymbolSet (SymbolSetVar _) _ = False
 isSubsetSymbolSet _ (SymbolSetVar _) = False
+
+-- | Restriction on open atom sets: a nested Poly tower — the chain of
+-- Poly/Term coefficient nesting, descending through Frac — may contain at
+-- most one open symbol set @[..]@. With a single open slot every atom's
+-- destination level is uniquely determined (closed sets route their atoms,
+-- the open slot takes the rest), whereas a second open slot would make the
+-- routing ambiguous, so reshape could not be defined. Components outside a
+-- tower (tuple fields, function arguments, and so on) are separate towers,
+-- each allowed its own @[..]@. Returns True when some tower in the type
+-- violates the restriction.
+hasAmbiguousOpenTower :: Type -> Bool
+hasAmbiguousOpenTower ty = case ty of
+  TPoly {} -> towerViolation ty
+  TTerm {} -> towerViolation ty
+  TFrac {} -> towerViolation ty
+  _        -> anyComponent ty
+  where
+    towerViolation t =
+      let (opens, base) = walk t (0 :: Int)
+      in opens >= 2 || hasAmbiguousOpenTower base
+    walk (TPoly inner ss) n = walk inner (n + openCount ss)
+    walk (TTerm inner ss) n = walk inner (n + openCount ss)
+    walk (TFrac inner)    n = walk inner n
+    walk base             n = (n, base)
+    openCount SymbolSetOpen = 1
+    openCount _             = 0
+    anyComponent t = case t of
+      TTuple ts        -> any hasAmbiguousOpenTower ts
+      TCollection t1   -> hasAmbiguousOpenTower t1
+      TInductive _ ts  -> any hasAmbiguousOpenTower ts
+      TTensor t1       -> hasAmbiguousOpenTower t1
+      THash k v        -> hasAmbiguousOpenTower k || hasAmbiguousOpenTower v
+      TMatcher t1      -> hasAmbiguousOpenTower t1
+      TMatcherSlot a b -> hasAmbiguousOpenTower a || hasAmbiguousOpenTower b
+      TFun a b         -> hasAmbiguousOpenTower a || hasAmbiguousOpenTower b
+      TIO t1           -> hasAmbiguousOpenTower t1
+      TIORef t1        -> hasAmbiguousOpenTower t1
+      _                -> False
 
 -- | Convert a Type to a string name for dictionary and method naming
 -- This is used for generating instance dictionary names and method names
