@@ -1,0 +1,26 @@
+-- GF(p^k) as a first-class quotient type: the composition of the
+-- coefficient quotient (mod p) and the symbol-carried quotient (the
+-- minimal polynomial of α), through finiteFieldReduce
+-- (design/cas-simplification.md 3.8, design/type-cas-quotient.md q5).
+declare symbol α, x, y
+
+declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α^2 + α + 1]
+
+def a : GF4 := projGF4 α
+def u : GF4 := projGF4 1
+
+-- the field structure
+assertEqual "(α+1)^2 = α" (reprGF4 ((a + u) * (a + u))) α
+assertEqual "α (α+1) = 1" (reprGF4 (a * (a + u))) 1
+assertEqual "α^3 = 1" (reprGF4 (a * a * a)) 1
+assertEqual "characteristic 2" (reprGF4 (a + a)) 0
+
+-- the base is MathValue, so polynomials over GF(4) live in the type:
+-- coefficients are disciplined inside every term
+assertEqual "coefficients reduced inside polynomials"
+  (reprGF4 (projGF4 (x^2 + 3*x + α^2))) (x^2 + x + α + 1)
+
+-- freshman's dream in characteristic 2
+assertEqual "(u+v)^2 = u^2 + v^2"
+  ((projGF4 (α*x + y)) * (projGF4 (α*x + y)) == projGF4 ((α*x)^2 + y^2))
+  True

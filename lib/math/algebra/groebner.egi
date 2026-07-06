@@ -444,3 +444,22 @@ def polyNFField (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> M
   if all isGbPoly (f :: gs)
     then polyNFEngineF red fdiv (extendAtoms atoms (polyAtoms (f :: gs))) gs f
     else f
+
+-- Finite-field reduce for `declare cas-quotient`: coefficients modulo
+-- a prime p, and normal form modulo the ideal of the generators (the
+-- minimal polynomial of the primitive element).  This composes the two
+-- quotient mechanisms into GF(p^k):
+--
+--   declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α^2 + α + 1]
+--
+-- The base being MathValue, the resulting type contains not just the
+-- field scalars but polynomials over the field: the reduce applies the
+-- coefficient discipline inside every term.  The Groebner basis is
+-- computed once, when the reduce is built at declaration time.
+-- p must be PRIME: the field divisions use Fermat inverses (b^(p-2)),
+-- which is no inverse at all over composite moduli.
+def finiteFieldReduce (p: Integer) (gens: [MathValue]) : MathValue -> MathValue :=
+  let red := \c -> i.modulo c p
+      fdiv := \a b -> i.modulo (a * (i.modulo b p)^(p - 2)) p
+      gb := groebnerBasisField red fdiv [] gens
+   in \v -> polyNFField red fdiv [] gb v

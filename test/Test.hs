@@ -39,6 +39,7 @@ testCases =
   , "test/lib/math/groebner.egi"   -- groebnerBasis / polyNF value-level engine (G2)
   , "test/lib/math/ideal.egi"      -- declare ideal: rule generation from Groebner bases (G3)
   , "test/lib/math/normalize-rules.egi" -- '( ) quote, negative sqrt powers, w ideal
+  , "test/lib/math/quotient-field.egi" -- GF(p^k) = cas-quotient x declare-ideal composition (q5)
   -- , "test/lib/math/analysis.egi"   -- Skipped due to infinite loop
   -- , "test/lib/math/arithmetic.egi"  -- Skipped due to infinite loop
   -- , "test/lib/math/tensor.egi"     -- Skipped due to infinite loop

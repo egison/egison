@@ -65,9 +65,10 @@ op-cost プローブ (sqrt 原子 60 演算) 0.47s (G4 時点 12s)・thurston 13
 
 - **G7 (未着手、§3.7 に設計)**: 根号原子の分枝追跡 — 4 項 root-of-unity の
   完全解決 (現状 10 項 → 6 項の部分達成で停止)。
-- **G0–G8 全フェーズ実装済み** (G7 は 2026-07-07 に完了 — §3.7 実施結果)。
-  残る据え置き: `Poly Q [α]` 形の型統合 (真の q5、タワー/商機構側)・
-  規則エンジンのさらなる単価削減 (項単位トリガー等)。
+- **G0–G8 全フェーズ+q5 合成まで実装済み** (2026-07-07 完了)。
+  `Poly Q [α]` は「タワー係数スロット拡張」ではなく**商の合成**で解決
+  (type-cas-quotient.md q5 の結論)。残る据え置きは
+  **規則エンジンのさらなる単価削減 (項単位トリガー等) のみ**。
 - 規則エンジンのさらなる単価削減 (項単位トリガー等) — ユーザ定義の重い規則の一般問題。
 - ※ 2026-07-07 消化済み: exp 構造規則の移植 (G6 追補、係数バグ修正込み)・
   トリガーの頭名絞り込み・thurston の Unbound 警告 (β 前方参照+裸の縮約添字 b、
@@ -490,6 +491,13 @@ makeMonicF/reduceBasisF) を groebner.egi に追加。係数の除算は
   `Poly Q [α]` 形の統合 (真の q5) はタワー/商機構側の課題として残る**。
 - 検収: mini-test 140 + committed スイート (groebner.egi) に GF(4) 追補。
   既定エンジン不変 (`groebnerBasis [2x²−2] = [x²−1]` を明示 assert)。
+- **q5 合成の成立 (2026-07-07 追補)**: `finiteFieldReduce p gens` ヘルパを追加し、
+  `declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α²+α+1]` で
+  **GF(p^k) が第一級の型**になった (per-op reduce・Eq dispatch・宣言時合同律
+  チェック込み)。base = MathValue なので **x の多項式も型の中** — 係数規律が
+  項の内側まで効き、標数 2 の (αx+y)² = α²x²+y² が型付きで成立。
+  タワー係数スロット拡張は不要と判明 (詳細 = type-cas-quotient.md q5 の結論)。
+  検収 = test/lib/math/quotient-field.egi + mini-test 142。
 
 ## 4. アーキテクチャへの写像
 
