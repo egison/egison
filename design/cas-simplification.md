@@ -364,7 +364,7 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 | Phase | 内容 | 工数 | 依存 |
 |---|---|---|---|
 | **G0** | スパイク: (i) ~~4 項 root-of-unity が既存 sqrt ペア規則で落ちるか実測~~ **済 (2026-07-06、§3.6)**: 積融合は機能、ℚ(√5) 係数の入れ子根号が残る — 一部は G5 で denest 可、完全解決は G2+G5 (ii) thurston の膨張点の特定 (どの中間式が何原子の有理式か) (iii) T2/Schwarzschild で「多変数 GCD があれば約分できる」ことを手計算で確認しピン留め mini-test 化 | 半日 | なし |
-| **G1** | **多変数 GCD (subresultant PRS)** を Haskell で実装、`casNormalizeFrac` 第 2 段に配線。ガード (次数・項数) 付き | 中 | G0 |
+| **G1** | **多変数 GCD (subresultant PRS)** を Haskell で実装、`casNormalizeFrac` 第 2 段に配線。ガード (次数・項数) 付き — **実施済 (下記)** | 中 | G0 |
 | **G2** | **Buchberger + NF** を Egison ライブラリでスパイク (`groebnerBasis` / `polyNF`)。教科書例 (cyclic-3 等) で検収し、性能を計測。遅ければ Haskell (`Math/Groebner.hs`) へ移植し、lib 版は仕様の実行可能ドキュメントとして残す | 中〜大 | G1 (PRS の部品を再利用) |
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 | 小〜中 | G2 |
 | **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 | 小〜中 | G2, G3 |
@@ -374,6 +374,32 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 
 - G1: `(c²r−2GM)X/((c²r−2GM)Y) → X/Y` の mini-test、T2 の `(b + a cos θ)^k` 次数縮小、
   Schwarzschild sample の出力簡素化 (実行時間も比較)
+
+### G1 実施結果 (2026-07-06 実装完了)
+
+- **実装**: `Math/CAS.hs` の `multivariateGcdReduce` (`univariateGcdReduce` の直後、
+  `casNormalizeFrac` Poly/Poly 分岐の第 2 段として配線)。内部表現は固定原子リスト上の
+  **指数ベクトル** (`[(Integer, [Integer])]`、降順 grevlex 維持・同類項マージ)。
+  原子順は `show` の辞書順 (宣言順 π への切替は G2 の順序基盤と同時に)。
+  content/primitive part 再帰 + **Knuth の除算不要擬剰余** + **subresultant PRS**
+  (β = g·h^δ の厳密除算、h 更新は δ>1 で g^δ/h^(δ−1) の厳密除算)。
+- **値保存**: 両辺を共通の分母払い係数でスケール → 同一の gcd で厳密除算 →
+  共通の整数 content と符号 (分母先頭正) で再スケール。分子と分母は常に同じ倍率。
+- **fail-open ガード**: 原子 2〜8 個・項数 ≤200・総次数 ≤60・PRS 中間項数 ≤2000・
+  ローラン/非有理係数は即 Nothing。加えて**決定的コプライム事前フィルタ**:
+  固定素数点 (2 組) での整数評価の gcd が 1 なら PRS をスキップ
+  (共通因子 g は g(pt) | gcd(p(pt), q(pt)) を満たすため。ホットパス保護)。
+- **検収**: mini-test **133** — 多変数約分 (`(xy+y²)/(x+y) → y`、差の平方)、
+  **パラメータ込み共通因子** (`(c²r−2GM)X/((c²r−2GM)Y) → X/Y`)、
+  **適用原子** (`(b+a·cos θ)²/(b+a·cos θ) → b+a·cos θ`)、有理係数、coprime 不変、値保存。
+- **回帰**: mini-test 95+1/96 PASS・cabal test PASS・重量サンプル劣化なし
+  (Schwarzschild 1.14s / T2 0.97s / hodge-spherical 1.20s / hodge-Minkowski 1.69s /
+  polar-laplacian-3d 4s — いずれも従来比同等以下)。
+- **thurston**: 予測どおり G1 単独では未解決 (120s 超)。G4 (三角イデアル) 以降の対象。
+- **書籍への波及**: `(x²−y²)/(x−y)` が約分されるようになったため、
+  egison-book の mexpr 章バッククオート節の動機を「多変数は約分されない」から
+  「展開させたくない・因数分解形を保つ」に書き換え、cas 章 §9.3 の
+  「グレブナー基底は未実装」の段落を「多項式 GCD は実装済 / イデアル正規形は未実装」に更新 (ja/en)。
 - G2: GB 教科書例 + `NF` 一意性 (同じ f を項順を変えて与えても NF が一致) の property 的 mini-test
 - G3: `lib/math/normalize.egi` の w 規則を生成版に差し替えても
   `5th/7th/17th-root-of-unity` が全部通る

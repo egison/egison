@@ -91,7 +91,7 @@ module Language.Egison.Math.CAS
     , casSingleTermM
     ) where
 
-import           Data.List (sortBy, groupBy, intercalate, nub)
+import           Data.List (sortBy, groupBy, intercalate, intersect, nub)
 import           Data.Ord (comparing)
 import           Data.Function (on)
 import           Data.Ratio ((%), numerator, denominator)
@@ -755,7 +755,10 @@ casNormalizeFrac num denom =
               _ -> case univariateGcdReduce ts1' ts2' of
                      Just (ts1'', ts2'') ->
                        casNormalizeFrac (casNormalizePoly ts1'') (casNormalizePoly ts2'')
-                     Nothing -> CASFrac (casNormalizePoly ts1') (casNormalizePoly ts2')
+                     Nothing -> case multivariateGcdReduce ts1' ts2' of
+                       Just (ts1'', ts2'') ->
+                         casNormalizeFrac (casNormalizePoly ts1'') (casNormalizePoly ts2'')
+                       Nothing -> CASFrac (casNormalizePoly ts1') (casNormalizePoly ts2')
        -- a / (b / c) = (a * c) / b
        (n, CASFrac b c) -> casNormalizeFrac (casMult n c) b
        -- (a / b) / c = a / (b * c)
@@ -1069,6 +1072,218 @@ univariateGcdReduce ts1 ts2
     exactDivQ x y =
       let (q, r) = polyDivModQ x y
       in if all (== 0) r then Just q else Nothing
+
+-- | Reduce a Poly/Poly fraction by the multivariate polynomial GCD over the
+-- rationals (subresultant PRS) — stage 2 of the fraction reduction
+-- (design/cas-simplification.md G1).
+--
+-- Every atom (symbols, symbolic applications such as 'cos θ, quotes,
+-- function symbols) is treated uniformly as a variable, so the reducer
+-- covers Schwarzschild/T2/thurston-style cancellations with no extra
+-- machinery. Fail-open: any input outside the supported shape (Laurent
+-- exponents, non-rational coefficients, sizes beyond the guards) returns
+-- Nothing and the fraction is left untouched.
+--
+-- Value preservation: both sides are scaled by ONE common denominator-
+-- clearing factor, divided exactly by the same gcd, and finally rescaled by
+-- a common integer content and sign, so the fraction's value never changes.
+multivariateGcdReduce :: [CASTerm] -> [CASTerm] -> Maybe ([CASTerm], [CASTerm])
+multivariateGcdReduce ts1 ts2
+  | null ts1 || null ts2 = Nothing
+  | otherwise = do
+      rs1 <- mapM ratTerm ts1
+      rs2 <- mapM ratTerm ts2
+      -- Laurent exponents are out of scope (handled by the monomial layer).
+      ensure (all (all ((> 0) . snd) . snd) (rs1 ++ rs2))
+      let atoms = sortBy (comparing show)
+                    (nub [ s | (_, m) <- rs1 ++ rs2, (s, _) <- m ])
+      -- The univariate reducer owns the single-symbol case.
+      ensure (length atoms >= 2 && length atoms <= mpMaxAtoms)
+      let nAtoms = length atoms
+          scale  = foldr (lcm . denominator . fst) 1 (rs1 ++ rs2)
+          zeroV  = replicate nAtoms 0
+          oneMP  = [(1, zeroV)]
+
+          toVec m = [ sum [ e | (s, e) <- m', s == a ] | a <- atoms ]
+            where m' = foldMonomialSymbols m
+          conv rs = mpNorm [ (numerator (c * (scale % 1)), toVec m) | (c, m) <- rs ]
+          p = conv rs1
+          q = conv rs2
+
+          -- Descending graded-lexicographic order over the fixed atom list;
+          -- a proper monomial order, so leading-term exact division works.
+          mpGrlex a b = compare (sum a, a) (sum b, b)
+          mpNorm ts =
+            [ (c, v)
+            | grp@((_, v) : _) <- groupBy ((==) `on` snd)
+                                    (sortBy (flip mpGrlex `on` snd) ts)
+            , let c = sum (map fst grp)
+            , c /= 0 ]
+
+          mpNeg   = map (\(c, v) -> (negate c, v))
+          mpAdd a b = mpNorm (a ++ b)
+          mpSub a b = mpAdd a (mpNeg b)
+          mpMul a b = mpNorm [ (c1 * c2, zipWith (+) v1 v2)
+                             | (c1, v1) <- a, (c2, v2) <- b ]
+          mpMulTerm (c, v) b = mpNorm [ (c * c2, zipWith (+) v v2) | (c2, v2) <- b ]
+          mpPow b n = foldr mpMul oneMP (replicate (fromInteger n) b)
+
+          mpMaxTotalDeg f = maximum (0 : [ sum v | (_, v) <- f ])
+          mpDegIn i f     = maximum (0 : [ v !! i | (_, v) <- f ])
+          mpPresent f     = [ i | i <- [0 .. nAtoms - 1]
+                                , any (\(_, v) -> v !! i > 0) f ]
+          mpIntContent f  = foldr (gcd . fst) 0 f
+          mpIsConst f     = mpMaxTotalDeg f == 0
+
+          -- Positive normalization: strip the integer content, make the
+          -- leading (grlex) coefficient positive.
+          mpPosNorm [] = []
+          mpPosNorm f  =
+            let c0 = mpIntContent f
+                s  = case f of ((c, _) : _) | c < 0 -> -1
+                               _                    -> 1
+                d  = s * c0
+            in map (\(c, v) -> (c `div` d, v)) f
+
+          -- Leading-term exact division; Nothing when not exact.
+          mpDivExact _ [] = Nothing
+          mpDivExact a0 b@((bc, bv) : _) = go a0 []
+            where
+              go [] acc = Just (mpNorm acc)
+              go a@((ac, av) : _) acc
+                | all (>= 0) dv && ac `mod` bc == 0 =
+                    let qt = (ac `div` bc, dv)
+                    in go (mpSub a (mpMulTerm qt b)) (qt : acc)
+                | otherwise = Nothing
+                where dv = zipWith (-) av bv
+
+          zeroAtI i v = take i v ++ [0] ++ drop (i + 1) v
+
+          -- Univariate view in atom i: (degree, coefficient poly without i),
+          -- degrees descending.
+          mpUniView i f =
+            [ (v0 !! i, mpNorm [ (c, zeroAtI i v) | (c, v) <- grp ])
+            | grp@((_, v0) : _) <- groupBy ((==) `on` ((!! i) . snd))
+                                     (sortBy (flip compare `on` ((!! i) . snd)) f) ]
+
+          mpCoefAt i d f = mpNorm [ (c, zeroAtI i v) | (c, v) <- f, v !! i == d ]
+          mpLeadCoef i f = mpCoefAt i (mpDegIn i f) f
+          mpShift i k    = map (\(c, v) ->
+                                  (c, take i v ++ [v !! i + k] ++ drop (i + 1) v))
+
+          -- Content and primitive part with respect to atom i.
+          mpContentI i f = goC (map snd (mpUniView i f))
+            where
+              goC []       = Just oneMP
+              goC [c0]     = Just (mpPosNorm c0)
+              goC (c0 : cs) = do
+                rest <- goC cs
+                if rest == oneMP then Just oneMP else mpGcdM (mpPosNorm c0) rest
+
+          -- Knuth's division-free pseudo-remainder of f1 by f2 in atom i:
+          -- the remainder of lc(f2)^(delta+1) * f1 divided by f2.
+          mpPrem i f1 f2 =
+            let dq  = mpDegIn i f2
+                lcq = mpLeadCoef i f2
+                step r k =
+                  let ck = mpCoefAt i (dq + k) r
+                      r' = mpSub (mpMul lcq r) (mpMul (mpShift i k ck) f2)
+                  in r'
+                go r k | length r > mpPrsTermCap = Nothing
+                       | k < 0     = Just r
+                       | otherwise = go (step r k) (k - 1)
+            in go f1 (mpDegIn i f1 - dq)
+
+          -- Subresultant PRS on primitive parts; returns the gcd of the
+          -- primitive parts (a unit when they are coprime in atom i).
+          mpPrsGcd i f1 f2
+            | mpDegIn i f1 < mpDegIn i f2 = mpPrsGcd i f2 f1
+            | mpDegIn i f2 == 0 = Just oneMP
+            | otherwise = loop f1 f2 oneMP oneMP
+            where
+              loop a b g h = do
+                ensure (length a <= mpPrsTermCap && length b <= mpPrsTermCap)
+                let delta = mpDegIn i a - mpDegIn i b
+                r <- mpPrem i a b
+                if null r
+                  then do c <- mpContentI i b
+                          mpDivExact b c
+                  else if mpDegIn i r == 0
+                    then Just oneMP
+                    else do
+                      b' <- mpDivExact r (mpMul g (mpPow h delta))
+                      let g' = mpLeadCoef i b
+                      h' <- case delta of
+                              0 -> Just h
+                              1 -> Just g'
+                              _ -> mpDivExact (mpPow g' delta)
+                                              (mpPow h (delta - 1))
+                      loop b b' g' h'
+
+          -- Multivariate gcd, recursing on the set of present atoms.
+          mpGcdM a b
+            | null a = Just (mpPosNorm b)
+            | null b = Just (mpPosNorm a)
+            | otherwise =
+                case mpPresent a ++ mpPresent b of
+                  [] -> Just [(gcd (mpIntContent a) (mpIntContent b), zeroV)]
+                  idxs -> do
+                    let i = pickVar (nub idxs)
+                    ca <- mpContentI i a
+                    pa <- mpDivExact a ca
+                    cb <- mpContentI i b
+                    pb <- mpDivExact b cb
+                    c  <- mpGcdM ca cb
+                    g  <- mpPrsGcd i pa pb
+                    Just (mpPosNorm (mpMul c g))
+            where
+              pickVar is = snd (minimum
+                [ (mpDegIn i a + mpDegIn i b, i) | i <- is ])
+
+          -- Deterministic coprimality prefilter: evaluate both sides at a
+          -- fixed prime point; a common divisor g must satisfy g(pt) | gcd
+          -- of the evaluations, so gcd 1 certifies that any common divisor
+          -- is a unit at that point (heuristic skip; fail-open, and
+          -- deterministic because the points are fixed).
+          mpEval pt f = sum [ c * product (zipWith (^) pt v) | (c, v) <- f ]
+          evalCoprime =
+            any certify [ [3,5,7,11,13,17,19,23], [29,31,37,41,43,47,53,59] ]
+            where
+              certify pt =
+                let a = mpEval (take nAtoms pt) p
+                    b = mpEval (take nAtoms pt) q
+                in a /= 0 && b /= 0 && gcd a b == 1
+
+      ensure (length p <= mpMaxTerms && length q <= mpMaxTerms)
+      ensure (mpMaxTotalDeg p <= mpMaxDegree && mpMaxTotalDeg q <= mpMaxDegree)
+      ensure (not (null (mpPresent p `intersect` mpPresent q)))
+      ensure (not evalCoprime)
+      g <- mpGcdM p q
+      ensure (mpMaxTotalDeg g > 0)
+      pR <- mpDivExact p g
+      qR <- mpDivExact q g
+      -- Common rescale of the reduced pair (value-preserving): joint integer
+      -- content out, denominator's leading coefficient positive.
+      let cJ = gcd (mpIntContent pR) (mpIntContent qR)
+          sg = case qR of ((c, _) : _) | c < 0 -> -1
+                          _                    -> 1
+          d  = sg * (if cJ == 0 then 1 else cJ)
+          toTerms f = [ CASTerm (CASInteger (c `div` d))
+                                [ (a, e) | (a, e) <- zip atoms v, e /= 0 ]
+                      | (c, v) <- f ]
+      return (toTerms pR, toTerms qR)
+  where
+    ensure b = if b then Just () else Nothing
+
+    ratTerm (CASTerm c m) = (\r -> (r, m)) <$> ratCoef c
+    ratCoef (CASInteger n) = Just (n % 1)
+    ratCoef (CASFrac (CASInteger a) (CASInteger b)) | b /= 0 = Just (a % b)
+    ratCoef _ = Nothing
+
+    mpMaxAtoms  = 8
+    mpMaxTerms  = 200
+    mpMaxDegree = 60 :: Integer
+    mpPrsTermCap = 2000
 
 -- | GCD of two monomials: take minimum exponent for each shared symbol
 monoGcd :: Monomial -> Monomial -> Monomial

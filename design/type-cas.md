@@ -548,7 +548,7 @@ monoGcd m1 m2 = [ (s, min e1 e2)
                 | (s, e1) <- m1, Just e2 <- [lookup s m2] ]
 ```
 
-多項式GCDは単変数のみ実装済（次段落）。多変数化 (content/subresultant PRS) は未実装。
+多項式GCDは単変数 (次段落) に加えて**多変数も実装済** (2026-07-06、`multivariateGcdReduce` = subresultant PRS、[cas-simplification.md](./cas-simplification.md) G1 実施結果)。
 
 **2026-07-05 更新 — 単変数多項式 GCD (第 1 段) を実装**: `casNormalizeFrac` の
 Poly/Poly 分岐が、モノミアル GCD の後に `univariateGcdReduce` を試みる。
@@ -2375,11 +2375,10 @@ declare rule の発火経路を Haskell 内のループに移行（`iterateRules
 | **観察型 join の subtype-aware 化** | `joinObservedTypes` は文字列ベース heuristic。`Integer` ⊂ 他型は対応済だが、`Frac Integer` ⊕ `Poly Integer [x]` 等の真の lattice join は未対応 | 中規模 |
 | **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 | 中規模 |
 | **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
-| **nested radical の denesting** | `sqrt(9 - 4*sqrt(5)) = sqrt(5) - 2` 等の二項平方根の denesting が未実装。`5th-root-of-unity.egi` の 4-項版 `(-1 + sqrt 5 + sqrt(-5-2*sqrt 5) + sqrt(-5+2*sqrt 5))/4)^5 = 1` を解くために必要。3-項版 `((-1+√5+√(-10-2√5))/4)^5 = 1` は B1 (multi-factor sqrt 規則拡張) で解決済。設計は [cas-simplification.md](./cas-simplification.md) §3.5/G5 | 中規模 (代数 denesting) |
+| **nested radical の denesting** | `sqrt(9 - 4*sqrt(5)) = sqrt(5) - 2` 等の二項平方根の denesting が未実装。`5th-root-of-unity.egi` の 4-項版 `(-1 + sqrt 5 + sqrt(-5-2*sqrt 5) + sqrt(-5+2*sqrt 5))/4)^5 = 1` を解くために必要。3-項版 `((-1+√5+√(-10-2√5))/4)^5 = 1` は B1 (multi-factor sqrt 規則拡張) で解決済。設計は [cas-simplification.md](./cas-simplification.md) §3.6/G5 | 中規模 (代数 denesting) |
 | 異種 Tensor 型の扱い | `Tensor (Poly Integer [sqrt 2])` と `Tensor (Frac Integer)` の join は `Tensor MathValue` にフォールバック。**方針**: Tensor は homogeneous を要求し、異種混在は明示的に統一型に揃えてから格納 | 軽量 (方針既決) |
 | 関数シンボル (`function (x)`) の CAS 型統合 | 既存の関数シンボル機構 ([function-symbol.md](./function-symbol.md)) と新 CAS 型システムの統合方針が未定。当面は既存挙動を保持し、原子集合 (`Poly ... [f x]`) への出現は禁止 | 中規模 (個別設計) |
 | **tensor index 評価バグ** | (1) `pmIndex` の `Sub Nothing`/`Sup Nothing` ケース欠如 → `Inconsistent tensor index` (修正済 Data/Utils.hs:158-159)。(2) `tref` で過剰 index 時の generic error → "Too many tensor indices: tensor has rank N but M indices given" にメッセージ改善済 (Tensor.hs:140-145)。`tribonacci.egi` は `M.* A B` で `B_j_k` (rank-1 に 2 indices) を要求し fail; lib `M.*` のシグネチャ修正 (Matrix → Tensor) または sample 側で `B` を Matrix 化が必要 | 残: lib 修正のみ |
-| **多項式 GCD / 共通因子約分 (多変数)** | 分子・分母の多変数多項式 GCD を実装し、`(c²r-2GM)·X / (c²r-2GM)·Y → X/Y` のような約分を CAS 正規化で fire させる。Schwarzschild の Christoffel 簡約や `T2` の `(b+a cos θ)^k` 次数縮小に効く (単変数は実装済)。設計は [cas-simplification.md](./cas-simplification.md) §3.1/G1 (グレブナー基底による高度簡約の全体計画も同書) | 中〜大 |
 | **`M.inverse` 高速化 (symbolic)** | 現在の adjugate / cofactor expansion は 5×5 symbolic で >60s。LU 分解・部分ピボット選択・遅延 expand などで `riemann-curvature-tensor-of-S2xS3.egi` を救済 | 中〜大 |
 | `inspect` の REPL 統合 | REPL で式評価時に静的型 + 観察型を自動表示 | 小〜中 (UI 系) |
 | 型注釈提案機能 | 観察型をコピペ可能な形で出力 (`suggest:` ラベル付け) | 小 (UI 系) |
