@@ -83,3 +83,16 @@ assertEqual "exp cancel" (exp x * exp (- x)) 1
 -- (2 y e^x e^y came out as y e^(x+y)); the port fixes it
 assertEqual "exp merge keeps the coefficient"
   (show (2 * exp x * θ * exp θ)) "2 * ('exp (θ + x)) * θ"
+
+--
+-- Principal-branch normalization of constant radicands
+-- (lib/math/common/interval.egi + root.egi): negative constants are
+-- certified by interval arithmetic and become i * sqrt(-x).
+--
+
+assertEqual "certified sign, positive" (signOfConst (5 - 2 * sqrt 5)) "pos"
+assertEqual "certified sign, negative" (signOfConst (-5 + 2 * sqrt 5)) "neg"
+assertEqual "negative constant radicand extracts i"
+  (show (sqrt (-5 - 2 * sqrt 5))) "('sqrt (2 * 'sqrt 5 + 5)) * i"
+assertEqual "principal pair product"
+  (sqrt (-5 - 2 * sqrt 5) * sqrt (-5 + 2 * sqrt 5)) (- sqrt 5)

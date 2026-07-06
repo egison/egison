@@ -8,7 +8,7 @@
 
 declare symbol s2, s3, s6
 declare symbol x, y, z
-declare symbol θ, φ
+declare symbol θ, φ, α
 
 -- completion: multiplication table of {1, √2, √3, √6}
 def gb := groebnerBasis [s2^2 - 2, s3^2 - 3, s6 - s2 * s3]
@@ -58,3 +58,32 @@ assertEqual "idealNF completes its generators"
 assertEqual "idealEquals via one difference test"
   (idealEquals [s2^2 - 2, s3^2 - 3, s6 - s2 * s3] ((s2 + s3)^2) (2 * s6 + 5))
   True
+
+--
+-- The coefficient-field engine: GF(4) = F_2[α]/(α^2 + α + 1).
+--
+
+def red2 (c: MathValue) : MathValue := i.modulo c 2
+def fdiv2 (a: MathValue) (b: MathValue) : MathValue := i.modulo (a * i.modulo b 2) 2
+
+def gb4 := groebnerBasisField red2 fdiv2 [] [α^2 + α + 1]
+assertEqual "GF(4) basis" (show gb4) "[α^2 + α + 1]"
+assertEqual "GF(4): (α+1)^2 = α" (polyNFField red2 fdiv2 [] gb4 ((α + 1)^2)) α
+assertEqual "GF(4): α (α+1) = 1" (polyNFField red2 fdiv2 [] gb4 (α * (α + 1))) 1
+assertEqual "GF(4): α^3 = 1" (polyNFField red2 fdiv2 [] gb4 (α^3)) 1
+
+--
+-- The four-term fifth root of unity: the real part of z4^5 collapses
+-- to 1 by arithmetic (principal-branch atoms), and the imaginary
+-- residue vanishes modulo the pair-product relations of the
+-- (all-positive-radicand) atoms.
+--
+
+def z4 := (-1 + (sqrt 5) + sqrt(-5 - 2*(sqrt 5)) + sqrt(-5 + 2*(sqrt 5))) / 4
+def radicalRels :=
+  [ '((sqrt (5 + 2 * sqrt 5))^2 - 5 - 2 * sqrt 5)
+  , '((sqrt (5 - 2 * sqrt 5))^2 - 5 + 2 * sqrt 5)
+  , '((sqrt (5 + 2 * sqrt 5)) * (sqrt (5 - 2 * sqrt 5)) - sqrt 5)
+  , '((sqrt 5)^2 - 5)
+  , '(i^2 + 1) ]
+assertEqual "z4^5 = 1" (idealNF radicalRels (z4^5 - 1)) 0

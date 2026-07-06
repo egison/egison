@@ -350,3 +350,97 @@ def applyIdealRules (rules: [(MathValue, MathValue)]) (v: MathValue) : MathValue
 -- (cos θ)^2 - 1]` registers the same relation as rewrite rules.
 def trigIdeal (t: MathValue) : [MathValue] :=
   ['((sin t)^2 + (cos t)^2 - 1)]
+
+--
+-- Coefficient-field parameterization (design/cas-simplification.md 3.8):
+-- the same engine over a coefficient field given as a pair of
+-- operations (reduce, divide).  reduce normalizes a coefficient into
+-- the field's canonical representative (e.g. mod p); divide is the
+-- field division (over F_p, multiplication by the modular inverse --
+-- rational division is meaningless there).  The default engine above
+-- is the (id, /') instance and is untouched.
+--
+-- Restriction: the operations must form a FIELD (prime p); over rings
+-- with zero divisors Buchberger's divisions break down.
+--
+
+-- Apply the coefficient reduce to every term of a polynomial value.
+def reduceCoeffs (red: MathValue -> MathValue) (v: MathValue) : MathValue :=
+  match v as mathValue with
+    | poly $ts ->
+        foldl
+          (+')
+          0
+          (map
+            (\t -> match t as mathValue with
+              | term $c $xs ->
+                  red c *' foldl (*') 1 (map (uncurry (^')) xs))
+            ts)
+    | _ -> v
+
+-- Monomial quotient with field division on the coefficients; the
+-- exponent part is field-independent.
+def monoQuotF (fdiv: MathValue -> MathValue -> MathValue) (u: MathValue) (lt: MathValue) : MathValue :=
+  match (u, lt) as (mathValue, mathValue) with
+    | (term $cu $xu, term $cl $xl) ->
+        fdiv cu cl
+          *' (foldl (*') 1 (map (uncurry (^')) xu)
+                /' foldl (*') 1 (map (uncurry (^')) xl))
+
+def polyNFStepF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : [MathValue] :=
+  take 1
+    (matchAll (gs, f) as (multiset mathValue, mathValue) with
+      | ($g :: _, poly ((?(monoDivides (leadingTerm atoms g)) & $u) :: _)) ->
+          reduceCoeffs red (f -' (monoQuotF fdiv u (leadingTerm atoms g) *' g)))
+
+def polyNFLoopF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (fuel: Integer) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  if fuel = 0
+    then f
+    else match polyNFStepF red fdiv atoms gs f as list mathValue with
+      | [] -> f
+      | $f' :: _ -> polyNFLoopF red fdiv (fuel - 1) atoms gs f'
+
+def polyNFEngineF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  polyNFLoopF red fdiv 10000 atoms (filter (\g -> not (g = 0)) gs) (reduceCoeffs red f)
+
+def sPolynomialF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (f: MathValue) (g: MathValue) : MathValue :=
+  let ltf := leadingTerm atoms f
+      ltg := leadingTerm atoms g
+      m := monoLcm ltf ltg
+   in reduceCoeffs red ((monoQuotF fdiv m ltf *' f) -' (monoQuotF fdiv m ltg *' g))
+
+def buchbergerLoopF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gs: [MathValue]) (pairs: [(MathValue, MathValue)]) : [MathValue] :=
+  match pairs as list (mathValue, mathValue) with
+    | [] -> gs
+    | ($f, $g) :: $rest ->
+        let r := polyNFEngineF red fdiv atoms gs (sPolynomialF red fdiv atoms f g)
+         in if r = 0
+              then buchbergerLoopF red fdiv atoms gs rest
+              else buchbergerLoopF red fdiv atoms (gs ++ [r]) (rest ++ map (\h -> (h, r)) gs)
+
+def makeMonicF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (g: MathValue) : MathValue :=
+  match leadingTerm atoms g as mathValue with
+    | term $c _ -> reduceCoeffs red (fdiv 1 c *' g)
+
+def reduceBasisF (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
+  let minimal := minimizeBasis atoms (sortByLeadingTerm atoms (filter (\g -> not (g = 0)) gs))
+      reduced :=
+        map
+          (\g -> makeMonicF red fdiv atoms (polyNFEngineF red fdiv atoms (deleteFirst g minimal) g))
+          minimal
+   in sortByLeadingTerm atoms (filter (\g -> not (g = 0)) reduced)
+
+-- The reduced Groebner basis over the given coefficient field.
+def groebnerBasisField (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gens: [MathValue]) : [MathValue] :=
+  let gs := map (reduceCoeffs red) (filter (\g -> not (g = 0)) gens)
+      gs' := filter (\g -> not (g = 0)) gs
+      atoms' := extendAtoms atoms (polyAtoms gs')
+   in if all isGbPoly gs'
+        then reduceBasisF red fdiv atoms' (buchbergerLoopF red fdiv atoms' gs' (basisPairs gs'))
+        else gens
+
+-- Normal form over the given coefficient field.
+def polyNFField (red: MathValue -> MathValue) (fdiv: MathValue -> MathValue -> MathValue) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  if all isGbPoly (f :: gs)
+    then polyNFEngineF red fdiv (extendAtoms atoms (polyAtoms (f :: gs))) gs f
+    else f

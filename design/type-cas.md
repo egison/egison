@@ -578,6 +578,8 @@ polyNFWith        : [MathValue] -> [MathValue] -> MathValue -> MathValue
 polyNFStatus(With): ... -> (String, MathValue)   -- "ok"/"fail-open"/"fuel" つき
 idealNF(With)     : 生成元を完備化してから polyNF する一発形
 idealEquals       : 差 1 回のゼロ判定によるイデアル法等価 (多項式限定)
+groebnerBasisField / polyNFField : 係数体 (reduce, divide) パラメータ化版
+                    (GF(p^k) 用; 既定エンジンは (id, /') の instance)
 ```
 
 `With` 系の第 1 引数は「**残したい原子**の接頭辞」(残りは名前順で上位に自動延長)。

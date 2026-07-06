@@ -65,7 +65,17 @@ def rtPositiveTerm (n: MathValue) (x: MathValue) : MathValue :=
 
 def rt'' (n: MathValue) (x: MathValue) : MathValue :=
   match (n, x) as (integer, integer) with
-    | (#2, _) -> sqrtDenest x
+    | (#2, _) ->
+        -- Principal-branch normalization for constant radicands
+        -- (design/cas-simplification.md 3.7, option A): a symbol-free
+        -- radicand certified negative by interval arithmetic becomes
+        -- i * sqrt(-x).  Every surviving sqrt atom then has a positive
+        -- radicand, which makes the pair merge sqrt a * sqrt b =
+        -- sqrt (a b) sound on principal branches (the formal merge is
+        -- off by a sign when both radicands are negative).
+        if signOfConst x = "neg"
+          then i *' sqrt (- x)
+          else sqrtDenest x
     | (_, _) -> 'rt n x
 
 -- Depth-2 denesting (design/cas-simplification.md 3.6; the classic

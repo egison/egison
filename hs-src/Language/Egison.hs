@@ -69,6 +69,7 @@ coreLibraries =
   , "lib/math/algebra/group.egi"
 
   , "lib/math/common/constants.egi"
+  , "lib/math/common/interval.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
   , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')

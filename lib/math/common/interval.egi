@@ -1,0 +1,141 @@
+--
+--
+-- Rational interval arithmetic for constant expressions
+--
+--
+-- Enclosures with exact rational endpoints, used as SIGN CERTIFICATES
+-- for symbol-free values built from rationals and nested square roots
+-- (design/cas-simplification.md, Section 3.7).  A numeric point
+-- estimate can only suggest a sign; an enclosure that excludes zero
+-- proves it.  The consumer is the sqrt application path (root.egi):
+-- a constant radicand certified negative is normalized to
+-- i * sqrt(-x), which makes every surviving sqrt atom have a
+-- positive radicand -- and then the pair merge sqrt a * sqrt b =
+-- sqrt (a b) is sound on principal branches.
+--
+
+-- Integer square root (floor), by Newton's method.
+def iSqrtFloor (n: Integer) : Integer :=
+  if n < 2
+    then n
+    else
+      let go (x: Integer) : Integer :=
+            let x' := i.quotient (x + i.quotient n x) 2
+             in if x' >= x then x else go x'
+       in go n
+
+-- Floor of a rational value (MathValue holding p/q).
+def ratFloor (v: MathValue) : Integer :=
+  let p := numerator v
+      q := denominator v
+   in if p >= 0
+        then i.quotient p q
+        else - (i.quotient (- p) q) - (if i.modulo (- p) q = 0 then 0 else 1)
+
+-- Enclosure of the square root of a positive rational interval, at
+-- scale 2^k: sqrt(v) is enclosed by [s/2^k, (s'+1)/2^k] with
+-- s = isqrt(floor(v_lo * 4^k)) and s' = isqrt(floor(v_hi * 4^k)).
+def sqrtInterval (k: Integer) (lo: MathValue) (hi: MathValue) : (MathValue, MathValue) :=
+  let scale := 2^k
+      s  := iSqrtFloor (ratFloor (lo * scale * scale))
+      s' := iSqrtFloor (ratFloor (hi * scale * scale))
+   in (s / scale, (s' + 1) / scale)
+
+-- Rational comparisons via the (always positive) denominator:
+-- runtime Ord dispatch does not cover fractions, so compare through
+-- integer numerators.
+def ratLt (a: MathValue) (b: MathValue) : Bool := numerator (a - b) < 0
+
+def ratPos (v: MathValue) : Bool := numerator v > 0
+
+def ratNeg (v: MathValue) : Bool := numerator v < 0
+
+-- Interval product ([min, max] of the endpoint products).
+def mulInterval (a: (MathValue, MathValue)) (b: (MathValue, MathValue)) : (MathValue, MathValue) :=
+  let (al, ah) := a
+      (bl, bh) := b
+      ps := [al * bl, al * bh, ah * bl, ah * bh]
+   in (minimumMV ps, maximumMV ps)
+
+def minimumMV (xs: [MathValue]) : MathValue :=
+  match xs as list mathValue with
+    | $x :: $rest -> foldl (\a b -> if ratLt b a then b else a) x rest
+
+def maximumMV (xs: [MathValue]) : MathValue :=
+  match xs as list mathValue with
+    | $x :: $rest -> foldl (\a b -> if ratLt a b then b else a) x rest
+
+def powInterval (n: Integer) (a: (MathValue, MathValue)) : (MathValue, MathValue) :=
+  if n = 1 then a else mulInterval a (powInterval (n - 1) a)
+
+-- Enclosure of a symbol-free value at precision k, or Nothing when
+-- the value is outside the supported fragment (free symbols, i,
+-- quotes, non-sqrt applications, negative exponents) or a nested
+-- radicand cannot be certified positive at this precision.
+def constInterval (k: Integer) (v: MathValue) : Maybe (MathValue, MathValue) :=
+  match v as mathValue with
+    | poly $ts ->
+        foldl
+          (\acc t -> match (acc, constTermInterval k t) as (maybe something, maybe something) with
+            | (just $a, just $b) ->
+                let (al, ah) := a
+                    (bl, bh) := b
+                 in Just (al + bl, ah + bh)
+            | (_, _) -> Nothing)
+          (Just (0, 0))
+          ts
+    | _ -> Nothing
+
+def constTermInterval (k: Integer) (t: MathValue) : Maybe (MathValue, MathValue) :=
+  match t as mathValue with
+    | term $c $xs ->
+        if isRational c
+          then
+            foldl
+              (\acc (x, n) ->
+                match acc as maybe something with
+                  | nothing -> Nothing
+                  | just $a ->
+                      if n >= 1
+                        then match constAtomInterval k x as maybe something with
+                          | just $b -> Just (mulInterval a (powInterval n b))
+                          | nothing -> Nothing
+                        else Nothing)
+              (Just (c, c))
+              xs
+          else Nothing
+
+def constAtomInterval (k: Integer) (x: MathValue) : Maybe (MathValue, MathValue) :=
+  match x as mathValue with
+    | apply1 #sqrt $a ->
+        match constInterval k a as maybe something with
+          | just $iv ->
+              let (lo, hi) := iv
+               in if ratPos lo
+                    then Just (sqrtInterval k lo hi)
+                    else Nothing
+          | nothing -> Nothing
+    | _ -> Nothing
+
+-- Certified sign of a symbol-free real value: "pos", "neg", or
+-- "unknown" (outside the fragment, or zero cannot be separated even
+-- at the highest precision).  Precision escalates until the
+-- enclosure excludes zero.
+def signOfConst (v: MathValue) : String := signOfConstLoop v [16, 64, 256]
+
+def signOfConstAt (k: Integer) (v: MathValue) : String :=
+  match constInterval k v as maybe something with
+    | just $iv ->
+        let (lo, hi) := iv
+         in if ratPos lo then "pos" else if ratNeg hi then "neg" else "escalate"
+    | nothing -> "unknown"
+
+def signOfConstLoop (v: MathValue) (ks: [Integer]) : String :=
+  match ks as list integer with
+    | [] -> "unknown"
+    | $k :: $rest ->
+        match signOfConstAt k v as string with
+          | #"pos" -> "pos"
+          | #"neg" -> "neg"
+          | #"unknown" -> "unknown"
+          | _ -> signOfConstLoop v rest
