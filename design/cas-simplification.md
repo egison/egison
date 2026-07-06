@@ -371,7 +371,7 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 — **実施済 (下記; w 規則の置換+三角イデアル自動適用まで確認、規則抑制クオート `'( )` も同時導入)** | 小〜中 | G2 |
 | **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 — **実施済 (下記; T2 は共存中立、thurston は前提誤認が判明し原因を特定 → G6 へ)** | 小〜中 | G2, G3 |
 | **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 | 小 | なし (G0 の結果次第で不要になる可能性あり) |
-| **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (thurston の真の壁 — G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。検収 = thurston が S まで到達 | 中 | G4 (分析) |
+| **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。thurston は sqrt 負冪修正+明示 polyNF で**成立済 (79.7s)** のため、検収 = sqrt 維持計算の演算単価 (op-cost プローブ 12s → 1s 未満) と thurston のさらなる短縮 | 中 | G4 (分析) |
 
 **検収** (フェーズごとに egison/CLAUDE.md の標準検査 + 以下):
 
@@ -544,10 +544,54 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
   - S − 期待値 の意味論的ゼロ判定 (434.9s): **False — ただし不決定**。
     判定自体が同じ正規化ギャップの影響下にあり、S 側の sqrt 負偶数冪項は
     期待値側に相殺相手がないため、数学的にゼロでも字面ゼロに到達できない。
-    **sqrt 負冪規則の修正後に再実施が必要** (修正で assert 自体が通る可能性もある)。
     `'sqrt (β^-8)` (負冪 Laurent を引数にした sqrt 適用) が簡約されない
-    同族ギャップも確認 — declare apply sqrt の負冪radicand対応もあわせて
-    G5/G6 の小課題として記録。
+    同族ギャップも確認 — declare apply sqrt の負冪radicand対応は小課題として記録。
+
+### G4 追補: sqrt 負冪規則の修正 (2026-07-06 実装、効果 5.2×)
+
+- **修正**: normalize.egi の sqrt 冪簡約規則の発火条件を k ≥ 2 → **|k| ≥ 2** に拡張。
+  余りは `n − 2·(i.quotient n 2)` で直接計算する (∈ {−1,0,1}、冪演算経路の
+  既存正規形 `(√a)⁻³ = (√a)⁻¹·a⁻¹` と一致)。
+  ⚠ **実装注意: `i.quotient` (0 方向切り捨て) と `i.modulo` (floor) は負数で
+  整合しないペア** — `2·quotient(−3,2) + modulo(−3,2) = −1 ≠ −3`。
+  負冪で quotient と modulo を組で使ってはならない (値破壊)。
+- **効果 (thurston)**: **623.8s → 119.2s (5.2 倍)**。負冪が早期に潰れて
+  sqrt 因子が消えるため、以降の演算ではトリガーフィルタが sqrt 規則ごと
+  スキップする副次効果 (G4 本文の「per-op 単価」問題の大部分がこの 1 点だった)。
+  **S から `'sqrt` が完全に消滅** — 残差は β̂ (quote) と θ₂ の Laurent 混在項のみ。
+- **assert は依然不成立**だが残差の形から次の機構が特定できた:
+  期待の 3 項形 (θ₂ を含まない) への到達には **quote 関係式
+  `β̂ = 1 + θ₂ − θ₂²` の適用**が必要 (GB 規則 θ₂² → 1+θ₂−β̂ で θ₂ 高次冪が
+  {1, θ₂} × ℚ(β̂) 基底に畳まれ、係数相殺が合流的に起こる)。
+- **常時適用 (`declare ideal` を計算全体に効かせる) は破綻 — 明示適用の原則の実証**:
+  thurston 冒頭で `declare ideal [1 + θ₂ - θ₂^2 - β]` を宣言した変種は
+  **715s で異常終了** (user 229s vs real 715s = GC/ページングのスラッシング —
+  メモリ爆発)。ミニプローブでも同一 60 演算が 11.9s → **>300s (25 倍超)**。
+  原因: 生成規則のトリガー (θ₂) がほぼ全ての値にマッチし、全項で規則マッチが
+  走る上に、θ₂² → 3 項の書き換えが中間式を系統的に膨張させる。
+  §4 の発火点原則 (「重い簡約は演算経路に入れない」) が quote 関係イデアルにも
+  そのまま当てはまる — **正しい形は値レベルの明示適用**。
+- **最終結果 (2026-07-06): thurston 完全成立**。最終 assert を
+  「分母を払った差の GB 正規形ゼロ判定」に書き換え:
+
+  ```egison
+  def quoteGb := groebnerBasis ['(1 + θ₂ - θ₂^2 - β), '(1 + θ₂ - `(1 + θ₂))]
+  assertEqual "WCS invariant S" (polyNF quoteGb (16 * β^8 * (S - sExpected))) 0
+  ```
+
+  完備化 GB は `[θ₂ − q̂ + 1, q̂² − 3q̂ + β̂ + 1]` (q̂ = `(θ₂+1))。
+  クロスチェックとして `expandAll S = expandAll sExpected` (quote 展開 →
+  G1 の多項式 GCD で約分) も True。**sample 全体が 79.7s・rc=0・失敗ゼロ**
+  (従来: 120s 予算では未完、933s 予算でも assert 不成立)。
+  timings は 200 → 80 に更新。
+- **ハーネスの教訓 2 件** (デバッグで判明、要 doc 周知):
+  (i) **`polyNF` は与えられた生成元を完備化しない** (設計どおり: gs が GB のとき
+  一意正規形)。生の生成元では非合流 — `polyNF (groebnerBasis gens) f` が正しい
+  イディオム (q̂³ が簡約されない反例で確認)。
+  (ii) **両辺を別々に polyNF すると既定 π が辺ごとに異なり得る**
+  (原子集合が違うため) — 等価判定は**差のゼロ判定** 1 呼び出しで行う。
+- **回帰**: mini-test **100/100** (新設 137 = 負冪ケース)・cabal test PASS・
+  sqrt 重サンプル (riemann/quadratic/cubic/5th-root/eulers) 劣化なし。
 - **trigIdeal を lib へ** (`lib/math/algebra/groebner.egi`、`'( )` 版)。
   sample/groebner-basis.egi は lib 参照に変更。ローカル再定義 (shadowing) との
   共存も確認。
