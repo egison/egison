@@ -81,14 +81,12 @@ assertEqual "keep x" (polyNFWith [x] [x + y] (y^3)) (- x^3)
 -- 5. Trigonometric atoms, no change of variables
 --
 -- `sin θ` and `cos θ` are factors of the flat representation, so the
--- Pythagorean ideal works on them directly.  The generator is built
--- inside the rule-suppression quote '( ): a plain `(sin θ)^2 +
--- (cos θ)^2 - 1` would be collapsed to 0 by the built-in Pythagorean
--- auto rules before polyNF ever sees it.
+-- Pythagorean ideal works on them directly.  `trigIdeal` (defined in
+-- lib/math/algebra/groebner.egi) builds the generator inside the
+-- rule-suppression quote '( ): a plain `(sin θ)^2 + (cos θ)^2 - 1`
+-- would be collapsed to 0 by the built-in Pythagorean auto rules
+-- before polyNF ever sees it.
 --
-
-def trigIdeal (t: MathValue) : [MathValue] :=
-  ['((sin t)^2 + (cos t)^2 - 1)]
 
 assertEqual "the generator survives construction"
   (show (trigIdeal θ)) "['sin θ^2 + 'cos θ^2 - 1]"

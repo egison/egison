@@ -298,3 +298,12 @@ def idealTermRules (atoms: [MathValue]) (gens: [MathValue]) : [(MathValue, MathV
 -- from a Groebner basis.
 def applyIdealRules (rules: [(MathValue, MathValue)]) (v: MathValue) : MathValue :=
   foldl (\w (l, r) -> applyTermRule l r w) v rules
+
+-- The Pythagorean generators for one angle, ready for polyNF or for
+-- concatenation across angles (trigIdeal θ ++ trigIdeal φ).  Built
+-- inside the rule-suppression quote: written plainly, the generator
+-- would be collapsed to 0 by the built-in Pythagorean auto rules.
+-- For program-wide automatic reduction, `declare ideal [(sin θ)^2 +
+-- (cos θ)^2 - 1]` registers the same relation as rewrite rules.
+def trigIdeal (t: MathValue) : [MathValue] :=
+  ['((sin t)^2 + (cos t)^2 - 1)]

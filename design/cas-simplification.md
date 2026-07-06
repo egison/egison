@@ -369,8 +369,9 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 | **G1** | **多変数 GCD (subresultant PRS)** を Haskell で実装、`casNormalizeFrac` 第 2 段に配線。ガード (次数・項数) 付き — **実施済 (下記)** | 中 | G0 |
 | **G2** | **Buchberger + NF** を Egison ライブラリでスパイク (`groebnerBasis` / `polyNF`)。教科書例 (cyclic-3 等) で検収し、性能を計測。遅ければ Haskell (`Math/Groebner.hs`) へ移植し、lib 版は仕様の実行可能ドキュメントとして残す — **実施済 (下記; Egison 実装のままで十分高速、Haskell 移植は不要)** | 中〜大 | G1 (PRS の部品を再利用) |
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 — **実施済 (下記; w 規則の置換+三角イデアル自動適用まで確認、規則抑制クオート `'( )` も同時導入)** | 小〜中 | G2 |
-| **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 | 小〜中 | G2, G3 |
+| **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 — **実施済 (下記; T2 は共存中立、thurston は前提誤認が判明し原因を特定 → G6 へ)** | 小〜中 | G2, G3 |
 | **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 | 小 | なし (G0 の結果次第で不要になる可能性あり) |
+| **G6** | **sqrt/exp/rt/rtu/abs term 規則ファミリーの高速化** (thurston の真の壁 — G4 分析参照): Haskell 移植 (Rewrite.hs へ戻す; normalize.egi 内 FunctionData 前例と同じ判断) または規則エンジンの per-term no-op 単価削減。検収 = thurston が S まで到達 | 中 | G4 (分析) |
 
 **検収** (フェーズごとに egison/CLAUDE.md の標準検査 + 以下):
 
@@ -498,6 +499,50 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
   (結果は下の標準検査ログ参照)。
 - **残り (G3 スコープ外)**: 5th-root 等のサンプル内手書き規則の ideal 化は任意の
   後続作業。GF(4) は係数商 (cas-quotient) との合成が要るため商機構側の課題。
+
+### G4 実施結果 (2026-07-06 測定完了 — T2 は中立共存、thurston は原因特定 → G6)
+
+- **前提の修正 (重要)**: thurston.egi には**三角関数が存在しない** (θ₁–θ₄ は座標
+  シンボル、原子は `'sqrt β` と quote 多項式 `` `(1+θ₂−θ₂²) `` 等)。設計時の
+  「thurston = 三角有理式の膨張」は誤認だった。G4 の対象を
+  **T2 (真の三角原子) の効果測定** と **thurston の膨張点分析 (= 未実施だった G0(ii))**
+  に再構成した。
+- **T2 実測**: `declare ideal` を θ・φ の 2 本追加しても**全 assert 通過・
+  1.04s → 1.06s (中立)**。T2 の結果形は cos の 1 次と quote 原子だけで、既存の
+  組み込みピタゴラス poly 規則で十分 — イデアル規則 (lone cos²⁺ の書き換え) の
+  出番がない。結論: 三角イデアルは T2 に**無害に共存**でき、lone 偶数冪が現れる
+  計算で効く (書籍・论文の位置づけ: opt-in の正規形選択)。
+- **thurston 分析 (G0(ii) 完了)**:
+  - sqrt 冪は既に完全簡約 (実測: `(√β)^16 → β^8`、`(√β)² − β → 0`、
+    `(√β)^-8 → β^-4`) — 「未簡約 sqrt 冪」は原因ではない。
+  - 段階計測: Γ 全 64 成分 1.3s (最大 384 字)・R は**ゼロに潰れる成分でも
+    1 成分 ~0.34s**・S は 240 置換 × 3 重縮約で組合せ倍加。
+    **フル実行は 623.8s (10.4 分) で S まで完走** (rc=124@120s の従来観測は
+    単に予算不足だった)。最終 assert は不一致 (下記)。
+  - **決定的 A/B (原因の特定)**: 同一 60 演算の fold で
+    **sqrt 原子入り 7.02s vs 素シンボル 0.35s (計算部 >100×)**。結果サイズは同規模
+    (4067 vs 2302 字) → 壁は**式サイズ爆発ではなく、sqrt 原子を含む値の
+    正規化単価**。
+  - 帰属の深掘り: sqrt ペア融合規則の無効化で 7.0 → 4.2s (40%)。ところが
+    **LHS を 2-cons に絞っても 7.08s と不変** (semantics 保存は sanity 8 assert で確認
+    後、利得ゼロのため revert) — コストは本体の再構築ではなく
+    **LHS マッチ試行そのもの** (mapTermAll + matcher 機構が sqrt 系 term 規則
+    ~4 本 × 全項 × fixpoint 反復 × 全演算で走る)。パターンの書き方では削れない。
+  - **結論**: thurston はイデアルでは解けない (必要な関係式は既に発火している)。
+    真の対策 = sqrt/exp/rt/rtu/abs term 規則ファミリーの **Haskell 移植**
+    (normalize.egi 自身の FunctionData 注記「Egison 級 poly 規則は >120s vs
+    Haskell 数秒」と同じ判断) か、規則エンジンの per-term no-op 単価削減
+    → **フェーズ G6 に切り出し**。
+  - 完走時の S は期待の閉形式 `p²κ(−25−640p²β²+3072p⁴β⁴)/(16β⁴)` に一致せず
+    (assert 失敗、`'sqrt` 残差を含む未結合の和)。S − 期待値 の意味論的
+    ゼロ判定は長時間ジョブとして実施 (結果は判明次第この節を更新)。
+    `'sqrt (β^-8)` (負冪 Laurent を引数にした sqrt 適用) が簡約されない
+    ギャップも確認 — declare apply sqrt の負冪radicand対応は G5/G6 の
+    小課題として記録。
+- **trigIdeal を lib へ** (`lib/math/algebra/groebner.egi`、`'( )` 版)。
+  sample/groebner-basis.egi は lib 参照に変更。ローカル再定義 (shadowing) との
+  共存も確認。
+- **回帰**: mini-test 99/99・cabal test PASS・代表 7 sample 劣化なし (riemann 0.60s)。
 
 ---
 
