@@ -1,8 +1,8 @@
-# Egison CAS 型タワーの拡張可能化 (将来構想)
+# Egison CAS 型タワーの拡張可能化 (設計と決定記録)
 
-このドキュメントは、Egison の CAS 型システムにおける **型昇格タワー (type promotion tower)** をユーザが拡張可能にする将来の設計をまとめる。実装はまだ着手しておらず、現状の 5 段階固定タワーで運用している。
+このドキュメントは、Egison の CAS 型システムにおける **型昇格タワー (type promotion tower)** のユーザ拡張の設計過程と決定 (D1–D5) を記録する。**実装済** — 実装フェーズの記録は [type-cas-tower-implementation.md](./type-cas-tower-implementation.md)、現状のユーザ向け仕様は [type-cas.md §ユーザによるタワー拡張](./type-cas.md) を参照。
 
-最終更新: 2026-07-04 (type-cas.md との構文統一 + 未決事項の明文化)
+最終更新: 2026-07-06 (実装完了を反映し、計画時制の記述を整理)
 
 ---
 
@@ -10,7 +10,7 @@
 
 現状の Egison CAS 型タワーは `Integer ⊂ Frac Integer ⊂ Poly Integer [..] ⊂ Poly (Frac Integer) [..] ⊂ Frac (Poly Integer)` の **5 段階固定の全順序**。これでは Gaussian 整数係数の多項式 (`Poly (Poly Integer [i]) [..]`) のような **中間型** を体系的に扱えない。
 
-将来的にユーザが `declare cas-type` で新しい CAS 型を宣言し、`declare cas-subtype` で半順序関係を構築し、`class CASCanonical` で型ごとの正規化を提供できる仕組みを設計する。`coerce` 関数は target type に応じてユーザ定義の正規化に dispatch する API として進化する。
+ユーザは `declare cas-type` で正規形に透明なエイリアスを与え、`declare cas-subtype` で半順序に辺を追加できる (D1 半束検査つき)。昇格・型注釈の組み替えは既存の `casReshapeAs` 一本が担い (D5 制限言語)、型ごとの正規化フック (`class CASCanonical`) は不要になったため廃案。商は独立機構 `declare cas-quotient` に分離 (D4)。
 
 ---
 
@@ -23,7 +23,7 @@
 5. [既存機構との関係](#5-既存機構との関係)
 6. [具体例](#6-具体例)
 7. [代替案・トレードオフ](#7-代替案トレードオフ)
-8. [未決事項 (実装前に要判断)](#8-未決事項-実装前に要判断)
+8. [決定事項 D1–D5](#8-決定事項-d1d5)
 
 ---
 
@@ -41,7 +41,7 @@
 | 4 | `Poly (Frac Integer) [..]` | `CASPoly [CASTerm (CASFrac _ _) _]` | $\mathbb{Q}[x_1, ..., x_n]$ |
 | 5 | `Frac (Poly Integer [..])` | `CASFrac (CASPoly _) (CASPoly _)` | $\mathbb{Q}(x_1, ..., x_n)$ |
 
-`casNormalize` (Math/CAS.hs) が一意の canonical form を選択 (level の小さい方を優先)。`Type/Join.hs` の `isSubtype` で部分順序関係 (実は全順序) を表現。
+`casNormalize` (Math/CAS.hs) が一意の canonical form を選択 (level の小さい方を優先)。部分順序関係 (実は全順序) は当時 `Type/Join.hs` の `isSubtype` が表現していた (実装後は `Type/Subtype.hs` に一本化され `Type/Join.hs` は削除済み)。
 
 ### 1.2 限界
 
@@ -135,14 +135,14 @@ declare cas-subtype GaussianInt ⊂ GaussianPoly
 declare cas-subtype GaussianPoly ⊂ Frac (Poly Integer [i, ...])
 ```
 
-**埋め込み写像はユーザが書かない** ([§8 D5](#8-未決事項-実装前に要判断) の制限言語決定): 各辺の昇格は処理系が一律に `casReshapeAs <target>` (構造書き換え・値不変) で行う。これにより coherence (経路独立性) が構成から成立し、値を変える「埋め込み」— `ℤ → ℤ/nℤ` の射影 (非単射) など — は**構文的に書けない**。商型は ⊂ 辺ではなく商機構で扱う ([§8 D4](#8-未決事項-実装前に要判断))。
+**埋め込み写像はユーザが書かない** ([§8 D5](#8-決定事項-d1d5) の制限言語決定): 各辺の昇格は処理系が一律に `casReshapeAs <target>` (構造書き換え・値不変) で行う。これにより coherence (経路独立性) が構成から成立し、値を変える「埋め込み」— `ℤ → ℤ/nℤ` の射影 (非単射) など — は**構文的に書けない**。商型は ⊂ 辺ではなく商機構で扱う ([§8 D4](#8-決定事項-d1d5))。
 
 **実装方針**:
-- `declare cas-subtype` は**型レベルの順序情報のみ**を `DeclareEnv` に登録する (runtime 側に登録するものは無い)
-- `Type/Join.hs` の `isSubtype` を dynamic にする
+- `declare cas-subtype` は**型レベルの順序情報のみ**を登録する (実装は `EvalState.casSubtypeEdges`; runtime 側に登録するものは無い)
+- `isSubtype` を dynamic にする (実装では `Type/Subtype.hs` 新設に発展し、旧 `Type/Join.hs` は削除)
   - 現状: hard-coded match (e.g., `isSubtype TInt (TFrac TInt) = True`)
-  - 将来: `DeclareEnv` の `cas-subtype` エントリを参照 + 推移閉包計算
-- subtype 関係の **lattice 化**: 半順序 → 任意 2 型の **join** (LUB) を計算可能に。declare 時に join 半束性を検査 ([§8 D1](#8-未決事項-実装前に要判断))
+  - 実装後: `EvalState.casSubtypeEdges` の宣言辺 + 骨格規則の閉包 (`Type/Subtype.hs`)
+- subtype 関係の **lattice 化**: 半順序 → 任意 2 型の **join** (LUB) を計算可能に。declare 時に join 半束性を検査 ([§8 D1](#8-決定事項-d1d5))
 - 推移閉包は `Type/Subtype.hs` (新規) で実装
 
 ### 3.4 Component 3: 型ごとの正規化
@@ -166,11 +166,11 @@ instance CASCanonical RationalGaussianPoly where
 - 内部で `primCASNormalizeAs :: TypeRep -> CASValue -> CASValue` Haskell primitive を呼ぶ
 - `primCASNormalizeAs` は target type ごとの reshape ロジックを Haskell 側に持つ
 
-**規則の帰属の原則 (2026-07-04 決定)**: `declare rule` は従来どおり **`MathValue` 大域のみ**とし、型スコープ規則 (`in T`) は導入しない ([§8 D2](#8-未決事項-実装前に要判断))。等式理論の置き場は次の 3 分類で完結する:
+**規則の帰属の原則 (2026-07-04 決定)**: `declare rule` は従来どおり **`MathValue` 大域のみ**とし、型スコープ規則 (`in T`) は導入しない ([§8 D2](#8-決定事項-d1d5))。等式理論の置き場は次の 3 分類で完結する:
 
 1. **タワー型** — 単一の大域理論を共有する部分環の束なので、規則は大域 `declare rule auto` (現状のまま)
 2. **シンボル担持商** (`i^2 = -1`、`ε^5 = 0`、1 の冪根) — シンボルの大域一意性がスコープを代替するため、これも大域規則で健全 ([type-cas-quotient.md §2](./type-cas-quotient.md))
-3. **係数領域の商** (ℤ/nℤ 等) — タワー外の商機構の `reduce` に封じ込める ([type-cas-quotient.md](./type-cas-quotient.md)、[§8 D4](#8-未決事項-実装前に要判断))
+3. **係数領域の商** (ℤ/nℤ 等) — タワー外の商機構の `reduce` に封じ込める ([type-cas-quotient.md](./type-cas-quotient.md)、[§8 D4](#8-決定事項-d1d5))
 
 タワー型に「追加の等式」を課したくなったら、それは生成イデアルによる商の偽装なので 3 の機構を使う。
 
@@ -198,21 +198,19 @@ def r : Frac (Poly (Frac Integer) [x]) := coerce expr  -- 深いネストでも
 
 ---
 
-## 4. 実装フェーズ
+## 4. 実装フェーズ (完了)
 
-| Phase | 内容 | 工数 | 依存 |
-|---|---|---|---|
-| **α** | type alias 機構 | 小 | なし |
-| **β** | `declare cas-subtype` + dynamic `isSubtype` | 中 | α |
-| **γ** | `class CASCanonical` + 標準 instance + `primCASNormalizeAs` Haskell primitive 群 | 大 | β |
-| **δ** | `coerce` を `CASCanonical` ベースに dispatch 化 | 中 | γ |
-| **ε** | 新 `CASValue` constructor 用の Haskell-side 拡張機構 (Quaternion 等) | 大 | γ + Math/CAS.hs 改変 |
+実際に実装したフェーズ (手順と検収は [type-cas-tower-implementation.md](./type-cas-tower-implementation.md)):
 
-**Phase α の最小実装**: type alias だけでも `GaussianInt := Poly Integer [i]` のような書き方を許容するだけで多くの用途をカバーできる。
+| Phase | 内容 | 状態 |
+|---|---|---|
+| **α** | 透明 type alias (`declare cas-type`) | 実装済 |
+| **β** | `declare cas-subtype` + dynamic `isSubtype` + D1 半束検査 | 実装済 |
+| **γ′** | 平坦既定形 + reshape 吸収律 (`casReshapeAs C . casReshapeAs B = casReshapeAs C`) | 実装済 |
+| (旧 γ/δ) | `class CASCanonical` + `primCASNormalizeAs` + coerce dispatch 化 | **廃案** — D5 制限言語の採用で、昇格は既存 `casReshapeAs` 一本に集約され型ごとの正規化フックが不要になった |
+| **ε** | 新 `CASValue` constructor 用の Haskell-side 拡張機構 (Quaternion 等) | 未着手 (スコープ外の将来課題) |
 
-**Phase β-δ がコアの拡張**: 半順序タワー + ユーザ canonical form 選択。
-
-**Phase ε は別線**: 新しい `CASValue` constructor (Quaternion / Modular 等) は Haskell 改変必須なので、本拡張とは独立した path で進める。
+商機構 q1–q4 は独立線として実装済 ([type-cas-quotient.md](./type-cas-quotient.md))。
 
 ---
 
@@ -222,9 +220,8 @@ def r : Frac (Poly (Frac Integer) [x]) := coerce expr  -- 深いネストでも
 
 - 旧 (typeclass): user-extensible だが識別 instance は意味なし、A1 elaboration を阻害
 - 現 (named function + Haskell primitive): trust the annotation、`casNormalize` を再実行
-- 将来 (CASCanonical class): user-extensible で各型の canonical 化を提供
 
-将来は **typeclass-based** に戻る形だが、目的が「conversion definition」ではなく「**canonicalization** definition」になる点が異なる。
+一時は CASCanonical typeclass への回帰も構想したが、D5 (制限言語) と γ′ (平坦既定形 + 吸収律) の決定で正規化フック自体が不要になり、廃案となった。
 
 ### 5.2 `reshape` 機構との関係 (旧 `Embed` typeclass)
 
@@ -234,9 +231,9 @@ def r : Frac (Poly (Frac Integer) [x]) := coerce expr  -- 深いネストでも
 
 ### 5.3 `casNormalize` (Math/CAS.hs) との関係
 
-現状の `casNormalize` は **デフォルト canonical form** を返す。将来の `primCASNormalizeAs` は **target-type-specific canonical form** を返す。両者は共存し:
-- 演算経由の値: `casNormalize` でデフォルト形式
-- 明示的 `coerce`: `primCASNormalizeAs` で target type 形式
+`casNormalize` は **デフォルト (平坦) canonical form** を返す。target-type-specific な形は `casReshapeAs` が担う:
+- 演算経由の値: `casNormalize` でデフォルト形式 (演算結果は常に平坦形で返る — γ′)
+- 型注釈: `casReshapeAs` で target type 形式 (注釈を書いた場所にだけ入れ子形が現れる)
 
 ### 5.4 `declare-key` 機構 (Phase 9) との関係
 
@@ -317,7 +314,7 @@ def p : GaussianPoly := coerce ((2 + 3*i) + (1 - i)*x + 4*x^2)
 
 ---
 
-## 8. 未決事項 (実装前に要判断)
+## 8. 決定事項 D1–D5
 
 **設計全体の指針 (2026-07-04、ユーザ)**: **理論をできるだけ単純に保つ** — 選択肢が拮抗する場合は、メタ理論が単純になる方を採る。
 
@@ -329,7 +326,7 @@ def p : GaussianPoly := coerce ((2 + 3*i) + (1 - i)*x + 4*x^2)
 - **D4**: 商型はタワー外の商機構 ([type-cas-quotient.md](./type-cas-quotient.md)) に分離
 - **D5**: 制限言語 — `where embed` 句を廃止し、cas-subtype は `A ⊂ B` の**関係宣言のみ**。昇格は `casReshapeAs` 一本、coherence は吸収律 1 本の無条件定理
 
-**未決事項は残っていない — Phase α (透明 type alias 機構) に着手可能。**
+**未決事項は残っていない — 全フェーズ実装済 ([type-cas-tower-implementation.md](./type-cas-tower-implementation.md))。**
 
 ### D1: join の曖昧性ポリシー — **決定 (2026-07-04): (i) declare 時検査 + 完備化**
 
