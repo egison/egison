@@ -75,6 +75,7 @@ coreLibraries =
   , "lib/math/algebra/vector.egi"
 
   , "lib/math/algebra/equations.egi"
+  , "lib/math/algebra/groebner.egi"
   , "lib/math/algebra/matrix.egi"
   , "lib/math/analysis/derivative.egi"
 

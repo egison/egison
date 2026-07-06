@@ -1,0 +1,266 @@
+--
+--
+-- Groebner Bases
+--
+--
+-- Buchberger's algorithm and multivariate division (polynomial normal
+-- forms) written in Egison itself, on top of the flat sum-of-products
+-- representation.  Every factor of a term -- a symbol, a symbolic
+-- application such as `'sin θ`, or a quoted expression -- is treated
+-- as a variable, so ideals over compound atoms work without a change
+-- of variables (design/cas-simplification.md, Section 3.4).
+--
+-- Monomial order: graded reverse lexicographic (grevlex).  The
+-- variable priority list follows the declaration-order principle
+-- (Section 3.5): atoms EARLIER in the list rank LOWER in the order
+-- and therefore SURVIVE in normal forms.  `groebnerBasis` and
+-- `polyNF` derive a default list from their arguments (atom-name
+-- order); `groebnerBasisWith` / `polyNFWith` take the list
+-- explicitly.
+--
+-- These functions are the value-level engine of the offline
+-- rule-completion design (Section 3.3): a Groebner basis computed
+-- once at declaration time turns into terminating, confluent
+-- `declare rule auto term` rewrite rules.
+--
+-- Scope: generators and inputs must be polynomials with non-negative
+-- exponents (no proper fractions, no Laurent monomials such as x^-1);
+-- otherwise the functions return their input unchanged (fail-open,
+-- as in the Haskell-side GCD reduction).
+
+--
+-- Atoms and the default variable order
+--
+
+-- All atoms (factors) appearing in a list of polynomials.
+def polyAtoms (fs: [MathValue]) : [MathValue] :=
+  unique
+    (concat
+      (map
+        (\f -> matchAll f as mathValue with
+          | poly (term _ (($x, _) :: _) :: _) -> x)
+        fs))
+
+def insertAtomByName (x: MathValue) (xs: [MathValue]) : [MathValue] :=
+  match xs as list mathValue with
+    | [] -> [x]
+    | $y :: $ys ->
+        if show x <= show y then x :: y :: ys else y :: insertAtomByName x ys
+
+-- Deterministic fallback order: atom-name (dictionary) order.
+def sortAtomsByName (xs: [MathValue]) : [MathValue] :=
+  foldl (\acc x -> insertAtomByName x acc) [] xs
+
+-- Priority list construction: the explicit prefix lists the atoms the
+-- caller wants to survive (earlier = lower = kept); every remaining
+-- atom of the inputs is appended in name order, ranking higher and
+-- therefore getting eliminated first.  So `polyNFWith [sin θ] ...`
+-- reads as "keep sin θ".
+def extendAtoms (explicit: [MathValue]) (rest: [MathValue]) : [MathValue] :=
+  explicit ++ sortAtomsByName (filter (\a -> not (member a explicit)) rest)
+
+--
+-- Monomials: exponent vectors and the grevlex order
+--
+
+def expOf (x: MathValue) (fs: [(MathValue, Integer)]) : Integer :=
+  match fs as list (mathValue, integer) with
+    | [] -> 0
+    | (#x, $n) :: _ -> n
+    | _ :: $rs -> expOf x rs
+
+-- Exponent vector of a term, listed in priority order
+-- (index 0 = the lowest, surviving atom).
+def expVec (atoms: [MathValue]) (t: MathValue) : [Integer] :=
+  match t as mathValue with
+    | term _ $fs -> map (\a -> expOf a fs) atoms
+
+def totalDegree (u: [Integer]) : Integer := foldl (\a b -> a + b) 0 u
+
+-- u > v in grevlex: higher total degree wins; on ties, the vector
+-- with the SMALLER exponent at the first differing position (= the
+-- lowest-priority end of the vector) is the larger monomial.
+def grevlexGreater (u: [Integer]) (v: [Integer]) : Bool :=
+  if totalDegree u = totalDegree v
+    then revlexGreater u v
+    else totalDegree u > totalDegree v
+
+def revlexGreater (us: [Integer]) (vs: [Integer]) : Bool :=
+  match (us, vs) as (list integer, list integer) with
+    | ($a :: $ars, $b :: $brs) ->
+        if a = b then revlexGreater ars brs else a < b
+    | (_, _) -> False
+
+--
+-- Leading terms, divisibility, lcm
+--
+
+def leadingTerm (atoms: [MathValue]) (f: MathValue) : MathValue :=
+  match f as mathValue with
+    | poly ($t :: $ts) ->
+        foldl
+          (\acc t' ->
+            if grevlexGreater (expVec atoms t') (expVec atoms acc) then t' else acc)
+          t
+          ts
+
+-- Does the monomial of s divide the monomial of t?  (Coefficients
+-- are rationals, hence units; only exponents matter.)
+def monoDivides (s: MathValue) (t: MathValue) : Bool :=
+  match (s, t) as (mathValue, mathValue) with
+    | (term _ $sfs, term _ $tfs) -> all (\(x, n) -> expOf x tfs >= n) sfs
+    | (_, _) -> False
+
+def monoLcm (s: MathValue) (t: MathValue) : MathValue :=
+  match (s, t) as (mathValue, mathValue) with
+    | (term _ $sfs, term _ $tfs) ->
+        foldl
+          (*')
+          1
+          (map
+            (\x -> x ^' max (expOf x sfs) (expOf x tfs))
+            (unique (map fst sfs ++ map fst tfs)))
+
+--
+-- Multivariate division (normal form)
+--
+
+-- One reduction step, as a single non-deterministic pattern match:
+-- enumerate a basis element g and a term u of f such that the
+-- leading term of g divides u, and eliminate u.
+--
+-- The combination is built with the non-normalizing operators and
+-- normalized once at the end -- the same discipline as a `declare
+-- rule` right-hand side.  Normalizing `q * g` on its own would let
+-- the auto rules of g's atoms see g intact (e.g. the built-in
+-- Pythagorean rules collapse q * ((sin θ)^2 + (cos θ)^2 - 1) to 0);
+-- combining first lets the cancellation against f happen before the
+-- rules run.  Candidates that still do not change f (auto rules
+-- undoing the reduction) are skipped, so a fixpoint under the active
+-- rules is reported as irreducible rather than looping.  Returns []
+-- when f is irreducible (in particular when f = 0).
+def polyNFStep (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : [MathValue] :=
+  take 1
+    (filter
+      (\f' -> not (f' = f))
+      (matchAll (gs, f) as (multiset mathValue, mathValue) with
+        | ($g :: _, poly ((?(monoDivides (leadingTerm atoms g)) & $u) :: _)) ->
+            mathNormalize (f -' ((u / leadingTerm atoms g) *' g))))
+
+-- Reduce until no term is divisible.  Each step eliminates one
+-- occurrence of a divisible monomial and only introduces strictly
+-- smaller ones, so this terminates; the fuel is a safety net for
+-- atoms that carry interfering auto rules.
+def polyNFLoop (fuel: Integer) (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  if fuel = 0
+    then f
+    else match polyNFStep atoms gs f as list mathValue with
+      | [] -> f
+      | $f' :: _ -> polyNFLoop (fuel - 1) atoms gs f'
+
+def polyNFEngine (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  polyNFLoop 10000 atoms (filter (\g -> not (g = 0)) gs) f
+
+-- Guard: a polynomial with non-negative exponents (the value is not
+-- a proper fraction, and no factor has a negative power).
+def isGbPoly (f: MathValue) : Bool :=
+  match f as mathValue with
+    | _ / #1 ->
+        all
+          (\n -> n >= 0)
+          (matchAll f as mathValue with
+            | poly (term _ ((_, $n) :: _) :: _) -> n)
+    | _ -> False
+
+-- Normal form of f modulo the polynomials gs.  When gs is a Groebner
+-- basis, the result is the unique standard representative of f in
+-- the quotient ring; in particular `polyNF gb f = 0` decides ideal
+-- membership.  `polyNFWith` additionally takes the atoms to keep
+-- (see extendAtoms); `polyNF` uses the name-order default.
+def polyNF (gs: [MathValue]) (f: MathValue) : MathValue :=
+  polyNFWith [] gs f
+
+def polyNFWith (atoms: [MathValue]) (gs: [MathValue]) (f: MathValue) : MathValue :=
+  if all isGbPoly (f :: gs)
+    then polyNFEngine (extendAtoms atoms (polyAtoms (f :: gs))) gs f
+    else f
+
+--
+-- Buchberger's algorithm
+--
+
+-- Combined non-normalized and normalized once, for the same reason
+-- as in polyNFStep.
+def sPolynomial (atoms: [MathValue]) (f: MathValue) (g: MathValue) : MathValue :=
+  let ltf := leadingTerm atoms f
+      ltg := leadingTerm atoms g
+      m := monoLcm ltf ltg
+   in mathNormalize (((m / ltf) *' f) -' ((m / ltg) *' g))
+
+def basisPairs (gs: [MathValue]) : [(MathValue, MathValue)] :=
+  matchAll gs as list mathValue with
+    | _ ++ $f :: _ ++ $g :: _ -> (f, g)
+
+def buchbergerLoop (atoms: [MathValue]) (gs: [MathValue]) (pairs: [(MathValue, MathValue)]) : [MathValue] :=
+  match pairs as list (mathValue, mathValue) with
+    | [] -> gs
+    | ($f, $g) :: $rest ->
+        let r := polyNFEngine atoms gs (sPolynomial atoms f g)
+         in if r = 0
+              then buchbergerLoop atoms gs rest
+              else buchbergerLoop atoms (gs ++ [r]) (rest ++ map (\h -> (h, r)) gs)
+
+--
+-- Reduced Groebner basis
+--
+
+def insertByLeadingTerm (atoms: [MathValue]) (g: MathValue) (sorted: [MathValue]) : [MathValue] :=
+  match sorted as list mathValue with
+    | [] -> [g]
+    | $h :: $hs ->
+        if grevlexGreater (expVec atoms (leadingTerm atoms g)) (expVec atoms (leadingTerm atoms h))
+          then h :: insertByLeadingTerm atoms g hs
+          else g :: h :: hs
+
+def sortByLeadingTerm (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
+  foldl (\acc g -> insertByLeadingTerm atoms g acc) [] gs
+
+-- Keep only elements whose leading term is not divisible by another
+-- kept element's leading term.  gs must be sorted ascending, so a
+-- potential divisor always comes first.
+def minimizeBasis (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
+  foldl
+    (\kept g ->
+      if any (\h -> monoDivides (leadingTerm atoms h) (leadingTerm atoms g)) kept
+        then kept
+        else kept ++ [g])
+    []
+    gs
+
+def makeMonic (atoms: [MathValue]) (g: MathValue) : MathValue :=
+  match leadingTerm atoms g as mathValue with
+    | term $c _ -> g / c
+
+def reduceBasis (atoms: [MathValue]) (gs: [MathValue]) : [MathValue] :=
+  let minimal := minimizeBasis atoms (sortByLeadingTerm atoms (filter (\g -> not (g = 0)) gs))
+      reduced :=
+        map
+          (\g -> makeMonic atoms (polyNFEngine atoms (deleteFirst g minimal) g))
+          minimal
+   in sortByLeadingTerm atoms (filter (\g -> not (g = 0)) reduced)
+
+-- The reduced Groebner basis of the ideal generated by gens
+-- (monic, mutually reduced, sorted by leading term).  Each element
+-- `LT + rest` can be read as the rewrite rule `LT -> -rest`; the
+-- rule set is terminating and confluent by construction.
+-- `groebnerBasisWith` additionally takes the atoms to keep (see
+-- extendAtoms); `groebnerBasis` uses the name-order default.
+def groebnerBasis (gens: [MathValue]) : [MathValue] :=
+  groebnerBasisWith [] gens
+
+def groebnerBasisWith (atoms: [MathValue]) (gens: [MathValue]) : [MathValue] :=
+  let gs := filter (\g -> not (g = 0)) gens
+      atoms' := extendAtoms atoms (polyAtoms gs)
+   in if all isGbPoly gs
+        then reduceBasis atoms' (buchbergerLoop atoms' gs (basisPairs gs))
+        else gens

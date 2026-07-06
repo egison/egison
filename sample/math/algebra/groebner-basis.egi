@@ -1,0 +1,109 @@
+--
+-- Groebner bases and polynomial normal forms
+--
+-- The rewrite rules behind Egison's symbol-carried quotients
+-- (`declare rule auto term i^2 = -1` and friends) are Groebner-basis
+-- elements read as rules `LT -> -rest`.  `groebnerBasis` computes
+-- the reduced basis of an ideal with Buchberger's algorithm, i.e. it
+-- COMPLETES a user-written generator set into a terminating,
+-- confluent rule set; `polyNF` reduces an expression to its unique
+-- normal form modulo a basis, which also decides ideal membership
+-- (design/cas-simplification.md, Section 3.3).
+--
+-- The engine is written in Egison itself on top of the poly/term
+-- matchers: lib/math/algebra/groebner.egi.
+--
+
+declare symbol s2, s3, s6      -- stand-ins for sqrt 2, sqrt 3, sqrt 6
+declare symbol x, y, z
+declare symbol θ
+
+--
+-- 1. Completing a rule set: the multiplication table of {1, √2, √3, √6}
+--
+-- The user writes the three obvious relations; Buchberger completes
+-- them to the full multiplication table, including the products a
+-- human forgets to write down.
+--
+
+def gb := groebnerBasis [s2^2 - 2, s3^2 - 3, s6 - s2 * s3]
+
+assertEqual "multiplication table (6 rules)"
+  (show gb)
+  "[s2^2 - 2, s2 s3 - s6, s2 s6 - 2 * s3, s3^2 - 3, s3 s6 - 3 * s2, s6^2 - 6]"
+
+-- the rule nobody writes by hand: √2·√6 = 2√3
+assertEqual "sqrt 2 * sqrt 6 = 2 * sqrt 3" (polyNF gb (s2 * s6)) (2 * s3)
+
+--
+-- 2. Normal forms: canonical representatives and zero recognition
+--
+
+-- (√2 + √3)^2 = 5 + 2√6
+assertEqual "(s2 + s3)^2" (polyNF gb ((s2 + s3)^2)) (2 * s6 + 5)
+
+-- ideal membership: NF = 0  <=>  the value is a consequence of the relations
+assertEqual "membership" (polyNF gb (s2 * s3 - s6)) 0
+
+-- the normal form does not change when ideal multiples are added
+assertEqual "NF mod ideal shifts"
+  (polyNF gb ((s2 + s3)^2 + (s2^2 - 2) * (s6 + 7)))
+  (polyNF gb ((s2 + s3)^2))
+
+-- and it is idempotent
+assertEqual "NF idempotent"
+  (polyNF gb (polyNF gb ((s2 + s3)^2)))
+  (polyNF gb ((s2 + s3)^2))
+
+--
+-- 3. A textbook example: cyclic-3
+--
+
+def cyc := groebnerBasis [x + y + z, x*y + y*z + z*x, x*y*z - 1]
+
+assertEqual "cyclic-3 reduced basis"
+  (show cyc) "[z + y + x, y^2 + x^2 + x y, x^3 - 1]"
+
+-- x^3 = 1 modulo the ideal, so x^5 y collapses to x^2 y
+assertEqual "x^5 y mod cyclic-3" (polyNF cyc (x^5 * y)) (x^2 * y)
+
+--
+-- 4. The variable priority list: atoms listed earlier survive
+--
+-- `polyNFWith` (and `groebnerBasisWith`) take the atoms to KEEP as a
+-- prefix; every other atom ranks higher and gets eliminated first.
+--
+
+assertEqual "keep y" (polyNFWith [y] [x + y] (x^3)) (- y^3)
+assertEqual "keep x" (polyNFWith [x] [x + y] (y^3)) (- x^3)
+
+--
+-- 5. Trigonometric atoms, no change of variables
+--
+-- `sin θ` and `cos θ` are factors of the flat representation, so the
+-- Pythagorean ideal works on them directly.  The generator is built
+-- with the non-normalizing constructors ('f, ^', +', -'), the same
+-- idiom as `declare rule` right-hand sides; a plain `(sin θ)^2 +
+-- (cos θ)^2 - 1` would be collapsed to 0 by the built-in Pythagorean
+-- auto rules before polyNF ever sees it.
+--
+
+def trigIdeal (t: MathValue) : [MathValue] :=
+  [('sin t)^'2 +' ('cos t)^'2 -' 1]
+
+assertEqual "the generator survives construction"
+  (show (trigIdeal θ)) "['sin θ^2 + 'cos θ^2 - 1]"
+
+-- keep sin θ: rewrite everything to a polynomial in sin θ
+assertEqual "sin^4 - cos^4"
+  (polyNFWith [('sin θ)] (trigIdeal θ) ((sin θ)^4 - (cos θ)^4))
+  (2 * (sin θ)^2 - 1)
+
+assertEqual "cos^6"
+  (polyNFWith [('sin θ)] (trigIdeal θ) ((cos θ)^6))
+  ((1 - (sin θ)^2)^3)
+
+-- membership works independently of the chosen direction
+assertEqual "trig membership"
+  (polyNF (trigIdeal θ) (((sin θ)^2 +' (cos θ)^2 -' 1) * (3 + sin θ)))
+  0

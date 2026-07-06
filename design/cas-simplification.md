@@ -365,7 +365,7 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 |---|---|---|---|
 | **G0** | スパイク: (i) ~~4 項 root-of-unity が既存 sqrt ペア規則で落ちるか実測~~ **済 (2026-07-06、§3.6)**: 積融合は機能、ℚ(√5) 係数の入れ子根号が残る — 一部は G5 で denest 可、完全解決は G2+G5 (ii) thurston の膨張点の特定 (どの中間式が何原子の有理式か) (iii) T2/Schwarzschild で「多変数 GCD があれば約分できる」ことを手計算で確認しピン留め mini-test 化 | 半日 | なし |
 | **G1** | **多変数 GCD (subresultant PRS)** を Haskell で実装、`casNormalizeFrac` 第 2 段に配線。ガード (次数・項数) 付き — **実施済 (下記)** | 中 | G0 |
-| **G2** | **Buchberger + NF** を Egison ライブラリでスパイク (`groebnerBasis` / `polyNF`)。教科書例 (cyclic-3 等) で検収し、性能を計測。遅ければ Haskell (`Math/Groebner.hs`) へ移植し、lib 版は仕様の実行可能ドキュメントとして残す | 中〜大 | G1 (PRS の部品を再利用) |
+| **G2** | **Buchberger + NF** を Egison ライブラリでスパイク (`groebnerBasis` / `polyNF`)。教科書例 (cyclic-3 等) で検収し、性能を計測。遅ければ Haskell (`Math/Groebner.hs`) へ移植し、lib 版は仕様の実行可能ドキュメントとして残す — **実施済 (下記; Egison 実装のままで十分高速、Haskell 移植は不要)** | 中〜大 | G1 (PRS の部品を再利用) |
 | **G3** | **規則生成 = `declare ideal`** (DG2 決定): GB → term 級 `declare rule auto` へのマクロ展開 (cas-quotient と同型)。書き順 π は desugar が AST から抽出。w / 1 の n 乗根 / √2×√3 / GF(4) を機械生成規則で置き換えて既存 sample が回ることを確認 | 小〜中 | G2 |
 | **G4** | **三角イデアル**: `trigIdeal` ヘルパ (非正規化コンストラクタで生成元を組む) + `declare ideal` / `polyNF` の直接適用 (変数化・逆写像は不要 — §3.4)。T2 / thurston での効果測定 | 小〜中 | G2, G3 |
 | **G5** | **denesting (深さ 2)** を `declare apply sqrt` に追加 | 小 | なし (G0 の結果次第で不要になる可能性あり) |
@@ -374,6 +374,11 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
 
 - G1: `(c²r−2GM)X/((c²r−2GM)Y) → X/Y` の mini-test、T2 の `(b + a cos θ)^k` 次数縮小、
   Schwarzschild sample の出力簡素化 (実行時間も比較)
+- G2: GB 教科書例 + `NF` 一意性 (同じ f を項順を変えて与えても NF が一致) の property 的 mini-test
+- G3: `lib/math/normalize.egi` の w 規則を生成版に差し替えても
+  `5th/7th/17th-root-of-unity` が全部通る
+- G4: thurston が S まで到達する (最終目標; 部分達成でも中間式サイズの縮小を記録)
+- G5: 5th-root 4 項版の assertion 追加
 
 ### G1 実施結果 (2026-07-06 実装完了)
 
@@ -400,11 +405,49 @@ GB/GCD モジュールは `CASPoly` を直接使わず、**固定した原子リ
   egison-book の mexpr 章バッククオート節の動機を「多変数は約分されない」から
   「展開させたくない・因数分解形を保つ」に書き換え、cas 章 §9.3 の
   「グレブナー基底は未実装」の段落を「多項式 GCD は実装済 / イデアル正規形は未実装」に更新 (ja/en)。
-- G2: GB 教科書例 + `NF` 一意性 (同じ f を項順を変えて与えても NF が一致) の property 的 mini-test
-- G3: `lib/math/normalize.egi` の w 規則を生成版に差し替えても
-  `5th/7th/17th-root-of-unity` が全部通る
-- G4: thurston が S まで到達する (最終目標; 部分達成でも中間式サイズの縮小を記録)
-- G5: 5th-root 4 項版の assertion 追加
+
+### G2 実施結果 (2026-07-06 実装完了 — Egison 実装のまま採用)
+
+- **実装**: `lib/math/algebra/groebner.egi` (約 250 行、既定ロードに追加 — `Egison.hs`)。
+  **Egison 自身で** poly/term matcher の上に実装: 原子列挙は
+  `poly (term _ (($x, _) :: _) :: _)` の非決定パターン 1 本、S-ペア列挙は join-cons
+  (`_ ++ $f :: _ ++ $g :: _`)、簡約 1 ステップは「基底元 g と f の項 u で LT(g) | u
+  なるものを非線形パターンで探す」1 つの `matchAll`。書籍・論文の題材品質を意図した構成。
+- **API** (§3.3 のとおり + keep-接頭辞semantics):
+  `groebnerBasis gens` / `polyNF gs f` は原子名の辞書順を既定 π とし、
+  `groebnerBasisWith atoms gens` / `polyNFWith atoms gs f` の**明示リストは
+  「残したい原子の接頭辞」** — 残りの原子は名前順で末尾 (=上位=消される側) に自動延長
+  (`extendAtoms`)。`polyNFWith [('sin θ)] …` が「sin を残す」と読める。
+- **アルゴリズム**: grevlex (優先順ベクトルで先頭差分比較)、素朴 Buchberger
+  (criteria なし)、reduced GB (minimize + 相互簡約 + monic + LT 昇順)。
+  fail-open ガード: 非多項式 (真の分数)・ローラン (負冪) は入力をそのまま返す。
+  NF ループに fuel 10000 (自動規則干渉の安全網)。
+- **発見 1 — 自動規則との干渉は「構築時」だけでなく「演算中」にも起こる** (§3.4 の
+  footgun の深い版): 簡約ステップを正規化演算 `f - q * g` で組むと、`q * g` の積の中に
+  生成元の形 (sin²+cos²−1) がそのまま現れ、既存ピタゴラス自動規則が積を 0 に潰して
+  ステップ全体が no-op になる (ライブロック)。**対策 = declare rule RHS と同じ規律**:
+  `mathNormalize (f -' (q *' g))` — 非正規化で結合してから 1 回だけ正規化すると、
+  f との打ち消しが先に起こり生成元パターンが崩れて規則の巻き戻しを回避できる。
+  加えて「f を実際に変えた候補だけ採用」の進捗フィルタで、それでも巻き戻る候補は
+  スキップし**アクティブな自動規則の下での不動点を正規形として正直に返す**。
+- **発見 2 — 三角の既定 π は組み込み規則と逆向き**: 名前順 fallback は 'cos < 'sin で
+  cos 残しだが、組み込みピタゴラス規則は sin 残し。既定 `polyNF (trigIdeal θ)` は
+  自動規則の正規形で止まり (正直な不動点)、`polyNFWith [('sin θ)] …` で設計 §3.4 の
+  期待どおり動く。G3 の `declare ideal` は生成元内出現順 (sin を先に書く) が π になるので
+  自然に整合する — G4 で thurston に当てるときは **sin 残しの向きで**。
+- **検収** (mini-test **134** + 公開 sample **`sample/math/algebra/groebner-basis.egi`**):
+  乗法表 6 本が §3.3 の設計出力と字面一致 (`s2 s6 - 2 * s3` を含む)、
+  `polyNF gb ((s2+s3)²) = 2·s6+5`、所属判定 0、**NF のイデアル平行移動不変**
+  (`polyNF gb (f + (s2²−2)(s6+7)) = polyNF gb f`)・冪等、教科書例 **cyclic-3** が
+  `[z+y+x, y²+x²+xy, x³−1]` (被約 GB)、keep-接頭辞 (`[y]`→`−y³`)、三角
+  (`sin⁴−cos⁴ → 2sin²−1`、`cos⁶ → (1−sin²)³`、所属 0)、ガード
+  (空/[5]→[1]/重複/ローラン/分数/単変数 x⁶ mod (x²−2) = 8)。
+- **性能**: 乗法表+cyclic-3+三角ぜんぶ込みでファイル全体 1.1〜1.3s (起動込み;
+  計算自体は <1s) — **Haskell 移植は不要と判断**。回帰: 代表 7 sample 劣化なし
+  (riemann 0.59s)・mini-test 97/97・cabal test PASS (warning ゼロ)。
+- **G3 への引き継ぎ**: `declare ideal` マクロは本 lib の `groebnerBasis` を宣言時に呼び、
+  各元を term 級 `declare rule auto` に落とす。π は AST の出現順 → `groebnerBasisWith`
+  の明示引数に渡す。規則の停止・合流は GB 由来で定理 (§3.3)。
 
 ---
 

@@ -53,3 +53,4 @@ sample/math/number/tribonacci.egi 5
 sample/math/geometry/kahler-geometry-of-CP1.egi 1
 sample/math/number/elliptic-curve-over-F7.egi 1
 sample/math/algebra/canonical-form-absorption.egi 1
+sample/math/algebra/groebner-basis.egi 1
