@@ -1,10 +1,12 @@
-# CAS 高度簡約の設計 — グレブナー基底ほか (構想)
+# CAS 高度簡約の設計と実装記録 — グレブナー基底ほか
 
-このドキュメントは、現在「簡潔なアルゴリズムのみ」の Egison CAS の数式簡約を、
-グレブナー基底などの理論に基づく本格的な簡約へ拡張するための設計をまとめる。
-実装は未着手。まず何が可能で、どこに置くべきで、どの順に作るべきかを整理する。
+このドキュメントは、Egison CAS の数式簡約をグレブナー基底などの理論に基づく
+本格的な簡約へ拡張する設計と、その実装記録をまとめる。
+**フェーズ G0–G6 は 2026-07-06 に全て実装完了**した。
+§0 が現状の全体像、§1–§4 が設計 (歴史的な判断根拠を含む)、§5 がフェーズ表と
+各フェーズの実施結果、§7 が決定事項 (DG1–DG5) である。
 
-最終更新: 2026-07-06 (初版 → 同日、DG1–DG4 全決定を反映: 順序は宣言順・declare ideal 格上げ・パラメータ=変数・trigNF 廃止)
+最終更新: 2026-07-06 (G0–G6 完了・API 磨き・G7 構想を反映)
 
 **関連文書**: [type-cas.md](./type-cas.md) (簡約パイプライン・規則機構・タワー)、
 [type-cas-tower.md](./type-cas-tower.md) (決定 D1–D5)、
@@ -13,26 +15,83 @@
 
 ---
 
-## 0. 一言サマリー
+## 0. 現状の全体像 (2026-07-06 時点)
 
-高度簡約の中核は 2 つ:
-**(A) 多変数多項式 GCD による有理式の約分** と
-**(B) グレブナー基底 (GB) によるイデアル剰余の正規形**。
+### 0.1 何ができるようになったか
 
-(A) は既存の正規化パイプライン (`casNormalizeFrac`) の単変数 GCD (2026-07-05 実装済) の
-多変数化であり、置き場所も発火点も既に決まっている。
-(B) は「毎演算で走らせる」ものではなく、**宣言時に一度だけ Buchberger を回して
-`declare rule auto` の規則集合を生成するオフライン完備化** + **明示適用の正規形関数**
-として組み込む。これにより現在手書きしている代数拡大の規則 (`w^3 = 1`, `w^2 = -1 - w` 等) が
-機械生成になり、**合流性と停止性が定理として付いてくる**。
+中核 2 本+周辺一式が実装済み:
 
-設計指針は既存路線を踏襲する: **理論をできるだけ単純に**、
-まず Egison ライブラリで書き、性能が要る内側ループだけ Haskell に降ろす
-(`casRewriteDd` の前例)。
+- **(A) 多変数多項式 GCD による約分 (G1)** — 正規化パイプライン
+  (`casNormalizeFrac`) の第 2 段として自動で発火。
+  `(c²r−2GM)X / ((c²r−2GM)Y) → X/Y` のようなパラメータ・適用原子込みの約分が通る。
+- **(B) グレブナー基底によるイデアル正規形 (G2/G3)** —
+  値レベル (`groebnerBasis` / `polyNF` / `idealNF` / `idealEquals`) と
+  宣言レベル (`declare ideal` = 宣言時に一度の完備化 → term 級自動規則の機械生成)。
+  手書きだった w の規則は `declare ideal [w^2 + w + 1]` 1 本に置換済みで、
+  規則集合の停止性・合流性は定理になった。
+- **規則抑制クオート `'( )`** — declare rule 書き換えを発火させずに式を構築する。
+  イデアル生成元の構築 footgun の恒久解 (クオート 3 兄弟: `` ` `` = 構造 /
+  `'f` = 適用 / `'( )` = 理論の凍結)。
+- **sqrt の総合強化** — 負冪の縮約 (|k|≥2、G4 追補)・
+  冪/ペア融合規則の Haskell 化 (`casRewriteSqrt`、G6)・
+  深さ 2 denesting (`√(9−4√5) → √5−2`、G5)。
+- **thurston.egi の完全解決** — 従来「120s 予算で未完・最終 assert は一度も
+  不成立」だったものが、**13.5s で完走・WCS 不変量 S の検証込みで全 assert 成立**
+  (sqrt 負冪修正 5.2× → G6 で累積 46×; S の閉形式一致は quote 関係式の GB を
+  比較点で明示適用して判定)。
+
+性能の代表値 (2026-07-06、~8 倍速マシン):
+op-cost プローブ (sqrt 原子 60 演算) 0.47s (G4 時点 12s)・thurston 13.5s・
+代表サンプル全て基準以下 (riemann S2 0.58s / Schwarzschild 1.2s / cubic 0.42s)。
+
+### 0.2 実装マップ
+
+| 部品 | 場所 | 検収 |
+|---|---|---|
+| 多変数 GCD (subresultant PRS) | `hs-src/.../Math/CAS.hs` `multivariateGcdReduce` | test/lib/math/gcd.egi |
+| GB エンジン (Buchberger + NF、自由理論・grevlex) | `lib/math/algebra/groebner.egi` | test/lib/math/groebner.egi |
+| 診断/糖衣 (`polyNFStatus`/`idealNF`/`idealEquals`) | 同上 | 同上 |
+| `declare ideal` (desugar → idealRules.N + autoRule.N) | `hs-src/.../Desugar.hs`、π は `EvalState.declaredSymbolOrder` | test/lib/math/ideal.egi |
+| `'( )` クオート | `Desugar.hs` (QuoteSymbolExpr 非変数形 → unNormalizeOps) | test/lib/math/normalize-rules.egi |
+| sqrt 冪/ペア融合 | `hs-src/.../Math/Rewrite.hs` `casRewriteSqrt` | 同上 + mini-test 117 |
+| denesting | `lib/math/algebra/root.egi` `sqrtDenest` | 同上 |
+| trigIdeal ヘルパ | `lib/math/algebra/groebner.egi` | sample groebner-basis.egi |
+| 公開ショーケース | `sample/math/algebra/groebner-basis.egi`・`sample/math/geometry/thurston.egi` | サンプル自身の assert |
+
+書籍 (egison-book) にも反映済み: casdetail「イデアルの宣言」節・mexpr「規則抑制
+クオート」節・cas 章の GB 実装済み化+denesting 例 (ja/en、全例実測)。
+
+### 0.3 残っているもの
+
+- **G7 (未着手、§3.7 に設計)**: 根号原子の分枝追跡 — 4 項 root-of-unity の
+  完全解決 (現状 10 項 → 6 項の部分達成で停止)。
+- **exp ペア規則の Haskell 移植** — exp-heavy な計算が現れて遅ければ、
+  `casRewriteSqrt` を雛形にそのまま移植 (現状は困っていない)。
+- **GF(p^k)** — GB エンジンの係数演算を商の reduce でパラメータ化して
+  係数商 (cas-quotient) と合成する (商機構 q5 の課題と合流)。
+- 小粒: `'sqrt (負冪 Laurent radicand)` の適用時簡約・sample 内手書き規則の
+  ideal 化・thurston の既存 Unbound 警告 (β 前方参照)・
+  規則エンジン一般の per-term マッチ単価 (ユーザ定義の重い規則は今も同じ問題を持つ)。
+
+### 0.4 主要な設計判断と教訓 (詳細は各節)
+
+- **発火点原則の実証**: quote 関係イデアルの常時適用は破綻する (715s 異常終了)。
+  重い関係式は `polyNF`/`idealNF` で比較点に一度だけ (§5 G4 追補)。
+- **GB/NF は自由理論で計算し境界で規則世界に戻す** (G2→G3 で最終化)。
+  これが declare ideal の自己再入を構成的に不可能にする。
+- **自動規則はロードバッチ単位で効く** (再帰束縛)。テストハーネスの
+  別バッチバグもこれに起因だった (type-cas.md「重要な性質」参照)。
+- **`i.quotient` (0 方向) と `i.modulo` (floor) は負数で不整合ペア** —
+  組で使うと値を壊す (sqrt 負冪修正時の教訓)。
+- 等価判定は**差 1 回のゼロ判定**で (別々 NF は既定 π が辺ごとに変わる)。
 
 ---
 
-## 1. 現状の簡約機構と限界
+## 1. 設計時点の簡約機構と限界 (G0 以前のスナップショット)
+
+> **注**: 本節はプロジェクト開始時 (2026-07-06 朝、G0 以前) の記録であり、
+> 以下に挙げる限界の大半は G1–G6 で解消済み。現状は §0 を参照。
+> 設計判断の根拠として原文のまま残す。
 
 ### 1.1 いまあるもの
 

@@ -47,8 +47,8 @@ casRewriteSymbol = casRewriteDd . casRewriteSqrt
 --      sqrt x * sqrt (x y^2) = x y.  Multi-term (polynomial) products
 --      stay under the sqrt: sqrt (x+1) * sqrt (x-1) = sqrt (x^2-1).
 --
--- Fast path: values without a sqrt factor in any top-level monomial
--- are returned unchanged.
+-- Fast path: values none of whose terms need sqrt work (see
+-- termNeedsSqrtWork) are returned unchanged, without any rebuilding.
 casRewriteSqrt :: CASValue -> CASValue
 casRewriteSqrt = go (100 :: Int)
  where
@@ -65,10 +65,10 @@ casRewriteSqrt = go (100 :: Int)
 
 rewriteSqrtOnce :: CASValue -> CASValue
 rewriteSqrtOnce (CASFrac num denom)
-  | partNeedsSqrtWork num || partNeedsSqrtWork denom =
+  | valueNeedsSqrtWork num || valueNeedsSqrtWork denom =
       casDivide (rewriteSqrtPart num) (rewriteSqrtPart denom)
 rewriteSqrtOnce v@(CASPoly _)
-  | partNeedsSqrtWork v = rewriteSqrtPart v
+  | valueNeedsSqrtWork v = rewriteSqrtPart v
 rewriteSqrtOnce v = v
 
 -- | Fast path: a term needs sqrt work if it has a sqrt factor with
@@ -104,9 +104,6 @@ valueNeedsSqrtWork :: CASValue -> Bool
 valueNeedsSqrtWork (CASFrac n d) = valueNeedsSqrtWork n || valueNeedsSqrtWork d
 valueNeedsSqrtWork (CASPoly ts)  = any termNeedsSqrtWork ts
 valueNeedsSqrtWork _             = False
-
-partNeedsSqrtWork :: CASValue -> Bool
-partNeedsSqrtWork = valueNeedsSqrtWork
 
 -- | Rewrite the terms that need it and re-combine.  Combination goes
 -- through casPlus/casDivide (not a raw CASPoly rebuild) because a
@@ -207,7 +204,7 @@ splitSquarePart (CASInteger m)
   | m >= 0 =
       let (s, m') = integerSquarePart m
       in (CASInteger s, if m' == 1 then [] else [CASInteger m'])
-splitSquarePart v@(CASPoly ts@(_ : _ : _))
+splitSquarePart (CASPoly ts@(_ : _ : _))
   | Just coeffs <- mapM intCoeff ts
   , let g = foldr1 gcd (map abs coeffs)
   , g > 1 =
@@ -225,18 +222,18 @@ splitSquarePart v = (CASInteger 1, [v])
 -- divisor cap: square factors hiding behind primes above the cap are
 -- left inside (value-safe, just less extraction).
 integerSquarePart :: Integer -> (Integer, Integer)
-integerSquarePart m0 = go m0 2 1
+integerSquarePart m0 = go m0 2
  where
   cap = 1000000
-  go m p s
-    | p > cap || p * p > m = (s, m)
+  go m p
+    | p > cap || p * p > m = (1, m)
     | m `mod` p == 0 =
-        let (e, m') = strip m p 0
-        in go m' (p + 1) (s * p ^ (e `div` 2) * 1) `withRest` (p ^ (e `mod` 2))
-    | otherwise = go m (p + 1) s
+        let (e, m')   = strip m p 0
+            (s, rest) = go m' (p + 1)
+        in (p ^ (e `div` 2) * s, p ^ (e `mod` 2) * rest)
+    | otherwise = go m (p + 1)
   strip m p e | m `mod` p == 0 = strip (m `div` p) p (e + 1)
               | otherwise      = (e, m)
-  withRest (s, m) r = (s, m * r)
 
 -- | Rewrite dd (differential): merge polynomial terms whose monomial shares
 -- the same FunctionData factor (same `g`, `args`, exponent, and rest of
