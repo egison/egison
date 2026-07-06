@@ -68,3 +68,18 @@ assertEqual "denest rational halves" (sqrt (2 + sqrt 3)) ((sqrt 6 + sqrt 2) / 2)
 assertEqual "non-denestable stays"
   (show (sqrt (5 - 2 * sqrt 5))) "'sqrt (-2 * 'sqrt 5 + 5)"
 assertEqual "denested square recovers" ((sqrt (9 - 4 * sqrt 5))^2) (9 - 4 * sqrt 5)
+
+--
+-- exp structural rules (Math/Rewrite.hs, casRewriteExp): power
+-- reduction and product merging; the value rules (exp 0 / exp 1 /
+-- exp (n i pi)) stay in the library.
+--
+
+assertEqual "exp power" ((exp x)^3) (exp (3 * x))
+assertEqual "exp negative power" ((exp x)^(-2)) (exp (-2 * x))
+assertEqual "exp merge" (exp x * exp θ) (exp (x + θ))
+assertEqual "exp cancel" (exp x * exp (- x)) 1
+-- the old declare-rule merge dropped the numeric coefficient
+-- (2 y e^x e^y came out as y e^(x+y)); the port fixes it
+assertEqual "exp merge keeps the coefficient"
+  (show (2 * exp x * θ * exp θ)) "2 * ('exp (θ + x)) * θ"

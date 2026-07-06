@@ -15,9 +15,15 @@ Remaining functions:
     the Egison-level term rules paid a pattern-match attempt on every
     term of every sqrt-carrying value per normalization, making
     arithmetic on such values ~20x slower (thurston.egi's bottleneck).
+  - casRewriteExp : exp power reduction and exp product merging
+    ((exp a)^n -> exp (n a), exp a * exp b -> exp (a+b)), ported back
+    for the same reason (an identical 60-operation fold on
+    exp-carrying operands measured 20.7s under the declare rules).
+    The value rules (exp 0 = 1, exp 1 = e, exp (n i pi) = (-1)^n)
+    stay in the library.
 
 Migrated to declare rule (and removed):
-  - casRewriteI, casRewriteW, casRewriteLog, casRewriteExp
+  - casRewriteI, casRewriteW, casRewriteLog
   - casRewritePower, casRewriteRt, casRewriteRtu
 -}
 
@@ -31,7 +37,7 @@ import           Language.Egison.Math.CAS
 
 -- | Apply rewrite rules to a CASValue.
 casRewriteSymbol :: CASValue -> CASValue
-casRewriteSymbol = casRewriteDd . casRewriteSqrt
+casRewriteSymbol = casRewriteDd . casRewriteSqrt . casRewriteExp
 
 -- | Rewrite sqrt factors of every term (top level of the value, the
 -- same scope as casRewriteDd; inner values were normalized when they
@@ -93,12 +99,7 @@ termNeedsSqrtWork (CASTerm c mono) = go 0 mono || valueNeedsSqrtWork c
   go _ [] = False
 
 symNeedsSqrtWork :: SymbolExpr -> Bool
-symNeedsSqrtWork (Apply1 _ a)       = valueNeedsSqrtWork a
-symNeedsSqrtWork (Apply2 _ a b)     = valueNeedsSqrtWork a || valueNeedsSqrtWork b
-symNeedsSqrtWork (Apply3 _ a b c)   = valueNeedsSqrtWork a || valueNeedsSqrtWork b || valueNeedsSqrtWork c
-symNeedsSqrtWork (Apply4 _ a b c d) = valueNeedsSqrtWork a || valueNeedsSqrtWork b || valueNeedsSqrtWork c || valueNeedsSqrtWork d
-symNeedsSqrtWork (Quote q)          = valueNeedsSqrtWork q
-symNeedsSqrtWork _                  = False
+symNeedsSqrtWork = symNeedsWorkWith valueNeedsSqrtWork
 
 valueNeedsSqrtWork :: CASValue -> Bool
 valueNeedsSqrtWork (CASFrac n d) = valueNeedsSqrtWork n || valueNeedsSqrtWork d
@@ -116,15 +117,40 @@ rewriteSqrtPart (CASPoly ts) =
   in foldl casPlus (casNormalizePoly unchanged) (map rewriteSqrtTerm changed)
 rewriteSqrtPart v = v
 
+-- | The argument of a unary application factor of the named function.
+applyArg1 :: String -> SymbolExpr -> Maybe CASValue
+applyArg1 name (Apply1 fh a) = case fh of
+  CASFactor (QuoteFunction w)
+    | prettyFunctionName w == Just name -> Just a
+  CASPoly [CASTerm (CASInteger 1) [(QuoteFunction w, 1)]]
+    | prettyFunctionName w == Just name -> Just a
+  _ -> Nothing
+applyArg1 _ _ = Nothing
+
 -- | The radicand of a sqrt application factor, if it is one.
 sqrtRadicand :: SymbolExpr -> Maybe CASValue
-sqrtRadicand (Apply1 fh a) = case fh of
-  CASFactor (QuoteFunction w)
-    | prettyFunctionName w == Just "sqrt" -> Just a
-  CASPoly [CASTerm (CASInteger 1) [(QuoteFunction w, 1)]]
-    | prettyFunctionName w == Just "sqrt" -> Just a
-  _ -> Nothing
-sqrtRadicand _ = Nothing
+sqrtRadicand = applyArg1 "sqrt"
+
+-- | Generic traversals shared by the factor rewriters: does any
+-- nested value (application argument, quoted expression) satisfy the
+-- check / rewrite every nested value.  Each rewriter recurses only
+-- into itself, matching the old per-rule mapTermAll recursion.
+symNeedsWorkWith :: (CASValue -> Bool) -> SymbolExpr -> Bool
+symNeedsWorkWith p (Apply1 _ a)       = p a
+symNeedsWorkWith p (Apply2 _ a b)     = p a || p b
+symNeedsWorkWith p (Apply3 _ a b c)   = p a || p b || p c
+symNeedsWorkWith p (Apply4 _ a b c d) = p a || p b || p c || p d
+symNeedsWorkWith p (Quote q)          = p q
+symNeedsWorkWith _ _                  = False
+
+rewriteInsideSymWith :: (CASValue -> CASValue) -> SymbolExpr -> SymbolExpr
+rewriteInsideSymWith f sym = case sym of
+  Apply1 g a       -> Apply1 g (f a)
+  Apply2 g a b     -> Apply2 g (f a) (f b)
+  Apply3 g a b c   -> Apply3 g (f a) (f b) (f c)
+  Apply4 g a b c d -> Apply4 g (f a) (f b) (f c) (f d)
+  Quote q          -> Quote (f q)
+  _                -> sym
 
 -- | Rewrite the sqrt factors of one term.  Returns a CASValue because
 -- extracted radicand powers can be polynomials.  Nested values
@@ -166,13 +192,7 @@ rewriteSqrtTerm (CASTerm c0 mono0) =
       Nothing -> (sq, (sym, 1) : rest)
     step f (sq, rest) = (sq, f : rest)
 
-  rewriteInsideSym sym = case sym of
-    Apply1 f a       -> Apply1 f (casRewriteSqrt a)
-    Apply2 f a b     -> Apply2 f (casRewriteSqrt a) (casRewriteSqrt b)
-    Apply3 f a b c   -> Apply3 f (casRewriteSqrt a) (casRewriteSqrt b) (casRewriteSqrt c)
-    Apply4 f a b c d -> Apply4 f (casRewriteSqrt a) (casRewriteSqrt b) (casRewriteSqrt c) (casRewriteSqrt d)
-    Quote q          -> Quote (casRewriteSqrt q)
-    _                -> sym
+  rewriteInsideSym = rewriteInsideSymWith casRewriteSqrt
 
 -- | Split a merged radicand into (outside, inside radicands) with
 -- value = outside^2 * product(insides), extracting square content and
@@ -234,6 +254,74 @@ integerSquarePart m0 = go m0 2
     | otherwise = go m (p + 1)
   strip m p e | m `mod` p == 0 = strip (m `div` p) p (e + 1)
               | otherwise      = (e, m)
+
+-- | Rewrite exp factors of every term:
+--
+--   1. Power reduction: (exp a)^n with n /= 1 becomes exp (n a).
+--   2. Product merge: all exp factors of a term merge into one,
+--      exp a * exp b = exp (a+b); a zero total collapses to 1
+--      (exp x * exp (-x) = 1).
+--
+-- One pass per term suffices (the merge is closed: it produces at
+-- most one exp factor with exponent 1).  Nested values are rewritten
+-- first, like casRewriteSqrt.  The value rules exp 0 = 1, exp 1 = e,
+-- and exp (n i pi) = (-1)^n stay in the library and fire on the
+-- merged atom as before.
+casRewriteExp :: CASValue -> CASValue
+casRewriteExp (CASFrac num denom)
+  | valueNeedsExpWork num || valueNeedsExpWork denom =
+      casDivide (rewriteExpPart num) (rewriteExpPart denom)
+casRewriteExp v@(CASPoly _)
+  | valueNeedsExpWork v = rewriteExpPart v
+casRewriteExp v = v
+
+expArg :: SymbolExpr -> Maybe CASValue
+expArg = applyArg1 "exp"
+
+-- | A term needs exp work if it has an exp factor with exponent /= 1,
+-- at least two exp factors, or nested work.
+termNeedsExpWork :: CASTerm -> Bool
+termNeedsExpWork (CASTerm c mono) = go 0 mono || valueNeedsExpWork c
+ where
+  go ones ((sym, n) : rest) = case expArg sym of
+    Just _
+      | n /= 1    -> True
+      | ones >= 1 -> True
+      | otherwise -> symNeedsWorkWith valueNeedsExpWork sym || go 1 rest
+    Nothing       -> symNeedsWorkWith valueNeedsExpWork sym || go ones rest
+  go _ [] = False
+
+valueNeedsExpWork :: CASValue -> Bool
+valueNeedsExpWork (CASFrac n d) = valueNeedsExpWork n || valueNeedsExpWork d
+valueNeedsExpWork (CASPoly ts)  = any termNeedsExpWork ts
+valueNeedsExpWork _             = False
+
+rewriteExpPart :: CASValue -> CASValue
+rewriteExpPart (CASPoly ts) =
+  let changed   = filter termNeedsExpWork ts
+      unchanged = filter (not . termNeedsExpWork) ts
+  in foldl casPlus (casNormalizePoly unchanged) (map rewriteExpTerm changed)
+rewriteExpPart v = v
+
+rewriteExpTerm :: CASTerm -> CASValue
+rewriteExpTerm (CASTerm c0 mono0) =
+  let c    = casRewriteExp c0
+      mono = [ (rewriteInsideSymWith casRewriteExp sym, n) | (sym, n) <- mono0 ]
+      (exps, others) = foldr step ([], []) mono
+      step (sym, n) (es, ms) = case expArg sym of
+        Just a  -> ((sym, casMult (CASInteger n) a) : es, ms)
+        Nothing -> (es, (sym, n) : ms)
+      base = CASPoly [CASTerm c others]
+  in case exps of
+       [] -> base
+       ((sym0, _) : _) ->
+         let total = foldr1 casPlus (map snd exps)
+             atom = case sym0 of
+               Apply1 fh _ -> CASPoly [CASTerm (CASInteger 1) [(Apply1 fh total, 1)]]
+               _           -> error "rewriteExpTerm: non-Apply1 exp factor"
+         in if casIsZero total
+              then base
+              else casMult base atom
 
 -- | Rewrite dd (differential): merge polynomial terms whose monomial shares
 -- the same FunctionData factor (same `g`, `args`, exponent, and rest of

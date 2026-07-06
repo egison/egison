@@ -6,6 +6,8 @@ declare symbol θ₁, θ₂, θ₃, θ₄, κ, p
 
 def x~i := [| θ₁, θ₂, θ₃, θ₄ |]~i
 
+def β := `(1 + θ₂ - θ₂^2)
+
 def g_i_j :=
   [|[| 1, 0, 0, 0 |],
     [| 0, 1, 0, 0 |],
@@ -17,8 +19,6 @@ def g~i~j :=
     [| 0, 1, 0, 0 |],
     [| 0, 0, `(1 + θ₂) / (κ * (sqrt β)), θ₂ / ((sqrt β) * κ) |],
     [| 0, 0, θ₂ / ((sqrt β) * κ), 1 / ((sqrt β) * κ) |]|]
-
-def β := `(1 + θ₂ - θ₂^2)
 
 -- Sanity check on the metric definition.
 assertEqual "g_3_3"
@@ -45,7 +45,7 @@ def J_a_b :=
     [| 0, 0, 0, κ |],
     [| 0, 0, -1 * κ, 0 |]|]
 
-def J_a~c := J_a_b . g~b~c
+def J_a~c := withSymbols [b] J_a_b . g~b~c
 
 -- The original EMR Thurston example used an inline ∇J definition (rather
 -- than going through an abstracted variadic `∇_c T~(a_1)...~(a_r)_(b_1)..._(b_k)`).

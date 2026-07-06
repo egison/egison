@@ -519,7 +519,12 @@ extractTriggerSymbols :: Pattern -> [String]
 extractTriggerSymbols = nub . go
  where
   go (ValuePat e)        = exprNames e
-  go (PApplyPat f ps)    = exprNames f ++ concatMap go ps
+  -- Only the HEAD of an application pattern is a trigger: a term
+  -- matching `log (exp $n)` necessarily contains a log-application
+  -- factor, so "log" alone suffices, and a smaller trigger set lets
+  -- the rule be skipped on more values (e.g. exp-heavy values never
+  -- attempt the log rule).  Argument symbols are implied, not needed.
+  go (PApplyPat f _)     = exprNames f
   go (DApplyPat p ps)    = go p ++ concatMap go ps
   go (InfixPat _ a b)    = go a ++ go b
   go (AndPat a b)        = go a ++ go b
@@ -542,7 +547,8 @@ extractTriggerSymbols = nub . go
   exprNames (VarExpr n)          = [n]
   exprNames (QuoteSymbolExpr e)  = exprNames e
   exprNames (InfixExpr _ a b)    = exprNames a ++ exprNames b
-  exprNames (ApplyExpr f args)   = exprNames f ++ concatMap exprNames args
+  -- Same head-only refinement as PApplyPat above.
+  exprNames (ApplyExpr f _)      = exprNames f
   -- Operator section like `(^)` or `(+ 1)`: the operator name itself is
   -- the trigger (e.g. `apply2 #(^) ...` should trigger only on values
   -- containing the `^` function).
