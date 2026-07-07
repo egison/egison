@@ -13,7 +13,7 @@ declare symbol x, θ, θ₂
 
 -- generators survive construction instead of collapsing under auto rules
 assertEqual "quoted pythagorean generator"
-  (show '((sin θ)^2 + (cos θ)^2 - 1)) "'sin θ^2 + 'cos θ^2 - 1"
+  (show '((sin θ)^2 + (cos θ)^2 - 1)) "('sin θ)^2 + ('cos θ)^2 - 1"
 assertEqual "quoted w generator" (show '(w^2 + w + 1)) "w^2 + w + 1"
 -- ... while the unquoted forms are rewritten as usual
 assertEqual "plain pythagorean" ((sin θ)^2 + (cos θ)^2 - 1) 0
@@ -52,7 +52,7 @@ assertEqual "sqrt^-2" (show (v * v)) "`(- θ₂^2 + θ₂ + 1)^-1 x^-2"
 assertEqual "sqrt^-4" (show (v^2 * v^2)) "`(- θ₂^2 + θ₂ + 1)^-2 x^-4"
 assertEqual "sqrt^-3"
   (show (v * v * v))
-  "'sqrt `(- θ₂^2 + θ₂ + 1)^-1 * `(- θ₂^2 + θ₂ + 1)^-1 * x^-3"
+  "('sqrt `(- θ₂^2 + θ₂ + 1))^-1 * `(- θ₂^2 + θ₂ + 1)^-1 * x^-3"
 assertEqual "sqrt^16" ((sqrt β)^16) (β^8)
 assertEqual "integer radicand ^-2" ((sqrt 2)^(-2)) (1 / 2)
 assertEqual "negative power value preserved" ((v * v * v) * (sqrt β * x)^3) 1

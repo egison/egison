@@ -234,7 +234,11 @@ prettyCAS (CASPoly terms) = prettyTerms terms
     prettyPow' (sym, 1) | isApplyFactor sym = "(" ++ prettySymbolExpr sym ++ ")"
     prettyPow' p = prettyPow p
     prettyPow (sym, 1) = prettySymbolExpr sym
-    prettyPow (sym, n) = prettyCAS' (CASFactor sym) ++ "^" ++ show n
+    -- An application form under an exponent needs parens: `g x y^2` would
+    -- read as g applied to x and y^2, not as (g x y) squared.
+    prettyPow (sym, n)
+      | isApplyFactor sym = "(" ++ prettySymbolExpr sym ++ ")^" ++ show n
+      | otherwise         = prettyCAS' (CASFactor sym) ++ "^" ++ show n
     isApplyFactor :: SymbolExpr -> Bool
     isApplyFactor (Apply1 {})       = True
     isApplyFactor (Apply2 {})       = True

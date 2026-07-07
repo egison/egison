@@ -56,7 +56,7 @@ import           Control.Monad.Trans.Maybe
 import           Data.Char                       (isUpper)
 import           Data.Foldable                   (toList)
 import           Data.IORef
-import           Data.List                       (partition)
+import           Data.List                       (partition, sortOn)
 import           Data.Maybe
 import qualified Data.Sequence                   as Sq
 import           Data.Traversable                (mapM)
@@ -312,14 +312,27 @@ evalExprShallow env (ISuprefsExpr override expr jsExpr) = do
 
 evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   val <- evalExprDeep env expr
-  jsCAS <- map User <$> (evalExprDeep env jsExpr >>= collectionToList >>= mapM extractCASVal)
+  jsRaw <- evalExprDeep env jsExpr >>= collectionToList >>= mapM extractCASVal
+  let jsCAS = map User jsRaw
   case val of
+    -- A bare symbol takes user indices verbatim (indexed-symbol feature,
+    -- unrelated to derivative marks).
     CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]]) ->
       return $ Value $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ jsCAS), 1)]]
+    -- On a function symbol the user indices are DERIVATIVE MARKS, and are
+    -- normalized at construction: an argument value resolves to its
+    -- position (the arguments are values, not names, so a positional
+    -- multi-index is the only well-defined form), positions are
+    -- range-checked, and the combined multi-index is kept sorted --
+    -- mixed partials of the smooth unknown functions these stand for
+    -- commute (Schwarz), so f|2|1 and f|1|2 must be the same atom.
     CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData sym args, 1)]]) ->
       case sym of
         CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name is, 1)]] -> do
-          let sym' = CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (is ++ jsCAS), 1)]]
+          posIdxs <- mapM (resolveFnIndex name args) jsRaw
+          let (users, others) = partition isUserIndex is
+              users' = sortOn userKey (users ++ map (User . CASInteger) posIdxs)
+              sym' = CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId name (others ++ users'), 1)]]
           return $ Value $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData sym' args, 1)]]
         _ -> throwErrorWithTrace (NotImplemented "user-refs")
     _ -> throwErrorWithTrace (NotImplemented "user-refs")
@@ -327,6 +340,36 @@ evalExprShallow env (IUserrefsExpr _ expr jsExpr) = do
   extractCASVal :: EgisonValue -> EvalM CASValue
   extractCASVal (CASData cv) = return cv
   extractCASVal v = throwErrorWithTrace (TypeMismatch "CASData" (Value v))
+
+  resolveFnIndex :: String -> [CASValue] -> CASValue -> EvalM Integer
+  resolveFnIndex name args j = case casToSmallInt j of
+    Just n
+      | 1 <= n && n <= fromIntegral (length args) -> return n
+      | otherwise -> throwError $ Default $
+          "userRefs: index " ++ show n ++ " is out of range for the "
+          ++ show (length args) ++ "-argument function symbol " ++ name
+    Nothing -> case [i | (i, a) <- zip [1..] args, a == j] of
+      [i] -> return i
+      []  -> throwError $ Default $
+          "userRefs: " ++ CAS.prettyCAS j ++ " is not an argument of the function symbol " ++ name
+      _   -> throwError $ Default $
+          "userRefs: " ++ CAS.prettyCAS j ++ " appears more than once among the arguments of "
+          ++ name ++ "; use a positional index"
+
+  casToSmallInt :: CASValue -> Maybe Integer
+  casToSmallInt (CASInteger n) = Just n
+  casToSmallInt (CASPoly [CASTerm (CASInteger n) []]) = Just n
+  casToSmallInt (CASFrac num (CASInteger 1)) = casToSmallInt num
+  casToSmallInt (CASFrac num (CASPoly [CASTerm (CASInteger 1) []])) = casToSmallInt num
+  casToSmallInt _ = Nothing
+
+  isUserIndex :: Index a -> Bool
+  isUserIndex (User _) = True
+  isUserIndex _        = False
+
+  userKey :: Index CASValue -> Integer
+  userKey (User v) = fromMaybe (toInteger (maxBound :: Int)) (casToSmallInt v)
+  userKey _        = toInteger (maxBound :: Int)
 
 evalExprShallow env (ILambdaExpr vwi names expr) = do
   return . Value $ Func vwi env names expr

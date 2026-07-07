@@ -35,7 +35,7 @@ assertEqual "keep x" (polyNFWith [x] [x + y] (y^3)) (- x^3)
 
 -- trigonometric atoms via the lib helper (rule-suppression quote inside)
 assertEqual "trig generator survives construction"
-  (show (trigIdeal θ)) "['sin θ^2 + 'cos θ^2 - 1]"
+  (show (trigIdeal θ)) "[('sin θ)^2 + ('cos θ)^2 - 1]"
 assertEqual "sin^4 - cos^4, keep sin"
   (polyNFWith [('sin θ)] (trigIdeal θ) ((sin θ)^4 - (cos θ)^4))
   (2 * (sin θ)^2 - 1)

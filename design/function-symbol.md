@@ -1,5 +1,23 @@
 # Function Symbol 仕様
 
+> **2026-07-07 仕様確定**: 導関数索引は**位置正準形**に統一した。
+> (1) `userRefs` はシンボル/値の索引を**構築時に位置へ解決**する
+> (引数は名前でなく**値**なので、位置索引だけが常に well-defined —
+> 合成引数 `function (rr)` (rr = r²) では名前索引は定義しようがない)。
+> 非引数値・複数回現れる値 (`function (x, x)` への `[x]`)・範囲外整数は
+> **エラー**。(2) 多重索引は**構築時に昇順ソート** — この機構が表す滑らかな
+> 未知関数では混合偏導関数が可換 (Schwarz) なので、`f|2|1` は `f|1|2` と
+> 同一原子として構築される (`d/d (d/d g x) y = d/d (d/d g y) x` が True)。
+> (3) 適用形が冪の下に来るときは括弧付き表示 (`(g x y)^2`)。
+> (4) 型統合: `function (…)` と導関数の型は `MathValue`。**値レベルは完全
+> 統合済み** (GB エンジン・declare rule・トリガー収集が FunctionData を
+> 扱うことを実測確認)。型レベルの原子集合 (`Poly … [f x]`) への出現禁止は
+> 維持 — 必要になれば compound atom と同じ extendAtoms 経路で開放できる。
+> 検収: mini-test/146・test/lib/math/analysis.egi (Taylor の混合項が
+> Schwarz 正準形で `f|1|2` に併合される形)。実装: Core.hs IUserrefsExpr
+> (FunctionData 分岐のみ; 裸シンボルへの user 索引は従来どおり)・
+> Math/CAS.hs prettyPow。
+
 ## 概要
 
 `function` キーワードで定義されるシンボリック関数。
@@ -110,11 +128,26 @@ V.substitute [|x,y|] [|0,0|] g   -- g(x,y) → g(0,0)
 
 ### 等値性
 
-`name` と `args` の両方が等しい場合のみ等しい:
+`name`(索引込み)と `args` の両方が等しい場合のみ等しい:
 ```
 f(x) = f(x)   -- True
 f(x) = f(0)   -- False
 f(0) = f(a)   -- False
+```
+
+導関数索引は構築時正規化により、次が構造的等価で成立する:
+```
+userRefs g [y]        = userRefs g [2]    -- True(位置へ解決)
+d/d (d/d g x) y       = d/d (d/d g y) x   -- True(索引ソート = Schwarz)
+userRefs g [2, 1]     = userRefs g [1, 2] -- True
+userRefs h [r^2]      = userRefs h [1]    -- True(合成引数も値で解決)
+```
+
+エラー(構築時):
+```
+userRefs g [3]   -- index 3 is out of range for the 2-argument function symbol g
+userRefs g [a]   -- a is not an argument of the function symbol g
+userRefs k [x]   -- (k = function (x, x)) appears more than once; use a positional index
 ```
 
 ## 実装の変更点（argnames削除）

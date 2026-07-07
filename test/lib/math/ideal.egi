@@ -24,4 +24,4 @@ declare ideal [(sin θ)^2 + (cos θ)^2 - 1]
 assertEqual "sin^4 - cos^4" ((sin θ)^4 - (cos θ)^4) (2 * (sin θ)^2 - 1)
 assertEqual "sin^2 + 2 cos^2" ((sin θ)^2 + 2 * (cos θ)^2) (2 - (sin θ)^2)
 assertEqual "other angles untouched"
-  (show ((sin φ)^4 - (cos φ)^4)) "'sin φ^4 - 'cos φ^4"
+  (show ((sin φ)^4 - (cos φ)^4)) "('sin φ)^4 - ('cos φ)^4"
