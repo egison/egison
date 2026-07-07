@@ -175,14 +175,16 @@ assertEqual "function definition"
   (someFunction 1 2 3)
   7
 
-def gcd m n :=
+-- (named to avoid shadowing GCDDomain's method `gcd`, which now warns;
+-- recursion needs the signature so the self-reference is typable)
+def euclid (m: Integer) (n: Integer) : Integer :=
   if m >= n then
             if n = 0 then m
-                     else gcd n (m % n)
-            else gcd n m
+                     else euclid n (m % n)
+            else euclid n m
 
 assertEqual "recursive function definition"
-  (gcd 143 22)
+  (euclid 143 22)
   11
 
 def A x := 1

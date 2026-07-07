@@ -17,9 +17,6 @@ def ordering : Matcher Ordering :=
     | equal
     | greater
 
-def min {Ord a} (x: a) (y: a) : a := if x < y then x else y
-def max {Ord a} (x: a) (y: a) : a := if x > y then x else y
-
 class Ord a extends Eq a where
   compare (x: a) (y: a) : Ordering
   (<) (x: a) (y: a) : Bool

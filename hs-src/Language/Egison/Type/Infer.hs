@@ -3888,6 +3888,18 @@ extractIBindingsFromPattern pat ty = case pat of
 inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
+    -- A plain definition that reuses a class method name replaces the
+    -- dispatching binding for the rest of the program, which surfaces as
+    -- baffling type errors far from the definition.  Class and instance
+    -- declarations lower to IDefineMany (registry, wrappers, dictionaries),
+    -- never to an IDefine of the bare method name, so a name match here is
+    -- always user shadowing.
+    do classEnv <- getClassEnv
+       let Var defName _ = var
+       case [ cls | (cls, info) <- classEnvToList classEnv
+                  , defName `elem` map fst (Types.classMethods info) ] of
+         (cls:_) -> addWarning (ClassMethodShadowWarning defName cls emptyContext)
+         []      -> return ()
     env <- getEnv
     -- Check if there's an explicit type signature in the environment
     -- (added by EnvBuilder from DefineWithType)

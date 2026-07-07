@@ -75,6 +75,10 @@ data TypeWarning
   | MatcherNextMatcherWarning Type String TypeErrorContext
     -- ^ A bare-variable next matcher (rendered) at a constructor-/concrete-headed hole (the
     --   hole's type) is not structurally admissible (paper PP-Con, Def 4.2(1a)).
+  | ClassMethodShadowWarning String String TypeErrorContext
+    -- ^ A top-level definition reuses a class method name (method name, class name).
+    --   The definition replaces the dispatching binding, so the method stops
+    --   dispatching on its argument type everywhere after this point.
   deriving (Eq, Show, Generic)
 
 -- | Type errors
@@ -277,6 +281,13 @@ formatTypeWarning warn = case warn of
       "Warning: the next matcher `" ++ comp ++ "` is a bare-variable matcher, not structurally" ++
       " admissible at a constructor-headed hole of type " ++ displayType holeTy ++
       "\n  (a constructor pattern there would get stuck at runtime; paper PP-Con, Def 4.2(1a))"
+
+  ClassMethodShadowWarning name cls ctx ->
+    formatWithContext ctx $
+      "Warning: '" ++ name ++ "' is a method of class '" ++ cls ++ "'," ++
+      " and this top-level definition shadows it" ++
+      "\n  ('" ++ name ++ "' no longer dispatches on its argument type anywhere after" ++
+      " this point; rename the definition)"
 
 -- | Pretty print a type after renaming its type variables, in order of first
 -- appearance, to @a@, @b@, @c@, ...  Inference-internal names such as @t143@
