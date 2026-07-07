@@ -18,6 +18,13 @@
 > (FunctionData 分岐のみ; 裸シンボルへの user 索引は従来どおり)・
 > Math/CAS.hs prettyPow。
 
+> **2026-07-08 追補**: 第一級構築子 **`functionSymbol : String ->
+> [MathValue] -> MathValue`** を追加(定義文脈不要; 名前を計算で作れる
+> ので族を map で構築できる)。定義文脈由来のシンボルと名前・引数が
+> 一致すれば等値。付随して `quoteScalar`(quote 原子の再構築; mapSymbols
+> の quote 透過に使用)と `mathFunctionName`(apply1..4 頭の名前)も追加。
+> 経緯と設計判断は [function-symbol-formurae.md](function-symbol-formurae.md)。
+
 ## 概要
 
 `function` キーワードで定義されるシンボリック関数。

@@ -438,6 +438,11 @@ def mapSymbols (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
                 (map
                   (\(x, n) -> match x as mathValue with
                       | symbol _ _ -> fn x ^' n
+                      | quote $q ->
+                          let q' := mapSymbols fn q
+                          in if q = q'
+                              then x ^' n
+                              else quoteScalar q' ^' n
                       | apply1 $g $a1 ->
                           let a1' := mapSymbols fn a1
                           in if a1 = a1'

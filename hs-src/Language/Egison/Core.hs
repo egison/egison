@@ -53,7 +53,7 @@ import           Control.Monad.Except            (throwError)
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 
-import           Data.Char                       (isUpper)
+import           Data.Char                       (isUpper, toLower)
 import           Data.Foldable                   (toList)
 import           Data.IORef
 import           Data.List                       (partition, sortOn)
@@ -78,7 +78,7 @@ import           Language.Egison.Tensor
 import           Language.Egison.Type.Types      (Type(..))
 import qualified Language.Egison.Type.RuntimeType as RT
 import           Language.Egison.Type.Instance   (selectMostSpecific)
-import           Language.Egison.Type.Subtype    (SubtypeEnv, isSubtypeWith)
+import           Language.Egison.Type.Subtype    (SubtypeEnv, isSubtypeWith, isCasType)
 
 -- | Get the Type of an EgisonValue
 -- Used for type class method dispatch
@@ -683,15 +683,25 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
                (TypeMismatch ("CASData (for " ++ className ++ "." ++ methodName ++ " runtime dispatch)") firstWhnf)
       let rt = RT.runtimeTypeOfCAS cv
       edges <- getCasSubtypeEdges
+      -- The candidate list omits the class's MathValue instance (the
+      -- expander's self-selection guard), so a value whose runtime type
+      -- is a plain CAS shape -- e.g. a let-generalized combination that
+      -- collapses to the integer 0 at some call site -- may match no
+      -- candidate.  Fall back to the MathValue dictionary then: call
+      -- sites inside that instance are typed TMathValue and never emit
+      -- a dispatch node, so this cannot loop.
+      let mvDict = mvDictName className
+          runDict dictName = do
+            dictWhnf   <- evalExprShallow env (IVarExpr dictName)
+            methodWhnf <- refHash dictWhnf [String (T.pack methodName)]
+            firstRef   <- newEvaluatedObjectRef firstWhnf
+            restRefs   <- mapM (newThunkRef env) restArgs
+            applyRef env methodWhnf (firstRef : restRefs) >>= removeDF
       case findBestRuntimeCandidate edges rt candidates of
-        Just dictName -> do
-          -- Look up the dictionary and index it with the method name —
-          -- once, not via re-emitted IExpr.
-          dictWhnf   <- evalExprShallow env (IVarExpr dictName)
-          methodWhnf <- refHash dictWhnf [String (T.pack methodName)]
-          firstRef   <- newEvaluatedObjectRef firstWhnf
-          restRefs   <- mapM (newThunkRef env) restArgs
-          applyRef env methodWhnf (firstRef : restRefs) >>= removeDF
+        Just dictName -> runDict dictName
+        Nothing
+          | isCasType rt, isJust (refVar env (stringToVar mvDict)) ->
+              runDict mvDict
         Nothing ->
           throwError $ Default $
             "runtime dispatch: no matching instance for "
@@ -708,6 +718,13 @@ evalExprShallow env (IRuntimeDispatch className methodName candidates args) = do
              (filter (\(t, _) -> isSubtypeWith edges target t) cands) of
         Right (_, dn) -> Just dn
         Left _        -> Nothing
+
+    -- dictionary variable of the class's MathValue instance, following
+    -- the expander's naming scheme (lowerFirst class ++ type names)
+    mvDictName :: String -> String
+    mvDictName cn = case cn of
+      (c:cs) -> toLower c : cs ++ "MathValue"
+      []     -> "MathValue"
 
 evalExprShallow _ expr = throwErrorWithTrace (NotImplemented ("evalExprShallow for " ++ show expr))
 

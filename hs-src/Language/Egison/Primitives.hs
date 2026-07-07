@@ -36,7 +36,7 @@ import           Language.Egison.Data.Utils        (newEvaluatedObjectRef)
 import           Language.Egison.EvalState         (getReductionRulesCount, getDerivativeRulesCount,
                                                     getReductionRuleNames, getDerivativeRuleNames,
                                                     getAutoRuleTriggers)
-import           Language.Egison.IExpr             (Index (..), stringToVar)
+import           Language.Egison.IExpr             (Index (..), Var (..), stringToVar)
 import qualified Language.Egison.Math.CAS as CAS
 import           Language.Egison.Primitives.Arith
 import           Language.Egison.Primitives.IO
@@ -88,6 +88,9 @@ primitives =
 
         , ("sortWithSign", sortWithSign)
         , ("updateFunctionArgs", updateFunctionArgs)
+        , ("functionSymbol", functionSymbol)
+        , ("quoteScalar", quoteScalar)
+        , ("mathFunctionName", mathFunctionName)
         , ("casTerms", casTermsPrim)
         , ("casFromTerms", casFromTermsPrim)
         , ("termCoeff", termCoeffPrim)
@@ -191,6 +194,38 @@ updateFunctionArgs = twoArgs' $ \funcVal newArgsColl ->
  where
   extractCAS (CASData cv) = return cv
   extractCAS val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+
+-- | Build a function symbol from a computed name and argument values,
+-- without going through a definition context (the `function (...)`
+-- expression requires one).  Families of symbols can then be created
+-- programmatically: map (\n -> functionSymbol (S.append "f" (show n)) [x]) ...
+functionSymbol :: String -> PrimitiveFunc
+functionSymbol = twoArgs' $ \nameVal argsColl ->
+  case (nameVal, argsColl) of
+    (String name, Collection argsSeq) -> do
+      args' <- mapM extractCAS (toList argsSeq)
+      let sym = CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol "" (T.unpack name) [], 1)]]
+      return $ CASData $ CASPoly [CASTerm (CASInteger 1) [(CAS.FunctionData sym args', 1)]]
+    _ -> throwErrorWithTrace (TypeMismatch "string and collection of scalars" (Value nameVal))
+ where
+  extractCAS (CASData cv) = return cv
+  extractCAS val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+
+-- | Re-wrap a scalar in a quote atom (the backtick of the surface
+-- syntax, as a function).  Needed by mapSymbols to rebuild a quoted
+-- factor after substituting inside it.
+quoteScalar :: String -> PrimitiveFunc
+quoteScalar = oneArg' $ \v -> case v of
+  CASData cv -> return $ quoteCASData cv
+  _          -> throwErrorWithTrace (TypeMismatch "scalar" (Value v))
+
+-- | Name of a math function value (the head bound by the apply1..4
+-- patterns of the mathValue matcher), e.g. cos for (cos x).  Replaces
+-- show-and-split hacks in code generators.
+mathFunctionName :: String -> PrimitiveFunc
+mathFunctionName = oneArg $ \val -> case val of
+  Func (Just (Var name _)) _ _ _ -> return $ String (T.pack name)
+  _ -> throwErrorWithTrace (TypeMismatch "named function" (Value val))
 
 -- | Convert a CASValue into a list of single-term polynomials.
 -- A CASPoly is decomposed into its terms; an integer/factor becomes a singleton list;
