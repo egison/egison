@@ -18,6 +18,7 @@ import           Control.Monad.IO.Class            (liftIO)
 
 import           Data.IORef
 import           Data.Foldable                     (toList)
+import           Data.Monoid                       (Any (..))
 
 import qualified Data.Sequence                     as Sq
 import qualified Data.Set                          as Set
@@ -395,46 +396,37 @@ casContainsAnySymbolPrim name args = case args of
   fromStringValue v          = throwErrorWithTrace (TypeMismatch "string" (Value v))
 
 casContainsAny :: Set.Set String -> CAS.CASValue -> Bool
-casContainsAny names = goV
- where
-  goV (CAS.CASInteger _)  = False
-  goV (CAS.CASFactor sym) = goSym sym
-  goV (CAS.CASPoly terms) = any goTerm terms
-  goV (CAS.CASFrac n d)   = goV n || goV d
-  goTerm (CAS.CASTerm coeff mono) = goV coeff || any (goSym . fst) mono
-  goSym (CAS.Symbol _ nm _)        = Set.member nm names
-  goSym (CAS.Apply1 f a1)          = goV f || goV a1
-  goSym (CAS.Apply2 f a1 a2)       = goV f || goV a1 || goV a2
-  goSym (CAS.Apply3 f a1 a2 a3)    = goV f || goV a1 || goV a2 || goV a3
-  goSym (CAS.Apply4 f a1 a2 a3 a4) = goV f || goV a1 || goV a2 || goV a3 || goV a4
-  goSym (CAS.Quote v)              = goV v
-  goSym (CAS.QuoteFunction whnf)   = case prettyFunctionName whnf of
-                                       Just n  -> Set.member n names
-                                       Nothing -> False
-  goSym (CAS.FunctionData fn as)   = goV fn || any goV as
+casContainsAny names =
+  getAny . foldCASSymbolNames (Any . (`Set.member` names))
 
 -- | Walks the CASValue once and collects the set of every Symbol /
 -- QuoteFunction / FunctionData name that appears anywhere in the tree.
 -- Used by iterateRulesCAS to skip rules whose triggers can't possibly fire.
 casCollectSymbols :: CAS.CASValue -> Set.Set String
-casCollectSymbols = goV
+casCollectSymbols = foldCASSymbolNames Set.singleton
+
+-- | The one traversal behind the two symbol scans above: fold every
+-- name-bearing leaf of a CASValue (Symbol names, printable
+-- QuoteFunction names, and everything reachable through Apply/Quote/
+-- FunctionData sub-values) into a monoid.  With Any the (||) fold
+-- short-circuits on the first hit, so the membership test keeps its
+-- early exit; with Set it collects.
+foldCASSymbolNames :: Monoid m => (String -> m) -> CAS.CASValue -> m
+foldCASSymbolNames leaf = goV
  where
-  goV (CAS.CASInteger _)  = Set.empty
+  goV (CAS.CASInteger _)  = mempty
   goV (CAS.CASFactor sym) = goSym sym
-  goV (CAS.CASPoly terms) = Set.unions (map goTerm terms)
-  goV (CAS.CASFrac n d)   = goV n `Set.union` goV d
-  goTerm (CAS.CASTerm coeff mono) =
-    goV coeff `Set.union` Set.unions (map (goSym . fst) mono)
-  goSym (CAS.Symbol _ name _)      = Set.singleton name
-  goSym (CAS.Apply1 f a1)          = goV f `Set.union` goV a1
-  goSym (CAS.Apply2 f a1 a2)       = Set.unions [goV f, goV a1, goV a2]
-  goSym (CAS.Apply3 f a1 a2 a3)    = Set.unions [goV f, goV a1, goV a2, goV a3]
-  goSym (CAS.Apply4 f a1 a2 a3 a4) = Set.unions [goV f, goV a1, goV a2, goV a3, goV a4]
+  goV (CAS.CASPoly terms) = foldMap goTerm terms
+  goV (CAS.CASFrac n d)   = goV n <> goV d
+  goTerm (CAS.CASTerm coeff mono) = goV coeff <> foldMap (goSym . fst) mono
+  goSym (CAS.Symbol _ nm _)        = leaf nm
+  goSym (CAS.Apply1 f a1)          = goV f <> goV a1
+  goSym (CAS.Apply2 f a1 a2)       = goV f <> goV a1 <> goV a2
+  goSym (CAS.Apply3 f a1 a2 a3)    = goV f <> goV a1 <> goV a2 <> goV a3
+  goSym (CAS.Apply4 f a1 a2 a3 a4) = goV f <> goV a1 <> goV a2 <> goV a3 <> goV a4
   goSym (CAS.Quote v)              = goV v
-  goSym (CAS.QuoteFunction whnf)   = case prettyFunctionName whnf of
-                                       Just n  -> Set.singleton n
-                                       Nothing -> Set.empty
-  goSym (CAS.FunctionData fn args) = goV fn `Set.union` Set.unions (map goV args)
+  goSym (CAS.QuoteFunction whnf)   = maybe mempty leaf (prettyFunctionName whnf)
+  goSym (CAS.FunctionData fn as)   = goV fn <> foldMap goV as
 
 iterateRulesLoopWithTriggers
   :: [(Set.Set String, EgisonValue)] -> CAS.CASValue -> EvalM CAS.CASValue

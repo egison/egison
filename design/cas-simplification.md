@@ -15,7 +15,7 @@
 
 ---
 
-## 0. 現状の全体像 (2026-07-06 時点)
+## 0. 現状の全体像 (2026-07-07 時点)
 
 ### 0.1 何ができるようになったか
 
@@ -32,9 +32,15 @@
 - **規則抑制クオート `'( )`** — declare rule 書き換えを発火させずに式を構築する。
   イデアル生成元の構築 footgun の恒久解 (クオート 3 兄弟: `` ` `` = 構造 /
   `'f` = 適用 / `'( )` = 理論の凍結)。
-- **sqrt の総合強化** — 負冪の縮約 (|k|≥2、G4 追補)・
-  冪/ペア融合規則の Haskell 化 (`casRewriteSqrt`、G6)・
-  深さ 2 denesting (`√(9−4√5) → √5−2`、G5)。
+- **sqrt/exp の総合強化** — 負冪の縮約 (|k|≥2、G4 追補)・
+  冪/ペア融合規則の Haskell 化 (`casRewriteSqrt`/`casRewriteExp`、G6+追補)・
+  深さ 2 denesting (`√(9−4√5) → √5−2`、G5)・
+  主枝正規化 (符号証明書で負の定数 radicand を i·√(−x) に、G7 案 A;
+  4 項 root-of-unity z₄⁵ = 1 が完全成立)。
+- **(C) 有限体の一行宣言 (G8+q5)** — 体パラメータ化 GB
+  (`groebnerBasisField`/`polyNFField`) と `finiteFieldReduce` の合成で
+  `declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α²+α+1]` が
+  GF(p^k) を第一級の型にする (書籍 casdetail・cas-tower 論文 §6.2 にも反映済み)。
 - **thurston.egi の完全解決** — 従来「120s 予算で未完・最終 assert は一度も
   不成立」だったものが、**13.5s で完走・WCS 不変量 S の検証込みで全 assert 成立**
   (sqrt 負冪修正 5.2× → G6 で累積 46×; S の閉形式一致は quote 関係式の GB を
@@ -55,26 +61,34 @@ op-cost プローブ (sqrt 原子 60 演算) 0.47s (G4 時点 12s)・thurston 13
 | `'( )` クオート | `Desugar.hs` (QuoteSymbolExpr 非変数形 → unNormalizeOps) | test/lib/math/normalize-rules.egi |
 | sqrt 冪/ペア融合 | `hs-src/.../Math/Rewrite.hs` `casRewriteSqrt` | 同上 + mini-test 117 |
 | denesting | `lib/math/algebra/root.egi` `sqrtDenest` | 同上 |
+| exp 冪/積融合 | `hs-src/.../Math/Rewrite.hs` `casRewriteExp` | 同上 |
+| 符号証明書 + i 正規化 (G7) | `lib/math/common/interval.egi`・`root.egi` | 同上 + mini-test 141 |
+| 体パラメータ化 GB + `finiteFieldReduce` (G8/q5) | `lib/math/algebra/groebner.egi` | test/lib/math/groebner.egi・quotient-field.egi |
+| 項単位トリガーガード | `Desugar.hs` + `Primitives.hs` `casContainsAnySymbol` | 挙動契約 (sqrt/exp pin) + rule-count mini-tests |
 | trigIdeal ヘルパ | `lib/math/algebra/groebner.egi` | sample groebner-basis.egi |
 | 公開ショーケース | `sample/math/algebra/groebner-basis.egi`・`sample/math/geometry/thurston.egi` | サンプル自身の assert |
 
-書籍 (egison-book) にも反映済み: casdetail「イデアルの宣言」節・mexpr「規則抑制
-クオート」節・cas 章の GB 実装済み化+denesting 例 (ja/en、全例実測)。
+書籍 (egison-book) にも反映済み: casdetail「イデアルの宣言」節+「商の型」の
+GF(4) 小節・mexpr「規則抑制クオート」節・cas 章の GB 実装済み化+denesting 例
+(ja/en、全例実測)。cas-tower 論文 §6.2/結論にも q5 を反映 (future work 解消)。
 
 ### 0.3 残っているもの
 
-- **G7 (未着手、§3.7 に設計)**: 根号原子の分枝追跡 — 4 項 root-of-unity の
-  完全解決 (現状 10 項 → 6 項の部分達成で停止)。
-- **G0–G8 全フェーズ+q5 合成+項単位トリガーガードまで実装済み** (2026-07-07 完了)。
-  `Poly Q [α]` は「タワー係数スロット拡張」ではなく**商の合成**で解決
-  (type-cas-quotient.md q5 の結論)。
-  残る据え置きは**規則マッチャーの特殊化/索引**のみ —
-  項単位トリガーガード (下記) は実装したが、トリガーを含む項への正当な
-  マッチ試行のコストは残る (該当項が少ない値では効き、多い値では効かない)。
-- 規則エンジンのさらなる単価削減 (項単位トリガー等) — ユーザ定義の重い規則の一般問題。
-- ※ 2026-07-07 消化済み: exp 構造規則の移植 (G6 追補、係数バグ修正込み)・
-  トリガーの頭名絞り込み・thurston の Unbound 警告 (β 前方参照+裸の縮約添字 b、
-  警告 10 → 0)。※ 非問題と判明: `sqrt (x⁻⁸)` は既に x⁻⁴ に簡約される
+**G0–G8 全フェーズ+q5 合成が完了** (2026-07-07)。残る据え置きは 1 件のみ:
+
+- **規則マッチャーの特殊化/頭シンボル索引** — 項単位トリガーガード
+  (G6 追補 2) 実装後も、トリガーを**含む**項への正当なマッチ試行のコストは
+  残る (該当項が少ない値では効き、多い値では効かない)。単一因子 LHS の
+  直接判定か discrimination net が本丸。困る負荷が現れた時に着手。
+
+※ 2026-07-07 消化済み: **G7 = 主枝正規化** (案 A、§3.7 — 符号証明書で
+  負の定数 radicand を i·√(−x) に正規化、z₄⁵ = 1 完全成立、117 は主枝値に更新)・
+  **G8 = 係数体パラメータ化 GB** (§3.8)・**q5 = 商の合成**
+  (`finiteFieldReduce` 一行宣言で GF(p^k) が型に; タワー係数スロット拡張は
+  不採用が正解、type-cas-quotient.md q5)・exp 構造規則の移植 (G6 追補、
+  係数バグ修正込み)・トリガー頭名絞り込み・項単位トリガーガード (G6 追補 2)・
+  thurston の Unbound 警告 (β 前方参照+裸の縮約添字 b、警告 10 → 0)。
+  ※ 非問題と判明: `sqrt (x⁻⁸)` は既に x⁻⁴ に簡約される
   (以前の観測は 'sqrt クオート形による誤認)・sample 内の手書き規則は存在しない。
 
 ### 0.4 主要な設計判断と教訓 (詳細は各節)
