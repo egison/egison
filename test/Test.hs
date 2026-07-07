@@ -1,8 +1,9 @@
 module Main where
 
 import           Control.Monad.IO.Class         (liftIO)
-import           Control.Monad.Trans.Class      (lift)
+import           Data.List                      (sort, (\\))
 import           System.Environment             (getArgs)
+import           System.FilePath.Glob           (glob)
 import           System.IO                      (hFlush, stdout)
 
 import           Test.Framework                 (defaultMainWithArgs)
@@ -10,51 +11,51 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
-import           Language.Egison.AST            (TopExpr(..))
-import           Language.Egison.MathOutput
 
 main :: IO ()
 main = do
-  -- t <- evalRuntimeT defaultOption mathOutputTest
   args <- getArgs
-  flip defaultMainWithArgs args . hUnitTestToTests . test $ 
-    -- Skip mathOutputTest for now due to infinite loop
-    map runTestCase testCases
+  libTests <- discoverLibTests
+  mapM_ (\(f, why) -> putStrLn ("Skipping " ++ f ++ " (" ++ why ++ ")"))
+        skippedLibTests
+  flip defaultMainWithArgs args . hUnitTestToTests . test $
+    map runTestCase (languageTests ++ libTests ++ sampleTests)
 
-testCases :: [FilePath]
-testCases =
+-- | Language-level tests: the surface syntax and the primitives.
+languageTests :: [FilePath]
+languageTests =
   [ "test/syntax.egi"
   , "test/primitive.egi"
-  , "test/lib/core/assoc.egi"
-  , "test/lib/core/base.egi"
-  , "test/lib/core/collection.egi"
-  , "test/lib/core/maybe.egi"
-  , "test/lib/core/number.egi"
-  , "test/lib/core/order.egi"
-  , "test/lib/core/random.egi"
-  , "test/lib/core/sort.egi"
-  , "test/lib/core/string.egi"
-  , "test/lib/math/algebra.egi"
-  , "test/lib/math/gcd.egi"        -- multivariate polynomial GCD reduction (G1)
-  , "test/lib/math/groebner.egi"   -- groebnerBasis / polyNF value-level engine (G2)
-  , "test/lib/math/ideal.egi"      -- declare ideal: rule generation from Groebner bases (G3)
-  , "test/lib/math/normalize-rules.egi" -- '( ) quote, negative sqrt powers, w ideal
-  , "test/lib/math/quotient-field.egi" -- GF(p^k) = cas-quotient x declare-ideal composition (q5)
-  -- , "test/lib/math/analysis.egi"   -- Skipped due to infinite loop
-  -- , "test/lib/math/arithmetic.egi"  -- Skipped due to infinite loop
-  -- , "test/lib/math/tensor.egi"     -- Skipped due to infinite loop
+  ]
 
---  , "sample/mahjong.egi" -- for testing pattern functions
-  , "sample/primes.egi" -- for testing pattern matching with infinitely many results
-  , "sample/sat/cdcl.egi" -- for testing a practical program using pattern matching
+-- | Library unit tests: every test/lib/**/*.egi is discovered, so a new
+-- suite dropped there runs without editing this file.  To exclude one,
+-- add it to skippedLibTests with the reason.
+discoverLibTests :: IO [FilePath]
+discoverLibTests = do
+  files <- glob "test/lib/**/*.egi"
+  return (sort files \\ map fst skippedLibTests)
+
+-- | Discovered files excluded from the run, with the reason recorded
+-- (printed at startup so the exclusion stays visible in the log).
+skippedLibTests :: [(FilePath, String)]
+skippedLibTests =
+  [ ("test/lib/core/io.egi",    "interactive IO demos; its helper functions no longer exist")
+  , ("test/lib/core/shell.egi", "loads lib/core/shell.egi, which was removed")
+  ]
+
+-- | Whole programs registered for the language features they exercise.
+sampleTests :: [FilePath]
+sampleTests =
+  [ "sample/primes.egi"                 -- pattern matching with infinitely many results
+  , "sample/sat/cdcl.egi"               -- a practical pattern-matching program
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
-
-  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- for testing tensor index notation
-  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- for testing tensor index notation and math quote
-  , "sample/math/geometry/curvature-form.egi" -- for testing differential form
-  , "sample/math/number/17th-root-of-unity.egi" -- for testing rewriting of mathematical expressions
-  , "sample/math/geometry/hodge-laplacian-polar.egi" -- for testing "..." in tensor indices
+  , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- tensor index notation
+  , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- tensor indices and math quote
+  , "sample/math/geometry/curvature-form.egi"                 -- differential forms
+  , "sample/math/number/17th-root-of-unity.egi"               -- rewriting of mathematical expressions
+  , "sample/math/geometry/hodge-laplacian-polar.egi"          -- "..." in tensor indices
   ]
 
 runTestCase :: FilePath -> Test
@@ -78,34 +79,3 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   where
     assertEvalM :: EvalM a -> Assertion
     assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
-
-mathOutputTest :: RuntimeM Test
-mathOutputTest = do
-  envResult <- fromEvalT $ do
-    env <- initialEnv
-    -- Load core libraries and math normalization library
-    let coreLibExprs = map Load coreLibraries
-        mathLibExpr = [Load "lib/math/normalize.egi"]
-        allLibExprs = coreLibExprs ++ mathLibExpr
-    evalTopExprsNoPrint env allLibExprs
-  env <- case envResult of
-    Left err -> error $ "Failed to initialize environment: " ++ show err
-    Right e -> return e
-  latexTest <- mathOutputTestLatex env
-  return $ TestList [latexTest]
-
-mathOutputTestLatex :: Env -> RuntimeM Test
-mathOutputTestLatex env = do
-  TestLabel "math output: latex" . TestList <$>
-    mapM (\(x, y, z) -> makeTest x y z)
-      [ ("div", "x / y", "\\frac{x}{y}")
-      ]
- where
-   makeTest = makeMathOutputTest env "latex"
-
-makeMathOutputTest :: Env -> String -> String -> String -> String -> RuntimeM Test
-makeMathOutputTest env lang label expr expectedOutput = do
-  res <- fromEvalT (runExpr env expr)
-  case res of
-    Left _    -> return . TestCase $ assertFailure "Failed to evaluate the expression"
-    Right res -> return . TestCase $ assertEqual label ("#" ++ lang ++ "|" ++ expectedOutput ++ "|#") (prettyMath lang res)
