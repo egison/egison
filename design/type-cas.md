@@ -580,6 +580,11 @@ idealNF(With)     : 生成元を完備化してから polyNF する一発形
 idealEquals       : 差 1 回のゼロ判定によるイデアル法等価 (多項式限定)
 groebnerBasisField / polyNFField : 係数体 (reduce, divide) パラメータ化版
                     (GF(p^k) 用; 既定エンジンは (id, /') の instance)
+finiteFieldReduce : Integer -> [MathValue] -> (MathValue -> MathValue)
+                    -- 係数 mod p と生成元イデアル NF の合成 reduce (GB は構築時に一度計算)。
+                    -- declare cas-quotient にそのまま渡せる: GF(p^k) は
+                    -- `declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α^2+α+1]`
+                    -- の一行 ([type-cas-quotient.md](./type-cas-quotient.md) q5)。p は素数限定 (Fermat 逆元)
 ```
 
 `With` 系の第 1 引数は「**残したい原子**の接頭辞」(残りは名前順で上位に自動延長)。
@@ -780,10 +785,22 @@ declare apply sqrt x :=
       n := denominator x
    in rt 2 (m *' n) /' n
 
--- 3. パターン書き換え規則（実物は一般冪 (sqrt x)^n を扱う term 級規則。
---    概念形は (sqrt $x)^2 = x）
-declare rule auto term term $c ((apply1 #sqrt $aa, $nn) :: $rr) = ...
+-- 3. 構造規則（概念形は (sqrt $x)^2 = x）— 2026-07-07 以降は Haskell 組み込み。
+--    一般冪 (sqrt x)^n の縮約 (負冪 |k|>=2 込み)・ペア融合 sqrt a * sqrt b・
+--    多項式 radicand の content 分離は Math/Rewrite.hs の casRewriteSqrt が担い、
+--    exp の冪/積融合も同様に casRewriteExp (旧 lib の term 級 declare rule は撤去、
+--    組み込み declare 規則は 14 本に減少)。mathNormalize の出口で
+--    casRewriteSymbol = casRewriteDd . casRewriteSqrt . casRewriteExp として適用される
 ```
+
+**主枝正規化 (G7、2026-07-07)**: `rt` は n = 2 のとき、定数 (シンボルを含まない)
+radicand の符号を**区間演算の符号証明書** (`lib/math/common/interval.egi` の
+`signOfConst`、有理区間 + 16/64/256 bit の精度昇格、判定不能なら fail-open) で
+判定し、負が証明されたら `i *' sqrt (- x)` に正規化する。これにより生き残る
+sqrt 原子の radicand は正に限られ、ペア融合 `sqrt a * sqrt b = sqrt (a b)` が
+**主枝で符号選択なしに健全**になる (両方負のときに形式融合が符号を誤る問題の恒久解)。
+4 項 root-of-unity z₄⁵ = 1 がこれで完全成立
+([cas-simplification.md](./cas-simplification.md) §3.7)。
 
 **`declare apply` RHS の型**: 返り値は常に `MathValue`。RHS 内のブランチに型注釈を書く必要はなく、書いても呼び出し側の型推論には影響しない(実装検証のための内部的な注釈として使うことは可能だが、関数インタフェースには漏れない)。
 
@@ -1952,6 +1969,14 @@ simplify expr using trig_pythagorean
 - 効果: 規則を宣言しても、その規則と無関係な計算はほとんど遅くならない
   (`iterateRulesCAS` 導入と Set キャッシュで Riemann S2 が 25s → 5s 程度に短縮された)。
 
+さらに**項単位ガード** (2026-07-07): desugar が生成する規則の一段ステップを
+`casContainsAnySymbol` (短絡走査の primitive) の `IIfExpr` で包み、トリガーを
+含まない**部分値**ではマッチャー自体を起動しない — 値レベルフィルタの細粒度版。
+ANY-of 意味論で健全 (LHS がマッチしうる部分値は必ずパターンの頭シンボルを含む)。
+効果は控えめで正直に記録: 多項式演算が支配する負荷では 8–13%
+([cas-simplification.md](./cas-simplification.md) G6 追補 2)。トリガーを**含む**項への
+正当なマッチ試行の単価が残る本丸 (マッチャー特殊化/頭索引、据え置き)。
+
 ### 関数引数内のパターン分解
 
 関数引数のパターンマッチを含む規則（例: `sin ($a + $b) = sin a * cos b + cos a * sin b`）では、規則の左辺 `sin ($a + $b)` が `SymbolExpr` の `ApplyN` コンストラクタ (`ApplyN (DeclaredMathFunc "sin") [arg]`) にマッチし、その引数（`CASValue`）を `poly` マッチャーで分解して `$a + $b` を束縛する。つまり、`declare rule` の規則適用エンジンは、CAS マッチャー（`poly`, `frac` 等）を内部的に利用して関数引数内のパターンを分解する。
@@ -2409,16 +2434,19 @@ declare rule の発火経路を Haskell 内のループに移行（`iterateRules
 
 ### 残された未着手項目 (新機能)
 
-拡張可能 CAS タワー (`declare cas-type` / `declare cas-subtype`) と商機構 (`declare cas-quotient`) は**実装済**（「ユーザによるタワー拡張」参照）。残りは以下:
+拡張可能 CAS タワー (`declare cas-type` / `declare cas-subtype`) と商機構 (`declare cas-quotient`) は**実装済**（「ユーザによるタワー拡張」参照）。
+**q5 (商型を係数にもつ多項式) と nested-radical denesting も解決済** (2026-07-07):
+GF(p^k) は係数スロット拡張ではなく**商の合成**で成立
+(`finiteFieldReduce`、base = MathValue で多項式も型の中; [type-cas-quotient.md](./type-cas-quotient.md) q5)、
+denesting は G5 の `sqrtDenest` (深さ 2)、4-項 root-of-unity z₄⁵ = 1 は G7 の主枝正規化で完全成立
+([cas-simplification.md](./cas-simplification.md) §3.6–3.7)。残りは以下:
 
 | 項目 | 内容 | 工数見込 |
 |---|---|---|
-| **商型を係数にもつ多項式 (q5)** | `Poly (商型) atoms` の係数拡張 (GF(p^k) 用)。現状は型注釈が受理されても意味を持たない ([type-cas-quotient.md](./type-cas-quotient.md) q5) | 中規模 (optional) |
 | **reshape の関数引数・match 注釈拡張** | 現状 `def x : T := e` と `(e : T)` のみで reshape が挿入される。`def f (x : T) := ...` の引数注釈、`match` clause 注釈、typed `let` も同様に対応 | 中規模 |
 | **観察型 join の subtype-aware 化** | `joinObservedTypes` は文字列ベース heuristic。`Integer` ⊂ 他型は対応済だが、`Frac Integer` ⊕ `Poly Integer [x]` 等の真の lattice join は未対応 | 中規模 |
 | **`lookupDerivative` の Haskell-side primitive 化** | `declare derivative` を辞書 lookup 方式に。型推論を経由せず DerivativeEnv を引く primitive を `Type/Check.hs` に登録 | 中規模 |
 | **Phase 9 declare-key 機構** | `declare-key derivative` 等の汎用宣言キー仕組み。`declare derivative` 等をライブラリ層に押し出す | 中規模 (新構文 + desugar) |
-| **nested radical の denesting** | `sqrt(9 - 4*sqrt(5)) = sqrt(5) - 2` 等の二項平方根の denesting が未実装。`5th-root-of-unity.egi` の 4-項版 `(-1 + sqrt 5 + sqrt(-5-2*sqrt 5) + sqrt(-5+2*sqrt 5))/4)^5 = 1` を解くために必要。3-項版 `((-1+√5+√(-10-2√5))/4)^5 = 1` は B1 (multi-factor sqrt 規則拡張) で解決済。設計は [cas-simplification.md](./cas-simplification.md) §3.6/G5 | 中規模 (代数 denesting) |
 | 異種 Tensor 型の扱い | `Tensor (Poly Integer [sqrt 2])` と `Tensor (Frac Integer)` の join は `Tensor MathValue` にフォールバック。**方針**: Tensor は homogeneous を要求し、異種混在は明示的に統一型に揃えてから格納 | 軽量 (方針既決) |
 | 関数シンボル (`function (x)`) の CAS 型統合 | 既存の関数シンボル機構 ([function-symbol.md](./function-symbol.md)) と新 CAS 型システムの統合方針が未定。当面は既存挙動を保持し、原子集合 (`Poly ... [f x]`) への出現は禁止 | 中規模 (個別設計) |
 | **tensor index 評価バグ** | (1) `pmIndex` の `Sub Nothing`/`Sup Nothing` ケース欠如 → `Inconsistent tensor index` (修正済 Data/Utils.hs:158-159)。(2) `tref` で過剰 index 時の generic error → "Too many tensor indices: tensor has rank N but M indices given" にメッセージ改善済 (Tensor.hs:140-145)。`tribonacci.egi` は `M.* A B` で `B_j_k` (rank-1 に 2 indices) を要求し fail; lib `M.*` のシグネチャ修正 (Matrix → Tensor) または sample 側で `B` を Matrix 化が必要 | 残: lib 修正のみ |

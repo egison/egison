@@ -134,9 +134,11 @@ class Ring a extends AddGroup a, MulMonoid a where ...
 
 **影響**: AST（`ClassDecl.classSuperclasses :: [ConstraintExpr]`）と EnvBuilder は複数スーパークラスに対応済み。パーサーのみが制限。
 
-### 2. スーパークラス制約の伝播が未実装
+### 2. スーパークラス制約の伝播が未実装 → **解消済み**
 
-**現状**: `ClassInfo.classSupers` に格納されたスーパークラス情報が、型推論時に一切参照されていない。
+(下の TODO 表 1-2 のとおり `expandSuperclasses` で実装済み。歴史的記述として残す。)
+
+**当時の現状**: `ClassInfo.classSupers` に格納されたスーパークラス情報が、型推論時に一切参照されていない。
 
 **期待される動作**:
 ```egison
@@ -172,6 +174,38 @@ def (-) {AddGroup a} (x: a) (y: a) : a := x + neg y
 ```
 
 デフォルトメソッドがなくてもトップレベル関数として定義すれば代用できるため、優先度は低い。
+
+### 5. トップレベル def によるメソッド名 shadowing → **警告実装済み (2026-07-07)**
+
+**現象**: `def one : GF4 := ...` のようにクラスメソッド名を素の def で再定義すると、
+ディスパッチ束縛がプログラムの残り全体で置き換わり、**遠い場所の不可解な型エラー**
+として現れる (GF(4) の作業中に発見した footgun)。
+
+**対策**: クラス/インスタンス宣言は `IDefineMany` (レジストリ・ラッパー・辞書) に
+降ろされ、素のメソッド名の `IDefine` を生成しない。よって「メソッド名と一致する
+`IDefine` = 常にユーザーによる shadowing」が構造的に成立し、`inferITopExpr` が
+`warnOnClassMethodShadow` で `ClassMethodShadowWarning` を出す
+(`Type/Infer.hs` / `Type/Error.hs`、検収 mini-test/143)。
+
+**警告が導入直後に検出した実物 2 件 (修正済み)**:
+
+- `lib/core/order.egi` の min/max — Ord のメソッド宣言と総称 `def` の二重定義。
+  呼び出し側はメソッド機構 (制約+メソッド名所有) で解決されており def は重複だった
+  ため削除し、min/max は純粋な Ord メソッドに一本化 (全インスタンス+高階
+  `foldl1 min` を実測)。
+- `test/syntax.egi` の `def gcd` — GCDDomain のメソッドを shadow。しかもその
+  「再帰」呼び出しは実際には Integer インスタンスへのディスパッチだった
+  (自己参照ではなかった)。`euclid` に改名+シグネチャ付与。
+
+### 6. 無注釈トップレベル再帰はシグネチャ必須
+
+**現状**: 型シグネチャのないトップレベル def の本体推論では自己名が typeEnv に
+居らず、再帰呼び出しは `Unbound variable` 警告 + `Any` になり、実行時の dispatch
+失敗 (Pattern match failed) まで進みうる。`DefineWithType` は EnvBuilder が署名を
+先に登録するので再帰できる — lib の再帰関数が全てシグネチャ付きなのはこのため。
+上記 gcd → euclid の改名で顕在化した (旧 `def gcd` はメソッドスキーム経由で
+「たまたま」型が付いていた)。改善案: 本体推論前に自己名を fresh 型変数で束縛する
+(単相再帰) か、「再帰にはシグネチャが必要」という明確な診断を出す。
 
 ---
 

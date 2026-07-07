@@ -49,6 +49,16 @@ assertEqual
    z1'
   ((-1 + sqrt 5 + sqrt (-5 - 2 * sqrt 5) + sqrt (-5 + 2 * sqrt 5)) / 4)
 
---assertEqual "z1'^5 = 1"
---  (z1'^5)
---  1
+-- The check that motivated the radical work: z1'^5 = 1.  After the
+-- principal-branch normalization every sqrt atom has a positive
+-- radicand, the real part collapses arithmetically, and the imaginary
+-- residue vanishes modulo the pair-product relations of the radical
+-- atoms, applied once at this comparison point via idealNF.
+def radicalRels : [MathValue] :=
+  [ '((sqrt (5 + 2 * sqrt 5))^2 - 5 - 2 * sqrt 5)
+  , '((sqrt (5 - 2 * sqrt 5))^2 - 5 + 2 * sqrt 5)
+  , '((sqrt (5 + 2 * sqrt 5)) * (sqrt (5 - 2 * sqrt 5)) - sqrt 5)
+  , '((sqrt 5)^2 - 5)
+  , '(i^2 + 1) ]
+
+assertEqual "z1'^5 = 1" (idealNF radicalRels (z1'^5 - 1)) 0
