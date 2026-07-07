@@ -171,8 +171,17 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
 
   let permissive = not (optTypeCheckStrict opts)
 
-  -- Phases 3-8: Desugar, type-infer, typed-desugar each expression
-  accum <- foldM (processOneExpr opts permissive printValues) emptyAccum exprs'
+  -- Phases 3-8: Desugar, type-infer, typed-desugar each expression.
+  -- The definition names of the whole batch let the inferencer tell a
+  -- forward reference (defined later in this load unit) apart from a
+  -- genuinely unknown name when a variable is unbound.
+  let batchDefNames = Set.fromList
+        [ n | e <- exprs'
+            , Just n <- [case e of
+                           Define (VarWithIndices n' _) _ -> Just n'
+                           DefineWithType tv _            -> Just (typedVarName tv)
+                           _                              -> Nothing] ]
+  accum <- foldM (processOneExpr opts permissive printValues batchDefNames) emptyAccum exprs'
 
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
@@ -370,8 +379,8 @@ buildAndMergeEnvironments exprs opts = do
 -- Per-Expression Pipeline (Phases 3-8)
 --------------------------------------------------------------------------------
 
-processOneExpr :: EgisonOpts -> Bool -> Bool -> PipelineAccum -> TopExpr -> EvalM PipelineAccum
-processOneExpr opts permissive printValues acc expr = do
+processOneExpr :: EgisonOpts -> Bool -> Bool -> Set.Set String -> PipelineAccum -> TopExpr -> EvalM PipelineAccum
+processOneExpr opts permissive printValues batchDefNames acc expr = do
   currentTypeEnv <- getTypeEnv
   currentClassEnv <- getClassEnv
 
@@ -395,7 +404,8 @@ processOneExpr opts permissive printValues acc expr = do
             inferPatternEnv = currentPatternEnv',
             inferPatternFuncEnv = currentPatternFuncEnv',
             inferPatternFuncStructEnv = currentPatternFuncStructEnv',
-            inferCasSubtypeEdges = currentCasEdges
+            inferCasSubtypeEdges = currentCasEdges,
+            inferBatchDefNames = batchDefNames
           }
       (result, warnings, finalState) <- liftIO $
         runInferWithWarningsAndState (inferITopExpr iTopExpr) initState

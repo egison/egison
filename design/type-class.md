@@ -197,15 +197,32 @@ def (-) {AddGroup a} (x: a) (y: a) : a := x + neg y
   「再帰」呼び出しは実際には Integer インスタンスへのディスパッチだった
   (自己参照ではなかった)。`euclid` に改名+シグネチャ付与。
 
-### 6. 無注釈トップレベル再帰はシグネチャ必須
+### 6. 無注釈トップレベル再帰はシグネチャ必須 → **解消済み (2026-07-07、単相再帰)**
 
-**現状**: 型シグネチャのないトップレベル def の本体推論では自己名が typeEnv に
-居らず、再帰呼び出しは `Unbound variable` 警告 + `Any` になり、実行時の dispatch
-失敗 (Pattern match failed) まで進みうる。`DefineWithType` は EnvBuilder が署名を
-先に登録するので再帰できる — lib の再帰関数が全てシグネチャ付きなのはこのため。
-上記 gcd → euclid の改名で顕在化した (旧 `def gcd` はメソッドスキーム経由で
-「たまたま」型が付いていた)。改善案: 本体推論前に自己名を fresh 型変数で束縛する
-(単相再帰) か、「再帰にはシグネチャが必要」という明確な診断を出す。
+**当時の現状**: 型シグネチャのないトップレベル def の本体推論では自己名が
+typeEnv に居らず、再帰呼び出しは `Unbound variable` 警告 + `Any` になり、実行時の
+dispatch 失敗 (Pattern match failed) まで進みえた。`DefineWithType` は EnvBuilder
+が署名を先に登録するので再帰できる — lib の再帰関数が全てシグネチャ付きなのは
+このため。上記 gcd → euclid の改名で顕在化した (旧 `def gcd` はメソッドスキーム
+経由で「たまたま」型が付いていた)。
+
+**解消 (ML 流の単相再帰)**: `inferITopExpr` の IDefine 署名なし分岐が、本体推論の
+**前に**自己名を fresh 型変数の単相スキーム `∀[]. t_rec` で束縛し、推論後に本体の
+型と t_rec を単一化してから一般化する。`def euclid m n := ... euclid ...` が
+警告なしに型付く (検収: test/syntax.egi の無注釈 euclid・mini-test/144)。付随する
+明確化 2 点:
+
+- **多相再帰** (本体内で自分を異なる型で使う) は単一化エラーになり、エラー文脈に
+  「polymorphic recursion needs an explicit type signature」のヒントが付く
+  (Haskell/OCaml と同じ扱い; permissive モードでは従来どおり無型評価へ
+  フォールバックして実行は継続)。
+- **前方参照** (無注釈の相互再帰を含む) は単相自己束縛では救えない (相手がまだ
+  環境に居ない)。従来の generic な Unbound 警告の代わりに、参照先が同一ロード
+  単位内の定義であることを検出して **ForwardReferenceWarning** を出す —
+  「署名はプリパスで収集されるので、参照先に型シグネチャを付ければ前方参照は
+  型付く」という修正方法つき (Eval が batch の定義名集合を
+  `inferBatchDefNames` として推論状態に種付けする)。注釈付きの後方定義への
+  前方参照は従来どおり無警告で型付く。
 
 ---
 

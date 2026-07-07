@@ -79,6 +79,12 @@ data TypeWarning
     -- ^ A top-level definition reuses a class method name (method name, class name).
     --   The definition replaces the dispatching binding, so the method stops
     --   dispatching on its argument type everywhere after this point.
+  | ForwardReferenceWarning String TypeErrorContext
+    -- ^ An unbound name that IS a definition of the current load unit — i.e. it
+    --   is defined later than this reference.  Falls back to Any exactly like
+    --   UnboundVariableWarning, but tells the user the actual fix: signatures
+    --   are collected in a prepass, so annotating the referenced definition
+    --   makes the forward reference typable.
   deriving (Eq, Show, Generic)
 
 -- | Type errors
@@ -288,6 +294,13 @@ formatTypeWarning warn = case warn of
       " and this top-level definition shadows it" ++
       "\n  ('" ++ name ++ "' no longer dispatches on its argument type anywhere after" ++
       " this point; rename the definition)"
+
+  ForwardReferenceWarning name ctx ->
+    formatWithContext ctx $
+      "Warning: '" ++ name ++ "' is defined later in this load unit and is not" ++
+      " visible here yet (assuming type 'Any')" ++
+      "\n  (type signatures are collected before inference, so adding one to '" ++
+      name ++ "' makes this forward reference typable)"
 
 -- | Pretty print a type after renaming its type variables, in order of first
 -- appearance, to @a@, @b@, @c@, ...  Inference-internal names such as @t143@

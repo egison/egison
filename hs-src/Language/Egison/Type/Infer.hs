@@ -71,7 +71,7 @@ import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
-                                              emptyContext, withExpr)
+                                              emptyContext, withContext, withExpr)
 import qualified Language.Egison.Type.Pretty as TP
 import qualified Language.Egison.Type.Subtype as Subtype
 import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstConstraint,
@@ -186,6 +186,11 @@ data InferState = InferState
                                           --   (D1) becomes the promotion target and both operands are
                                           --   reshaped to it (elaboration inserts the coercion; the
                                           --   unifier itself never joins).
+  , inferBatchDefNames :: Set.Set String  -- ^ Names of the definitions of the current load unit,
+                                          --   seeded per batch by Eval.  An unbound variable that is
+                                          --   in this set is a FORWARD reference (were it defined
+                                          --   earlier it would be in the environment), so the warning
+                                          --   can say how to fix it instead of "unbound".
   } deriving (Show)
 
 -- | Shape classification of a matcher-clause hole's next-matcher component,
@@ -203,11 +208,11 @@ data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst []
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst []
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -235,6 +240,18 @@ runInferWithWarningsAndState m st = do
 -- | Add a warning
 addWarning :: TypeWarning -> Infer ()
 addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
+
+-- | The permissive-mode unbound-variable warning, upgraded to the
+-- forward-reference variant when the name is a definition of the current
+-- load unit: it must be defined LATER than this reference (an earlier
+-- definition would already be in the environment), which has a concrete
+-- fix (annotate it -- signatures are collected in a prepass).
+warnUnboundVariable :: String -> TypeErrorContext -> Infer ()
+warnUnboundVariable name ctx = do
+  batchNames <- inferBatchDefNames <$> get
+  if name `Set.member` batchNames
+    then addWarning (ForwardReferenceWarning name ctx)
+    else addWarning (UnboundVariableWarning name ctx)
 
 -- | Clear all accumulated warnings
 clearWarnings :: Infer ()
@@ -506,7 +523,7 @@ lookupVar name = do
           if permissive
             then do
               -- In permissive mode, treat as a warning and return a fresh type variable
-              addWarning $ UnboundVariableWarning name emptyContext
+              warnUnboundVariable name emptyContext
               freshVar "unbound"
             else throwError $ UnboundVariable name emptyContext
 
@@ -532,7 +549,7 @@ lookupVarWithConstraints name = do
           if permissive
             then do
               -- In permissive mode, treat as a warning and return a fresh type variable
-              addWarning $ UnboundVariableWarning name emptyContext
+              warnUnboundVariable name emptyContext
               t <- freshVar "unbound"
               return (t, [])
             else throwError $ UnboundVariable name emptyContext
@@ -3987,16 +4004,40 @@ inferITopExpr topExpr = case topExpr of
         -- No explicit type signature: infer and generalize as before
         clearConstraints  -- Start with fresh constraints for this expression
         clearDeferredHoleChecks
-        (exprTI, subst) <- inferIExpr expr
+        -- Monomorphic recursion: bind the definition's own name to a fresh
+        -- type variable before inferring the body, so recursive calls
+        -- constrain it.  (Previously the name was unbound in its own body:
+        -- the calls warned, fell to Any, and could fail at runtime.  The
+        -- accident that hid this: a def shadowing a class method looked
+        -- its own name up in the METHOD's scheme.)  The body's type is
+        -- unified with the placeholder below, so polymorphic recursion
+        -- still needs an explicit signature, as in ML.
+        selfTy <- freshVar "rec"
+        modify $ \s -> s { inferEnv = extendEnv var (Forall [] [] selfTy) (inferEnv s) }
+        (exprTI, subst1) <- inferIExpr expr
         -- Deferred matcher-hole admissibility (paper PP-Con) at the final types
-        flushDeferredHoleChecks subst
+        flushDeferredHoleChecks subst1
         -- Apply the substitution to the stored expression, exactly as the
         -- signature branch does.  Without this, node schemes inside the
         -- expression (notably matcher data-clause arms) keep stale type
         -- variables in their constraints, and the generalized scheme below
         -- is built from variables that no longer match the nodes —
         -- TypeClassExpand then emits unbound dictionary references.
-        exprTI' <- applySubstToTIExprM subst exprTI
+        exprTI0 <- applySubstToTIExprM subst1 exprTI
+        -- Tie the placeholder to the inferred body type.  For a
+        -- non-recursive body the placeholder is still free and the
+        -- unification just discharges it; for a recursive one this is
+        -- where the recursive uses meet the definition.
+        selfTy' <- applySubstWithConstraintsM subst1 selfTy
+        let Var selfName _ = var
+            recCtx = withContext
+              ("in the definition of '" ++ selfName ++
+               "': the type of a recursive use does not match the body" ++
+               " (polymorphic recursion needs an explicit type signature)")
+              (withExpr (prettyStr expr) emptyContext)
+        subst2 <- unifyTypesWithContext selfTy' (tiExprType exprTI0) recCtx
+        let subst = composeSubst subst2 subst1
+        exprTI' <- applySubstToTIExprM subst2 exprTI0
         let exprType = tiExprType exprTI'
         constraints <- getConstraints  -- Collect constraints from type inference
 

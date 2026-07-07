@@ -175,9 +175,11 @@ assertEqual "function definition"
   (someFunction 1 2 3)
   7
 
--- (named to avoid shadowing GCDDomain's method `gcd`, which now warns;
--- recursion needs the signature so the self-reference is typable)
-def euclid (m: Integer) (n: Integer) : Integer :=
+-- (named to avoid shadowing GCDDomain's method `gcd`, which warns;
+-- unannotated, on purpose: the definition's own name is bound to a
+-- monomorphic placeholder during body inference, so top-level
+-- recursion needs no signature)
+def euclid m n :=
   if m >= n then
             if n = 0 then m
                      else euclid n (m % n)
