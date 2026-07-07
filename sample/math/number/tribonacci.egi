@@ -23,12 +23,9 @@ assertEqual "initial vector B"
   B
   [| 1, 0, 0 |]
 
--- Matrix-vector multiplication: lib's M.* assumes Matrix*Matrix and would
--- index the right operand twice (`t_j_k`), but a Vector has only one
--- dimension, so a local helper that contracts on the shared index is used.
-def MV.* (a : Matrix Integer) (b : Vector Integer) : Vector Integer :=
-  withSymbols [i, j] (a~i~j . b_j)
-
+-- Matrix-vector multiplication comes from the library: M.* is
+-- Matrix*Matrix (it indexes the right operand twice), MV.* contracts
+-- on the single shared index.
 assertEqual "A * B"
   (MV.* A B)
   [| 1, 1, 0 |]

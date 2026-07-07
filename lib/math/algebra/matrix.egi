@@ -43,8 +43,14 @@ def M.inverse (m: Matrix MathValue) : Matrix MathValue :=
 def M.* (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] (s~i~j . t_j_k)
 
-def M.*' (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue := 
+def M.*' (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue :=
   withSymbols [i, j, k] (s~i~j .' t_j_k)
+
+-- Matrix-vector multiplication.  M.* indexes its right operand twice
+-- (t_j_k), which requires rank 2; a vector operand contracts on the
+-- single shared index instead.
+def MV.* (s: Matrix MathValue) (t: Vector MathValue) : Vector MathValue :=
+  withSymbols [i, j] (s~i~j . t_j)
 
 def M.power (t: Matrix MathValue) (k: Integer) : Matrix MathValue := 
   foldl M.* t (take (k - 1) (repeat1 t))

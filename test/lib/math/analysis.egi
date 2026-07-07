@@ -4,20 +4,17 @@
 -- forms: the Pythagorean auto rule rewrites cos^2 to 1 - sin^2, and
 -- casRewriteExp merges exp products and powers).
 --
--- Two original cases are deliberately absent:
---   * "d/d - case 2" (d/d (a ^ (x ^ 2)) x): a symbolic-base power
---     evaluates to the opaque applied form '^ a (x^2), which the
---     derivative engine treats as constant and differentiates to 0.
---     Needs a derivative rule for u^v before it can be asserted.
---   * the function-symbol cases (multivariateTaylorExpansion of f x y,
---     d/d f y = userRefs f [y]): the typed integration of function
---     symbols is undecided (design/function-symbol.md); d/d yields the
---     positional index f|2 while userRefs yields the named f|(y).
+-- The function-symbol cases of the original (multivariateTaylorExpansion
+-- of f x y, d/d f y = userRefs f [y]) are deliberately absent: the typed
+-- integration of function symbols is undecided (design/function-symbol.md);
+-- d/d yields the positional index f|2 while userRefs yields the named f|(y).
 --
 
-declare symbol x, z
+declare symbol x, z, a
 
 assertEqual "d/d - case 1" (d/d (x ^ 2) x) (2 * x)
+
+assertEqual "d/d - case 2" (d/d (a ^ (x ^ 2)) x) (2 * a ^ (x ^ 2) * log a * x)
 
 assertEqual "d/d - case 3" (d/d (cos x * sin x) x) (1 - 2 * sin x ^ 2)
 

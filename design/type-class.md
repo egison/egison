@@ -116,9 +116,12 @@ Num a                   (base.egi) ← スーパークラスなし
 
 ## 実装の不備
 
-### 1. 複数スーパークラスのパースが未対応
+### 1. 複数スーパークラスのパースが未対応 → **解消済み**
 
-**現状**: パーサーが `extends` の後に単一のクラス名しか受け付けない。
+(下の TODO 表 1-1 のとおり実装済み。`class MyRing a extends MyAdd a, MyMul a` が
+パース・推論・ディスパッチまで通ることを実測確認 (2026-07-07)。歴史的記述として残す。)
+
+**当時の現状**: パーサーが `extends` の後に単一のクラス名しか受け付けない。
 
 **該当箇所**: `NonS.hs:294-295`
 ```haskell
@@ -149,9 +152,13 @@ def f {Ord a} (x: a) (y: a) : Bool := x == y
 
 **該当箇所**: `Infer.hs` の `addConstraints` は制約を蓄積するのみで、スーパークラスの展開を行わない。
 
-### 3. `where` なしインスタンスがパースできない
+### 3. `where` なしインスタンスがパースできない → **解消済み**
 
-**現状**: `reserved "where"` が必須（`NonS.hs:342`）。
+(下の TODO 表 1-3 のとおり実装済み。class/instance とも `where` は `option` になっており、
+`class Marker a` + `instance Marker Integer` のマーカー運用が通ることを実測確認 (2026-07-07)。
+歴史的記述として残す。)
+
+**当時の現状**: `reserved "where"` が必須（`NonS.hs:342`）。
 
 **必要な構文**:
 ```egison
@@ -160,9 +167,18 @@ instance Ring Integer   -- where なし（マーカーインスタンス）
 
 **回避策**: `instance Ring Integer where` + 空のメソッドリストは動作する。設計ドキュメント側でこの記法を採用すれば実装変更は不要。
 
-### 4. デフォルトメソッドが未使用
+### 4. デフォルトメソッドが未使用（実装の不備で唯一残るもの）
 
-**現状**: パーサーは `:=` によるデフォルト実装を読み取り、AST の `ClassMethod.methodDefault :: Maybe Expr` に格納するが、型推論・展開フェーズで使われない。
+**現状**: パーサーは `:=` によるデフォルト実装を読み取り、AST の `ClassMethod.methodDefault :: Maybe Expr` に格納するが、型推論・展開フェーズで使われない (2026-07-07 時点で parser/AST 以外に `methodDefault` の参照ゼロを確認)。
+
+**実装計画 (据え置き、中規模)**: `Types.ClassInfo` は型しか持たないので (surface `Expr`
+を Type 層に置くのは層違反)、Desugar が `ClassDeclExpr` を処理する際にデフォルト本体を
+`EvalState` のマップ (メソッド名 → (クラス名, パラメータ, 本体 Expr)) に登録し、
+`InstanceDeclExpr` の desugar (`makeDictDef`) で「インスタンスが提供しないメソッド」に
+ついてこのマップから通常のインスタンスメソッドと同じ経路 (`desugarInstanceMethod`) で
+定義を生成して辞書に詰める。辞書のキーが常に全メソッドを持つようになるので、
+ディスパッチ時の欠落キー実行時エラーも同時に消える。型付けはインスタンス型での通常推論に
+乗る。後続バッチのインスタンスにも効かせるため EvalState 永続が必要。
 
 **将来必要になる場面**:
 ```egison

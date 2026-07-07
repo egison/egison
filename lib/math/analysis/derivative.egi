@@ -94,6 +94,15 @@ def chainPartialDiffBuiltin (v : MathValue) (dx : MathValue) : MathValue :=
     -- function expression
     | func _ $args ->
        sum (map2 (\s r -> (userRefs v [s]) * partialDiff r dx) (between 1 (length args)) args)
+    -- general power u^w with a symbolic exponent: an integer exponent is
+    -- a monomial and is decomposed by the Term instance, and e^w never
+    -- arrives either ((^) rewrites it to exp w), so what reaches here is
+    -- the opaque apply2 form.  (u^w)' = u^w * (w' * log u + w * u' / u);
+    -- previously this fell to the final 0 (silently treated as constant).
+    | apply2 #(^) $u $w ->
+        let u' := partialDiff u dx
+            w' := partialDiff w dx
+         in v * (w' * log u + w * u' / u)
     -- quote
     | quote $g ->
       let g' := partialDiff g dx
