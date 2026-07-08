@@ -87,6 +87,17 @@ assertEqual "divergence"
   (∂/∂ f3 x + ∂/∂ g3 y + ∂/∂ h3 z)
 
 --
+-- Curl (uses rot from lib/math/algebra/vector.egi)
+-- Standard convention: (rot A)_i = eps_ijk d(A_k)/d(x_j),
+-- i.e. (rot A)_1 = dA_3/dx_2 - dA_2/dx_3 = dh/dy - dg/dz.
+--
+assertEqual "curl"
+  (rot [| f3, g3, h3 |] [| x, y, z |])
+  [| ∂/∂ h3 y - ∂/∂ g3 z,
+     ∂/∂ f3 z - ∂/∂ h3 x,
+     ∂/∂ g3 x - ∂/∂ f3 y |]
+
+--
 -- Taylor Expansion
 --
 def multivariateTaylorExpansion fexpr xs ys :=
