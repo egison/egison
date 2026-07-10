@@ -17,6 +17,12 @@
 > **受け入れ**: formurae の LBM を functionSymbol 族(38 defs → map 2行)+
 > feq の let 復活で再生成し **.fmr バイト一致**・チェック green。
 
+> **2026-07-11 追補**: `generateTensor` 内の `function (...)` は、定義左辺で
+> 省略された成分位置を既定の下添字として関数シンボル名へ補完する。
+> したがってベクトル場は `def E := generateTensor ... [3]` だけで
+> `E_1, E_2, E_3` を生成でき、`def E := E_#` のような別名は不要になった。
+> 確定仕様は [function-symbol.md](function-symbol.md) を参照。
+
 現行仕様は [function-symbol.md](function-symbol.md)(2026-07-07 位置正準形で確定)。
 本文書は、その仕様を**最大のヘビーユーザである Formurae**
 (`PL/formurae`: .fme → fec → 埋め込み Egison → CAS 展開 → Formura)の実運用に
@@ -27,8 +33,8 @@
 - 格子場 = 座標記号上の抽象関数 `def u := function (x, y, z)`。
 - 格子参照 = `substitute` による座標シフトが生む未解釈適用 `u (x+hx) y z`。
 - プリンタ = `func $g $args` へのパターンマッチ+オフセット厳密復元 `(arg−x)/h`。
-- 添字つき関数族 = `def E_i := generateTensor (\[i] -> function (x,y,z)) [3]`
-  (定義文脈が名前と添字を捕捉)。
+- 添字つき関数族 = `def E := generateTensor (\[i] -> function (x,y,z)) [3]`
+  (定義文脈が名前を捕捉し、省略された成分位置は下添字として補完)。
 
 この設計自体は成功している(23例・全て実測検証済み)。以下は「うまくいって
 いるがハックで支えている」箇所と「これ以上進めない」箇所の列挙。

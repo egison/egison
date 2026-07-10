@@ -483,7 +483,7 @@ data MathFuncRef = DeclaredMathFunc String
 
 - `function (x, y)` は内部的に `Function name [args]` という独立構成子で保持される ([funcsym.tex:121-131](../egison-book/ja/funcsym.tex#L121-L131))
 - `f 0 1` のような関数シンボルへの「適用」は通常の関数適用ではなく **引数リストの置換** ([funcsym.tex:48-55](../egison-book/ja/funcsym.tex#L48-L55))。結果も `Function f [0, 1]` のまま `FunctionData` 構成子に留まる
-- 関数シンボルの名前は `def g := function (...)` の左辺の単純な識別子 (`g`) に固定される ([funcsym.tex:161-163](../egison-book/ja/funcsym.tex#L161-L163))。よって `FunctionData` の第 1 引数は `String` で十分
+- 関数シンボルの基底名は `def g := function (...)` の左辺の単純な識別子 (`g`) に固定される ([funcsym.tex:161-163](../egison-book/ja/funcsym.tex#L161-L163))。`generateTensor` 内では全成分位置が名前の添字になり、左辺で省略された位置は下添字として補完される ([function-symbol.md](./function-symbol.md#テンソル成分の名前-2026-07-11-仕様確定))
 
 **`MathFuncRef` を別型にする利点**: `ApplyN` の第 1 引数の許容範囲が型レベルで「`declare mathfunc` 宣言済み関数」に絞られる。`lookupDerivative` は `MathFuncRef → String → Maybe CASValue` で曖昧性なくキーが取れる。ラムダや任意の関数を `ApplyN` の関数側に置けないので、不変条件が型で保証される。
 

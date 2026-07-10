@@ -67,6 +67,47 @@ withSymbols [i, j]
     [|[|101, 110|], [|202, 220|], [|303, 330|]|]_j_i)
 
 assertEqual
+  "generate_tensor completes omitted function-symbol indices"
+  (let E := generateTensor (\[i] -> function (x, y, z)) [3]
+    in show E)
+  "[| E_1 x y z, E_2 x y z, E_3 x y z |]"
+
+assertEqual
+  "generate_tensor completes all omitted function-symbol indices"
+  (let T := generateTensor (\[i, j] -> function (x, y, z)) [2, 3]
+    in show T_2_3)
+  "T_2_3 x y z"
+
+assertEqual
+  "generate_tensor preserves explicit variance and completes omitted axes"
+  (let H~i := generateTensor (\[i, j] -> function (x, y, z)) [2, 2]
+    in show H~2_1)
+  "H~2_1 x y z"
+
+assertEqual
+  "nested generate_tensor accumulates function-symbol indices"
+  (let A := generateTensor
+              (\[i] -> generateTensor (\[j] -> function (x)) [2])
+              [2]
+    in show A)
+  "[| [| A_1_1 x, A_1_2 x |], [| A_2_1 x, A_2_2 x |] |]"
+
+assertEqual
+  "nested generate_tensor preserves completed explicit indices"
+  (let A~i := generateTensor
+                (\[i] -> generateTensor (\[j] -> function (x)) [2])
+                [2]
+    in show (withSymbols [i] A~i))
+  "[| [| A~1_1 x, A~1_2 x |], [| A~2_1 x, A~2_2 x |] |]"
+
+assertEqual
+  "generate_tensor does not rename referenced function symbols"
+  (let f := function (x, y)
+    in let R := generateTensor (\_ -> f) [3]
+        in show R)
+  "[| f x y, f x y, f x y |]"
+
+assertEqual
   "generate_tensor by using function expr"
   (let g_i_j := (generateTensor
                   (\match as list integer with

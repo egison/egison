@@ -36,6 +36,44 @@ def f := function (x)        -- 1変数関数 f(x)
 def g := function (x, y)     -- 2変数関数 g(x, y)
 ```
 
+### テンソル成分の名前 (2026-07-11 仕様確定)
+
+`generateTensor` の中で `function (...)` を評価すると、テンソルを束縛する
+変数の基底名と、生成中の全成分位置から関数シンボル名を構成する。
+
+```egison
+def E := generateTensor (\[i] -> function (x, y, z)) [3]
+-- [| E_1 x y z, E_2 x y z, E_3 x y z |]
+
+def T := generateTensor (\[i, j] -> function (x, y, z)) [2, 3]
+-- T_1_1, T_1_2, ..., T_2_3
+```
+
+定義左辺に明示された添字の上下は維持し、`generateTensor` のrankに対して
+不足する位置は下添字で補完する。
+
+```egison
+def H~i := generateTensor (\[i, j] -> function (x, y, z)) [2, 2]
+-- H~1_1, H~1_2, H~2_1, H~2_2
+```
+
+`generateTensor` がネストする場合、外側ですでに確定した位置を保持し、内側の
+位置を後ろへ追加する。したがってrank-1生成器を2段ネストしたbare定義では、
+成分名は `A_1_1`, `A_1_2`, ... のようになる。
+
+この規則は、生成器の中で新しく評価される `function (...)` だけに適用する。
+既存の関数シンボルを成分として参照した場合、その名前は変更しない。
+
+```egison
+def f := function (x, y, z)
+def E := generateTensor (\_ -> f) [3]
+-- [| f x y z, f x y z, f x y z |]
+```
+
+したがって、添字を省略したテンソル定義では `def E := E_#` のような別名は
+不要である。テンソル値の省略軸と関数シンボル名の不足添字は、どちらも
+共変を既定値として扱う。
+
 ## 内部表現
 
 Haskell側: `FunctionData ScalarData [ScalarData]`

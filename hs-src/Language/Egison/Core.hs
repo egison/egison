@@ -550,12 +550,22 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
  where
   evalWithIndex :: Env -> [CASValue] {- index -} -> EvalM ObjectRef
   evalWithIndex env@(Env frame maybe_vwi pfEnv) ms = do
-    let env' = maybe env (\(name, indices) -> Env frame (Just (name, zipWith changeIndex indices ms)) pfEnv) maybe_vwi
+    let env' = maybe env (\(name, indices) ->
+          -- Omitted tensor axes are covariant by default.  Complete the
+          -- definition context so function-symbol components of a bare
+          -- tensor binding still receive their component-position names.
+          -- Preserve positions completed by outer generateTensor calls.
+          Env frame (Just (name, fillIndices indices ms)) pfEnv) maybe_vwi
     fn <- evalExprShallow env' fnExpr
     newApplyObjThunkRef env fn [WHNF (Value (Collection (Sq.fromList (map CASData ms))))]
-  changeIndex :: Index (Maybe a) -> a -> Index (Maybe a)
-  changeIndex (Sup Nothing) m = Sup (Just m)
-  changeIndex (Sub Nothing) m = Sub (Just m)
+  fillIndices :: [Index (Maybe a)] -> [a] -> [Index (Maybe a)]
+  fillIndices indices [] = indices
+  fillIndices [] ms = map (Sub . Just) ms
+  fillIndices (Sup Nothing : indices) (m : ms) =
+    Sup (Just m) : fillIndices indices ms
+  fillIndices (Sub Nothing : indices) (m : ms) =
+    Sub (Just m) : fillIndices indices ms
+  fillIndices (index : indices) ms = index : fillIndices indices ms
 
 evalExprShallow env (ITensorContractExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
@@ -1687,4 +1697,3 @@ makeBindings vs refs = zipWithM makeBinding vs refs >>= return . concat
 
 makeBindings' :: [String] -> [ObjectRef] -> [Binding]
 makeBindings' xs = zip (map stringToVar xs)
-
