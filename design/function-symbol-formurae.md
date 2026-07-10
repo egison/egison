@@ -19,7 +19,7 @@
 
 現行仕様は [function-symbol.md](function-symbol.md)(2026-07-07 位置正準形で確定)。
 本文書は、その仕様を**最大のヘビーユーザである Formurae**
-(`PL/formurae`: .fe → fec → 埋め込み Egison → CAS 展開 → Formura)の実運用に
+(`PL/formurae`: .fme → fec → 埋め込み Egison → CAS 展開 → Formura)の実運用に
 突き合わせ、設計改良の候補を優先度つきで整理する。**提案であり仕様ではない。**
 
 ## 0. Formurae が関数シンボルに課している役割
@@ -45,7 +45,7 @@
   (方向表への map で57本の式は生成できるのに、場の宣言だけが map できない)。
 - `examples/mhd_ot/mhd_ot.egi`: 中間流束場 `fmx1..` 等を**1本ずつ def**。
 - fec も local 場ごとに `def w := function (x, y, z)` を1行ずつ**emit する**しかない。
-- .fe ロードマップの **`field f : family 19`(LBM の表層化)がここでブロック**
+- .fme ロードマップの **`field f : family 19`(LBM の表層化)がここでブロック**
   されている(formurae/DSL-DESIGN.md の残項目)。
 
 ### F2. 名前・添字の構造的アクセスがない
@@ -108,7 +108,7 @@ def fs : [MathValue] :=
   か、名前文字列 "E_1" を Symbol+Sub に正規化するかは要決定
   (F2 とセットで決めるのがよい)。
 - **効果**: LBM/MHD の def 羅列消滅、fec の local emit 簡素化、
-  `.fe` の `field f : family 19` が実装可能に。
+  `.fme` の `field f : family 19` が実装可能に。
 
 ### B. 型レベル原子集合の開放(F4; 設計済みの「必要時」が来た)
 
