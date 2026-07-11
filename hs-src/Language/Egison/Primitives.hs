@@ -118,6 +118,7 @@ primitives =
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
+        , ("tensorIndices", tensorIndices')
         , ("tensorToList", tensorToList')
         , ("dfOrder", dfOrder')
         ]
@@ -134,6 +135,34 @@ tensorShape' = lazyOneArg tensorShape''
   tensorShape'' (ITensor (Tensor ns _ _)) =
     return . Value . Collection . Sq.fromList $ map toEgison ns
   tensorShape'' _ = return . Value . Collection $ Sq.fromList []
+
+tensorIndices' :: String -> LazyPrimitiveFunc
+tensorIndices' = lazyOneArg tensorIndices''
+ where
+  tensorIndices'' (Value (TensorData (Tensor _ _ is))) =
+    Value . Collection . Sq.fromList <$> publicTensorIndices is
+  tensorIndices'' (ITensor (Tensor _ _ is)) =
+    Value . Collection . Sq.fromList <$> publicTensorIndices is
+  tensorIndices'' _ = return . Value . Collection $ Sq.fromList []
+
+  -- DF indices are evaluator bookkeeping for anonymous dimensions.  Their
+  -- public representation is the gap between tensorShape and tensorIndices.
+  -- Multi-indices are expanded by desugaring and must not survive in a tensor.
+  publicTensorIndices :: [Index EgisonValue] -> EvalM [EgisonValue]
+  publicTensorIndices [] = return []
+  publicTensorIndices (Sub i : is) =
+    (InductiveData "SubIndex" [i] :) <$> publicTensorIndices is
+  publicTensorIndices (Sup i : is) =
+    (InductiveData "SupIndex" [i] :) <$> publicTensorIndices is
+  publicTensorIndices (SupSub i : is) =
+    (InductiveData "DiagIndex" [i] :) <$> publicTensorIndices is
+  publicTensorIndices (User i : is) =
+    (InductiveData "UserIndex" [i] :) <$> publicTensorIndices is
+  publicTensorIndices (DF _ _ : is) = publicTensorIndices is
+  publicTensorIndices (MultiSub {} : _) =
+    throwErrorWithTrace (EgisonBug "tensorIndices encountered an internal multi-subscript")
+  publicTensorIndices (MultiSup {} : _) =
+    throwErrorWithTrace (EgisonBug "tensorIndices encountered an internal multi-superscript")
 
 tensorToList' :: String -> LazyPrimitiveFunc
 tensorToList' = lazyOneArg tensorToList''

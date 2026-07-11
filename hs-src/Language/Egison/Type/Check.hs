@@ -122,6 +122,8 @@ builtinTypes = concat
       , ("mapFracAll", Forall [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
+      , ("tensorIndices", forallA $
+          TFun (TTensor (TVar a)) (TCollection (TInductive "TensorIndex" [])))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))
       , ("dfOrder", forallA $ TFun (TTensor (TVar a)) TInt)
       ]

@@ -13,6 +13,36 @@
 
 declare symbol x, y, z
 
+assertEqual
+  "bare tensor signature keeps anonymous order"
+  (tensorSignature [|1, 2|], dfOrder [|1, 2|])
+  (([2], []), 1)
+
+withSymbols [i]
+  (assertEqual
+    "tensor signature exposes a subscript"
+    (tensorSignature [|1, 2|]_i, dfOrder [|1, 2|]_i)
+    (([2], [SubIndex i]), 0))
+
+withSymbols [i]
+  (assertEqual
+    "tensor signature exposes a superscript"
+    (tensorSignature [|1, 2|]~i, dfOrder [|1, 2|]~i)
+    (([2], [SupIndex i]), 0))
+
+withSymbols [i]
+  (assertEqual
+    "tensor signature exposes a diagonal product index"
+    (tensorSignature ([|1, 2|]~i * [|3, 4|]_i),
+     dfOrder ([|1, 2|]~i * [|3, 4|]_i))
+    (([2], [DiagIndex i]), 0))
+
+assertEqual
+  "withSymbols removes temporary tensor indices on exit"
+  (tensorSignature (withSymbols [i] [|1, 2|]_i),
+   dfOrder (withSymbols [i] [|1, 2|]_i))
+  (([2], []), 1)
+
 withSymbols [i, j, k]
   (assertEqual
     "Tensor product - case 1"

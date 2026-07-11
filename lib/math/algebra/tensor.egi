@@ -4,10 +4,19 @@
 --
 --
 
+inductive TensorIndex :=
+  | SubIndex MathValue
+  | SupIndex MathValue
+  | DiagIndex MathValue
+  | UserIndex MathValue
+
 infixl expression 7 .
 infixl expression 7 .'
 
 def tensorOrder {a} (A: Tensor a) : Integer := length (tensorShape A)
+
+def tensorSignature {a} (A: Tensor a) : ([Integer], [TensorIndex]) :=
+  (tensorShape A, tensorIndices A)
 
 def unitTensor (ns: [Integer]) : Tensor Integer := generateTensor kroneckerDelta ns
 

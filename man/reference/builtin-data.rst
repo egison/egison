@@ -171,6 +171,21 @@ You can get the shape of a tensor with ``tensorShape``.
 
    tensorShape [| 1, 2, 3, 4, 5 |] ---> [5]
 
+``tensorIndices`` returns the tensor's currently attached symbolic indices as
+structured ``TensorIndex`` values.  Anonymous axes are not included; their
+number is available through ``dfOrder``.  The standard tensor library defines
+``tensorSignature`` as the pair of ``tensorShape`` and ``tensorIndices``.
+
+::
+
+   declare symbol i, j
+
+   tensorIndices [| 1, 2 |]_i              ---> [SubIndex i]
+   tensorIndices [| 1, 2 |]~i             ---> [SupIndex i]
+   tensorSignature [| [| 1, 2 |],
+                       [| 3, 4 |] |]_i~j   ---> ([2, 2], [SubIndex i, SupIndex j])
+   dfOrder [| [| 1, 2 |], [| 3, 4 |] |]   ---> 2
+
 Multi-dimensional tensors can be defined by nesting tensors.
 
 ::
