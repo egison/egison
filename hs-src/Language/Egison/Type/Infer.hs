@@ -2296,32 +2296,37 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
-    let baseType = tiExprType baseTI
-        finalS = composeSubst s2 s1
-        -- Subrefs requires base to be a Tensor type
-        -- Force base type to be Tensor if not already
-        tensorBaseType = case baseType of
-          TTensor elemType -> TTensor elemType  -- Already Tensor
-          otherType -> TTensor otherType  -- Wrap non-Tensor in Tensor
-        -- Result is also a Tensor type
-        resultType = tensorBaseType
-    return (mkTIExpr resultType (TISubrefsExpr override baseTI refTI), finalS)
+    let s12 = composeSubst s2 s1
+    -- Constrain the base itself, not only the result.  Otherwise an
+    -- unconstrained function parameter remains scalar and the later tensor
+    -- elaboration maps the whole function elementwise before evaluation.
+    elemType <- freshVar "subrefElem"
+    baseType <- applySubstWithConstraintsM s12 (tiExprType baseTI)
+    s3 <- unifyTypesWithContext baseType (TTensor elemType) exprCtx
+    let finalS = composeSubst s3 s12
+    finalElemType <- applySubstWithConstraintsM finalS elemType
+    updatedBaseTI <- applySubstToTIExprM finalS baseTI
+    updatedRefTI <- applySubstToTIExprM finalS refTI
+    let resultType = normalizeTensorType (TTensor finalElemType)
+    return (mkTIExpr resultType
+              (TISubrefsExpr override updatedBaseTI updatedRefTI), finalS)
   
   -- Suprefs expression (superscript references)
   ISuprefsExpr override baseExpr refExpr -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     (baseTI, s1) <- inferIExprWithContext baseExpr exprCtx
     (refTI, s2) <- inferIExprWithContext refExpr exprCtx
-    let baseType = tiExprType baseTI
-        finalS = composeSubst s2 s1
-        -- Suprefs requires base to be a Tensor type
-        -- Force base type to be Tensor if not already
-        tensorBaseType = case baseType of
-          TTensor elemType -> TTensor elemType  -- Already Tensor
-          otherType -> TTensor otherType  -- Wrap non-Tensor in Tensor
-        -- Result is also a Tensor type
-        resultType = tensorBaseType
-    return (mkTIExpr resultType (TISuprefsExpr override baseTI refTI), finalS)
+    let s12 = composeSubst s2 s1
+    elemType <- freshVar "suprefElem"
+    baseType <- applySubstWithConstraintsM s12 (tiExprType baseTI)
+    s3 <- unifyTypesWithContext baseType (TTensor elemType) exprCtx
+    let finalS = composeSubst s3 s12
+    finalElemType <- applySubstWithConstraintsM finalS elemType
+    updatedBaseTI <- applySubstToTIExprM finalS baseTI
+    updatedRefTI <- applySubstToTIExprM finalS refTI
+    let resultType = normalizeTensorType (TTensor finalElemType)
+    return (mkTIExpr resultType
+              (TISuprefsExpr override updatedBaseTI updatedRefTI), finalS)
   
   -- Userrefs expression (user-defined references)
   IUserrefsExpr override baseExpr refExpr -> do

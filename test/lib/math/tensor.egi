@@ -43,6 +43,15 @@ withSymbols [i]
      dfOrder ([|1, 2|]~i * [|3, 4|]_i))
     (([2], [DiagIndex i]), 0))
 
+def traceWithDynamicRefs X :=
+  withSymbols [i]
+    sum (contract (subrefs (suprefs X [i]) [i]))
+
+assertEqual
+  "dynamic tensor refs preserve indices on a function parameter"
+  (traceWithDynamicRefs [| [|11, 12|], [|21, 22|] |])
+  33
+
 assertEqual
   "withSymbols removes temporary tensor indices on exit"
   (tensorSignature (withSymbols [i] [|1, 2|]_i),
