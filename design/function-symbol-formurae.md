@@ -23,7 +23,8 @@
 > `E_1, E_2, E_3` を生成でき、`def E := E_#` のような別名は不要になった。
 > 確定仕様は [function-symbol.md](function-symbol.md) を参照。
 
-現行仕様は [function-symbol.md](function-symbol.md)(2026-07-07 位置正準形で確定)。
+現行仕様は [function-symbol.md](function-symbol.md)(導関数索引は2026-07-07、
+tensor成分命名は2026-07-11に確定)。
 本文書は、その仕様を**最大のヘビーユーザである Formurae**
 (`PL/formurae`: .fme → fec → 埋め込み Egison → CAS 展開 → Formura)の実運用に
 突き合わせ、設計改良の候補を優先度つきで整理する。**提案であり仕様ではない。**
