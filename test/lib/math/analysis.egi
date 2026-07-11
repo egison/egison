@@ -8,6 +8,7 @@
 --
 
 declare symbol x, y, z, a
+declare mathfunc mystery
 
 assertEqual "d/d - case 1" (d/d (x ^ 2) x) (2 * x)
 
@@ -44,3 +45,33 @@ assertEqual
     in d/d g y)
   (let g := function (x, y)
     in userRefs g [y])
+
+assertEqual
+  "strict analytic derivative keeps FunctionData and registered chain rules"
+  (strict∂/∂ (sin (f ^ 2)) x)
+  (2 * (userRefs f [1]) * f * cos (f ^ 2))
+
+assertEqual
+  "strict analytic derivative maps coordinate tensors"
+  (strict∂/∂ f [|x, y|])
+  [|userRefs f [1], userRefs f [2]|]
+
+def derivativeVector := generateTensor (\[i] -> function (x, y)) [2]
+
+def functionDataHead (value: MathValue) : MathValue :=
+  match value as mathValue with
+    | func $head _ -> head
+    | _ -> 0
+
+assertEqual
+  "symbolIndices preserves component and derivative index kinds"
+  (symbolIndices
+    (functionDataHead
+      (strictPartialDiffMV
+        (strictPartialDiffMV derivativeVector_2 y) x)))
+  [SubIndex 2, UserIndex 1, UserIndex 2]
+
+assertEqual
+  "ordinary derivative keeps its unknown-application fallback"
+  (∂/∂ (mystery x) x)
+  0

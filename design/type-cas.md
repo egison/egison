@@ -1623,7 +1623,12 @@ funcSymPartial   :: String -> Int -> [CASValue] -> CASValue
 
 `ApplyN` の関数側は型レベルで `MathFuncRef` に絞られているので、`lookupDerivative` は曖昧性なく `String` キーを取り出せる (現状は単一構成子 `DeclaredMathFunc String` のみだが、将来拡張時にも型で守られる)。
 
-**`lookupDerivative` の失敗扱い**: `declare derivative` で登録されていない関数を含む `ApplyN` の微分は **ランタイムエラー** (`DerivativeNotDeclared` 等)。これは `Differentiable Factor` のインスタンスが「`declare derivative` 未登録の合成原子は実質的に Factor インスタンスの定義域外」であることを意味する。型レベルでは検出できないが、`Differentiable MathValue` を提供しないことで「未登録関数を含む MathValue は静的に弾かれる」境界を作っている。`FunctionData` の偏微分は `name|i` シンボル生成で自動完結するためエラーにならない (連鎖律は構造的に閉じる)。
+**`lookupDerivative` の失敗扱い**: 通常の `∂/∂` は既存互換のため、`declare derivative`
+未登録の `ApplyN` を定数として 0 にする。正規化器など、この fallback で情報を失っては
+ならない利用者は opt-in の `strict∂/∂` を使う。`strict∂/∂` は微分前に
+`requireAnalyticDerivative` でCAS全体を検査し、未登録 application を明示的な実行時エラーに
+する。`FunctionData` の偏微分は `name|i` シンボル生成で自動完結するため両方の入口で許可
+される（連鎖律は構造的に閉じる）。
 
 型レベルで CF / AF を区別しない設計のため、`Differentiable ConstantFactor` / `Differentiable AppliedFactor` のような型別インスタンスは**持たない**。
 
@@ -1697,7 +1702,10 @@ declare derivative sqrt = \x -> 1 / (2 * sqrt x)
 
 これにより `∂/∂ (sin x) x = cos x * 1 = cos x` となる。
 
-**`declare derivative` 未登録の関数の微分はエラー**にする。`declare mathfunc f` だけで `declare derivative f` がない状態で `∂/∂ (f x) x` を計算しようとすると、宣言環境 (`DerivativeEnv`) を参照しても見つからないので、実行時エラーとなる。
+`declare derivative` 未登録の関数を確実に拒否する必要がある場合は
+`strict∂/∂` を使う。`declare mathfunc f` だけで `declare derivative f` がない状態の
+`strict∂/∂ (f x) x` は、登録名一覧に見つからないため実行時エラーとなる。通常の
+`∂/∂ (f x) x` は既存互換の0 fallbackを維持する。
 
 抽象的な未知関数をシンボリックに微分したい場合は、次節の**関数シンボル (`function (x)`)** を使う(`declare mathfunc` とは別機構)。
 
@@ -2237,6 +2245,15 @@ Tensor (Poly (Frac Integer) [x])    tensor (poly (frac integer))
 - `declare derivative <name> = <expr>` は `def deriv.<name> := <expr>` に desugar。`deriv.sin` 等で直接参照可。
 - `declare mathfunc <name>` は `def <name> := \x -> '<name> x` ラッパーを生成し、`declare derivative` と組み合わせて「関数 + 導関数」ペアを宣言可。
 - `chainPartialDiff` は拡張可能ディスパッチャ。各 `declare derivative` がパターン分岐を蓄積し、再帰呼び出しで `f(g(x))` のネスト合成にも連鎖律が正しく適用される。
+- `strictPartialDiffMV` / `strict∂/∂` は `requireAnalyticDerivative` で入力CASを先に
+  検査するopt-in入口。通常の `∂/∂` の未登録application→0という挙動は変更しない。
+- FunctionDataの導関数を下流IRへ構造的に渡す用途には
+  `symbolIndices : MathValue -> [TensorIndex]`を使う。`mathValue` matcherの
+  `symbol $name $indices`は歴史的に各indexのpayloadだけを射影するため、同じ数値の
+  Sub/Sup/Userを区別できない。`symbolIndices`はCAS symbolを直接検査し、
+  `SubIndex` / `SupIndex` / `DiagIndex` / `UserIndex`を保持して返す。これにより
+  pretty-print文字列を解析せず、tensor component indexと位置正準形の
+  FunctionData derivative indexを分離できる。
 
 **残されたサブ課題**:
 - `coefficients` の Frac 係数バグ — `coefficients (y^2 + 3/4) y` が誤った係数を返す。`quadratic-equation.egi` で観測。後述の「既知の制限」も参照。

@@ -89,6 +89,8 @@ primitives =
         , ("sortWithSign", sortWithSign)
         , ("updateFunctionArgs", updateFunctionArgs)
         , ("functionSymbol", functionSymbol)
+        , ("symbolIndices", symbolIndices)
+        , ("requireAnalyticDerivative", requireAnalyticDerivative)
         , ("quoteScalar", quoteScalar)
         , ("mathFunctionName", mathFunctionName)
         , ("casTerms", casTermsPrim)
@@ -239,6 +241,130 @@ functionSymbol = twoArgs' $ \nameVal argsColl ->
  where
   extractCAS (CASData cv) = return cv
   extractCAS val = throwErrorWithTrace (TypeMismatch "scalar" (Value val))
+
+-- | Return the indices of an exact CAS symbol without erasing their kinds.
+-- The mathValue `symbol` pattern exposes index payloads for historical
+-- compatibility, which is insufficient for consumers that must distinguish
+-- tensor Sub/Sup indices from FunctionData derivative User indices.  This
+-- structural view uses the same public TensorIndex constructors as
+-- tensorIndices and never relies on pretty-printed syntax.
+symbolIndices :: String -> PrimitiveFunc
+symbolIndices = oneArg' $ \value ->
+  case value of
+    CASData casValue ->
+      case exactSymbol casValue of
+        Just indices -> Collection . Sq.fromList <$> mapM publicIndex indices
+        Nothing -> throwErrorWithTrace (TypeMismatch "symbol" (Value value))
+    _ -> throwErrorWithTrace (TypeMismatch "symbol" (Value value))
+ where
+  exactSymbol
+    (CAS.CASFactor (CAS.Symbol _ _ indices)) = Just indices
+  exactSymbol
+    (CAS.CASPoly
+      [CAS.CASTerm (CAS.CASInteger 1) [(CAS.Symbol _ _ indices, 1)]]) =
+        Just indices
+  exactSymbol (CAS.CASFrac numerator (CAS.CASInteger 1)) =
+    exactSymbol numerator
+  exactSymbol _ = Nothing
+
+  publicIndex (Sub index) =
+    return $ InductiveData "SubIndex" [CASData index]
+  publicIndex (Sup index) =
+    return $ InductiveData "SupIndex" [CASData index]
+  publicIndex (SupSub index) =
+    return $ InductiveData "DiagIndex" [CASData index]
+  publicIndex (User index) =
+    return $ InductiveData "UserIndex" [CASData index]
+  publicIndex (DF _ _) =
+    throwErrorWithTrace (EgisonBug "symbolIndices encountered a DF index")
+  publicIndex (MultiSub {}) =
+    throwErrorWithTrace (EgisonBug "symbolIndices encountered an internal multi-subscript")
+  publicIndex (MultiSup {}) =
+    throwErrorWithTrace (EgisonBug "symbolIndices encountered an internal multi-superscript")
+
+-- | Validate the CAS tree before Formurae-style strict analytic
+-- differentiation.  Ordinary Egison differentiation deliberately treats an
+-- unmatched application as a constant; this opt-in guard instead rejects an
+-- application unless it is a FunctionData value, a registered unary
+-- derivative, or the built-in general power operation.  Returning the input
+-- unchanged lets the library reuse the existing differentiation engine after
+-- validation without duplicating its product, quotient, and chain rules.
+requireAnalyticDerivative :: String -> PrimitiveFunc
+requireAnalyticDerivative = twoArgs' $ \valueVal variableVal ->
+  case (valueVal, variableVal) of
+    (CASData value, CASData variable) -> do
+      derivativeRules <- Set.fromList <$> getDerivativeRuleNames
+      case analyticDerivativeIssue derivativeRules value of
+        Nothing -> return valueVal
+        Just issue -> throwError $ Default $
+          "strict analytic derivative: " ++ issue
+          ++ " while differentiating with respect to " ++ CAS.prettyCAS variable
+    (CASData _, other) ->
+      throwErrorWithTrace (TypeMismatch "math expression" (Value other))
+    (other, _) ->
+      throwErrorWithTrace (TypeMismatch "math expression" (Value other))
+
+analyticDerivativeIssue :: Set.Set String -> CAS.CASValue -> Maybe String
+analyticDerivativeIssue derivativeRules = goValue
+ where
+  goValue (CAS.CASInteger _) = Nothing
+  goValue (CAS.CASFactor symbol) = goSymbol symbol
+  goValue (CAS.CASPoly terms) = firstIssue (map goTerm terms)
+  goValue (CAS.CASFrac numerator denominator) =
+    firstIssue [goValue numerator, goValue denominator]
+
+  goTerm (CAS.CASTerm coefficient factors) =
+    firstIssue (goValue coefficient : map (goSymbol . fst) factors)
+
+  goSymbol (CAS.Symbol {}) = Nothing
+  goSymbol (CAS.FunctionData _ arguments) =
+    firstIssue (map goValue arguments)
+  goSymbol (CAS.Apply1 function argument) =
+    case analyticFunctionName function of
+      Just name
+        | name `Set.member` derivativeRules -> goValue argument
+        | otherwise -> unsupportedApplication name 1
+      Nothing -> unsupportedApplication (CAS.prettyCAS function) 1
+  goSymbol (CAS.Apply2 function base exponent)
+    | analyticFunctionName function == Just "^" =
+        firstIssue [goValue base, goValue exponent]
+    | otherwise =
+        unsupportedApplication (analyticFunctionLabel function) 2
+  goSymbol (CAS.Apply3 function _ _ _) =
+    unsupportedApplication (analyticFunctionLabel function) 3
+  goSymbol (CAS.Apply4 function _ _ _ _) =
+    unsupportedApplication (analyticFunctionLabel function) 4
+  goSymbol (CAS.Quote value) = goValue value
+  goSymbol (CAS.QuoteFunction whnf) =
+    unsupportedApplication
+      (maybe "<anonymous function>" id (prettyFunctionName whnf)) 0
+
+  unsupportedApplication :: String -> Int -> Maybe String
+  unsupportedApplication name arity = Just $
+    "no registered derivative rule for " ++ name
+    ++ " with arity " ++ show arity
+
+  analyticFunctionLabel function =
+    maybe (CAS.prettyCAS function) id (analyticFunctionName function)
+
+firstIssue :: [Maybe a] -> Maybe a
+firstIssue [] = Nothing
+firstIssue (Just issue : _) = Just issue
+firstIssue (Nothing : rest) = firstIssue rest
+
+analyticFunctionName :: CAS.CASValue -> Maybe String
+analyticFunctionName
+  (CAS.CASFactor (CAS.QuoteFunction whnf)) = prettyFunctionName whnf
+analyticFunctionName
+  (CAS.CASPoly
+    [CAS.CASTerm (CAS.CASInteger 1) [(CAS.QuoteFunction whnf, 1)]]) =
+      prettyFunctionName whnf
+analyticFunctionName
+  (CAS.CASFactor (CAS.Symbol _ name _)) = Just name
+analyticFunctionName
+  (CAS.CASPoly
+    [CAS.CASTerm (CAS.CASInteger 1) [(CAS.Symbol _ name _, 1)]]) = Just name
+analyticFunctionName _ = Nothing
 
 -- | Re-wrap a scalar in a quote atom (the backtick of the surface
 -- syntax, as a function).  Needed by mapSymbols to rebuild a quoted

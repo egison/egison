@@ -75,6 +75,10 @@ builtinTypes = concat
       , ("sortWithSign", Forall [] [] $ TFun (TCollection (TCollection TInt)) (TTuple [TInt, TCollection TInt]))
       , ("updateFunctionArgs", Forall [] [] $ TFun TMathValue (TFun (TCollection TMathValue) TMathValue))
       , ("functionSymbol", Forall [] [] $ TFun TString (TFun (TCollection TMathValue) TMathValue))
+      , ("symbolIndices", Forall [] [] $
+          TFun TMathValue (TCollection (TInductive "TensorIndex" [])))
+      , ("requireAnalyticDerivative", Forall [] [] $
+          TFun TMathValue (TFun TMathValue TMathValue))
       , ("quoteScalar", Forall [] [] $ TFun TMathValue TMathValue)
       , ("mathFunctionName", forallA $ TFun (TVar a) TString)
       , ("casTerms", Forall [] [] $ TFun TMathValue (TCollection TMathValue))
@@ -277,4 +281,3 @@ builtinTypes = concat
       -- and other algebraicDataMatcher constructors are now automatically registered
       -- when the matcher is defined via registerAlgebraicConstructors
       ]
-
