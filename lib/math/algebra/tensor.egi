@@ -10,6 +10,19 @@ inductive TensorIndex :=
   | DiagIndex MathValue
   | UserIndex MathValue
 
+inductive pattern TensorIndex :=
+  | subIndex MathValue
+  | supIndex MathValue
+  | diagIndex MathValue
+  | userIndex MathValue
+
+def tensorIndex : Matcher TensorIndex :=
+  algebraicDataMatcher
+    | subIndex mathValue
+    | supIndex mathValue
+    | diagIndex mathValue
+    | userIndex mathValue
+
 infixl expression 7 .
 infixl expression 7 .'
 
@@ -17,6 +30,16 @@ def tensorOrder {a} (A: Tensor a) : Integer := length (tensorShape A)
 
 def tensorSignature {a} (A: Tensor a) : ([Integer], [TensorIndex]) :=
   (tensorShape A, tensorIndices A)
+
+def tensorIndexVariance (index: TensorIndex) : String :=
+  match index as tensorIndex with
+    | subIndex _ -> "down"
+    | supIndex _ -> "up"
+    | diagIndex _ -> "diag"
+    | userIndex _ -> "user"
+
+def tensorVariances {a} (A: Tensor a) : [String] :=
+  map tensorIndexVariance (tensorIndices A)
 
 def unitTensor (ns: [Integer]) : Tensor Integer := generateTensor kroneckerDelta ns
 

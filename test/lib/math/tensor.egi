@@ -30,6 +30,12 @@ withSymbols [i]
     (tensorSignature [|1, 2|]~i, dfOrder [|1, 2|]~i)
     (([2], [SupIndex i]), 0))
 
+withSymbols [i, j]
+  (assertEqual
+    "tensor variance names are available to downstream runtimes"
+    (tensorVariances [| [|1, 2|], [|3, 4|] |]~i_j)
+    ["up", "down"])
+
 withSymbols [i]
   (assertEqual
     "tensor signature exposes a diagonal product index"
