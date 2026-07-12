@@ -52,6 +52,57 @@ assertEqual
   (traceWithDynamicRefs [| [|11, 12|], [|21, 22|] |])
   33
 
+def matrixOperatorInput : Matrix MathValue :=
+  [| [|1, 2|], [|3, 4|] |]
+
+assertEqual "matrix trace" (trace matrixOperatorInput) 5
+
+assertEqual
+  "symmetric matrix part"
+  (sym matrixOperatorInput)
+  [| [|1, 5 / 2|], [|5 / 2, 4|] |]
+
+assertEqual
+  "antisymmetric matrix part"
+  (antisym matrixOperatorInput)
+  [| [|0, -1 / 2|], [|1 / 2, 0|] |]
+
+assertEqual
+  "symmetric and antisymmetric parts reconstruct a matrix"
+  (sym matrixOperatorInput + antisym matrixOperatorInput)
+  matrixOperatorInput
+
+withSymbols [i, j]
+  (assertEqual
+    "matrix operators preserve all ordinary variance sequences"
+    (map
+      (\A ->
+        (tensorIndices (sym A), dfOrder (sym A),
+         tensorIndices (antisym A), dfOrder (antisym A)))
+      [matrixOperatorInput_i_j, matrixOperatorInput_i~j,
+       matrixOperatorInput~i_j, matrixOperatorInput~i~j])
+    [([SubIndex i, SubIndex j], 0, [SubIndex i, SubIndex j], 0),
+     ([SubIndex i, SupIndex j], 0, [SubIndex i, SupIndex j], 0),
+     ([SupIndex i, SubIndex j], 0, [SupIndex i, SubIndex j], 0),
+     ([SupIndex i, SupIndex j], 0, [SupIndex i, SupIndex j], 0)])
+
+withSymbols [i]
+  (assertEqual
+    "contractWith accepts an explicit reducer"
+    (contractWith (*) matrixOperatorInput~i_i)
+    4)
+
+assertEqual
+  "named wedge uses the differential-form library definition"
+  (wedge [|1, 2|] [|3, 4|])
+  [| [|3, 4|], [|6, 8|] |]
+
+withSymbols [i]
+  (assertEqual
+    "MathValue dot uses the shared contraction kernel"
+    ([|1, 2|]~i .' [|3, 4|]_i)
+    11)
+
 assertEqual
   "withSymbols removes temporary tensor indices on exit"
   (tensorSignature (withSymbols [i] [|1, 2|]_i),

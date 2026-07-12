@@ -1850,8 +1850,11 @@ expandAll : MathValue -> MathValue
 | `∇` / `grad` / `nabla` | 具体型 (`Poly Integer atoms` 等) 上で `∂/∂` を合成、結果は coerce で型を保つ |
 | `div`（発散）, `rot`（回転） | `∂/∂` + `Ring` でテンソル演算と合成 |
 | `taylorExpansion` | `∂/∂` を繰り返し適用 |
-| `wedge` (`∧`), `ι` | `Field` 制約でテンソル上の演算として定義 |
-| `dotProduct`, `crossProduct`, `trace` | `Ring` 制約で定義 |
+| `wedge` (`∧`) | `Ring` 制約の微分形式積として`geometry/differential-form.egi`に定義 |
+| `ι` | `Field` 制約で微分形式上の演算として定義 |
+| `.`, `.'`, `contractWith` | 明示的な縮約として`algebra/tensor.egi`に定義 |
+| `trace`, `sym`, `antisym` | `trace`は`Ring`、`sym` / `antisym`は`Field`制約で`algebra/matrix.egi`に定義 |
+| `dotProduct`, `crossProduct` | `Ring` 制約で定義 |
 | `M.inverse`, `M.determinant` | `Field` / `Ring` 上のテンソル演算 |
 
 ---

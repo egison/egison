@@ -47,8 +47,14 @@ def scalarToTensor {MulSemigroup a} (x: a) (ns: [Integer]) : Tensor a := x * uni
 
 def zeroTensor (ns: [Integer]) : Tensor Integer := generateTensor (\_ -> 0) ns
 
+-- Reduce every diagonal component produced by `contract` with an explicit
+-- reducer.  This is the common contraction kernel used by (.) and (.').
+def contractWith {a} (reducer: Tensor a -> Tensor a -> Tensor a)
+                     (t: Tensor a) : Tensor a :=
+  foldl1 reducer (contract t)
+
 def (.') (t1: Tensor MathValue) (t2: Tensor MathValue) : Tensor MathValue := 
-  foldl1 (+') (contract (t1 *' t2))
+  contractWith (+') (t1 *' t2)
 
 def (.) {Ring a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
-  foldl1 (+) (contract (t1 * t2))
+  contractWith (+) (t1 * t2)

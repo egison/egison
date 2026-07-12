@@ -72,12 +72,12 @@ coreLibraries =
   , "lib/math/common/interval.egi"
   , "lib/math/common/functions.egi"
   , "lib/math/algebra/root.egi"
-  , "lib/math/algebra/tensor.egi"    -- Defines (.) (.')
+  , "lib/math/algebra/tensor.egi"    -- Defines contractWith, (.) and (.')
+  , "lib/math/algebra/matrix.egi"    -- Defines trace, sym and antisym
   , "lib/math/algebra/vector.egi"
 
   , "lib/math/algebra/equations.egi"
   , "lib/math/algebra/groebner.egi"
-  , "lib/math/algebra/matrix.egi"
   , "lib/math/analysis/derivative.egi"
 
   , "lib/math/geometry/differential-form.egi"

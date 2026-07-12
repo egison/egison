@@ -21,7 +21,3 @@ def div {Ring a} (A: Vector a) (xs: Vector a) : a := trace (!∂/∂ A xs)
 -- is flipped to differentiate the field component by the coordinate.
 def rot {Ring a} (A: Vector a) (xs: Vector a) : Vector a :=
   crossProductWithFun (flip ∂/∂) xs A
-
-def trace {Ring a} (t: Matrix a) : a :=
-  withSymbols [i] sum (contract t~i_i)
-

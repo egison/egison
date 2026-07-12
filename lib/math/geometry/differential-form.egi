@@ -8,13 +8,13 @@ def dfNormalize {Field a} (X: DiffForm a) : DiffForm a :=
 
 def antisymmetrize {Field a} : DiffForm a -> DiffForm a := dfNormalize
 
-def wedge {Field a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := X !. Y
+def wedge {Ring a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := X !. Y
 
 infixl expression 7 ∧
 
-def (∧) {Field a} : DiffForm a -> DiffForm a -> DiffForm a := wedge
+def (∧) {Ring a} : DiffForm a -> DiffForm a -> DiffForm a := wedge
 
-def Lie.wedge {Field a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := 
+def Lie.wedge {Ring a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a :=
   X !. Y - Y !. X
 
 def ι {Field a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a := 

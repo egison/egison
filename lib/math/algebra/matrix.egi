@@ -29,6 +29,52 @@ def matrix : Matcher (Matrix MathValue) :=
     | $ as (something) with
       | $tgt -> [tgt]
 
+def M.tensorIndexValue (index: TensorIndex) : MathValue :=
+  match index as tensorIndex with
+    | (subIndex $x | supIndex $x | diagIndex $x | userIndex $x) -> x
+
+def M.attachOrdinaryIndex {a}
+      (value: Matrix a) (index: TensorIndex) : Matrix a :=
+  let variance := tensorIndexVariance index
+      x := M.tensorIndexValue index
+   in match assert "ordinary matrix indices must be up or down"
+                   (variance = "down" || variance = "up")
+            as bool with
+        | #True ->
+            if variance = "down"
+              then subrefs value [x]
+              else suprefs value [x]
+
+-- Preserve an ordinary matrix's explicit index contract after local
+-- `withSymbols` indices have become anonymous result axes.
+def M.copyOrdinaryIndices {a}
+      (source: Matrix a) (value: Matrix a) : Matrix a :=
+  let indices := tensorIndices source
+   in match assert
+              "matrix result must match its source shape and ordinary indices"
+              (length (tensorShape source) = 2
+               && tensorShape source = tensorShape value
+               && (indices = [] || length indices = 2)
+               && all
+                    (\variance -> variance = "down" || variance = "up")
+                    (tensorVariances source))
+        as bool with
+        | #True -> foldl M.attachOrdinaryIndex value indices
+
+def trace {Ring a} (t: Matrix a) : a :=
+  withSymbols [i]
+    contractWith (+) t~i_i
+
+def sym {Field a} (a: Matrix a) : Matrix a :=
+  M.copyOrdinaryIndices a
+    (withSymbols [i, j]
+      ((a_i_j + a_j_i) / 2))
+
+def antisym {Field a} (a: Matrix a) : Matrix a :=
+  M.copyOrdinaryIndices a
+    (withSymbols [i, j]
+      ((a_i_j - a_j_i) / 2))
+
 def M.inverse (m: Matrix MathValue) : Matrix MathValue :=
   let d := M.det m
    in generateTensor
