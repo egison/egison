@@ -44,10 +44,12 @@ showMathValue (Multiply (Atom "1" []:xs)) = showMathValue (Multiply xs)
 showMathValue (Multiply (NegativeAtom "1":xs)) = "-" ++ showMathValue (Multiply xs)
 showMathValue (Multiply (x:xs)) = showMathValue' x ++ " " ++ showMathValue (Multiply xs)
 showMathValue (Div x y) = "\\frac{" ++ showMathValue x ++ "}{" ++ showMathValue y ++ "}"
-showMathValue (Power lv1 lv2) = showMathValue lv1 ++ "^" ++ showMathValue lv2
+showMathValue (Power lv1 lv2) = showMathValue' lv1 ++ "^{" ++ showMathValue lv2 ++ "}"
 showMathValue (Func (Atom "sqrt" []) [x]) = "\\sqrt{" ++ showMathValue x ++ "}"
 showMathValue (Func (Atom "rt" []) [x, y]) = "\\sqrt[" ++ showMathValue x ++ "]{" ++ showMathValue y ++ "}"
 showMathValue (Func (Atom "exp" []) [x]) = "e^{" ++ showMathValue x ++ "}"
+showMathValue (Func (Atom fn []) xs) | fn `elem` latexMathOperators =
+  "\\" ++ fn ++ "(" ++ showMathValueArg xs ", " ++ ")"
 showMathValue (Func f xs) = showMathValue f ++ "(" ++ showMathValueArg xs ", " ++ ")"
 showMathValue (Tensor xs mis) = "\\begin{pmatrix} " ++ showMathValueVectors xs ++ "\\end{pmatrix}" ++ showMathValueScript mis
 showMathValue (Tuple xs) = "(" ++ showMathValueArg xs ", " ++ ")"
@@ -60,6 +62,14 @@ showMathValue' x         = showMathValue x
 
 showMathValueArg :: [MathValue] -> String -> String
 showMathValueArg exprs sep = intercalate sep $ map showMathValue exprs
+
+-- Standard LaTeX math operators that must be typeset upright with a
+-- backslash-prefixed control sequence (e.g. \sin instead of an italic "sin").
+latexMathOperators :: [String]
+latexMathOperators =
+  [ "sin", "cos", "tan", "cot", "sec", "csc"
+  , "sinh", "cosh", "tanh", "coth"
+  , "log", "ln", "arcsin", "arccos", "arctan" ]
 
 showMathValueSuper :: MathIndex -> String
 showMathValueSuper (Super (Atom "#" [])) = "\\#"
