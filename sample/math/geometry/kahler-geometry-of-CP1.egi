@@ -48,7 +48,7 @@ assertEqual "|f|^2 is real (fixed by conjugation)"
 
 -- Cauchy-Riemann: holomorphic expressions are annihilated by d/dzbar
 assertEqual "d/dzbar kills holomorphic polynomials"
-  (partialDiff (z^3 + (1 + i) * z + 2) zbar) 0
+  (∂/∂ (z^3 + (1 + i) * z + 2) zbar) 0
 
 --
 -- 2. Fubini-Study metric from the Kaehler potential
@@ -56,7 +56,7 @@ assertEqual "d/dzbar kills holomorphic polynomials"
 --
 
 def K := log (1 + z * zbar)
-def g := partialDiff (partialDiff K z) zbar
+def g := ∂/∂ (∂/∂ K z) zbar
 
 assertEqual "g = 1/(1 + z zbar)^2"
   ((g - 1 / (1 + z * zbar)^2) = 0) True
@@ -68,7 +68,7 @@ assertEqual "g is real" ((conjC g - g) = 0) True
 --    (Einstein constant 2: constant positive curvature, the round sphere)
 --
 
-def ricci := 0 - partialDiff (partialDiff (log g) z) zbar
+def ricci := 0 - ∂/∂ (∂/∂ (log g) z) zbar
 
 assertEqual "Kaehler-Einstein: Ric = 2 g"
   ((ricci - 2 * g) = 0) True
@@ -82,4 +82,4 @@ assertEqual "Kaehler-Einstein: Ric = 2 g"
 def u := (1 - z * zbar) / (1 + z * zbar)
 
 assertEqual "first eigenfunction: d2u/dzdzbar = -2 u g"
-  ((partialDiff (partialDiff u z) zbar - (-2) * u * g) = 0) True
+  ((∂/∂ (∂/∂ u z) zbar - (-2) * u * g) = 0) True
