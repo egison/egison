@@ -282,9 +282,7 @@ symbolIndices = oneArg' $ \value ->
   publicIndex (MultiSup {}) =
     throwErrorWithTrace (EgisonBug "symbolIndices encountered an internal multi-superscript")
 
--- | Validate the CAS tree before Formurae-style strict analytic
--- differentiation.  Ordinary Egison differentiation deliberately treats an
--- unmatched application as a constant; this opt-in guard instead rejects an
+-- | Validate the CAS tree before analytic differentiation.  Reject an
 -- application unless it is a FunctionData value, a registered unary
 -- derivative, or the built-in general power operation.  Returning the input
 -- unchanged lets the library reuse the existing differentiation engine after
@@ -297,7 +295,7 @@ requireAnalyticDerivative = twoArgs' $ \valueVal variableVal ->
       case analyticDerivativeIssue derivativeRules value of
         Nothing -> return valueVal
         Just issue -> throwError $ Default $
-          "strict analytic derivative: " ++ issue
+          "analytic derivative: " ++ issue
           ++ " while differentiating with respect to " ++ CAS.prettyCAS variable
     (CASData _, other) ->
       throwErrorWithTrace (TypeMismatch "math expression" (Value other))

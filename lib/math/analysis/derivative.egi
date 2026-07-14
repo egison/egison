@@ -66,21 +66,13 @@ instance Differentiable (Frac MathValue) where
 -- definition site. Inlining it as an anonymous lambda inside `∂/∂` would
 -- leave the partialDiff call in a context whose static type is still
 -- polymorphic by the time TypeClassExpand sees it.
-def partialDiffMV (f : MathValue) (x : MathValue) : MathValue := partialDiff f x
+-- Validate the complete CAS value before differentiation so an application
+-- without a registered analytic derivative cannot silently become zero.
+def partialDiffMV (f : MathValue) (x : MathValue) : MathValue :=
+  partialDiff (requireAnalyticDerivative f x) x
 
 def ∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
   tensorMap2 partialDiffMV f (flipIndices x)
-
--- Strict differentiation is an opt-in entry point for normalization
--- pipelines that must not silently treat an unknown application as a
--- constant.  The guard validates each scalar component before delegating to
--- the ordinary derivative engine, so the established ∂/∂ behavior remains
--- unchanged for existing Egison programs.
-def strictPartialDiffMV (f : MathValue) (x : MathValue) : MathValue :=
-  partialDiffMV (requireAnalyticDerivative f x) x
-
-def strict∂/∂ (f : Tensor MathValue) (x : Tensor MathValue) : Tensor MathValue :=
-  tensorMap2 strictPartialDiffMV f (flipIndices x)
 
 -- chainPartialDiff is the user-facing dispatcher for "non-decomposable"
 -- shapes — atomic symbols, built-in apply1 derivatives, function
