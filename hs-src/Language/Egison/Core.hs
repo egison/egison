@@ -546,7 +546,7 @@ evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
   xs    <- mapM (evalWithIndex env . map CASInteger) (enumTensorIndices ns)
-  return $ newITensor ns xs
+  newITensor ns xs
  where
   evalWithIndex :: Env -> [CASValue] {- index -} -> EvalM ObjectRef
   evalWithIndex env@(Env frame maybe_vwi pfEnv) ms = do
@@ -1672,8 +1672,11 @@ makeITensorFromWHNF s xs = do
   xs' <- mapM newEvaluatedObjectRef xs
   return $ ITensor (Tensor s (V.fromList xs') [])
 
-newITensor :: Shape -> [ObjectRef] -> WHNFData
-newITensor s refs = ITensor (Tensor s (V.fromList refs) [])
+-- A rank-zero tensor is its sole scalar component.  Do not use the component
+-- count alone here: shapes [0] and [1] are still rank-one tensors.
+newITensor :: Shape -> [ObjectRef] -> EvalM WHNFData
+newITensor [] [ref] = evalRef ref
+newITensor s refs = return $ ITensor (Tensor s (V.fromList refs) [])
 
 -- Refer the specified tensor index with potential overriding of the index.
 refTensorWithOverride :: TensorComponent a b => Bool -> [Index EgisonValue] -> Tensor b -> EvalM a

@@ -407,6 +407,18 @@ assertEqual "generate vector using generate-tensor"
   (generateTensor (\[x] -> x + 1) [3])
   [| 2, 3, 4 |]
 
+assertEqual "generate scalar using rank-zero generate-tensor"
+  (generateTensor (\[] -> 42) [])
+  42
+
+assertEqual "rank-one singleton generated value remains a tensor"
+  (generateTensor (\[x] -> x) [1])
+  [| 1 |]
+
+assertEqual "empty rank-one generated value remains a tensor"
+  (show (generateTensor (\_ -> 42) [0]))
+  "[|  |]"
+
 assertEqual "tensor"
   (tensor [2, 5] [1, 2, 3, 4, 5, 2, 4, 6, 8, 10])
   [| [| 1, 2, 3, 4, 5 |], [| 2, 4, 6, 8, 10 |] |]

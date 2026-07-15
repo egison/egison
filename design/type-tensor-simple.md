@@ -31,6 +31,10 @@ def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a :=
 2. **トップレベル定義**: トップレベル定義においては、`Tensor a` 型が `a` 型とunifyすると `a` 型になる
    - ユーザーが型注釈で `a` 型と指定した場合、その型が優先される
 
+実行時にもrank 0のテンソルはスカラーそのものとして表現する。したがって、
+`generateTensor f []`は空の添字リストに対する唯一の成分`f []`を直接返す。
+shape `[1]`の1要素ベクトルやshape `[0]`の空ベクトルはrank 1なのでテンソルのままである。
+
 ```egison
 1 : Tensor Integer  -- Integer型になる。Integerは0階のIntegerのテンソルと考えると問題ない
 [| 1, 2 |] : Integer  -- 型検査は通るが、実行時エラーになる可能性あり
