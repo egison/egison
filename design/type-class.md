@@ -240,6 +240,39 @@ dispatch 失敗 (Pattern match failed) まで進みえた。`DefineWithType` は
   `inferBatchDefNames` として推論状態に種付けする)。注釈付きの後方定義への
   前方参照は従来どおり無警告で型付く。
 
+### 7. ローカル束縛による制約付きトップレベル関数の shadowing → **解消済み (2026-07-16)**
+
+**現象**: 5 の対偶。`def subA (count: Integer) : Integer := count - 1` が
+`subA 5` で `Expected function, but found: 5` を出して落ちる。lib に
+`count {Eq a} (x: a) (xs: [a]) : Integer` (collection.egi) が存在するため、
+辞書展開 (`Type/TypeClassExpand.hs` の `checkConstrainedVariable`) が **全ての
+変数参照をグローバル typeEnv で引いて** ラムダパラメータの `count` を制約付き
+トップレベル関数と誤認し、`count (eqCollection {...})` と辞書引数を適用して
+いた。適用済みの値は遅延サンクとして `plusForMathValue` →
+`mathNormalizeBuiltin` の中で強制されるため、エラーは無関係な CAS 正規化の
+スタックトレースとして現れる (原因から遠い)。ラムダに限らず let / letrec /
+do / match のパターン変数 / withSymbols 等、全てのローカル束縛で同じ誤認が
+起きていた。インスタンス選択の問題ではない (Integer の算術が CAS タワー経由で
+MathValue インスタンスに解決されるのは意図どおりで、その経路自体は
+`plusForMathValue 5 1 = 6` と正常に動く)。
+
+**解消**: `expandTypeClassMethodsT` にローカル束縛名の集合 `LocalScope` を
+スレッドし、束縛構文 (lambda params / let / letrec / do / match 節 / matcher
+の primitive-data 節 / cambda / memoizedLambda / withSymbols / loop pattern)
+で拡張する。パターン変数は左から右に蓄積し (`expandTIPattern` が拡張済み
+scope を返す)、value/predicate パターン内の式はそこまでの束縛だけを見る。
+scope に居る名前は (a) `checkConstrainedVariable` の辞書適用対象にしない、
+(b) `tryResolveMethodCall` でクラスメソッドとして解決しない — ローカル束縛は
+常にトップレベル定義を shadow する、という通常のスコープ規則を辞書展開にも
+適用した (検収: minitest/007-integer-minus.egi、formurae 正規化環境でも確認)。
+
+**残る既知の限界**: `addDictionaryParametersT` 配下の
+`replaceMethodCallsWithDictAccessT` (本体がラムダでない制約付き def の
+ラッパー経路) と pattern function 宣言内の埋め込み式は scope を追跡しない。
+露出するのは「ローカル束縛名がクラスメソッド名そのものと衝突し、かつ囲む def
+がそのクラスで制約されている」場合に限られ、実害が出たら同じ LocalScope を
+通せばよい。
+
 ---
 
 ## Num クラス分割の計画

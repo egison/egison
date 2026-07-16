@@ -1,0 +1,41 @@
+-- Regression test: local binders shadowing constrained top-level functions.
+--
+-- lib/core/collection.egi defines `count {Eq a} (x: a) (xs: [a]) : Integer`.
+-- TypeClassExpand used to look up every variable reference in the global
+-- type environment, so a local binder named `count` was mistaken for that
+-- constrained function and received dictionary arguments, producing
+-- "Expected function, but found: 5" at runtime (the value got applied to
+-- the Eq dictionary). Local binders must shadow top-level definitions.
+
+-- Lambda parameter shadowing (the original bug report: formurae's subA)
+def subA (count: Integer) : Integer := count - 1
+assertEqual "lambda param shadow" (subA 5) 4
+
+-- Unannotated parameter
+def subN count := count - 1
+assertEqual "unannotated param shadow" (subN 5) 4
+
+-- MathValue-annotated parameter, and use with a symbol
+declare symbol zz
+def addM (count: MathValue) : MathValue := count + 1
+assertEqual "MathValue param shadow" (addM 5) 6
+assertEqual "MathValue param shadow (symbol)" (addM zz) (zz + 1)
+
+-- let binder shadowing
+assertEqual "let binder shadow" (let count := 5 in count - 1) 4
+
+-- match pattern-variable shadowing
+assertEqual "match binder shadow"
+  (match 5 as integer with | $count -> count - 1) 4
+
+-- Parameter applied as a function must stay a plain application
+def applyTwice (count: Integer -> Integer) (x: Integer) : Integer :=
+  count (count x)
+assertEqual "param in function position" (applyTwice (\n -> n - 1) 5) 3
+
+-- The global constrained `count` still works (outside any shadowing scope)
+assertEqual "global count untouched" (count 2 [1, 2, 2, 3]) 2
+
+-- ... and inside a function body that does not shadow it
+def countTwos (xs: [Integer]) : Integer := count 2 xs
+assertEqual "global count in def body" (countTwos [2, 0, 2]) 2
