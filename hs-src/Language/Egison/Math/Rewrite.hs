@@ -89,6 +89,7 @@ rewriteSqrtOnce v = v
 termNeedsSqrtWork :: CASTerm -> Bool
 termNeedsSqrtWork (CASTerm c mono) = go 0 mono || valueNeedsSqrtWork c
  where
+  go :: Int -> Monomial -> Bool
   go ones ((sym, n) : rest) = case sqrtRadicand sym of
     Just _
       | abs n >= 2       -> True
@@ -244,6 +245,7 @@ splitSquarePart v = (CASInteger 1, [v])
 integerSquarePart :: Integer -> (Integer, Integer)
 integerSquarePart m0 = go m0 2
  where
+  go :: Integer -> Integer -> (Integer, Integer)
   cap = 1000000
   go m p
     | p > cap || p * p > m = (1, m)
@@ -252,8 +254,10 @@ integerSquarePart m0 = go m0 2
             (s, rest) = go m' (p + 1)
         in (p ^ (e `div` 2) * s, p ^ (e `mod` 2) * rest)
     | otherwise = go m (p + 1)
-  strip m p e | m `mod` p == 0 = strip (m `div` p) p (e + 1)
-              | otherwise      = (e, m)
+  strip :: Integer -> Integer -> Integer -> (Integer, Integer)
+  strip m p e
+    | m `mod` p == 0 = strip (m `div` p) p (e + 1)
+    | otherwise      = (e, m)
 
 -- | Rewrite exp factors of every term:
 --
@@ -283,6 +287,7 @@ expArg = applyArg1 "exp"
 termNeedsExpWork :: CASTerm -> Bool
 termNeedsExpWork (CASTerm c mono) = go 0 mono || valueNeedsExpWork c
  where
+  go :: Int -> Monomial -> Bool
   go ones ((sym, n) : rest) = case expArg sym of
     Just _
       | n /= 1    -> True

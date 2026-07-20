@@ -1139,7 +1139,6 @@ multivariateGcdReduce ts1 ts2
           mpPresent f     = [ i | i <- [0 .. nAtoms - 1]
                                 , any (\(_, v) -> v !! i > 0) f ]
           mpIntContent f  = foldr (gcd . fst) 0 f
-          mpIsConst f     = mpMaxTotalDeg f == 0
 
           -- Positive normalization: strip the integer content, make the
           -- leading (grlex) coefficient positive.

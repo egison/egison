@@ -1,5 +1,5 @@
 Name:                egison
-Version:             5.0.0
+Version:             5.1.0
 Synopsis:            Programming language with non-linear pattern-matching against non-free data
 Description:
   An interpreter for Egison, a **pattern-matching-oriented**, purely functional programming language
@@ -25,6 +25,7 @@ Maintainer:          Satoshi Egi <egi@egison.org>
 Category:            Compilers/Interpreters
 Build-type:          Simple
 Cabal-version:       2.0
+Tested-with:         GHC == 9.10.1
 
 Data-files:          lib/core/*.egi
                      lib/math/*.egi
@@ -38,6 +39,7 @@ Extra-doc-files:     Changelog.md
 Extra-source-files:  README.md
                      benchmark/Benchmark.hs
                      benchmark/*.egi
+                     test/*.egi
                      test/lib/math/*.egi
                      test/lib/core/*.egi
                      test/type-error/*.egi
@@ -59,6 +61,11 @@ Extra-source-files:  README.md
 source-repository head
   type: git
   location: https://github.com/egison/egison.git
+
+source-repository this
+  type: git
+  location: https://github.com/egison/egison.git
+  tag: 5.1.0
 
 Library
   default-language:    GHC2021

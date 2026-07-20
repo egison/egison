@@ -1,5 +1,56 @@
 # Changelog
 
+## 5.1.0
+
+### New Features
+
+* Added an extensible computer-algebra tower with CAS type aliases, subtype
+  declarations, runtime dispatch, coercion, and canonical reshaping.
+* Added quotient algebras and first-class finite fields, including polynomial
+  reduction over declared quotient relations.
+* Added multivariate polynomial GCD, Groebner bases, polynomial normal forms,
+  and declarative ideals.
+* Added user-defined automatic rewrite rules and expanded symbolic
+  simplification for radicals, exponentials, and algebraic extensions.
+* Added explicit function-symbol metadata, strict differentiation, and unified
+  symbolic partial differentiation.
+* Added tensor index metadata and higher-order tensor-map lifting.
+
+### Type System and Pattern Matching
+
+* Strengthened matcher consistency and exhaustiveness checking, promoting
+  incomplete matcher arms to type errors.
+* Improved type-class hierarchy handling, dictionary expansion, instance
+  selection, runtime type dispatch, and diagnostics for shadowed class methods.
+* Added typing for unannotated top-level recursion.
+* Improved inference for tensor callbacks, matcher aliases, structured pattern
+  holes, and nonlinear pattern targets.
+
+### Mathematical Libraries
+
+* Added Groebner-basis, ideal, finite-field, algebraic-extension, and interval
+  functionality to the standard mathematical libraries.
+* Expanded the geometry, algebra, and number-theory samples, including Kahler
+  geometry, elliptic curves over finite fields, and CAS-tower examples.
+* Improved normalization, matrix and tensor operations, differential forms,
+  and root simplification.
+
+### Breaking Changes
+
+* Reorganized the exposed Haskell CAS modules around
+  `Language.Egison.Math.CAS`; the former `Math.Arith`, `Math.Expr`, and
+  `Math.Normalize` modules are no longer exposed.
+* Changed parts of the CAS representation, normalization behavior, symbolic
+  function representation, and tensor/matrix APIs. Code relying on Egison 5.0
+  implementation details may require updates.
+
+### Testing and Documentation
+
+* Reorganized and expanded the Cabal test suite with CAS, type-error, matcher,
+  tensor, quotient-field, and normalization regression tests.
+* Added design documentation for the extensible CAS tower, quotient mechanism,
+  runtime dispatch, matcher slots, and symbolic simplification.
+
 ## 5.0.0
 ### New Features
 * **Static Type System**: Introduced a static type system for Egison.
