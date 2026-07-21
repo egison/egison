@@ -4,13 +4,21 @@ declare symbol G, M, c, t, r, θ, φ
 
 def x := [| t, r, θ, φ |]
 
--- Schwarzschild metric
-def g_i_j :=
-  [| [| `(c^2 * r - 2 * G * M) / (c^2 * r), 0, 0, 0 |]
-   , [| 0, (-1) / (`(c^2 * r - 2 * G * M) / (c^2 * r)), 0, 0 |]
-   , [| 0, 0, -r^2, 0 |]
-   , [| 0, 0, 0, -r^2 * (sin θ)^2 |]
-   |]
+def A := `(c^2 * r - 2 * G * M) / (c^2 * r)
+
+-- Coordinate tangent vectors in a local Lorentz frame
+def e_i_j :=
+  [| [| sqrt A, 0, 0, 0 |]
+   , [| 0, 1 / sqrt A, 0, 0 |]
+   , [| 0, 0, r, 0 |]
+   , [| 0, 0, 0, r * sin θ |]
+   |]_i_j
+
+def minkowskiDot u v :=
+  u_1 * v_1 - u_2 * v_2 - u_3 * v_3 - u_4 * v_4
+
+-- Schwarzschild metric induced by the Lorentzian inner product
+def g_i_j := generateTensor (\[i, j] -> minkowskiDot e_i_# e_j_#) [4, 4]
 
 def g~i~j := M.inverse g_#_#
 
