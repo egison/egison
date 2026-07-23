@@ -1368,6 +1368,30 @@ desugarDefineWithIndices (VarWithIndices name []) expr = do
   expr' <- desugar expr
   return (Var name [], expr')
 
+-- Case 1.5 (restored from Egison 4): function definition whose name carries
+-- indices, e.g. `def ∇_c T~(a_1)...~(a_r)_(b_1)..._(b_k) := ...`.
+-- The RHS is a lambda (the definition has parameters), so the indices are
+-- index PATTERNS to be matched against the indices supplied at the
+-- application site (`∇_m J_a_b`):
+--   * the lambda is tagged with the name indices (ILambdaExpr (Just var'))
+--     so that evaluating `∇_m` reaches the `Func (Just (Var _ is))` case of
+--     IIndexedExpr, where pmIndices binds c := m;
+--   * parameter indices (T's MultiSub/MultiSup) are matched by
+--     makeBindings/pmIndices when the function is applied.
+-- Wrapping with withSymbols/transpose (Case 2) would instead bind c to a
+-- definition-time fresh symbol and leave the Func untagged, which breaks
+-- indexed application ("Expected hash, but found: #<lambda ...>").
+-- The environment key keeps kind-only indices (Sub/Sup Nothing) so that both
+-- the runtime env and the type env find it (EnvBuilder normalizes the same
+-- way for DefineWithType).
+desugarDefineWithIndices vwi@(VarWithIndices name is) expr@(LambdaExpr _ _) = do
+  let var' = varWithIndicesToVar vwi
+      key  = Var name (map (fmap (const Nothing)) (concatMap transVarIndex is))
+  expr' <- desugar expr
+  case expr' of
+    ILambdaExpr Nothing args body -> return (key, ILambdaExpr (Just var') args body)
+    _                             -> return (key, expr')
+
 -- Case 2: Non-empty indices - wrap with withSymbols and transpose
 desugarDefineWithIndices (VarWithIndices name is) expr = do
   let (isSubs, indexNames) = unzip $ concatMap extractSubSupIndex is

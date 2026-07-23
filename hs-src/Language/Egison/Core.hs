@@ -1690,12 +1690,18 @@ makeBindings vs refs = zipWithM makeBinding vs refs >>= return . concat
   where
     makeBinding :: Var -> ObjectRef -> EvalM [Binding]
     makeBinding v@(Var _ [])    ref = return [(v, ref)]
-    makeBinding v@(Var _name is) ref = do
+    makeBinding (Var name is) ref = do
       val <- evalRefDeep ref
       case val of
         TensorData (Tensor _ _ js) -> do
           frame <- pmIndices is js
-          return ((v, ref) : frame)
+          -- Bind the parameter itself under its bare name: the index part of
+          -- the parameter is an index PATTERN consumed by pmIndices above,
+          -- not part of the variable's identity.  The environment's VarEntry
+          -- matching compares index lists structurally, so an entry stored
+          -- under [MultiSub ..] would never be found by body references such
+          -- as `subrefs T ..` (which look up plain `T`).
+          return ((Var name [], ref) : frame)
         _ -> throwErrorWithTrace (TypeMismatch "tensor" (Value val))
 
 makeBindings' :: [String] -> [ObjectRef] -> [Binding]

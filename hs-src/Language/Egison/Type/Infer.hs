@@ -1116,14 +1116,48 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     argTypes <- mapM (\_ -> freshVar "arg") params
     let bindings = zipWith makeBinding params argTypes
-    (bodyTIExpr, s) <- withEnv (map toScheme bindings) $ inferIExprWithContext body exprCtx
+    -- Index-pattern bindings (tensor-paper5 "Pattern Matching for Tensor
+    -- Indices"): a parameter written `T~(a_1)...~(a_r)_(b_1)..._(b_k)` binds,
+    -- at application time (pmIndices), the hash `a`/`b` (position -> index
+    -- symbol) and the counts `r`/`k`; a name index such as the `c` of
+    -- `def ∇_c T... := ...` binds an index symbol.  Bring these variables
+    -- into scope for the body so they do not surface as unbound-variable
+    -- warnings (or hard errors in strict mode).
+    let indexBindings = concatMap paramIndexBindings params
+                     ++ maybe [] fnNameIndexBindings mVar
+    (bodyTIExpr, s) <- withEnv (map toScheme (bindings ++ indexBindings)) $ inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTIExpr
-    finalArgTypes <- mapM (applySubstWithConstraintsM s) argTypes
+    -- A parameter that carries index patterns is necessarily a tensor
+    -- (makeBindings forces the argument to TensorData at runtime).
+    s' <- foldM (\sAcc (param, argTy) ->
+                   if hasIndexPattern param
+                     then do
+                       argTy' <- applySubstWithConstraintsM sAcc argTy
+                       elemTy <- freshVar "idxParamElem"
+                       sT <- unifyTypesWithContext argTy' (TTensor elemTy) exprCtx
+                       return (composeSubst sT sAcc)
+                     else return sAcc)
+                s (zip params argTypes)
+    finalArgTypes <- mapM (applySubstWithConstraintsM s') argTypes
     let funType = foldr TFun bodyType finalArgTypes
-    return (mkTIExpr funType (TILambdaExpr mVar params bodyTIExpr), s)
+    return (mkTIExpr funType (TILambdaExpr mVar params bodyTIExpr), s')
     where
       makeBinding var t = (extractNameFromVar var, t)
       toScheme (name, t) = (name, Forall [] [] t)
+      hasIndexPattern (Var _ is) = not (null is)
+      fnNameIndexBindings (Var _ is) = concatMap namedIndexBinding is
+      paramIndexBindings (Var _ is) = concatMap indexPatternBinding is
+      namedIndexBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
+      namedIndexBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
+      namedIndexBinding (SupSub (Just (Var n []))) = [(n, TMathValue)]
+      namedIndexBinding _ = []
+      indexPatternBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
+      indexPatternBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
+      indexPatternBinding (MultiSub (Just (Var a [])) _ (Just (Var e []))) =
+        [(a, THash TInt TMathValue), (e, TInt)]
+      indexPatternBinding (MultiSup (Just (Var a [])) _ (Just (Var e []))) =
+        [(a, THash TInt TMathValue), (e, TInt)]
+      indexPatternBinding _ = []
   
   -- Function Application
   IApplyExpr func args -> do
@@ -3927,8 +3961,12 @@ inferITopExpr topExpr = case topExpr of
     warnOnClassMethodShadow var
     env <- getEnv
     -- Check if there's an explicit type signature in the environment
-    -- (added by EnvBuilder from DefineWithType)
-    case lookupEnv var env of
+    -- (added by EnvBuilder from DefineWithType).
+    -- Use the exact-index lookup: a definition with index patterns
+    -- (`def ∇_c T... := ...`, key ∇ [Sub Nothing]) must not adopt the
+    -- signature of a same-name index-less variable (e.g. stdlib ∇) that
+    -- lookupEnv's suffix fallback would return.
+    case lookupEnvExact var env of
       Just existingScheme -> do
         -- There's an explicit type signature: check that the inferred type matches
         st <- get
@@ -4125,8 +4163,10 @@ inferITopExpr topExpr = case topExpr of
             (vTI, s2) <- inferIExprWithContext vE emptyContext
             return ((kTI, vTI) : acc, foldr composeSubst s [s2, sk, s1])
       inferBinding env (var, expr) = do
-        -- Check if there's an existing type signature
-        case lookupEnv var env of
+        -- Check if there's an existing type signature (exact index match;
+        -- see the IDefine case for why the prefix/suffix fallbacks must not
+        -- be used at definition sites)
+        case lookupEnvExact var env of
           Just existingScheme -> do
             -- With type signature: check type
             st <- get

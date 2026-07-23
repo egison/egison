@@ -11,6 +11,7 @@ module Language.Egison.Type.Env
   , extendEnv
   , extendEnvMany
   , lookupEnv
+  , lookupEnvExact
   , removeFromEnv
   , envToList
   , freeVarsInEnv
@@ -75,6 +76,21 @@ extendEnv (Var name indices) scheme (TypeEnv env) =
 -- | Extend the environment with multiple bindings
 extendEnvMany :: [(Var, TypeScheme)] -> TypeEnv -> TypeEnv
 extendEnvMany bindings env = foldr (uncurry extendEnv) env bindings
+
+-- | Look up a variable requiring the index structure to match exactly.
+-- Used for definition-site signature detection (IDefine): a definition
+-- `def ∇_c T... := ...` must not pick up the signature of an index-less
+-- binding of the same name (e.g. the stdlib `∇ : Tensor MathValue -> ...`)
+-- through the prefix/suffix fallbacks of 'lookupEnv'; the two are distinct
+-- variables (the runtime environment also keeps them separate).
+lookupEnvExact :: Var -> TypeEnv -> Maybe TypeScheme
+lookupEnvExact (Var name indices) (TypeEnv env) =
+  case Map.lookup name env of
+    Nothing -> Nothing
+    Just entries ->
+      case [veValue e | e <- entries, veIndices e == indices] of
+        (scheme:_) -> Just scheme
+        []         -> Nothing
 
 -- | Look up a variable in the environment
 -- Search algorithm (same as refVar in Data.hs):
