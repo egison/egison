@@ -27,6 +27,9 @@ import qualified Data.HashMap.Strict              as HashMap
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.Set                         as Set
 
+import qualified Data.Map.Strict                  as Map
+
+import           Language.Egison.AST              (PrimitivePatPattern)
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
 import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, extendEnv)
@@ -91,6 +94,12 @@ data EvalState = EvalState
                                        --   declaration order (deduplicated).  DG1: symbols declared
                                        --   earlier rank lower in the monomial order used by
                                        --   `declare ideal`, i.e. they survive in normal forms.
+  , matcherShapeEnv :: Map.Map String [PrimitivePatPattern]
+                                       -- ^ Clause pp shapes of top-level matcher definitions,
+                                       --   harvested at IDefine by the type checker.  Consulted by
+                                       --   the value-pattern scope check (paper Def 4.2(4), the
+                                       --   vp-scoped premise of WT-ATOM).  Persists across load
+                                       --   batches, like the type environments.
   }
 
 initialEvalState :: EvalState
@@ -113,6 +122,7 @@ initialEvalState = EvalState
   , casTypeAliasEnv = HashMap.empty
   , casSubtypeEdges = []
   , declaredSymbolOrder = []
+  , matcherShapeEnv = Map.empty
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -181,6 +191,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Phase beta: `declare cas-subtype` edges.
   getCasSubtypeEdges :: m [(Type, Type)]
   setCasSubtypeEdges :: [(Type, Type)] -> m ()
+  -- Matcher clause shapes for the value-pattern scope check (Def 4.2(4)).
+  getMatcherShapeEnv :: m (Map.Map String [PrimitivePatPattern])
+  setMatcherShapeEnv :: Map.Map String [PrimitivePatPattern] -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -317,6 +330,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { casSubtypeEdges = es }
 
+  getMatcherShapeEnv = matcherShapeEnv <$> get
+  setMatcherShapeEnv env = do
+    st <- get
+    put $ st { matcherShapeEnv = env }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -361,6 +379,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setCasTypeAliasEnv = lift . setCasTypeAliasEnv
   getCasSubtypeEdges = lift getCasSubtypeEdges
   setCasSubtypeEdges = lift . setCasSubtypeEdges
+  getMatcherShapeEnv = lift getMatcherShapeEnv
+  setMatcherShapeEnv = lift . setMatcherShapeEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

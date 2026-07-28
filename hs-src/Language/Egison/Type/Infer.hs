@@ -50,7 +50,7 @@ module Language.Egison.Type.Infer
   , clearWarnings
   ) where
 
-import           Control.Monad              (foldM, when, zipWithM)
+import           Control.Monad              (foldM, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
 import           Data.List                  (isPrefixOf, nub, partition, intercalate)
@@ -191,6 +191,13 @@ data InferState = InferState
                                           --   in this set is a FORWARD reference (were it defined
                                           --   earlier it would be in the environment), so the warning
                                           --   can say how to fix it instead of "unbound".
+  , inferMatcherShapes :: Map.Map String [PrimitivePatPattern]
+                                          -- ^ Clause pp shapes of top-level matcher definitions
+                                          --   (name |-> pps of its (lambda-wrapped) matcher literal),
+                                          --   harvested at IDefine.  Consulted by the value-pattern
+                                          --   scope check (paper Def 4.2(4), the vp-scoped premise of
+                                          --   WT-ATOM) to resolve a match site's matcher clause
+                                          --   shapes statically.
   } deriving (Show)
 
 -- | Shape classification of a matcher-clause hole's next-matcher component,
@@ -208,11 +215,11 @@ data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty
+initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty Map.empty
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty
+initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty Map.empty
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -2077,6 +2084,7 @@ inferIExprWithContext expr ctx = case expr of
   -- Match expressions (pattern matching)
   IMatchExpr mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
+    checkVpScope exprCtx matcher clauses
     (targetTI, s1) <- inferIExprWithContext target exprCtx
     (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
     let targetType = tiExprType targetTI
@@ -2149,6 +2157,7 @@ inferIExprWithContext expr ctx = case expr of
   -- MatchAll expressions
   IMatchAllExpr mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
+    checkVpScope exprCtx matcher clauses
     (targetTI, s1) <- inferIExprWithContext target exprCtx
     (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
     let targetType = tiExprType targetTI
@@ -2752,6 +2761,184 @@ generalClauseCtor (PPInductivePat name args)
   where isHole PPPatVar = True
         isHole _        = False
 generalClauseCtor _ = Nothing
+
+-- | Strip lambda wrappers to find a matcher literal (for shape harvesting).
+stripLambdasForShape :: IExpr -> IExpr
+stripLambdasForShape (ILambdaExpr _ _ body) = stripLambdasForShape body
+stripLambdasForShape e = e
+
+-- | Statically resolved matcher clause shapes at a match site.
+data VpShape
+  = VpClauses [PrimitivePatPattern]  -- ^ a matcher with these clause pps
+  | VpTuple [VpShape]                -- ^ a product matcher, componentwise
+  | VpUnknown                        -- ^ opaque (e.g. a slot-typed parameter)
+
+-- | Resolve a match site's matcher expression to its clause shapes, when
+-- statically known: a matcher literal, a tuple of matchers, or a (possibly
+-- applied) top-level matcher definition harvested at its IDefine.
+resolveVpShape :: IExpr -> Infer VpShape
+resolveVpShape (IMatcherExpr patDefs) =
+  return $ VpClauses (map (\(pp, _, _) -> pp) patDefs)
+resolveVpShape (ITupleExpr es) = VpTuple <$> mapM resolveVpShape es
+resolveVpShape (IVarExpr name) = do
+  shapes <- gets inferMatcherShapes
+  return $ maybe VpUnknown VpClauses (Map.lookup name shapes)
+resolveVpShape (IApplyExpr f _) = resolveVpShape f
+resolveVpShape _ = return VpUnknown
+
+-- | Pattern variables a pattern can bind (conservative, all binders).
+ipatternVars :: IPattern -> [String]
+ipatternVars = go
+  where
+    go IWildCard                    = []
+    go (IPatVar s)                  = [s]
+    go (IValuePat _)                = []
+    go (IPredPat _)                 = []
+    go (IIndexedPat p _)            = go p
+    go (ILetPat _ p)                = go p
+    go (INotPat p)                  = go p
+    go (IAndPat p q)                = go p ++ go q
+    go (IOrPat p q)                 = go p ++ go q
+    go (IForallPat p q)             = go p ++ go q
+    go (ITuplePat ps)               = concatMap go ps
+    go (IInductivePat _ ps)         = concatMap go ps
+    go (ILoopPat s (ILoopRange _ _ pe) p q) = s : go pe ++ go p ++ go q
+    go IContPat                     = []
+    go (IPApplyPat _ ps)            = concatMap go ps
+    go (IVarPat _)                  = []
+    go (IInductiveOrPApplyPat _ ps) = concatMap go ps
+    go ISeqNilPat                   = []
+    go (ISeqConsPat p q)            = go p ++ go q
+    go ILaterPatVar                 = []
+    go (IDApplyPat p ps)            = go p ++ concatMap go ps
+
+-- | Variable references of an expression (conservative over-approximation:
+-- collects every IVarExpr occurrence; local rebinding is not subtracted).
+-- Used only to intersect with candidate pattern variables, so global names
+-- are harmless.
+iexprVarRefs :: IExpr -> [String]
+iexprVarRefs = go
+  where
+    go (IConstantExpr _)        = []
+    go (IVarExpr s)             = [s]
+    go (IIndexedExpr _ e is)    = go e ++ concatMap goIdx is
+    go (ISubrefsExpr _ e1 e2)   = go e1 ++ go e2
+    go (ISuprefsExpr _ e1 e2)   = go e1 ++ go e2
+    go (IUserrefsExpr _ e1 e2)  = go e1 ++ go e2
+    go (IInductiveDataExpr _ es) = concatMap go es
+    go (ITupleExpr es)          = concatMap go es
+    go (ICollectionExpr es)     = concatMap go es
+    go (IConsExpr e1 e2)        = go e1 ++ go e2
+    go (IJoinExpr e1 e2)        = go e1 ++ go e2
+    go (IHashExpr prs)          = concatMap (\(a, b) -> go a ++ go b) prs
+    go (IVectorExpr es)         = concatMap go es
+    go (ILambdaExpr _ _ b)      = go b
+    go (IMemoizedLambdaExpr _ b) = go b
+    go (ICambdaExpr _ b)        = go b
+    go (IIfExpr c t e)          = go c ++ go t ++ go e
+    go (ILetRecExpr bs b)       = concatMap (go . snd) bs ++ go b
+    go (ILetExpr bs b)          = concatMap (go . snd) bs ++ go b
+    go (IWithSymbolsExpr _ b)   = go b
+    go (IMatchExpr _ t m cls)   = go t ++ go m ++ concatMap goClause cls
+    go (IMatchAllExpr _ t m cls) = go t ++ go m ++ concatMap goClause cls
+    go (IMatcherExpr defs)      = concatMap goDef defs
+    go (IQuoteExpr e)           = go e
+    go (IQuoteSymbolExpr e)     = go e
+    go (IWedgeApplyExpr f es)   = go f ++ concatMap go es
+    go (IDoExpr bs b)           = concatMap (go . snd) bs ++ go b
+    go (ISeqExpr e1 e2)         = go e1 ++ go e2
+    go (IApplyExpr f es)        = go f ++ concatMap go es
+    go (IGenerateTensorExpr e1 e2) = go e1 ++ go e2
+    go (ITensorExpr e1 e2)      = go e1 ++ go e2
+    go (ITensorContractExpr e)  = go e
+    go (ITensorMapExpr e1 e2)   = go e1 ++ go e2
+    go (ITensorMap2Expr e1 e2 e3) = go e1 ++ go e2 ++ go e3
+    go (ITensorMap2WedgeExpr e1 e2 e3) = go e1 ++ go e2 ++ go e3
+    go (ITransposeExpr e1 e2)   = go e1 ++ go e2
+    go (IFlipIndicesExpr e)     = go e
+    go (IFunctionExpr _)        = []
+    go (IPatternFuncExpr _ p)   = goPat p
+    go (IReshape _ e)           = go e
+    go (IRuntimeDispatch _ _ _ es) = concatMap go es
+    goIdx idx = case idx of
+      Sub e    -> go e
+      Sup e    -> go e
+      _        -> []
+    goClause (p, b) = goPat p ++ go b
+    goDef (_, m, arms) = go m ++ concatMap (go . snd) arms
+    goPat p = case p of
+      IValuePat e        -> go e
+      IPredPat e         -> go e
+      IIndexedPat q es   -> goPat q ++ concatMap go es
+      ILetPat bs q       -> concatMap (go . snd) bs ++ goPat q
+      INotPat q          -> goPat q
+      IAndPat q r        -> goPat q ++ goPat r
+      IOrPat q r         -> goPat q ++ goPat r
+      IForallPat q r     -> goPat q ++ goPat r
+      ITuplePat qs       -> concatMap goPat qs
+      IInductivePat _ qs -> concatMap goPat qs
+      ILoopPat _ (ILoopRange e1 e2 pe) q r ->
+        go e1 ++ go e2 ++ goPat pe ++ goPat q ++ goPat r
+      IPApplyPat e qs    -> go e ++ concatMap goPat qs
+      IInductiveOrPApplyPat _ qs -> concatMap goPat qs
+      ISeqConsPat q r    -> goPat q ++ goPat r
+      IDApplyPat q qs    -> goPat q ++ concatMap goPat qs
+      _                  -> []
+
+-- | Align a clause's pp with a match-site pattern, threading the pattern
+-- variables bound to the left (within the same atom's pattern) and
+-- collecting each captured value pattern's expression with the variables
+-- forbidden for it.  Nothing = shape mismatch (the clause is not selected;
+-- no obligation).
+vpAlign :: [String] -> PrimitivePatPattern -> IPattern
+        -> Maybe ([(IExpr, [String])], [String])
+vpAlign acc pp p = case (pp, p) of
+  (PPWildCard, IWildCard)       -> Just ([], acc)
+  (PPPatVar, q)                 -> Just ([], acc ++ ipatternVars q)
+  (PPValuePat _, IValuePat e)   -> Just ([(e, acc)], acc)
+  (PPInductivePat n pps, IInductivePat n' ps)
+    | n == n' && length pps == length ps -> vpAlignList acc pps ps
+  (PPInductivePat n pps, IInductiveOrPApplyPat n' ps)
+    | n == n' && length pps == length ps -> vpAlignList acc pps ps
+  (PPTuplePat pps, ITuplePat ps)
+    | length pps == length ps   -> vpAlignList acc pps ps
+  _                             -> Nothing
+
+vpAlignList :: [String] -> [PrimitivePatPattern] -> [IPattern]
+            -> Maybe ([(IExpr, [String])], [String])
+vpAlignList acc [] [] = Just ([], acc)
+vpAlignList acc (pp : pps) (p : ps) = do
+  (caps, acc')  <- vpAlign acc pp p
+  (caps', acc'') <- vpAlignList acc' pps ps
+  return (caps ++ caps', acc'')
+vpAlignList _ _ _ = Nothing
+
+-- | The value-pattern scope check (paper Def 4.2(4), the vp-scoped premise
+-- of WT-ATOM; surfaced by the type-pm-mech mechanization): at a match site
+-- whose matcher clause shapes are statically known, a value pattern captured
+-- by a #\$x may not reference pattern variables bound to its left within the
+-- same clause pattern (bindings made before the atom are available; those of
+-- the same clause's holes are not yet made).  Componentwise for a tuple of
+-- matchers (each component is its own atom, so earlier components' bindings
+-- are pre-atom for later ones).  Opaque matchers are not checked (disclosed
+-- in the paper's implementation appendix).
+checkVpScope :: TypeErrorContext -> IExpr -> [IMatchClause] -> Infer ()
+checkVpScope ctx matcherExpr clauses = do
+  shape <- resolveVpShape matcherExpr
+  mapM_ (\(pat, _) -> walkShape shape pat) clauses
+  where
+    walkShape (VpTuple shapes) (ITuplePat ps)
+      | length shapes == length ps = zipWithM_ walkShape shapes ps
+    walkShape (VpClauses pps) p = mapM_ (checkClause p) pps
+    walkShape _ _ = return ()
+    checkClause p pp = case vpAlign [] pp p of
+      Nothing -> return ()
+      Just (caps, _) ->
+        mapM_ (\(e, forbidden) -> do
+          let bad = nub (filter (`elem` forbidden) (iexprVarRefs e))
+          unless (null bad) $
+            throwError $ MatchCapturedValuePatScope bad (prettyStr pp) ctx)
+          caps
 
 -- | Conservative exhaustiveness of a matcher clause's primitive-data-pattern arms
 -- (arm exhaustiveness, paper Def 4.2(1c); enforced as an ordinary type error).
@@ -3959,6 +4146,16 @@ inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
     warnOnClassMethodShadow var
+    -- Harvest matcher clause shapes for the value-pattern scope check
+    -- (paper Def 4.2(4)): a top-level definition whose (lambda-wrapped)
+    -- body is a matcher literal records its clause pps under its name.
+    case stripLambdasForShape expr of
+      IMatcherExpr patDefs ->
+        modify (\st -> st { inferMatcherShapes =
+          Map.insert (extractNameFromVar var)
+                     (map (\(pp, _, _) -> pp) patDefs)
+                     (inferMatcherShapes st) })
+      _ -> return ()
     env <- getEnv
     -- Check if there's an explicit type signature in the environment
     -- (added by EnvBuilder from DefineWithType).

@@ -134,6 +134,13 @@ data TypeError
     --   Checked as a conservative syntactic approximation (see 'pdArmsExhaustive' in the
     --   inference module); the standard-library convention is a final @| _ -> []@ (or
     --   @| $tgt -> ...@) arm.
+  | MatchCapturedValuePatScope [String] String TypeErrorContext
+    -- ^ Value-pattern scope condition (paper Def 4.2(4), the vp-scoped premise of WT-ATOM;
+    --   surfaced by the type-pm-mech mechanization).  A value pattern captured by a #$x
+    --   of the given matcher clause (rendered pp) is evaluated at clause selection, under
+    --   the atom's environment: bindings made before the atom are available, but the listed
+    --   pattern variables are bound to its left within the same clause pattern and do not
+    --   exist yet.  Checked at match sites whose matcher clause shapes are statically known.
   deriving (Eq, Show, Generic)
 
 
@@ -229,6 +236,15 @@ formatTypeError err = case err of
       " none of its arms fails at runtime (\"Primitive data pattern match failed\");" ++
       " end the arms with `| _ -> []`" ++
       "\n  (arm exhaustiveness; paper Def 4.2(1c))"
+
+  MatchCapturedValuePatScope vars ppStr ctx ->
+    formatWithContext ctx $
+      "Value pattern captured by `#$` of matcher clause `" ++ ppStr ++ "`" ++
+      " is evaluated when the clause is selected, under the atom's environment:" ++
+      " it cannot reference " ++ intercalate ", " (map (\v -> "'" ++ v ++ "'") vars) ++
+      ", bound to its left in the same clause pattern" ++
+      " (bindings made before the atom are available)" ++
+      "\n  (value-pattern scope condition; paper Def 4.2(4))"
 
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String

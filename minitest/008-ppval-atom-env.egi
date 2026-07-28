@@ -1,28 +1,32 @@
--- Value-pattern-pattern interception evaluates under the ATOM's environment
--- (type-pm-mech mechanization finding #3; paper Def 4.2(4)).
+-- Value-pattern-pattern capture evaluates under the ATOM's environment
+-- (type-pm-mech mechanization finding #3; paper Def 4.2(4), the vp-scoped
+-- premise of WT-ATOM = the value-pattern scope condition).
 --
--- When a matcher clause's pp has #$z at some position, the user's value
--- pattern intercepted there is evaluated at clause-selection time, under the
--- environment of the ATOM being reduced (PPP-VAL's rho = rho ++ theta of
--- MS-REDUCE).  Consequences:
+-- A value pattern captured by a #$z of a matcher clause is evaluated at
+-- clause-selection time, under the environment of the atom being reduced
+-- (PPP-VAL's rho = rho ++ theta of MS-REDUCE).  Consequences:
 --   * bindings made BEFORE the atom (earlier atoms, e.g. an earlier tuple
 --     component) ARE available -- the sortedList pivot idiom supports a
 --     pattern-bound pivot;
 --   * bindings of the SAME atom's left sub-patterns (extracted by the same
---     clause's holes) are NOT yet made -- an expression referencing them is
---     outside the WT-ATOM side condition; in this implementation the unbound
---     references evaluate to uninterpreted symbols and the comparison
---     silently fails (no crash), yielding no match.
--- The corresponding static per-site check (when the matcher's clauses are
--- statically known) is future work; see the paper's implementation appendix
--- (type-pm-paper, Def 4.2(4) / Fig 6 intercept-ok / App J).
+--     clause's holes) are NOT yet made -- referencing them violates the
+--     value-pattern scope condition.  At match sites whose matcher clause
+--     shapes are statically known (a matcher literal, a tuple of matchers,
+--     or a (possibly applied) top-level matcher definition), the violation
+--     is a TYPE ERROR:
+--       matchAll [1, 2, 1, 2] as weird integer with $ys ++ #ys -> ys
+--       ==> Value pattern captured by `#$` of matcher clause `++ $ #$z` ...
+--           (value-pattern scope condition; paper Def 4.2(4))
+--     When the matcher is an opaque parameter the site is not checked; the
+--     unbound reference then evaluates to an uninterpreted symbol at runtime
+--     and the comparison silently fails (see the last assertion).
 -- Run with: cabal run egison -- -t minitest/008-ppval-atom-env.egi
 
--- Positive: an intercepted value pattern may use PRE-ATOM bindings.
+-- Positive: a captured value pattern may use PRE-ATOM bindings.
 -- The pivot p is bound by the FIRST tuple component's atom; the second
 -- component's sortedList pivot clause `$ ++ #$px :: $` then captures #p
 -- with p already in the environment.
-assertEqual "intercepted value pattern sees pre-atom bindings"
+assertEqual "captured value pattern sees pre-atom bindings"
   (matchAll ([2], [1, 2, 3]) as (list integer, sortedList integer) with
     | ($p :: _, $ls ++ #p :: $rs) -> (ls, rs))
   [([1], [3])]
@@ -42,16 +46,17 @@ def weird {a} (m : MatcherSlot a a) : Matcher [a] :=
     | $ as something with
       | $tgt -> [tgt]
 
--- Control: a closed value pattern at an intercepted position works.
+-- Control: a closed value pattern at a captured position works.
 assertEqual "closed value pattern at second position"
   (matchAll [1, 2, 3] as weird integer with $ys ++ #[3] -> ys)
   [[1, 2]]
 
--- Documented violation of the side condition: `#ys` references the binding of
--- the SAME atom's left hole (`$ys`), which does not exist at capture time --
--- the reference evaluates to the symbol `ys` and the comparison silently
--- fails, so the match yields [] (a same-atom reference cannot be honored by
--- interception; it is honored on the extraction route, cf. `pair`).
-assertEqual "same-atom left reference silently mismatches (finding #3)"
-  (matchAll [1, 2, 1, 2] as weird integer with $ys ++ #ys -> ys)
+-- The disclosed unchecked case: behind an opaque (slot-typed) matcher
+-- parameter the site cannot be checked statically; the same-atom left
+-- reference silently mismatches at runtime (symbol comparison), yielding [].
+def viaParam {a} (m : MatcherSlot [a] [a]) (xs : [a]) : [[a]] :=
+  matchAll xs as m with $ys ++ #ys -> ys
+
+assertEqual "opaque-matcher site is unchecked; silent mismatch"
+  (viaParam (weird integer) [1, 2, 1, 2])
   []
