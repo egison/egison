@@ -1,0 +1,57 @@
+-- Value-pattern-pattern interception evaluates under the ATOM's environment
+-- (type-pm-mech mechanization finding #3; paper Def 4.2(4)).
+--
+-- When a matcher clause's pp has #$z at some position, the user's value
+-- pattern intercepted there is evaluated at clause-selection time, under the
+-- environment of the ATOM being reduced (PPP-VAL's rho = rho ++ theta of
+-- MS-REDUCE).  Consequences:
+--   * bindings made BEFORE the atom (earlier atoms, e.g. an earlier tuple
+--     component) ARE available -- the sortedList pivot idiom supports a
+--     pattern-bound pivot;
+--   * bindings of the SAME atom's left sub-patterns (extracted by the same
+--     clause's holes) are NOT yet made -- an expression referencing them is
+--     outside the WT-ATOM side condition; in this implementation the unbound
+--     references evaluate to uninterpreted symbols and the comparison
+--     silently fails (no crash), yielding no match.
+-- The corresponding static per-site check (when the matcher's clauses are
+-- statically known) is future work; see the paper's implementation appendix
+-- (type-pm-paper, Def 4.2(4) / Fig 6 intercept-ok / App J).
+-- Run with: cabal run egison -- -t minitest/008-ppval-atom-env.egi
+
+-- Positive: an intercepted value pattern may use PRE-ATOM bindings.
+-- The pivot p is bound by the FIRST tuple component's atom; the second
+-- component's sortedList pivot clause `$ ++ #$px :: $` then captures #p
+-- with p already in the environment.
+assertEqual "intercepted value pattern sees pre-atom bindings"
+  (matchAll ([2], [1, 2, 3]) as (list integer, sortedList integer) with
+    | ($p :: _, $ls ++ #p :: $rs) -> (ls, rs))
+  [([1], [3])]
+
+def weird {a} (m : MatcherSlot a a) : Matcher [a] :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as (m, weird m) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ ++ #$z as (list m) with
+      | $tgt ->
+        matchAll tgt as list m with
+          | $hs ++ #z -> hs
+    | $ as something with
+      | $tgt -> [tgt]
+
+-- Control: a closed value pattern at an intercepted position works.
+assertEqual "closed value pattern at second position"
+  (matchAll [1, 2, 3] as weird integer with $ys ++ #[3] -> ys)
+  [[1, 2]]
+
+-- Documented violation of the side condition: `#ys` references the binding of
+-- the SAME atom's left hole (`$ys`), which does not exist at capture time --
+-- the reference evaluates to the symbol `ys` and the comparison silently
+-- fails, so the match yields [] (a same-atom reference cannot be honored by
+-- interception; it is honored on the extraction route, cf. `pair`).
+assertEqual "same-atom left reference silently mismatches (finding #3)"
+  (matchAll [1, 2, 1, 2] as weird integer with $ys ++ #ys -> ys)
+  []
