@@ -1274,6 +1274,21 @@ inferIExprWithContext expr ctx = case expr of
              (TMatcher (TVar (TyVar "a")))
              "a `matcher` must contain a catch-all clause `$ as <matcher> with $tgt -> ...` (e.g. `$ as something`) so that variable and wildcard patterns are handled"
              exprCtx
+    -- Paper Def 4.2(2), ordering half (mechanization finding, 2026-07-28): clauses are
+    -- tried in order and a bare-hole pp `$` matches every pattern, so any clause after
+    -- the first bare-hole clause is dead code — and worse, a constructor or tuple
+    -- pattern is then captured by the bare-hole clause and delegated to its next
+    -- matcher (typically `something`), which cannot decompose it: a runtime error the
+    -- per-site dual check cannot see.  The standard library always puts the catch-all
+    -- last; enforce that convention.
+    case break (\(pp, _, _) -> case pp of PPPatVar -> True; _ -> False) patDefs of
+      (_, _catchAll : rest) | not (null rest) ->
+        throwError $ TE.TypeMismatch
+          (TMatcher (TVar (TyVar "a")))
+          (TMatcher (TVar (TyVar "a")))
+          "matcher clauses after a catch-all clause `$ as ...` are unreachable (clauses are tried in order and `$` matches every pattern); move the catch-all clause last"
+          exprCtx
+      _ -> return ()
     -- Infer type of each pattern definition (matcher clause)
     -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
     -- Mark that we are inside a matcher body.  Match-sites nested here are still fully checked

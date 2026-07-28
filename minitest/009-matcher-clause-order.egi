@@ -1,0 +1,45 @@
+-- Matcher clause ordering (paper Def 4.2(2), ordering half; mechanization
+-- finding #4, 2026-07-28).
+--
+-- Matcher clauses are tried in order and a bare-hole pp `$` matches every
+-- pattern, so every clause after the first bare-hole (catch-all) clause is
+-- unreachable.  Worse, a constructor pattern reaching a catch-all placed
+-- first is delegated to its next matcher (typically `something`), which
+-- cannot decompose it -- a runtime error the per-site dual check cannot
+-- see.  The type checker therefore rejects clauses after a catch-all:
+--
+--   def weirdList {a} (m : MatcherSlot a a) : Matcher [a] :=
+--     matcher
+--       | $ as something with $tgt -> [tgt]     -- catch-all FIRST
+--       | [] as () with ...                     -- unreachable
+--       | $ :: $ as (m, weirdList m) with ...   -- unreachable
+--
+--   ==> Type error: matcher clauses after a catch-all clause `$ as ...`
+--       are unreachable ...; move the catch-all clause last
+--
+-- (Before this check, the definition type-checked and `matchAll [1, 2, 3]
+-- as weirdList integer with $x :: $xs -> ...` failed at runtime with
+-- "something can only match with a pattern variable".)
+--
+-- This file checks the positive side: the conventional order (catch-all
+-- last) still passes, including matchers whose earlier clauses are
+-- refinement clauses.
+
+def okList {a} (m : MatcherSlot a a) : Matcher [a] :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as (m, okList m) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual "clause order: cons via general clause"
+  (matchAll [1, 2, 3] as okList integer with $x :: $xs -> (x, xs))
+  [(1, [2, 3])]
+
+assertEqual "clause order: var via catch-all"
+  (matchAll [1, 2, 3] as okList integer with $x -> x)
+  [[1, 2, 3]]
