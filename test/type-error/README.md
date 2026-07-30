@@ -41,6 +41,7 @@ done
 | 21-patfun-linearity-order | 同 | 宣言順違反 |
 | 22-patfun-linearity-dup | 同 | 重複使用 |
 | 23-patfun-linearity-under-or | 同 | or 分岐配下での使用 |
+| 24-patfun-nested-matcher-slot | PATFUN-DEF / R12 | value pattern 式内の matcher literal でも deferred slot 検査を完遂 |
 | 30-value-pattern-expr-type | PAT-VALUE(B.1.1) | 値パターン内式の型エラー(`x ++ [1]`) |
 | 31-nonlinear-target-type | 非線形パターン(B.1.1) | `$x :: #x`(要素 vs リスト) |
 | 32-or-pattern-bindings | PAT-OR | 分岐間の束縛変数不一致 |
@@ -54,6 +55,16 @@ done
 | 54-something-structured-hole | PP-Con 遅延判定 | 注釈で後から [Integer] に確定する hole への `something` |
 | 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
 | 56-multisite-structural-join | 同(構造要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
+| 57-next-matcher-nontuple | T-MATCHER / R12 成分境界 | 2 hole に積を返す非 tuple application |
+| 58-next-matcher-slot-structural | Algorithm W Step 3a / R12 | target は一致するが構造添字が不一致の既存 slot |
+| 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の裸能力 matcher を構造 hole へ渡す |
+| 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ完全型を構造 hole へ渡す |
+| 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ完全型を構造 hole へ渡す |
+| 62-next-matcher-nested-rename | `fresh_rename` / R12 | `Maybe [a]` の入れ子骨格を欠く matcher |
+| 63-next-matcher-zero-hole | T-MATCHER / R12 成分境界 | 0 hole に `()` 以外の next matcher |
+| 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
+| 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | 構造添字は一致するが target 添字が不一致の既存 slot |
+| 66-next-matcher-repeated-slot | OneWay / R12 | 反復 slot 変数を介して matcher 側変数を再束縛しない |
 
 ## ケース追加時の注意
 

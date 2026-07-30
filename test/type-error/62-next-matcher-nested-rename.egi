@@ -1,0 +1,17 @@
+-- R12 fresh_rename preserves the complete nested type skeleton.  The hole
+-- requires Maybe [a], whereas maybe something has only Maybe b capability.
+-- Target unification can set b = [a], but must not retroactively strengthen
+-- the frozen structural capability.
+--
+-- Expected: Type error (nested list structure is absent from the capability)
+
+inductive Box a := Box (Maybe [a])
+inductive pattern Box a := box (Maybe [a])
+
+def bad {a} : Matcher (Box a) :=
+  matcher
+    | box $ as maybe something with
+      | Box $x -> [x]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

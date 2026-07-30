@@ -162,7 +162,7 @@ Stage 1〜3 完了により、現行 Egison は論文の MatcherSlot 型シス�
 
 ## Stage 4: 残ギャップの精査と追加実装（論文との完全一致に向けて）
 
-論文の型システム規則を実装と突き合わせた監査で、Stage 1〜3 では未対応だったギャップが判明:
+論文の型システム規則を実装と突き合わせた当時の監査で、Stage 1〜3 では未対応だったギャップが判明:
 - **A** match-site の構造的許容性が構文近似(偽陽性＋偽陰性)
 - **B** マッチャー定義時の next-matcher 許容性(PP-Con)未実装
 - **C** Matcher Consistency(Coverage/catch-all)未実装
@@ -248,32 +248,30 @@ Egison の型推論は **rigid/skolem 変数を持たず**、再帰マッチャ�
 - 検証: `($x | #1)`(束縛が異なる)拒否、`(#1 | #2)`/`($x::_ | $x::_)`(同一)受理。
 - 回帰: mini-test 88/88・cabal test 21/21 clean(stdlib の or-pattern は全分岐同一束縛)。
 
-### B 実装（マッチャー定義時 next-matcher 許容性, PP-Con）— opt-in warning
-**この gap について私(実装者)は調査中に三度誤った。最終的な事実は以下。** 診断(`inferPatternDef` /
-`inferPrimitivePatPattern` に一時的に仕込んだ PPCON/PPIND 診断)で確認:
+### B / R12 完了（マッチャー定義時 next-matcher slot 検査, PP-Con）
 
-1. **再帰参照は解決される(誤り訂正①)**。当初「再帰マッチャー `multiset m` が未解決の fresh 変数になり
-   `something` と区別できない(rigid 変数欠如)」としたが**誤り**。`poly m`/`list m`/`multiset m` 等は
-   `inner=resolved([a]/MathValue)`。宣言型を持つトップレベル再帰マッチャーはスコープに入っている。
-2. **`::` の hole は `[a]` に正しく解決される(誤り訂正②)**。当初「cons hole が型変数のまま」としたが**誤り**。
-   PPIND2 診断で `::` の `argTypes=[a, [a]]`・`holes=[a, [a]]` を確認。cons 末尾 hole は `[a]`(TCollection)。
-3. **`weird` は捕捉できる(誤り訂正③)**。当初「捕捉不可」としたが、それは私のテストファイル `weird.egi` が
-   **パースエラー**(コンパクトな matcher 構文)で型検査されていなかっただけ。正しい構文では、型ベース検査
-   (構築子頭 hole に bare 変数 inner)が `weird` の `something @ [a]` を正しく警告する。
+`Infer.hs` の next-matcher 経路を，論文と
+[`type-pm-mech/problem/resolved-next-matcher-slot-checking.md`](../../type-pm-mech/problem/resolved-next-matcher-slot-checking.md)
+の固定仕様へ合わせた。
 
-正しい結論: **B は型レベルで実装可能**。検査(構築子頭 hole の bare 変数 inner)は:
-- `weird` の `something @ [a]` を捕捉(論文の看板例)。✓
-- 再帰参照 `list m`/`multiset m`(inner が `[a]` に解決)は警告しない。✓
-- CAS マッチャーの `something` @ MathValue/String を警告(論文も拒否する非準拠コード、C/Coverage と同根)。
+- 成分境界は，1 hole なら式全体，0 hole または複数 hole なら正確な要素数の
+  明示 `ITupleExpr` だけである。積型を返す変数・application は暗黙分解しない。
+- 全成分の完全な推論型を，どの hole target も単一化する前に一括して保存する。
+- 各 hole 成分に含まれる `Matcher μ` は，一つの injective な再帰的改名で
+  保存した能力を構造側へ，元の `μ` を target 側へ使う。同じ変数の反復だけでなく，
+  積内の複数 matcher 葉にまたがる共有も保つ。
+- 既存 `MatcherSlot κ' λ'` は構造・target の両成分を検査し，得られた代入を
+  型付き構文木と一般化前の型へ反映する。
+- 未確定変数は完全な `MatcherSlot` へ確定する。成分境界を決めた後の検査は，
+  変数・application・lambda・`something` などの式構文形に依存しない。
 
-実装(`Infer.hs` の `inferPatternDef`、`MatcherNextMatcherWarning`): **構築子頭 hole(非型変数 hole)に
-リテラル `something`(`IConstantExpr SomethingExpr`)** が来たら警告。構文的に `something` を判定するため、
-slot 型パラメータ `m : MatcherSlot a a`(deferred で許容)も再帰/構造化 next-matcher(`list m`/`multiset m`)も
-**誤検知しない**。検証: `weird` の `something@[a]` 警告(論文の看板例)、stdlib では CAS の `something` のみ22件、
-`m`/`list m` は0件、デフォルト OFF で無音。
-- **Coverage と同様 opt-in warning**(`--matcher-consistency-warnings`)。hard error 化は CAS マッチャーが `something` を
-  具体 hole で使う非準拠コードなので stdlib を壊す。忠実化には CAS マッチャーの `something`@具体 hole を具体
-  マッチャーに置換する stdlib 改修が必要(C/Coverage と同根)。**rigid 変数欠如とは無関係だった。**
+不一致は warning ではなく通常の型エラーである。これにより顕在化した
+`lib/math/algebra/matrix.egi` の `quadCons` 第1 hole は，実際の分解結果に合わせて
+`Matrix a` から `a` へ修正した。
+
+ここで完了したのは fixed-monomorphic な成分検査である。scheme lookup 後に
+共有変数を介して `Matcher` 能力自体が具体化される P2 の問題は別に残り，
+この変更では扱わない。
 
 ### C 部分実装（Matcher Consistency, Def 4.2）
 - **catch-all (4.2(2)) 実装**: `matcher` 式に catch-all 節 `$ as M with $tgt -> N`(pp が bare `$` = PPPatVar)が
@@ -343,7 +341,7 @@ slot 型パラメータ `m : MatcherSlot a a`(deferred で許容)も再帰/構�
 | CAS ground 同値 | ✅ |
 | PAT-OR 出力文脈一致 | ✅ |
 | Matcher Consistency catch-all (4.2(2)) | ✅ |
-| T-MATCHER PP-Con next-matcher 許容性(`weird`) | ✅ **hard error**(`weird` を拒否)。stdlib を `symbol` の String hole→`string`、`apply` の関数 hole→exempt(構造分解不能)に準拠化済。`TVar`/`TFun` hole は exempt |
+| T-MATCHER PP-Con next-matcher slot 検査 | ✅ **hard error**。1 hole／明示 tuple 境界，完全型 freeze，`Matcher` の双対検査，既存 `MatcherSlot` の両添字検査を実装。scheme-level P2 は対象外 |
 | Coverage (4.2(3)) | ⚠️ opt-in warning 診断（`--matcher-consistency-warnings`）。hard error 化は stdlib の部分マッチャーを拒否 |
 | dp アーム網羅性 (4.2(1c)) | ✅ **通常の型エラーとして強制**（`MatcherDataArmsNotExhaustive`）。保守的構文近似: irrefutable アーム or `[]`+cons/snoc・`True`+`False` 完全ペア（ML 流構築子列挙は不実施、論文付録にも「保守近似」と明記）。matcher 本体内は Coverage 同様抑制 |
 | decomposition body 型 (4.2(1b)) | ✅（`inferDataClauseWithCheck` が body 返り型を hole 型タプルと単一化）|
@@ -352,11 +350,11 @@ slot 型パラメータ `m : MatcherSlot a a`(deferred で許容)も再帰/構�
 
 **根本制約(B・Coverage・A本体内保留は別々の原因)**:
 
-- **B = stdlib CAS の非準拠のみ(rigid 変数とも `::` hole 未解決とも無関係)**。当初の説明は三度誤った
-  (①再帰未解決 ②`::` hole 未解決 ③`weird` 捕捉不可)。全て誤りで、正しくは: 再帰参照も `::` の `[a]` hole も
-  正しく解決され、型ベース検査は `weird` の `something@[a]` を捕捉する。唯一の制約は CAS マッチャーが
-  `something`/`m` を具体型 hole で使う非準拠コードで、hard error 化すると stdlib が壊れる(gap C/Coverage と
-  同根)。よって opt-in warning として実装済み。
+- **B / R12 = fixed-monomorphic な next-matcher slot 検査は完了**。成分の完全型を
+  hole target 単一化前に保存するため，`weird` の `something@[a]`，変数・application・lambda
+  を経由する同型の不適合，既存 slot の片側不一致を hard error として捕捉する。
+  stdlib で顕在化した宣言不一致は `matrix.egi` の `quadCons` 第1 hole を実際の target 型へ修正した。
+  ただし scheme lookup 前の能力由来を保存する一般的な P2 は未解決である。
 
 - **A の本体内 match-site = 検査される(保留撤去済)。明示 self-match-site 再帰の false-positive も解決済み**。
   以前はマッチャー本体内の match-site 検査を `inferInMatcherBody` で保留していたが、**撤去した**(ユーザ要求

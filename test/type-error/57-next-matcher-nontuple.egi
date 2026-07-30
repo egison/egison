@@ -1,0 +1,15 @@
+-- T-MATCHER / R12 component boundary: a clause with two holes requires an
+-- explicit two-component next-matcher tuple.  An application returning a
+-- product matcher must not be split from its inferred type.
+--
+-- Expected: Type error (the outer next-matcher expression is an application)
+
+def keep {a} (x : a) : a := x
+
+def bad : Matcher [Integer] :=
+  matcher
+    | $ :: $ as keep (integer, list integer) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

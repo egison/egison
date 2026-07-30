@@ -1,0 +1,21 @@
+-- Pattern-function declarations can infer arbitrary expressions inside value
+-- patterns.  A nested matcher literal must therefore flush its deferred R12
+-- next-matcher checks before the declaration is recorded.
+--
+-- Expected: Type error (bare Matcher capability at the Box hole)
+
+inductive Box := Box [Integer]
+inductive pattern Box := box [Integer]
+
+def keepSecond {a, b} (x : a) (y : b) : b := y
+
+def pattern bad (p : Integer) : Integer :=
+  #(keepSecond
+      (matcher
+        | box $ as something with
+          | Box $xs -> [xs]
+          | _ -> []
+        | $ as something with
+          | $tgt -> [tgt])
+      1)
+  & ~p

@@ -11,6 +11,8 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
+import           Language.Egison.Type.Types     (TyVar (..), Type (..))
+import           Language.Egison.Type.Unify     (matchOneWay)
 
 main :: IO ()
 main = do
@@ -19,7 +21,30 @@ main = do
   mapM_ (\(f, why) -> putStrLn ("Skipping " ++ f ++ " (" ++ why ++ ")"))
         skippedLibTests
   flip defaultMainWithArgs args . hUnitTestToTests . test $
-    map runTestCase (languageTests ++ libTests ++ sampleTests)
+    matcherOneWayTests : map runTestCase (languageTests ++ libTests ++ sampleTests)
+
+-- | The substitution domain belongs to the structural slot only.  In
+-- particular, resolving a repeated slot variable to a matcher variable must
+-- not make that matcher variable bindable at the next occurrence.
+matcherOneWayTests :: Test
+matcherOneWayTests =
+  TestLabel "matchOneWay keeps matcher variables rigid" . TestCase $ do
+    let slotVar = TyVar "slot"
+        matcherLeft = TyVar "matcherLeft"
+        matcherRight = TyVar "matcherRight"
+        repeatedSlot = TTuple [TVar slotVar, TVar slotVar]
+    case matchOneWay repeatedSlot
+           (TTuple [TVar matcherLeft, TVar matcherRight]) of
+      Nothing -> return ()
+      Just _ ->
+        assertFailure
+          "a matcher-side variable was rebound while checking a repeated slot"
+    case matchOneWay repeatedSlot
+           (TTuple [TVar matcherLeft, TVar matcherLeft]) of
+      Just _ -> return ()
+      Nothing ->
+        assertFailure
+          "a consistently repeated rigid matcher variable should be accepted"
 
 -- | Language-level tests: the surface syntax and the primitives.
 languageTests :: [FilePath]

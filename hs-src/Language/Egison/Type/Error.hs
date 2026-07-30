@@ -72,9 +72,6 @@ data TypeWarning
   | MatcherCoverageWarning Type [String] TypeErrorContext
     -- ^ A @matcher@ lacks a general clause for some pattern constructor(s) of its matched
     --   type (paper Coverage, Def 4.2(3)): the matched type, then the missing constructors.
-  | MatcherNextMatcherWarning Type String TypeErrorContext
-    -- ^ A bare-variable next matcher (rendered) at a constructor-/concrete-headed hole (the
-    --   hole's type) is not structurally admissible (paper PP-Con, Def 4.2(1a)).
   | ClassMethodShadowWarning String String TypeErrorContext
     -- ^ A top-level definition reuses a class method name (method name, class name).
     --   The definition replaces the dispatching binding, so the method stops
@@ -298,12 +295,6 @@ formatTypeWarning warn = case warn of
       " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
       "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
 
-  MatcherNextMatcherWarning holeTy comp ctx ->
-    formatWithContext ctx $
-      "Warning: the next matcher `" ++ comp ++ "` is a bare-variable matcher, not structurally" ++
-      " admissible at a constructor-headed hole of type " ++ displayType holeTy ++
-      "\n  (a constructor pattern there would get stuck at runtime; paper PP-Con, Def 4.2(1a))"
-
   ClassMethodShadowWarning name cls ctx ->
     formatWithContext ctx $
       "Warning: '" ++ name ++ "' is a method of class '" ++ cls ++ "'," ++
@@ -411,4 +402,3 @@ prettyShape :: TensorShape -> String
 prettyShape (ShapeLit dims) = show dims
 prettyShape (ShapeVar v) = v
 prettyShape ShapeUnknown = "?"
-

@@ -471,7 +471,25 @@ getTyVarName (TyVar name) = name
 coerceMatcherToSlot :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Type
                     -> Either UnifyError (Subst, Bool)
 coerceMatcherToSlot mode ce cs tm tp tt =
-  case matchOneWay tp tm of
+  coerceMatcherToSlotWithDomain (freeTyVars tp) mode ce cs tm tp tt
+
+-- | Internal form of 'coerceMatcherToSlot' that keeps the variables which
+-- belonged to the structural slot before any component was checked.  This is
+-- important for product slots: after checking an earlier component, a slot
+-- variable may have been replaced by a rigid matcher variable.  That matcher
+-- variable must not become bindable merely because it now appears on the left
+-- of a later component check.
+coerceMatcherToSlotWithDomain
+  :: Set.Set TyVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+coerceMatcherToSlotWithDomain bindable mode ce cs tm tp tt =
+  case matchOneWayWithDomain bindable tp tm of
     Nothing   -> Left $ TypeMismatch (TMatcher tm) (TMatcherSlot tp tt)
     Just subS -> do
       let cs' = map (applySubstConstraint subS) cs
@@ -495,7 +513,19 @@ coerceMatcherToSlot mode ce cs tm tp tt =
 -- @list (m : MatcherSlot a a)@) still accept a tuple matcher such as @(m, integer)@.
 coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> [Type]
                 -> Either UnifyError (Subst, Bool)
-coerceSlotTuple mode ce cs tp tt tys
+coerceSlotTuple mode ce cs tp tt tys =
+  coerceSlotTupleWithDomain (freeTyVars tp) mode ce cs tp tt tys
+
+coerceSlotTupleWithDomain
+  :: Set.Set TyVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+coerceSlotTupleWithDomain bindable mode ce cs tp tt tys
   | TTuple sigmas <- tp, TTuple taus <- tt
   , length sigmas == length tys, length taus == length tys =
       goComponents (zip3 tys sigmas taus) emptySubst False
@@ -503,16 +533,23 @@ coerceSlotTuple mode ce cs tp tt tys
       (innerTypes, s1, flag1) <- unifyEachAsMatcher ce cs tys emptySubst
       let tm  = TTuple innerTypes
           cs' = map (applySubstConstraint s1) cs
-      (s2, flag2) <- coerceMatcherToSlot mode ce cs'
+      (s2, flag2) <- coerceMatcherToSlotWithDomain bindable mode ce cs'
                        (applySubst s1 tm) (applySubst s1 tp) (applySubst s1 tt)
       Right (composeSubst s2 s1, flag1 || flag2)
   where
     goComponents [] acc flag = Right (acc, flag)
     goComponents ((ty, sigma, tau) : rest) acc flag = do
       let cs' = map (applySubstConstraint acc) cs
-      (s', f') <- unifyNormalized mode ce cs'
-                    (applySubst acc ty)
-                    (TMatcherSlot (applySubst acc sigma) (applySubst acc tau))
+          ty' = applySubst acc ty
+          sigma' = applySubst acc sigma
+          tau' = applySubst acc tau
+      (s', f') <- case ty' of
+        TMatcher tm ->
+          coerceMatcherToSlotWithDomain bindable mode ce cs' tm sigma' tau'
+        TTuple nested ->
+          coerceSlotTupleWithDomain bindable mode ce cs' sigma' tau' nested
+        _ ->
+          unifyNormalized mode ce cs' ty' (TMatcherSlot sigma' tau')
       goComponents rest (composeSubst s' acc) (flag || f')
 
 -- | One-way matching: is there a substitution over @slot@'s type variables making
@@ -521,12 +558,32 @@ coerceSlotTuple mode ce cs tp tt tys
 -- concrete-headed @slot@ rejects a bare-variable matcher (e.g. @something@). Repeated
 -- slot variables are matched consistently (resolved via the accumulated substitution).
 matchOneWay :: Type -> Type -> Maybe Subst
-matchOneWay slot0 matcher0 = go [(slot0, matcher0)] emptySubst
+matchOneWay slot0 matcher0 =
+  matchOneWayWithDomain (freeTyVars slot0) slot0 matcher0
+
+-- | One-way matching with an explicit, stable binding domain.  The domain is
+-- captured from the original structural slot and must be preserved across a
+-- recursively decomposed product coercion.  Variables introduced by the
+-- matcher side therefore remain rigid even if an earlier equality substitutes
+-- one of them into a later slot position.
+matchOneWayWithDomain :: Set.Set TyVar -> Type -> Type -> Maybe Subst
+matchOneWayWithDomain bindable slot0 matcher0 =
+  go [(slot0, matcher0)] emptySubst
   where
     go [] acc = Just acc
     go ((s, t) : rest) acc =
       case applySubst acc s of
-        TVar v -> go rest (composeSubst (singletonSubst v t) acc)
+        TVar v
+          | v `Set.member` bindable
+          , TVar v == t ->
+              go rest acc
+          | v `Set.member` bindable
+          , v `Set.member` freeTyVars t ->
+              Nothing
+          | v `Set.member` bindable ->
+              go rest (composeSubst (singletonSubst v t) acc)
+          | otherwise ->
+              matchStruct (TVar v) t rest acc
         s'     -> matchStruct s' t rest acc
     matchStruct (TCollection a) (TCollection b) rest acc = go ((a, b) : rest) acc
     matchStruct (TTuple as) (TTuple bs) rest acc

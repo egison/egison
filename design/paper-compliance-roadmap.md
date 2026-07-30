@@ -77,22 +77,19 @@ slowdown が出ないことを確認(`CLAUDE.md` の検査手順)。
 
 ---
 
-### 課題 C: PP-Con next-matcher 許容性 (T-MATCHER, `weird` 例) の hard error 化 — ✅ **完了(2026-06)**
+### 課題 C: PP-Con next-matcher slot 検査 (T-MATCHER / R12) — ✅ **完了(2026-07)**
 
-> **完了**: 課題 A の準拠化後、`Infer.hs` の PP-Con 検査を **ungate＋`throwError`**(`TypeMismatch`)に変更し、
-> 構築子頭 hole の literal `something` を**ハードエラー**化(`TVar`/`TFun` hole は exempt)。`weird` は拒否、実コードは
-> 回帰ゼロ(mini-test 0 / math 0 / cabal test 21/21・Type error 0・Warning 0)。`MatcherNextMatcherWarning`(旧 warning)は
-> 未使用化(整理は任意)。Coverage(課題 B)は opt-in warning のまま据え置き。
+`Infer.hs` は 1 hole では次マッチャー式全体を一成分とし，0 hole または複数
+hole では正確な要素数の明示タプルだけを受理する。各成分の完全な推論型を
+hole target 単一化前に一括保存し，`Matcher` の構造・target 双対検査，
+既存 `MatcherSlot` の両添字検査，未確定変数の slot 確定を hard error 経路で行う。
+成分境界後の検査は式構文形に依存しない。旧 `MatcherNextMatcherWarning` 経路は
+削除した。Coverage（課題 B）は引き続き opt-in warning である。
 
-**現状**: opt-in warning(`MatcherNextMatcherWarning`)。マッチャー定義の構築子頭 hole にリテラル `something`
-(`IConstantExpr SomethingExpr`)が来たら警告。論文の看板例 `weird`(`something @ [a]`)を捕捉する。
-
-**ブロッカー**: **課題 A** の stdlib `something`@具体(同じものを構文的に警告しているため、hard error 化すると
-stdlib が壊れる)。
-
-**作業**: 課題 A 完了後、warning → hard error 化。
-
-**優先度**: 中(課題 A に従属)。
+残るのは scheme lookup をまたぐ能力由来の保存（P2 項目7）であり，本課題の
+fixed-monomorphic な補修とは分離する。詳細は
+[`type-pm-mech/problem/resolved-next-matcher-slot-checking.md`](../../type-pm-mech/problem/resolved-next-matcher-slot-checking.md)
+を参照。
 
 ---
 
@@ -254,7 +251,8 @@ prior 宣言型を補うことで解消(`buildEnvironments` 内のみの小改�
 > Fig.4 キャプション・Def 4.2(1a)(関数型 hole の半文+resolved-hole-types 評価を明記)・
 > App C(Step 3(b)(i))・App H・App I・App B.2.5・Conclusion から免除を除去。
 >
-> 以下は経緯の記録(統一免除案の設計と一時実装):
+> 以下は廃止済みの旧案についての経緯の記録であり，現行実装の説明ではない
+> （現行の next-matcher 検査は上記課題 C / R12 を参照）:
 
 > **(2) の最終解決(2026-06-11、ユーザ決定 = 統一免除案)**: rigidity・slot・hole・束縛の全経路を
 > 論文の ⊑ どおり厳格にしつつ、**「bare-変数 matcher 値 × パターン構築子フリーな head」だけを一様免除**する。
@@ -451,7 +449,7 @@ A→B→C で論文準拠度が最も大きく前進する(Matcher Consistency �
 - 構造的許容性 / COERCE: `hs-src/Language/Egison/Type/Infer.hs`(`checkMatcherAdmissibility`)、
   `hs-src/Language/Egison/Type/Unify.hs`(`coerceMatcherToSlot`/`coerceSlotTuple`)
 - Matcher Consistency / 警告: `Infer.hs` の `IMatcherExpr`・`inferPatternDef`、
-  `Type/Error.hs`(`MatcherCoverageWarning`/`MatcherNextMatcherWarning`)、
+  `Type/Error.hs`(`MatcherCoverageWarning`)、
   フラグ `--matcher-consistency-warnings`(`CmdOptions.hs`/`Eval.hs` の `cfgMatcherConsistencyWarnings`)
 - 宣言型 concrete 化: `hs-src/Language/Egison/EnvBuilder.hs`(`concretizeDeclaredTypes`)、
   型変換 `Type/Types.hs`(`typeExprToType`)

@@ -3,7 +3,7 @@
 --
 
 inductive pattern Matrix a:=
-  | quadCons (Matrix a) (Matrix a) (Matrix a) (Matrix a)
+  | quadCons a (Matrix a) (Matrix a) (Matrix a)
   | matCons Integer Integer a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
 
 def matrix : Matcher (Matrix MathValue) :=

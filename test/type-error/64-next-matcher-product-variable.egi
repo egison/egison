@@ -1,0 +1,13 @@
+-- T-MATCHER / R12 component boundary: even when a variable has a product
+-- matcher type, it cannot be implicitly split across two pattern holes.
+--
+-- Expected: Type error (the outer next-matcher expression is a variable)
+
+def bad :=
+  let ms := (integer, list integer)
+   in matcher
+        | $ :: $ as ms with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+        | $ as something with
+          | $tgt -> [tgt]

@@ -1,0 +1,14 @@
+-- The single hole has target (a, a), so its expected structural slot repeats
+-- one variable.  These two independent `something` values have distinct
+-- frozen capability variables; one-way checking must not bind the first
+-- matcher's variable to the second.
+inductive Same a := Same (a, a)
+inductive pattern Same a := same (a, a)
+
+def bad {a} : Matcher (Same a) :=
+  matcher
+    | same $ as (something, something) with
+      | Same $p -> [p]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

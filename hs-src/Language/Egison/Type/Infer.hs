@@ -93,11 +93,10 @@ data InferConfig = InferConfig
   { cfgPermissive       :: Bool  -- ^ Treat unbound variables as warnings, not errors
   , cfgCollectWarnings  :: Bool  -- ^ Collect warnings during inference
   , cfgMatcherConsistencyWarnings :: Bool  -- ^ Emit matcher consistency warnings (paper Def 4.2):
-                                 --   Coverage (4.2(3)) and PP-Con (4.2(1a)).  Off by default, as
-                                 --   the standard library has intentionally partial / non-strict
-                                 --   matchers (opt-in diagnostic; --matcher-consistency-warnings).
-                                 --   Arm exhaustiveness (4.2(1c)) is not gated here: it is an
-                                 --   ordinary type error (see pdArmsExhaustive).
+                                 --   Coverage (4.2(3)).  Off by default, as the standard library
+                                 --   has intentionally partial matchers (opt-in diagnostic;
+                                 --   --matcher-consistency-warnings).  PP-Con (4.2(1a)) and arm
+                                 --   exhaustiveness (4.2(1c)) are ordinary type errors.
   }
 
 instance Show InferConfig where
@@ -159,13 +158,13 @@ data InferState = InferState
                                           --   Coverage (Def 4.2(3)) warnings for nested / generated
                                           --   matchers, whose constructor set is an implementation
                                           --   detail rather than a user-facing matcher.
-  , inferDeferredHoleChecks :: [(Type, HoleCompShape, String, TypeErrorContext)]
-                                          -- ^ Matcher-definition hole admissibility checks deferred
+  , inferDeferredHoleChecks :: [DeferredHoleCheck]
+                                          -- ^ Matcher-definition next-matcher slot checks deferred
                                           --   to the end of the top-level expression (paper PP-Con,
-                                          --   Def 4.2(1a)): the hole's TARGET type may be pinned only
-                                          --   by the definition's annotation, so the structural test
-                                          --   runs after the final substitution.  (holeTy, shape of
-                                          --   the next-matcher component, error context).
+                                          --   Def 4.2(1a)): a hole's target type may be pinned only
+                                          --   by the definition's annotation.  Each entry keeps the
+                                          --   component's complete pre-target-unification type,
+                                          --   with every Matcher capability independently renamed.
   , inferGlobalSubst :: Subst             -- ^ The growing zonk substitution: every committed
                                           --   unification merges its result here, and the unify
                                           --   wrappers resolve both sides through it first.  Sibling
@@ -200,18 +199,35 @@ data InferState = InferState
                                           --   shapes statically.
   } deriving (Show)
 
--- | Shape classification of a matcher-clause hole's next-matcher component,
--- recorded at clause-inference time (before the hole/target unification ties
--- its type to the hole) for the deferred admissibility check:
---   * HCSlot: a slot-typed parameter — committed to the hole by index
---     unification (Def 4.2(1a) parameter route), nothing left to check.
---   * HCBareVar: a bare-variable matcher value (eq / something) — admissible
---     only at a variable-headed or function-typed hole.
---   * HCShape t: a structured/concrete matcher value — its (freshened)
---     intrinsic inner type must one-way match the hole's structural index
---     (same head, fresh leaves).
-data HoleCompShape = HCSlot | HCBareVar Type | HCShape Type
+-- | Complete inferred type of one next-matcher component, captured before
+-- target unification.  Matcher values keep both a renamed capability index
+-- (first field) and their ordinary target index (second field).  Renaming is
+-- shared across all Matcher leaves of one hole component, preserving repeated
+-- variables inside products, while distinct holes are renamed independently.
+-- Slot components keep both indices; an undetermined component is committed
+-- to a slot before it is recorded.  Tuples are retained recursively so
+-- COERCE-SLOT-TUPLE can check each component without consulting syntax.
+data HoleComponentType
+  = HCMatcher Type Type
+  | HCSlot Type Type
+  | HCTuple [HoleComponentType]
   deriving (Show)
+
+-- | PP-Hole at the outermost clause level has a fresh unconstrained structural
+-- index.  Holes underneath PP-Con / PP-Tuple instead receive a recursively
+-- fresh-renamed copy of their final target type.
+data HoleStructuralSource
+  = HoleStructuralAny
+  | HoleStructuralFromTarget
+  deriving (Show)
+
+data DeferredHoleCheck = DeferredHoleCheck
+  { deferredHoleTarget :: Type
+  , deferredHoleStructuralSource :: HoleStructuralSource
+  , deferredHoleComponent :: HoleComponentType
+  , deferredHolePattern :: String
+  , deferredHoleContext :: TypeErrorContext
+  } deriving (Show)
 
 -- | Initial inference state
 initialInferState :: InferState
@@ -424,70 +440,182 @@ checkResidualConstraints defName sigConstraints finalType finalSubst ctx = do
   when (not (null missing)) $
     throwError $ TE.MissingSignatureConstraint defName missing ctx
 
--- | Queue a matcher-definition hole admissibility check for the end of the
--- current top-level expression (see 'inferDeferredHoleChecks').
-deferHoleCheck :: Type -> HoleCompShape -> String -> TypeErrorContext -> Infer ()
-deferHoleCheck holeTy shape ppStr ctx =
-  modify $ \s -> s { inferDeferredHoleChecks = (holeTy, shape, ppStr, ctx) : inferDeferredHoleChecks s }
+-- | Queue a matcher-definition hole slot check for the end of the current
+-- top-level expression (see 'inferDeferredHoleChecks').
+deferHoleCheck
+  :: Type
+  -> HoleStructuralSource
+  -> HoleComponentType
+  -> String
+  -> TypeErrorContext
+  -> Infer ()
+deferHoleCheck holeTy structuralSource component ppStr ctx =
+  modify $ \s -> s
+    { inferDeferredHoleChecks =
+        DeferredHoleCheck holeTy structuralSource component ppStr ctx
+          : inferDeferredHoleChecks s
+    }
 
 -- | Drop all queued hole checks (called at the start of each top-level
 -- expression, alongside clearConstraints).
 clearDeferredHoleChecks :: Infer ()
 clearDeferredHoleChecks = modify $ \s -> s { inferDeferredHoleChecks = [] }
 
--- | Run the queued matcher-hole admissibility checks against the final
--- substitution (paper PP-Con / Def 4.2(1a)).
-flushDeferredHoleChecks :: Subst -> Infer ()
+-- | The target type consumed by a captured component before capability
+-- freezing.  This is unified with the hole target during clause inference so
+-- arm result types are available immediately.
+holeComponentTargetType :: HoleComponentType -> Type
+holeComponentTargetType component = case component of
+  HCMatcher _ targetTy -> targetTy
+  HCSlot _ targetTy    -> targetTy
+  HCTuple components   -> TTuple (map holeComponentTargetType components)
+
+-- | A component type used only for the delayed structural half of the slot
+-- check.  Every Matcher index here is part of the jointly renamed snapshot
+-- captured for this hole before target unification.
+holeComponentFrozenType :: HoleComponentType -> Type
+holeComponentFrozenType component = case component of
+  HCMatcher capabilityTy _ -> TMatcher capabilityTy
+  HCSlot structuralTy targetTy -> TMatcherSlot structuralTy targetTy
+  HCTuple components -> TTuple (map holeComponentFrozenType components)
+
+-- | Target index paired with 'holeComponentFrozenType'.  Giving the delayed
+-- slot this target makes the target half tautological, so the existing
+-- Matcher/MatcherSlot and tuple/slot coercions perform exactly the structural
+-- check.  The ordinary (unfrozen) target is checked separately.
+holeComponentFrozenTargetType :: HoleComponentType -> Type
+holeComponentFrozenTargetType component = case component of
+  HCMatcher capabilityTy _ -> capabilityTy
+  HCSlot _ targetTy        -> targetTy
+  HCTuple components       -> TTuple (map holeComponentFrozenTargetType components)
+
+-- | Capture a component's complete inferred type before it is related to the
+-- hole target.  A fresh variable in a consumer position produces a pending
+-- MatcherSlot commitment (Algorithm W Step 3a'); callers solve all such
+-- commitments only after every component has been captured.  Tuples are
+-- handled recursively.  No expression-node classification is used here.
+prepareHoleComponent
+  :: TypeErrorContext
+  -> Type
+  -> Infer (HoleComponentType, [(Type, Type)])
+prepareHoleComponent ctx ty = do
+  (component, commitments) <- prepareRaw ty
+  frozenComponent <- freshenHoleMatcherCapabilities component
+  return (frozenComponent, commitments)
+  where
+    -- Capture the whole component before freshening.  Recursing through a
+    -- tuple first lets one renaming map preserve a variable shared by two
+    -- Matcher leaves, e.g. the result of @\m -> (m, m)@.
+    prepareRaw componentTy = case componentTy of
+      TMatcher inner ->
+        return (HCMatcher inner inner, [])
+      TMatcherSlot structuralTy targetTy ->
+        return (HCSlot structuralTy targetTy, [])
+      TVar _ -> do
+        structuralTy <- freshVar "nextMatcherStructural"
+        targetTy <- freshVar "nextMatcherTarget"
+        return
+          ( HCSlot structuralTy targetTy
+          , [(componentTy, TMatcherSlot structuralTy targetTy)]
+          )
+      TTuple tys -> do
+        prepared <- mapM prepareRaw tys
+        return
+          ( HCTuple (map fst prepared)
+          , concatMap snd prepared
+          )
+      _ ->
+        throwError $ TE.TypeMismatch
+          (TMatcherSlot (TVar (TyVar "structural")) (TVar (TyVar "target")))
+          componentTy
+          "a next-matcher component must have Matcher, MatcherSlot, or tuple-of-matcher type"
+          ctx
+
+-- | Freshen all bare-Matcher capability indices of one hole component with a
+-- single injective map.  Only the frozen capability fields are rewritten:
+-- target indices and existing MatcherSlot components stay connected to the
+-- surrounding inference problem.
+freshenHoleMatcherCapabilities :: HoleComponentType -> Infer HoleComponentType
+freshenHoleMatcherCapabilities component = do
+  let vs = Set.toList (matcherCapabilityVars component)
+  pairs <- mapM (\v -> do { fv <- freshVar "fr"; return (v, fv) }) vs
+  let renaming =
+        foldr
+          (\(v, fv) acc -> composeSubst (singletonSubst v fv) acc)
+          emptySubst
+          pairs
+  return (renameCapabilities renaming component)
+  where
+    matcherCapabilityVars holeComponent = case holeComponent of
+      HCMatcher capabilityTy _ -> freeTyVars capabilityTy
+      HCSlot _ _                -> Set.empty
+      HCTuple components        ->
+        Set.unions (map matcherCapabilityVars components)
+
+    renameCapabilities renaming holeComponent = case holeComponent of
+      HCMatcher capabilityTy targetTy ->
+        HCMatcher (applySubst renaming capabilityTy) targetTy
+      HCSlot structuralTy targetTy ->
+        HCSlot structuralTy targetTy
+      HCTuple components ->
+        HCTuple (map (renameCapabilities renaming) components)
+
+-- | Run the queued matcher-hole checks against the final substitution (paper
+-- PP-Con / Def 4.2(1a)).  The returned substitution contains constraints
+-- learned from existing MatcherSlot components; callers must compose it into
+-- the enclosing top-level substitution before generalization/elaboration.
+flushDeferredHoleChecks :: Subst -> Infer Subst
 flushDeferredHoleChecks finalSubst = do
   checks <- gets inferDeferredHoleChecks
   clearDeferredHoleChecks
-  classEnv <- getClassEnv
-  mapM_ (runCheck classEnv) (reverse checks)
+  foldM runCheck emptySubst (reverse checks)
   where
-    runCheck classEnv (holeTy0, shape, ppStr, ctx) = do
-      holeTy <- applySubstWithConstraintsM finalSubst holeTy0
-      case shape of
-        HCSlot -> return ()
-        HCBareVar compTy -> case holeTy of
-          TVar _   -> return ()
-          -- A function-typed hole admits a bare-variable matcher: function
-          -- types can never own pattern constructors (the declaration
-          -- grammar attaches them to type constructors only), so only
-          -- value patterns / variables / wildcards can reach it.
-          TFun _ _ -> return ()
-          _ ->
-                throwError $ TE.TypeMismatch
-                  (TMatcherSlot holeTy holeTy)
-                  compTy
-                  ("the next matcher of clause `" ++ ppStr ++ "` is a bare-variable matcher, not structurally admissible at its hole's resolved type (paper PP-Con, Def 4.2(1a)); use a concrete matcher for that hole's type")
-                  ctx
-        HCShape inner0 -> case normalizeInductiveTypes (normalizeTensorType holeTy) of
-          TVar _ -> return ()
-          holeTyN -> do
-            let inner = normalizeInductiveTypes (normalizeTensorType inner0)
-            taup <- freshLeavesOf holeTyN
-            -- The shape's variables are fresh copies (binding-independent),
-            -- so a full unification realizes the one-way instance check while
-            -- staying aware of the CAS tower (Term/Frac/Poly vs MathValue).
-            case TU.unifyWithConstraints classEnv [] taup inner of
-              Right _ -> return ()
-              Left _  ->
-                throwError $ TE.TypeMismatch
-                  (TMatcherSlot holeTy holeTy)
-                  (TMatcher inner)
-                  ("the hole's next matcher is not structurally admissible at this hole (paper PP-Con, Def 4.2(1a)): its intrinsic type does not match the hole's structural index")
-                  ctx
+    runCheck acc DeferredHoleCheck
+      { deferredHoleTarget = holeTarget0
+      , deferredHoleStructuralSource = structuralSource
+      , deferredHoleComponent = component
+      , deferredHolePattern = ppStr
+      , deferredHoleContext = ctx
+      } = do
+        let committed = composeSubst acc finalSubst
+        holeTarget <- applySubstWithConstraintsM committed holeTarget0
+        let holeTargetN = normalizeInductiveTypes (normalizeTensorType holeTarget)
+        expectedStructural <- case structuralSource of
+          HoleStructuralAny -> freshVar "holeStructural"
+          HoleStructuralFromTarget -> case holeTargetN of
+            -- Function types have no pattern constructors in Egison.  Their
+            -- holes therefore impose no structural decomposition duty.
+            TFun _ _ -> freshVar "holeStructural"
+            _        -> freshenTypeVars holeTargetN
 
--- | The hole's structural index: same head as the (resolved) hole target
--- type, fresh leaves (paper PP-Con's fresh instantiation).
-freshLeavesOf :: Type -> Infer Type
-freshLeavesOf ty = case ty of
-  TCollection _    -> TCollection <$> freshVar "leaf"
-  TTuple ts        -> TTuple <$> mapM (const (freshVar "leaf")) ts
-  TInductive n ts  -> TInductive n <$> mapM (const (freshVar "leaf")) ts
-  TTensor _        -> TTensor <$> freshVar "leaf"
-  THash _ _        -> THash <$> freshVar "leaf" <*> freshVar "leaf"
-  _                -> return ty
+        frozenType <- applySubstWithConstraintsM committed
+          (holeComponentFrozenType component)
+        frozenTarget <- applySubstWithConstraintsM committed
+          (holeComponentFrozenTargetType component)
+        let expectedFrozenSlot = TMatcherSlot expectedStructural frozenTarget
+            structuralMsg =
+              "the next matcher of clause `" ++ ppStr ++
+              "` is not structurally admissible at this hole (paper PP-Con, Def 4.2(1a)): " ++
+              "its complete inferred type cannot fill the expected MatcherSlot"
+        sStructural <-
+          unifyTypesWithContext frozenType expectedFrozenSlot ctx
+            `catchError` \_ ->
+              throwError $ TE.TypeMismatch expectedFrozenSlot frozenType structuralMsg ctx
+
+        let committed' = composeSubst sStructural committed
+        componentTarget <- applySubstWithConstraintsM committed'
+          (holeComponentTargetType component)
+        expectedTarget <- applySubstWithConstraintsM committed' holeTarget0
+        sTarget <-
+          unifyTypesWithContext componentTarget expectedTarget ctx
+            `catchError` \_ ->
+              throwError $ TE.TypeMismatch
+                (TMatcherSlot expectedStructural expectedTarget)
+                (TMatcherSlot expectedStructural componentTarget)
+                ("the next matcher of clause `" ++ ppStr ++
+                 "` has a target type incompatible with its hole")
+                ctx
+        return (composeSubst sTarget (composeSubst sStructural acc))
 
 -- | A copy of a type with all its free variables renamed fresh (binding
 -- independence for the deferred structural check: the copy must not be
@@ -888,13 +1016,19 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
     TIMatchExpr mode
                 (applySubstToTIExprWithClassEnv env s target)
                 (applySubstToTIExprWithClassEnv env s matcher)
-                (map (\(pat, body) -> (pat, applySubstToTIExprWithClassEnv env s body)) clauses)
+                (map (\(pat, body) ->
+                  ( applySubstToTIPatternWithClassEnv env s pat
+                  , applySubstToTIExprWithClassEnv env s body
+                  )) clauses)
 
   TIMatchAllExpr mode target matcher clauses ->
     TIMatchAllExpr mode
                    (applySubstToTIExprWithClassEnv env s target)
                    (applySubstToTIExprWithClassEnv env s matcher)
-                   (map (\(pat, body) -> (pat, applySubstToTIExprWithClassEnv env s body)) clauses)
+                   (map (\(pat, body) ->
+                     ( applySubstToTIPatternWithClassEnv env s pat
+                     , applySubstToTIExprWithClassEnv env s body
+                     )) clauses)
 
   TIMemoizedLambdaExpr params body ->
     TIMemoizedLambdaExpr params (applySubstToTIExprWithClassEnv env s body)
@@ -965,6 +1099,68 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
 
   TIReshape ty inner ->
     TIReshape (applySubst s ty) (applySubstToTIExprWithClassEnv env s inner)
+
+-- | Apply a substitution throughout a typed pattern, including the ordinary
+-- expressions embedded in value/predicate/application patterns.  Matcher
+-- literals can occur in those expressions and their delayed slot checks may
+-- refine types after the pattern node was first constructed.
+applySubstToTIPatternWithClassEnv :: ClassEnv -> Subst -> TIPattern -> TIPattern
+applySubstToTIPatternWithClassEnv env s (TIPattern scheme node) =
+  TIPattern
+    (applySubstSchemeWithClassEnv env s scheme)
+    (case node of
+      TIWildCard -> TIWildCard
+      TIPatVar name -> TIPatVar name
+      TIValuePat expr ->
+        TIValuePat (exprSubst expr)
+      TIPredPat expr ->
+        TIPredPat (exprSubst expr)
+      TIIndexedPat pat indices ->
+        TIIndexedPat (patSubst pat) (map exprSubst indices)
+      TILetPat bindings pat ->
+        TILetPat (map bindingSubst bindings) (patSubst pat)
+      TINotPat pat ->
+        TINotPat (patSubst pat)
+      TIAndPat pat1 pat2 ->
+        TIAndPat (patSubst pat1) (patSubst pat2)
+      TIOrPat pat1 pat2 ->
+        TIOrPat (patSubst pat1) (patSubst pat2)
+      TIForallPat pat1 pat2 ->
+        TIForallPat (patSubst pat1) (patSubst pat2)
+      TITuplePat pats ->
+        TITuplePat (map patSubst pats)
+      TIInductivePat name pats ->
+        TIInductivePat name (map patSubst pats)
+      TILoopPat name (TILoopRange start end rangePat) pat1 pat2 ->
+        TILoopPat name
+          (TILoopRange (exprSubst start) (exprSubst end) (patSubst rangePat))
+          (patSubst pat1)
+          (patSubst pat2)
+      TIContPat -> TIContPat
+      TIPApplyPat func pats ->
+        TIPApplyPat (exprSubst func) (map patSubst pats)
+      TIVarPat name -> TIVarPat name
+      TIInductiveOrPApplyPat name pats ->
+        TIInductiveOrPApplyPat name (map patSubst pats)
+      TISeqNilPat -> TISeqNilPat
+      TISeqConsPat pat1 pat2 ->
+        TISeqConsPat (patSubst pat1) (patSubst pat2)
+      TILaterPatVar -> TILaterPatVar
+      TIDApplyPat pat pats ->
+        TIDApplyPat (patSubst pat) (map patSubst pats))
+  where
+    exprSubst = applySubstToTIExprWithClassEnv env s
+    patSubst = applySubstToTIPatternWithClassEnv env s
+    bindingSubst (pat, expr) = (pat, exprSubst expr)
+
+-- | Monadic typed-pattern substitution, zonked through the global inference
+-- substitution in the same way as 'applySubstToTIExprM'.
+applySubstToTIPatternM :: Subst -> TIPattern -> Infer TIPattern
+applySubstToTIPatternM s tiPattern = do
+  classEnv <- getClassEnv
+  g <- gets inferGlobalSubst
+  return $
+    applySubstToTIPatternWithClassEnv classEnv (composeSubst g s) tiPattern
 
 -- | Infer type for IExpr
 -- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
@@ -1362,131 +1558,76 @@ inferIExprWithContext expr ctx = case expr of
       -- Returns (TIPatternDef, (matched type, [substitutions]))
       inferPatternDef :: TypeErrorContext -> IPatternDef -> Infer (TIPatternDef, (Type, [Subst]))
       inferPatternDef ctx (ppPat, nextMatcherExpr, dataClauses) = do
-        -- Infer the type of next matcher expression
-        -- It should be a Matcher type (possibly Matcher of tuple, like Matcher (a, b))
-        -- Note: (integer, integer) is inferred as Matcher (Integer, Integer), not (Matcher Integer, Matcher Integer)
+        -- Infer the next-matcher expression before relating it to any hole.
+        -- Its component types are the intrinsic types whose Matcher
+        -- capabilities must survive the later target unifications.
         (nextMatcherTI, s1) <- inferIExprWithContext nextMatcherExpr ctx
-        let nextMatcherType = tiExprType nextMatcherTI
-        
-        -- nextMatcherType must be a Matcher type
-        -- Constrain it to `Matcher inner` / extract its inner type.  Matcher
-        -- types are rigid (the TMatcher/TMatcher case of unifyG), so an
-        -- already-Matcher type is destructured directly -- binding only the
-        -- fresh inner variable, a pure extraction, not a semantic merge of two
-        -- matcher types -- instead of being unified with `Matcher fresh`.
-        matcherInnerTy <- freshVar "matcherInner"
-        nextMatcherType' <- applySubstWithConstraintsM s1 nextMatcherType
-        s1' <- bindMatcherInner ctx nextMatcherType' matcherInnerTy
-        nextMatcherType'' <- applySubstWithConstraintsM s1' nextMatcherType
-        
+
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
         (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
-        let s1'' = composeSubst s_pp s1'
-        matchedType' <- applySubstWithConstraintsM s1'' matchedType
-        let -- Apply substitution to variable bindings
-            ppBindings' = [(var, applySubstScheme s1'' scheme) | (var, scheme) <- ppBindings]
+        let sBase = composeSubst s_pp s1
+            holeCount = length patternHoleTypes
+            structuralSource = case ppPat of
+              PPPatVar -> HoleStructuralAny
+              _        -> HoleStructuralFromTarget
 
-        -- Apply substitution to pattern hole types (keep as inner types)
-        patternHoleTypes' <- mapM (applySubstWithConstraintsM s1'') patternHoleTypes
+        -- T-MATCHER / Matcher Consistency (1a): decide component boundaries
+        -- from the OUTER expression syntax only.  One hole consumes the whole
+        -- expression; zero or multiple holes require an explicit tuple of the
+        -- exact arity.  In particular, a variable or application returning a
+        -- product matcher is not implicitly split.
+        componentTIs <-
+          decomposeNextMatcherComponents
+            nextMatcherExpr nextMatcherTI holeCount ctx
 
-        -- Extract inner type(s) from next matcher type
-        -- If multiple pattern holes, combine them into a tuple to match ITupleExpr behavior
-        nextMatcherInnerTypes <- extractInnerTypesFromMatcher nextMatcherType'' (length patternHoleTypes') ctx
+        -- First capture EVERY component under the same pre-hole substitution.
+        -- In particular, no earlier hole's target equality may concretize a
+        -- later component's Matcher index before that index is frozen.
+        preparedComponents <- mapM
+          (\componentTI -> do
+            componentTy <- applySubstWithConstraintsM sBase
+              (tiExprType componentTI)
+            prepareHoleComponent ctx componentTy)
+          componentTIs
+        let components = map fst preparedComponents
+            slotCommitments = concatMap snd preparedComponents
 
-        -- Paper PP-Con / COERCE-MATCHER-TO-SLOT (Def 4.2(1a)) — matcher-definition-time structural
-        -- admissibility, a HARD ERROR.  In the paper each hole gives a pair (τ_p ▷ τ_t): the target
-        -- τ_t is the declared argument type σ_l (= `holeTy` below) and the structural index τ_p is a
-        -- *fresh instantiation* of σ_l (PP-Con's device — same head, fresh leaves; NO fusion
-        -- τ_p = τ_t, NO separate fresh_rename, uniform with PAT-CON at a match site).  The next
-        -- matcher is consumed at the slot @MatcherSlot τ_p σ_l@, whose structural half is the
-        -- one-way match τ_m ⊑ τ_p: a bare-variable matcher fills only a variable-headed or
-        -- function-typed hole (functions admit no pattern constructors); a constructor-/concrete-
-        -- headed hole rejects it (the paper's `weird`: it cannot decompose the hole, so a pattern
-        -- routed through it gets stuck).
-        --
-        -- The test runs in TWO STAGES, because a hole's target type may be resolved only by the
-        -- enclosing definition's final substitution (e.g. the annotation `: Matcher [Integer]`
-        -- pinning the matched variable):
-        --   * EAGER (here): the literal `something` (T-SOME) at a hole whose type is already
-        --     constructor-/concrete-headed — rejected immediately, with the clause in context.
-        --     A slot-typed parameter (`m : MatcherSlot a a`) or a structured next matcher
-        --     (`list m`/`multiset m`) is never literal `something`, so it is not flagged here;
-        --     an undetermined parameter's inner is fixed by the target unification below
-        --     (`checkPatternHoleConsistency`) and must not be rejected prematurely.
-        --   * DEFERRED (recorded below, run by `flushDeferredHoleChecks` at the end of the
-        --     top-level expression): the general check at the RESOLVED hole types — components
-        --     classified as slot / bare-variable value / shaped value (`HoleCompShape`), the
-        --     shaped case checked against PP-Con's fresh-leaves structural index.
-        -- (Coverage, Def 4.2(3), stays an opt-in warning — partial matchers are intentional.)
-        let comps = case nextMatcherExpr of { ITupleExpr es -> es; e -> [e] }
-        mapM_ (\(holeTy, comp) -> case (holeTy, comp) of
-                 (TVar _, _)                      -> return ()
-                 (TFun _ _, _)                    -> return ()
-                 (_, IConstantExpr SomethingExpr) ->
-                   throwError $ TE.TypeMismatch
-                     (TMatcherSlot holeTy holeTy)
-                     (TMatcher (TVar (TyVar "a")))
-                     ("the next matcher `" ++ prettyStr comp ++ "` is a bare-variable matcher, " ++
-                      "not structurally admissible at a constructor-headed hole (paper PP-Con, " ++
-                      "Def 4.2(1a)); use a concrete matcher for that hole's type")
-                     ctx
-                 _                                -> return ())
-              (zip patternHoleTypes' comps)
-        -- Deferred (post-annotation) admissibility: a hole's target type may
-        -- be pinned only by the enclosing definition's final substitution
-        -- (e.g. the annotation `: Matcher [Integer]` resolving the matched
-        -- variable), so the structural check above can be vacuous (TVar) at
-        -- this point and yet fail at the resolved type.  Record each
-        -- constructor-/tuple-pp hole's (target type, next-matcher shape) and
-        -- re-check at the end of the top-level expression
-        -- (flushDeferredHoleChecks).  PP-Hole (a bare `$` pp, the catch-all)
-        -- gives its hole a FRESH VARIABLE structural index regardless of the
-        -- target type, so nothing is deferred for it.
-        let compTIs = case tiExprNode nextMatcherTI of
-              TITupleExpr es -> es
-              _              -> [nextMatcherTI]
-        case ppPat of
-          PPPatVar -> return ()
-          _ | length compTIs == length patternHoleTypes' -> do
-                -- Classify each component from its own inferred (intrinsic)
-                -- type — BEFORE the hole/target unification ties it to the
-                -- hole — so a slot-typed parameter is recognized as a slot
-                -- and a bare-variable matcher value as bare.
-                compTys <- mapM (applySubstWithConstraintsM s1'' . tiExprType) compTIs
-                mapM_ (\(holeTy, compTI, compTy) -> do
-                  mshape <- case (tiExprNode compTI, compTy) of
-                    (_, TMatcherSlot _ _) -> return (Just HCSlot)
-                    -- A bare-variable matcher VALUE: the literal `something`,
-                    -- or a variable referring to one (eq, a polymorphic
-                    -- matcher alias).  Only these are classified bare — an
-                    -- APPLICATION whose result type is still an unresolved
-                    -- variable is not (its shape follows from its own
-                    -- definition's checking) and is skipped below.
-                    (TIConstantExpr SomethingExpr, _) ->
-                      return (Just (HCBareVar compTy))
-                    (TIVarExpr vname, TMatcher (TVar _)) -> do
-                      envHere <- getEnv
-                      case lookupEnv (stringToVar vname) envHere of
-                        -- Only a GENERALIZED bare matcher value (its scheme
-                        -- quantifies the Matcher parameter: eq, a polymorphic
-                        -- alias) is bare.  A monomorphically bound variable
-                        -- (a lambda parameter, whose type is still being
-                        -- discovered and whose slot-ness is revealed by the
-                        -- signature) is the parameter route — checked at its
-                        -- call sites by COERCE-MATCHER-TO-SLOT, not here.
-                        Just (Forall qs _ (TMatcher (TVar v)))
-                          | v `elem` qs -> return (Just (HCBareVar compTy))
-                        _ -> return Nothing
-                    (_, TMatcher (TVar _)) -> return Nothing
-                    (_, TMatcher inner) -> Just . HCShape <$> freshenTypeVars inner
-                    _ -> return Nothing
-                  mapM_ (\shape -> deferHoleCheck holeTy shape (prettyStr ppPat) ctx) mshape)
-                  (zip3 patternHoleTypes' compTIs compTys)
-            | otherwise -> return ()  -- a single matcher covering several holes: skip
+        -- Algorithm W Step 3a': only after every Matcher capability has been
+        -- captured, commit undetermined consumer components to complete slots.
+        sPrepare <- foldM
+          (\acc (undeterminedTy, slotTy) -> do
+            undeterminedTy' <- applySubstWithConstraintsM acc undeterminedTy
+            slotTy' <- applySubstWithConstraintsM acc slotTy
+            s <- unifyTypesWithContext undeterminedTy' slotTy' ctx
+            return (composeSubst s acc))
+          emptySubst
+          slotCommitments
 
-        -- Unify pattern hole types (inner types) with next matcher inner types
-        s_unify <- checkPatternHoleConsistency patternHoleTypes' nextMatcherInnerTypes ctx
-        let s1''' = composeSubst s_unify s1''
+        -- Propagate all target equalities in a separate pass so arm result
+        -- types are available immediately.  Structural checks remain delayed
+        -- until an enclosing annotation has fixed every hole target.
+        sTargets <- foldM
+          (\acc (holeTy0, component) -> do
+            let committed =
+                  composeSubst acc (composeSubst sPrepare sBase)
+            componentTarget <- applySubstWithConstraintsM committed
+              (holeComponentTargetType component)
+            holeTarget <- applySubstWithConstraintsM committed holeTy0
+            sTarget <- unifyTypesWithContext componentTarget holeTarget ctx
+            deferHoleCheck
+              holeTy0 structuralSource component (prettyStr ppPat) ctx
+            return (composeSubst sTarget acc))
+          emptySubst
+          (zip patternHoleTypes components)
+
+        let s1''' = composeSubst sTargets (composeSubst sPrepare sBase)
+        matchedType' <- applySubstWithConstraintsM s1''' matchedType
+        nextMatcherInnerTypes <-
+          mapM (applySubstWithConstraintsM s1''') patternHoleTypes
+        let ppBindings' =
+              [ (var, applySubstScheme s1''' scheme)
+              | (var, scheme) <- ppBindings
+              ]
         
         -- Infer the type of data clauses with pp variables in scope, building
         -- the typed arms (TIBindingExpr) in the SAME pass that checks them.
@@ -1507,6 +1648,36 @@ inferIExprWithContext expr ctx = case expr of
         let tiPatDef = (ppPat, nextMatcherTI, dataClauseTIs)
 
         return (tiPatDef, (matchedType', [s1''', s2]))
+
+      -- T-MATCHER's next-matcher component boundary.  This deliberately uses
+      -- the source expression's outer constructor, not its inferred product
+      -- type (R12 / decomposeME).
+      decomposeNextMatcherComponents
+        :: IExpr
+        -> TIExpr
+        -> Int
+        -> TypeErrorContext
+        -> Infer [TIExpr]
+      decomposeNextMatcherComponents _ nextMatcherTI 1 _ =
+        return [nextMatcherTI]
+      decomposeNextMatcherComponents nextMatcherExpr nextMatcherTI holeCount ctx =
+        case (nextMatcherExpr, tiExprNode nextMatcherTI) of
+          (ITupleExpr exprs, TITupleExpr components)
+            | length exprs == holeCount
+            , length components == holeCount ->
+                return components
+          _ ->
+            throwError $ TE.TypeMismatch
+              (TTuple
+                (replicate holeCount
+                  (TMatcherSlot
+                    (TVar (TyVar "structural"))
+                    (TVar (TyVar "target")))))
+              (tiExprType nextMatcherTI)
+              ("a matcher clause with " ++ show holeCount ++
+               " pattern holes requires an explicit next-matcher tuple of exactly " ++
+               show holeCount ++ " components")
+              ctx
       
       -- Infer PrimitivePatPattern type
       -- Returns (matched type, pattern hole types, variable bindings, substitution)
@@ -1627,105 +1798,6 @@ inferIExprWithContext expr ctx = case expr of
         let (args, result) = extractFunctionArgs rest
         in (arg : args, result)
       extractFunctionArgs t = ([], t)
-      
-      -- Extract matched type from Matcher type
-      -- Check consistency between pattern hole types and next matcher types
-      checkPatternHoleConsistency :: [Type] -> [Type] -> TypeErrorContext -> Infer Subst
-      checkPatternHoleConsistency [] [] _ctx = return emptySubst
-      checkPatternHoleConsistency patternHoles nextMatchers ctx
-        | length patternHoles /= length nextMatchers = 
-            throwError $ TE.TypeMismatch
-              (TTuple nextMatchers)
-              (TTuple patternHoles)
-              ("Inconsistent number of pattern holes (" ++ show (length patternHoles) 
-               ++ ") and next matchers (" ++ show (length nextMatchers) ++ ")")
-              ctx
-        | otherwise = do
-            -- Unify each pattern hole type with corresponding next matcher type
-            foldM (\accS (holeTy, matcherTy) -> do
-                holeTy' <- applySubstWithConstraintsM accS holeTy
-                matcherTy' <- applySubstWithConstraintsM accS matcherTy
-                s <- unifyTypesWithContext holeTy' matcherTy' ctx
-                return $ composeSubst s accS
-              ) emptySubst (zip patternHoles nextMatchers)
-      
-      -- Extract inner types from next matcher type
-      -- Given Matcher a, returns [a]
-      -- Given Matcher (a, b, ...) and n pattern holes, returns [a, b, ...] if n > 1, or [(a, b, ...)] if n = 1
-      -- Special case: (Matcher a, Matcher b, ...) should be converted to Matcher (a, b, ...) first
-      -- Note: Even when numHoles = 0, we extract inner types to detect mismatches in checkPatternHoleConsistency
-      extractInnerTypesFromMatcher :: Type -> Int -> TypeErrorContext -> Infer [Type]
-      extractInnerTypesFromMatcher matcherType numHoles ctx = case numHoles of
-        0 -> case matcherType of
-          -- No pattern holes, but extract inner type to allow error detection
-          TMatcher innerType -> return [innerType]
-          -- A MatcherSlot used as a next-matcher: its target component is the inner type.
-          TMatcherSlot _ tt -> return [tt]
-          TTuple types -> do
-            let matcherInners = mapM extractMatcherInner types
-            case matcherInners of
-              Just inners -> return inners
-              Nothing -> return []  -- Not matcher types, return empty
-          _ -> return []  -- Not a matcher type
-        1 -> case matcherType of
-          TMatcher innerType -> return [innerType]  -- Single hole: return inner type as-is
-          TMatcherSlot _ tt -> return [tt]          -- A slot next-matcher: target component
-          -- Special case: (Matcher a, Matcher b, ...) from ITupleExpr that failed to convert
-          -- This can happen when matcher parameters are used before ITupleExpr conversion
-          TTuple types -> do
-            let matcherInners = mapM extractMatcherInner types
-            case matcherInners of
-              Just inners -> return [TTuple inners]  -- Return as single tuple type
-              Nothing -> throwError $ TE.TypeMismatch
-                           (TMatcher (TVar (TyVar "a")))
-                           matcherType
-                           "Expected Matcher type or tuple of Matcher types"
-                           ctx
-          _ -> throwError $ TE.TypeMismatch
-                 (TMatcher (TVar (TyVar "a")))
-                 matcherType
-                 "Expected Matcher type"
-                 ctx
-        n -> case matcherType of
-          -- Multiple holes: expect Matcher (tuple) and extract each element
-          TMatcher (TTuple innerTypes) ->
-            if length innerTypes == n
-              then return innerTypes
-              else throwError $ TE.TypeMismatch
-                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
-                     matcherType
-                     ("Expected Matcher with tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
-                     ctx
-          -- A product MatcherSlot used as a next-matcher: target tuple component.
-          TMatcherSlot _ (TTuple innerTypes) ->
-            if length innerTypes == n
-              then return innerTypes
-              else throwError $ TE.TypeMismatch
-                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
-                     matcherType
-                     ("Expected Matcher with tuple of " ++ show n ++ " elements, but got " ++ show (length innerTypes))
-                     ctx
-          -- Special case: (Matcher a, Matcher b, ...) - extract inner types directly
-          TTuple types -> do
-            let matcherInners = mapM extractMatcherInner types
-            case matcherInners of
-              Just inners | length inners == n -> return inners
-              _ -> throwError $ TE.TypeMismatch
-                     (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
-                     matcherType
-                     "Expected tuple of Matcher types with correct count"
-                     ctx
-          _ -> throwError $ TE.TypeMismatch
-                 (TMatcher (TTuple (replicate n (TVar (TyVar "a")))))
-                 matcherType
-                 ("Expected Matcher of tuple with " ++ show n ++ " elements")
-                 ctx
-      
-      -- Helper: Extract inner type from Matcher a -> Just a, otherwise Nothing
-      extractMatcherInner :: Type -> Maybe Type
-      extractMatcherInner (TMatcher t) = Just t
-      extractMatcherInner (TMatcherSlot _ tt) = Just tt
-      extractMatcherInner _ = Nothing
       
       -- Infer a data clause with type checking
       -- Check that the target expression returns a list of values with types matching next matcher inner types
@@ -4218,16 +4290,19 @@ inferITopExpr topExpr = case topExpr of
           IMatcherExpr _ ->
             unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
           _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
-        let finalSubst = composeSubst subst2 subst1
+        let preHoleSubst = composeSubst subst2 subst1
+
+        -- Matcher-definition component checks may learn ordinary equality
+        -- constraints from existing MatcherSlot values.  Compose those
+        -- constraints before elaboration and generalization.
+        holeSubst <- flushDeferredHoleChecks preHoleSubst
+        let finalSubst = composeSubst holeSubst preHoleSubst
 
         -- Reject the definition if its body needs constraints (on the
         -- signature's type variables) that the signature does not declare
         finalTypeChk <- applySubstWithConstraintsM finalSubst expectedType
         let Var defNameStr _ = var
         checkResidualConstraints defNameStr instConstraints finalTypeChk finalSubst exprCtx
-
-        -- Deferred matcher-hole admissibility (paper PP-Con) at the final types
-        flushDeferredHoleChecks finalSubst
 
         -- Apply final substitution to exprTI to resolve all type variables
         -- IMPORTANT: Use applySubstToTIExprM to adjust substitution based on constraints
@@ -4270,29 +4345,36 @@ inferITopExpr topExpr = case topExpr of
         selfTy <- freshVar "rec"
         modify $ \s -> s { inferEnv = extendEnv var (Forall [] [] selfTy) (inferEnv s) }
         (exprTI, subst1) <- inferIExpr expr
-        -- Deferred matcher-hole admissibility (paper PP-Con) at the final types
-        flushDeferredHoleChecks subst1
-        -- Apply the substitution to the stored expression, exactly as the
-        -- signature branch does.  Without this, node schemes inside the
-        -- expression (notably matcher data-clause arms) keep stale type
-        -- variables in their constraints, and the generalized scheme below
-        -- is built from variables that no longer match the nodes —
-        -- TypeClassExpand then emits unbound dictionary references.
-        exprTI0 <- applySubstToTIExprM subst1 exprTI
         -- Tie the placeholder to the inferred body type.  For a
         -- non-recursive body the placeholder is still free and the
         -- unification just discharges it; for a recursive one this is
-        -- where the recursive uses meet the definition.
+        -- where the recursive uses meet the definition.  This must precede
+        -- the deferred hole checks: recursive uses can be the last source of
+        -- information that resolves a hole target's structural head.
         selfTy' <- applySubstWithConstraintsM subst1 selfTy
+        exprType' <- applySubstWithConstraintsM subst1 (tiExprType exprTI)
         let Var selfName _ = var
             recCtx = withContext
               ("in the definition of '" ++ selfName ++
                "': the type of a recursive use does not match the body" ++
                " (polymorphic recursion needs an explicit type signature)")
               (withExpr (prettyStr expr) emptyContext)
-        subst2 <- unifyTypesWithContext selfTy' (tiExprType exprTI0) recCtx
-        let subst = composeSubst subst2 subst1
-        exprTI' <- applySubstToTIExprM subst2 exprTI0
+        subst2 <- unifyTypesWithContext selfTy' exprType' recCtx
+        let preHoleSubst = composeSubst subst2 subst1
+
+        -- Deferred matcher-hole checks can refine slot-typed parameters.
+        -- Compose their constraints only after every ordinary constraint on
+        -- the definition, including monomorphic recursion, has been solved.
+        holeSubst <- flushDeferredHoleChecks preHoleSubst
+        let subst = composeSubst holeSubst preHoleSubst
+
+        -- Apply the complete substitution to the stored expression, exactly
+        -- as the signature branch does.  Without this, node schemes inside
+        -- the expression (notably matcher data-clause arms) keep stale type
+        -- variables in their constraints, and the generalized scheme below
+        -- is built from variables that no longer match the nodes —
+        -- TypeClassExpand then emits unbound dictionary references.
+        exprTI' <- applySubstToTIExprM subst exprTI
         let exprType = tiExprType exprTI'
         constraints <- getConstraints  -- Collect constraints from type inference
 
@@ -4323,17 +4405,21 @@ inferITopExpr topExpr = case topExpr of
     clearConstraints  -- Start with fresh constraints
     clearDeferredHoleChecks
     (exprTI, subst) <- inferIExpr expr
-    flushDeferredHoleChecks subst
+    holeSubst <- flushDeferredHoleChecks subst
+    let finalSubst = composeSubst holeSubst subst
+    exprTI' <- applySubstToTIExprM finalSubst exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
-    return (Just (TITest exprTI), subst)
+    return (Just (TITest exprTI'), finalSubst)
   
   IExecute expr -> do
     clearConstraints  -- Start with fresh constraints
     clearDeferredHoleChecks
     (exprTI, subst) <- inferIExpr expr
-    flushDeferredHoleChecks subst
+    holeSubst <- flushDeferredHoleChecks subst
+    let finalSubst = composeSubst holeSubst subst
+    exprTI' <- applySubstToTIExprM finalSubst exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
-    return (Just (TIExecute exprTI), subst)
+    return (Just (TIExecute exprTI'), finalSubst)
   
   ILoadFile _path -> return (Nothing, emptySubst)
   ILoad _lib -> return (Nothing, emptySubst)
@@ -4364,10 +4450,12 @@ inferITopExpr topExpr = case topExpr of
         clearConstraints
         clearDeferredHoleChecks
         (pairTIs, s) <- foldM dictPair ([], emptySubst) pairs
+        holeSubst <- flushDeferredHoleChecks s
+        let finalSubst = composeSubst holeSubst s
         v <- freshVar "dictVal"
         let exprTI = TIExpr (Forall [] [] (THash TString v)) (TIHashExpr (reverse pairTIs))
-        exprTI' <- applySubstToTIExprM s exprTI
-        return ((var, exprTI'), s)
+        exprTI' <- applySubstToTIExprM finalSubst exprTI
+        return ((var, exprTI'), finalSubst)
         where
           dictPair (acc, s) (k, vE) = do
             (kTI, s1) <- inferIExprWithContext k emptyContext
@@ -4402,12 +4490,13 @@ inferITopExpr topExpr = case topExpr of
               IMatcherExpr _ ->
                 unifyMatcherDefType [] exprType' expectedType' emptyContext
               _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
-            let finalSubst = composeSubst subst2 subst1
+            let preHoleSubst = composeSubst subst2 subst1
+            holeSubst <- flushDeferredHoleChecks preHoleSubst
+            let finalSubst = composeSubst holeSubst preHoleSubst
             -- Reject if the body needs constraints the signature lacks
             finalTypeChk <- applySubstWithConstraintsM finalSubst expectedType
             let Var defNameStr _ = var
             checkResidualConstraints defNameStr instCsMany finalTypeChk finalSubst emptyContext
-            flushDeferredHoleChecks finalSubst
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             return ((var, exprTI'), finalSubst)
           
@@ -4416,20 +4505,21 @@ inferITopExpr topExpr = case topExpr of
             clearConstraints
             clearDeferredHoleChecks
             (exprTI, subst) <- inferIExpr expr
-            flushDeferredHoleChecks subst
+            holeSubst <- flushDeferredHoleChecks subst
+            let finalSubst = composeSubst holeSubst subst
             -- Apply the substitution to the stored expression (same as the
             -- IDefine no-signature branch): node schemes must not keep stale
             -- type variables in their constraints, or TypeClassExpand emits
             -- unbound dictionary references (e.g. inside `declare rule`
             -- generated bodies, which arrive here via IDefineMany).
-            exprTI' <- applySubstToTIExprM subst exprTI
+            exprTI' <- applySubstToTIExprM finalSubst exprTI
             let exprType = tiExprType exprTI'
             constraints <- getConstraints
 
             -- Resolve constraints based on available instances
             classEnv <- getClassEnv
-            let exprTI'' = resolveConstraintsInTIExpr classEnv subst exprTI'
-                updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
+            let exprTI'' = resolveConstraintsInTIExpr classEnv finalSubst exprTI'
+                updatedConstraints = map (resolveConstraintWithInstances classEnv finalSubst) constraints
                 -- Filter out constraints on concrete types (non-type-variables)
                 isTypeVarConstraint c = any isTypeVarT (constraintTypes c)
                 isTypeVarT (TVar _) = True
@@ -4446,7 +4536,7 @@ inferITopExpr topExpr = case topExpr of
             -- Add to environment for subsequent bindings using Var directly
             modify $ \s -> s { inferEnv = extendEnv var scheme (inferEnv s) }
 
-            return ((var, exprTI''), subst)
+            return ((var, exprTI''), finalSubst)
   
   IPatternFunctionDecl name tyVars params retType body -> do
     -- Pattern function type checking (paper PATFUN-DEF):
@@ -4459,6 +4549,7 @@ inferITopExpr topExpr = case topExpr of
     --    signature beta_1 -> ... -> beta_k -> tau_p_body for PAT-APP
 
     clearConstraints  -- Start fresh
+    clearDeferredHoleChecks
 
     let ctx = TypeErrorContext
                 { errorLocation = Nothing
@@ -4497,6 +4588,15 @@ inferITopExpr topExpr = case topExpr of
       taupEqs <- (fromMaybe [] . inferPatfunTaupEqs) <$> get
       modify $ \z -> z { inferPatfunParamTaup = oldParamTaups, inferPatfunTaupEqs = oldTaupEqs }
       (tiBody, _bodyBindings, subst, bodyTaup) <- either throwError return bodyResult
+
+      -- A pattern body can contain arbitrary expressions (value/predicate
+      -- patterns, let bindings, pattern applications), hence nested matcher
+      -- literals.  Discharge their queued next-matcher checks before recording
+      -- the pattern function, and propagate any learned slot equalities into
+      -- the complete typed pattern.
+      holeSubst <- flushDeferredHoleChecks subst
+      let finalSubst = composeSubst holeSubst subst
+      tiBody' <- applySubstToTIPatternM finalSubst tiBody
 
       -- Note: Pattern variables that reference parameters (using ~param) will appear in bodyBindings
       -- but they are NOT conflicts - they are references to the parameters themselves.
@@ -4538,7 +4638,10 @@ inferITopExpr topExpr = case topExpr of
         inferPatternFuncStructEnv = extendPatternEnv name structScheme (inferPatternFuncStructEnv s)
       }
 
-      return (Just (TIPatternFunctionDecl name typeScheme params retType tiBody), subst)
+      return
+        ( Just (TIPatternFunctionDecl name typeScheme params retType tiBody')
+        , finalSubst
+        )
   
   IDeclareSymbol names mType -> do
     -- Register declared symbols with their types
@@ -4575,7 +4678,14 @@ inferITopExprs (e:es) = do
 runInferI :: InferConfig -> TypeEnv -> IExpr -> IO (Either TypeError (Type, Subst, [TypeWarning]))
 runInferI cfg env expr = do
   let initState = (initialInferStateWithConfig cfg) { inferEnv = env }
-  (result, warnings) <- runInferWithWarnings (inferIExpr expr) initState
+      inferComplete = do
+        clearDeferredHoleChecks
+        (tiExpr, subst) <- inferIExpr expr
+        holeSubst <- flushDeferredHoleChecks subst
+        let finalSubst = composeSubst holeSubst subst
+        tiExpr' <- applySubstToTIExprM finalSubst tiExpr
+        return (tiExpr', finalSubst)
+  (result, warnings) <- runInferWithWarnings inferComplete initState
   return $ case result of
     Left err -> Left err
     Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, warnings)
@@ -4584,7 +4694,15 @@ runInferI cfg env expr = do
 runInferIWithEnv :: InferConfig -> TypeEnv -> IExpr -> IO (Either TypeError (Type, Subst, TypeEnv, [TypeWarning]))
 runInferIWithEnv cfg env expr = do
   let initState = (initialInferStateWithConfig cfg) { inferEnv = env }
-  (result, warnings, finalState) <- runInferWithWarningsAndState (inferIExpr expr) initState
+      inferComplete = do
+        clearDeferredHoleChecks
+        (tiExpr, subst) <- inferIExpr expr
+        holeSubst <- flushDeferredHoleChecks subst
+        let finalSubst = composeSubst holeSubst subst
+        tiExpr' <- applySubstToTIExprM finalSubst tiExpr
+        return (tiExpr', finalSubst)
+  (result, warnings, finalState) <-
+    runInferWithWarningsAndState inferComplete initState
   return $ case result of
     Left err -> Left err
     Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, inferEnv finalState, warnings)
