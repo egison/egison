@@ -15,8 +15,10 @@ module Language.Egison.Type.Env
   , removeFromEnv
   , envToList
   , freeVarsInEnv
+  , freeCapVarsInEnv
   , generalize
   , instantiate
+  , skolemizeCapabilities
   -- * Class environment
   , ClassEnv(..)
   , ClassInfo(..)
@@ -45,9 +47,12 @@ import qualified Data.Set                   as Set
 
 import           Language.Egison.IExpr      (Var(..), Index(..))
 import           Language.Egison.VarEntry   (VarEntry(..))
-import           Language.Egison.Type.Types (TyVar (..), Type (..), TypeScheme (..),
-                                             Constraint(..), ClassInfo(..), InstanceInfo(..),
-                                             freeTyVars, freshTyVar, substTyVar)
+import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
+                                             Type (..), TypeScheme (..),
+                                             Constraint(..), ClassInfo(..),
+                                             InstanceInfo(..), freeCapVars,
+                                             freeTyVars, freshCapVar, freshTyVar,
+                                             substCapVarInType, substTyVar)
 
 -- | Type environment: uses same data structure as evaluation environment
 -- Maps base variable names to all bindings with that name
@@ -186,30 +191,82 @@ freeVarsInEnv (TypeEnv env) =
   Set.unions $ map freeVarsInScheme $ concat $ Map.elems env
   where
     freeVarsInScheme entry = 
-      let Forall vs _ t = veValue entry
-      in freeTyVars t `Set.difference` Set.fromList vs
+      let Forall _ vs cs t = veValue entry
+          vars = freeTyVars t `Set.union`
+                 Set.unions (map (Set.unions . map freeTyVars . constraintTypes) cs)
+      in vars `Set.difference` Set.fromList vs
+
+-- | Get free capability variables in the environment.
+freeCapVarsInEnv :: TypeEnv -> Set CapVar
+freeCapVarsInEnv (TypeEnv env) =
+  Set.unions $ map freeVarsInScheme $ concat $ Map.elems env
+  where
+    freeVarsInScheme entry =
+      let Forall capVars _ cs t = veValue entry
+          vars = freeCapVars t `Set.union`
+                 Set.unions (map (Set.unions . map freeCapVars . constraintTypes) cs)
+      in vars `Set.difference` Set.fromList capVars
 
 -- | Generalize a type to a type scheme (without constraints)
 -- Generalize all free type variables that are not in the environment
 generalize :: TypeEnv -> Type -> TypeScheme
 generalize env t =
-  let envFreeVars = freeVarsInEnv env
+  let envFreeCapVars = freeCapVarsInEnv env
+      envFreeVars = freeVarsInEnv env
+      typeFreeCapVars = freeCapVars t
       typeFreeVars = freeTyVars t
+      genCapVars = Set.toList $ typeFreeCapVars `Set.difference` envFreeCapVars
       genVars = Set.toList $ typeFreeVars `Set.difference` envFreeVars
-  in Forall genVars [] t
+  in Forall genCapVars genVars [] t
 
--- | Instantiate a type scheme with fresh type variables
+-- | Instantiate a type scheme with fresh variables of both sorts.
 -- Returns a tuple of (constraints, instantiated type, fresh variable counter)
 instantiate :: TypeScheme -> Int -> ([Constraint], Type, Int)
-instantiate (Forall vs cs t) counter =
-  let freshVars = zipWith (\v i -> (v, TVar (freshTyVar "t" (counter + i)))) vs [0..]
-      substType = foldr (\(old, new) acc -> substTyVar old new acc) t freshVars
-      substCs = map (substConstraint freshVars) cs
-  in (substCs, substType, counter + length vs)
+instantiate = instantiateCapabilitiesWith CapVar "c"
+
+-- | Instantiate quantified capability variables as rigid skolems while
+-- ordinary type variables remain fresh and flexible.
+--
+-- This is used when checking an explicit matcher annotation: the
+-- implementation cannot manufacture capability evidence by binding the
+-- annotation's quantified capability variable.
+skolemizeCapabilities :: TypeScheme -> Int -> ([Constraint], Type, Int)
+skolemizeCapabilities = instantiateCapabilitiesWith CapSkolem "skc"
+
+instantiateCapabilitiesWith
+  :: (CapVar -> Capability)
+  -> String
+  -> TypeScheme
+  -> Int
+  -> ([Constraint], Type, Int)
+instantiateCapabilitiesWith capNode capPrefix (Forall capVars tyVars cs t) counter =
+  let freshCaps =
+        zipWith
+          (\v i -> (v, capNode (freshCapVar capPrefix (counter + i))))
+          capVars
+          [0..]
+      typeCounter = counter + length capVars
+      freshTypes =
+        zipWith
+          (\v i -> (v, TVar (freshTyVar "t" (typeCounter + i))))
+          tyVars
+          [0..]
+      substType = substituteBoth freshCaps freshTypes t
+      substCs = map (substConstraint freshCaps freshTypes) cs
+      finalCounter = typeCounter + length tyVars
+  in (substCs, substType, finalCounter)
   where
-    substConstraint :: [(TyVar, Type)] -> Constraint -> Constraint
-    substConstraint vars (Constraint cls tys) =
-      Constraint cls (map (\ty -> foldr (\(old, new) acc -> substTyVar old new acc) ty vars) tys)
+    substituteBoth capBindings typeBindings =
+      applyTypeBindings typeBindings . applyCapBindings capBindings
+
+    applyCapBindings bindings ty =
+      foldr (\(old, new) acc -> substCapVarInType old new acc) ty bindings
+
+    applyTypeBindings bindings ty =
+      foldr (\(old, new) acc -> substTyVar old new acc) ty bindings
+
+    substConstraint capBindings typeBindings (Constraint cls tys) =
+      Constraint cls (map (substituteBoth capBindings typeBindings) tys)
 
 --------------------------------------------------------------------------------
 -- Class Environment
@@ -274,4 +331,3 @@ lookupPatternEnv name (PatternTypeEnv env) = Map.lookup name env
 -- | Convert pattern type environment to list
 patternEnvToList :: PatternTypeEnv -> [(String, TypeScheme)]
 patternEnvToList (PatternTypeEnv env) = Map.toList env
-

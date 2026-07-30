@@ -283,13 +283,70 @@ instance Pretty TypeExpr where
   pretty (TEList t) = brackets (pretty t)
   pretty (TETuple []) = pretty "()"
   pretty (TETuple ts) = parens (hsep (punctuate comma (map pretty ts)))
-  pretty (TEFun t1 t2) = pretty t1 <+> pretty "->" <+> pretty t2
-  pretty (TEMatcher t) = pretty "Matcher" <+> pretty t
-  pretty (TEMatcherSlot s t) = pretty "MatcherSlot" <+> pretty s <+> pretty t
-  pretty (TEPattern t) = pretty "Pattern" <+> pretty t
-  pretty (TEIO t) = pretty "IO" <+> pretty t
-  pretty (TETensor t) = pretty "Tensor" <+> pretty t
-  pretty (TEApp t args) = hsep (pretty t : map pretty args)
+  pretty (TEFun t1 t2) =
+    prettyTypeExprAtomDoc t1 <+> pretty "->" <+> pretty t2
+  pretty (TEMatcher capability t) =
+    pretty "Matcher" <+> prettyCapabilityExprAtomDoc capability <+> prettyTypeExprAtomDoc t
+  pretty (TEMatcherSlot capability t) =
+    pretty "MatcherSlot" <+> prettyCapabilityExprAtomDoc capability <+> prettyTypeExprAtomDoc t
+  pretty (TEPattern t) = pretty "Pattern" <+> prettyTypeExprAtomDoc t
+  pretty (TEIO t) = pretty "IO" <+> prettyTypeExprAtomDoc t
+  pretty (TETensor t) = pretty "Tensor" <+> prettyTypeExprAtomDoc t
+  pretty (TEVector t) = pretty "Vector" <+> prettyTypeExprAtomDoc t
+  pretty (TEMatrix t) = pretty "Matrix" <+> prettyTypeExprAtomDoc t
+  pretty (TEDiffForm t) = pretty "DiffForm" <+> prettyTypeExprAtomDoc t
+  pretty (TEApp t args) =
+    hsep (prettyTypeExprAtomDoc t : map prettyTypeExprAtomDoc args)
+  pretty (TEConstrained constraints t) =
+    braces (hsep (punctuate comma (map pretty constraints))) <+> pretty t
+  pretty TEFactor = pretty "Factor"
+  pretty (TETerm t symbols) =
+    pretty "Term" <+> prettyTypeExprAtomDoc t <+> prettySymbolSetExprDoc symbols
+  pretty (TEFrac t) = pretty "Frac" <+> prettyTypeExprAtomDoc t
+  pretty (TEPoly t symbols) =
+    pretty "Poly" <+> prettyTypeExprAtomDoc t <+> prettySymbolSetExprDoc symbols
+
+instance Pretty CapabilityExpr where
+  pretty CENone = pretty "none"
+  pretty (CEVar v) = pretty v
+  pretty (CECon name []) = pretty name
+  pretty (CECon name args) =
+    hsep (pretty name : map prettyCapabilityExprAtomDoc args)
+  pretty (CEList capability) = brackets (pretty capability)
+  pretty (CETuple []) = pretty "()"
+  pretty (CETuple capabilities) =
+    parens (hsep (punctuate comma (map pretty capabilities)))
+
+prettyCapabilityExprAtomDoc :: CapabilityExpr -> Doc ann
+prettyCapabilityExprAtomDoc capability@(CECon _ (_:_)) = parens (pretty capability)
+prettyCapabilityExprAtomDoc capability = pretty capability
+
+prettyTypeExprAtomDoc :: TypeExpr -> Doc ann
+prettyTypeExprAtomDoc typeExpr = case typeExpr of
+  TEFun _ _     -> parens (pretty typeExpr)
+  TEApp _ _     -> parens (pretty typeExpr)
+  TEConstrained _ _ -> parens (pretty typeExpr)
+  TEMatcher _ _ -> parens (pretty typeExpr)
+  TEMatcherSlot _ _ -> parens (pretty typeExpr)
+  TETerm _ _    -> parens (pretty typeExpr)
+  TEFrac _      -> parens (pretty typeExpr)
+  TEPoly _ _    -> parens (pretty typeExpr)
+  _             -> pretty typeExpr
+
+prettySymbolSetExprDoc :: SymbolSetExpr -> Doc ann
+prettySymbolSetExprDoc (SSEClosed atoms) =
+  brackets (hsep (punctuate comma (map prettyTypeAtomExprDoc atoms)))
+prettySymbolSetExprDoc SSEOpen = pretty "[..]"
+
+prettyTypeAtomExprDoc :: TypeAtomExpr -> Doc ann
+prettyTypeAtomExprDoc (TAEName name) = pretty name
+prettyTypeAtomExprDoc (TAEInt value) = pretty value
+prettyTypeAtomExprDoc (TAEApp name arguments) =
+  hsep (pretty name : map prettyTypeAtomExprAtomDoc arguments)
+
+prettyTypeAtomExprAtomDoc :: TypeAtomExpr -> Doc ann
+prettyTypeAtomExprAtomDoc atom@(TAEApp _ _) = parens (prettyTypeAtomExprDoc atom)
+prettyTypeAtomExprAtomDoc atom = prettyTypeAtomExprDoc atom
 
 instance Pretty ConstraintExpr where
   pretty (ConstraintExpr cls types) = hsep (pretty cls : map pretty types)
@@ -688,13 +745,13 @@ instance Pretty TIExpr where
 -- Pretty print TIExpr with type annotations for all subexpressions
 prettyTIExprWithType :: TIExpr -> Doc ann
 prettyTIExprWithType tiexpr =
-  let (Types.Forall _ constraints ty) = tiScheme tiexpr
+  let (Types.Forall _ _ constraints ty) = tiScheme tiexpr
       constraintDoc = prettyConstraintsDoc constraints
   in parens (prettyTIExprNode (tiExprNode tiexpr) <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
 
 -- Pretty print pattern with type annotations (recursive)
 prettyPatternWithType :: TIPattern -> Doc ann
-prettyPatternWithType (TIPattern (Types.Forall _ constraints ty) node) =
+prettyPatternWithType (TIPattern (Types.Forall _ _ constraints ty) node) =
   let constraintDoc = prettyConstraintsDoc constraints
   in parens (prettyTIPatternNode node <+> pretty ":" <+> constraintDoc <> prettyTypeDoc ty)
 
@@ -955,8 +1012,10 @@ prettyTypeDoc (Types.THash k v) =
     -- Hash value types need parentheses if they are function types
     prettyHashValueTypeDoc t@(Types.TFun _ _) = parens (prettyTypeDoc t)
     prettyHashValueTypeDoc t = prettyTypeDoc t
-prettyTypeDoc (Types.TMatcher t) = pretty "Matcher" <+> prettyTypeDoc t
-prettyTypeDoc (Types.TMatcherSlot s t) = pretty "MatcherSlot" <+> prettyTypeDoc s <+> prettyTypeDoc t
+prettyTypeDoc (Types.TMatcher capability t) =
+  pretty "Matcher" <+> prettyCapabilityAtomDoc capability <+> prettyTypeAtomDoc t
+prettyTypeDoc (Types.TMatcherSlot capability t) =
+  pretty "MatcherSlot" <+> prettyCapabilityAtomDoc capability <+> prettyTypeAtomDoc t
 prettyTypeDoc (Types.TIO t) = pretty "IO" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIORef t) = pretty "IORef" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TTensor t) = pretty "Tensor" <+> prettyTypeDoc t
@@ -973,6 +1032,38 @@ prettyTypeDoc Types.TFactor = pretty "Factor"
 prettyTypeDoc (Types.TFrac t) = pretty "Frac" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TTerm t ss) = pretty "Term" <+> prettyTypeDoc t <+> prettySymbolSetDoc ss
 prettyTypeDoc (Types.TPoly t ss) = pretty "Poly" <+> prettyTypeDoc t <+> prettySymbolSetDoc ss
+
+prettyCapabilityDoc :: Types.Capability -> Doc ann
+prettyCapabilityDoc Types.CapNone = pretty "none"
+prettyCapabilityDoc (Types.CapVar (Types.MkCapVar v)) = pretty v
+prettyCapabilityDoc (Types.CapSkolem (Types.MkCapVar v)) = pretty v
+prettyCapabilityDoc (Types.CapCon (Types.TypeFormer (Types.TypeFormerId name) _) []) =
+  pretty name
+prettyCapabilityDoc (Types.CapCon (Types.TypeFormer (Types.TypeFormerId name) _) args) =
+  hsep (pretty name : map prettyCapabilityAtomDoc args)
+prettyCapabilityDoc (Types.CapTuple []) = pretty "()"
+prettyCapabilityDoc (Types.CapTuple capabilities) =
+  tupled (map prettyCapabilityDoc capabilities)
+
+prettyCapabilityAtomDoc :: Types.Capability -> Doc ann
+prettyCapabilityAtomDoc capability@(Types.CapCon _ (_:_)) =
+  parens (prettyCapabilityDoc capability)
+prettyCapabilityAtomDoc capability = prettyCapabilityDoc capability
+
+prettyTypeAtomDoc :: Types.Type -> Doc ann
+prettyTypeAtomDoc ty = case ty of
+  Types.TFun _ _         -> parens (prettyTypeDoc ty)
+  Types.TInductive _ (_:_) -> parens (prettyTypeDoc ty)
+  Types.TTensor _        -> parens (prettyTypeDoc ty)
+  Types.THash _ _        -> parens (prettyTypeDoc ty)
+  Types.TMatcher _ _     -> parens (prettyTypeDoc ty)
+  Types.TMatcherSlot _ _ -> parens (prettyTypeDoc ty)
+  Types.TIO _            -> parens (prettyTypeDoc ty)
+  Types.TIORef _         -> parens (prettyTypeDoc ty)
+  Types.TTerm _ _        -> parens (prettyTypeDoc ty)
+  Types.TFrac _          -> parens (prettyTypeDoc ty)
+  Types.TPoly _ _        -> parens (prettyTypeDoc ty)
+  _                      -> prettyTypeDoc ty
 
 -- Helper to pretty print a symbol set (of Poly/Term types) as Doc
 prettySymbolSetDoc :: Types.SymbolSet -> Doc ann

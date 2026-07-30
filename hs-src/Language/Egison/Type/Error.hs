@@ -24,7 +24,9 @@ import           Data.List                  (intercalate, nub)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
-import           Language.Egison.Type.Types (TensorShape (..), TyVar (..), Type (..), SymbolSet(..), prettyTypeAtomValue,
+import           Language.Egison.Type.Types (CapVar (..), Capability (..), TensorShape (..),
+                                             TyVar (..), Type (..), TypeFormer (..),
+                                             TypeFormerId (..), SymbolSet(..), prettyTypeAtomValue,
                                              Constraint (..), constraintClass, constraintTypes)
 
 -- | Source location information
@@ -131,6 +133,9 @@ data TypeError
     --   Checked as a conservative syntactic approximation (see 'pdArmsExhaustive' in the
     --   inference module); the standard-library convention is a final @| _ -> []@ (or
     --   @| $tgt -> ...@) arm.
+  | MatcherCapabilityError String TypeErrorContext
+    -- ^ ShapeCap evidence for a matcher literal is inconsistent or leaves an
+    --   observable capability parameter undetermined.
   | MatchCapturedValuePatScope [String] String TypeErrorContext
     -- ^ Value-pattern scope condition (paper Def 4.2(4), the vp-scoped premise of WT-ATOM;
     --   surfaced by the type-pm-mech mechanization).  A value pattern captured by a #$x
@@ -234,6 +239,11 @@ formatTypeError err = case err of
       " end the arms with `| _ -> []`" ++
       "\n  (arm exhaustiveness; paper Def 4.2(1c))"
 
+  MatcherCapabilityError detail ctx ->
+    formatWithContext ctx $
+      "Cannot infer a consistent structural capability for this matcher:\n" ++
+      "  " ++ detail
+
   MatchCapturedValuePatScope vars ppStr ctx ->
     formatWithContext ctx $
       "Value pattern captured by `#$` of matcher clause `" ++ ppStr ++ "`" ++
@@ -333,8 +343,8 @@ renameVarsForDisplay ty = mapVars ty
       TInductive n ts    -> TInductive n (map mapVars ts)
       TTensor t1         -> TTensor (mapVars t1)
       THash t1 t2        -> THash (mapVars t1) (mapVars t2)
-      TMatcher t1        -> TMatcher (mapVars t1)
-      TMatcherSlot t1 t2 -> TMatcherSlot (mapVars t1) (mapVars t2)
+      TMatcher cap t1        -> TMatcher cap (mapVars t1)
+      TMatcherSlot cap t1    -> TMatcherSlot cap (mapVars t1)
       TFun t1 t2         -> TFun (mapVars t1) (mapVars t2)
       TIO t1             -> TIO (mapVars t1)
       TIORef t1          -> TIORef (mapVars t1)
@@ -349,8 +359,8 @@ renameVarsForDisplay ty = mapVars ty
       TInductive _ ts    -> concatMap collect ts
       TTensor t1         -> collect t1
       THash t1 t2        -> collect t1 ++ collect t2
-      TMatcher t1        -> collect t1
-      TMatcherSlot t1 t2 -> collect t1 ++ collect t2
+      TMatcher _ t1        -> collect t1
+      TMatcherSlot _ t1    -> collect t1
       TFun t1 t2         -> collect t1 ++ collect t2
       TIO t1             -> collect t1
       TIORef t1          -> collect t1
@@ -378,8 +388,10 @@ prettyType (TInductive name []) = name
 prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyType args)
 prettyType (TTensor t) = "Tensor " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
-prettyType (TMatcher t) = "Matcher " ++ prettyType t
-prettyType (TMatcherSlot s t) = "MatcherSlot " ++ prettyType s ++ " " ++ prettyType t
+prettyType (TMatcher capability t) =
+  "Matcher " ++ prettyCapabilityAtom capability ++ " " ++ prettyType t
+prettyType (TMatcherSlot capability t) =
+  "MatcherSlot " ++ prettyCapabilityAtom capability ++ " " ++ prettyType t
 prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t
@@ -390,6 +402,22 @@ prettyType TFactor = "Factor"
 prettyType (TTerm t ss) = "Term " ++ prettyType t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t) = "Frac " ++ prettyType t
 prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
+
+prettyCapability :: Capability -> String
+prettyCapability CapNone = "none"
+prettyCapability (CapVar (MkCapVar v)) = v
+prettyCapability (CapSkolem (MkCapVar v)) = v
+prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name
+prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) args) =
+  name ++ " " ++ unwords (map prettyCapabilityAtom args)
+prettyCapability (CapTuple []) = "()"
+prettyCapability (CapTuple capabilities) =
+  "(" ++ intercalate ", " (map prettyCapability capabilities) ++ ")"
+
+prettyCapabilityAtom :: Capability -> String
+prettyCapabilityAtom capability@(CapCon _ (_:_)) =
+  "(" ++ prettyCapability capability ++ ")"
+prettyCapabilityAtom capability = prettyCapability capability
 
 -- | Pretty print a SymbolSet (local helper for type errors)
 prettySymbolSet :: SymbolSet -> String

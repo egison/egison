@@ -1,10 +1,9 @@
 -- Deferred hole admissibility (paper PP-Con, Def 4.2(1a)): the tail hole of
--- the cons clause resolves (only via the annotation) to [Integer], a
--- constructor-headed type, where the bare-variable matcher `something` is
--- not structurally admissible.  The check runs after the definition's final
--- substitution, so the late pinning does not escape it.
+-- the cons clause requires list capability at its tail hole, where
+-- `something` supplies `none`.  The result annotation does not create
+-- capability evidence.
 
-def bad : Matcher [Integer] :=
+def bad : Matcher [none] [Integer] :=
   matcher
     | $ :: $ as (something, something) with
       | $x :: $xs -> [(x, xs)]

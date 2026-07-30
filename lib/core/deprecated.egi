@@ -13,7 +13,7 @@ inductive pattern Integer :=
   | o
   | s Integer
 
-def nat : Matcher Integer :=
+def nat : Matcher Integer Integer :=
   matcher
     | o as () with
       | 0   -> [()]

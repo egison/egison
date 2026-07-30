@@ -42,8 +42,8 @@ import           Language.Egison.Type.TypeClassExpand (expandTypeClassMethodsT, 
 -- This is the post-typecheck elaboration step; placing it after type class
 -- expansion preserves inner-method dispatch context.
 maybeReshape :: TypeScheme -> TIExpr -> TIExpr
-maybeReshape sch@(Forall vars constraints ty) tiexpr
-  | not (null vars) || not (null constraints) = tiexpr
+maybeReshape sch@(Forall capVars vars constraints ty) tiexpr
+  | not (null capVars) || not (null vars) || not (null constraints) = tiexpr
   | isReshapeTarget ty = TIExpr sch (TIReshape ty tiexpr)
   | otherwise = tiexpr
   where
@@ -226,4 +226,3 @@ desugarTypedTopExprT_TypeClassOnly topExpr = case topExpr of
     body' <- expandTypeClassMethodsInPattern body
     body'' <- applyConcreteConstraintDictionariesInPattern body'
     return $ Just (TIPatternFunctionDecl name typeScheme params retType body'')
-

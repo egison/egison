@@ -1,13 +1,27 @@
--- The single hole has target (a, a), so its expected structural slot repeats
--- one variable.  These two independent `something` values have distinct
--- frozen capability variables; one-way checking must not bind the first
--- matcher's variable to the second.
+-- The single hole has target (a, a), so signature-directed projection
+-- assigns both tuple leaves to the same capability parameter.  The two
+-- producers have the same target type but disagree exactly on capability:
+-- Choice versus none.  Only `unseen`, not `none`, is neutral during evidence
+-- merge, so the repeated assignment must be rejected.
 inductive Same a := Same (a, a)
 inductive pattern Same a := same (a, a)
 
-def bad {a} : Matcher (Same a) :=
+inductive Choice := C1 | C2
+inductive pattern Choice := c1 | c2
+
+def choice : Matcher Choice Choice :=
+  algebraicDataMatcher
+    | c1
+    | c2
+
+def opaqueChoice : Matcher none Choice :=
   matcher
-    | same $ as (something, something) with
+    | $ as something with
+      | $tgt -> [tgt]
+
+def bad : Matcher (Same Choice) (Same Choice) :=
+  matcher
+    | same $ as (choice, opaqueChoice) with
       | Same $p -> [p]
       | _ -> []
     | $ as something with

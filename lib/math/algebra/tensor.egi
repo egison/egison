@@ -16,7 +16,7 @@ inductive pattern TensorIndex :=
   | diagIndex MathValue
   | userIndex MathValue
 
-def tensorIndex : Matcher TensorIndex :=
+def tensorIndex : Matcher TensorIndex TensorIndex :=
   algebraicDataMatcher
     | subIndex mathValue
     | supIndex mathValue

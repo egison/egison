@@ -6,7 +6,7 @@
 
 def keep {a} (x : a) : a := x
 
-def bad : Matcher [Integer] :=
+def bad : Matcher [none] [Integer] :=
   matcher
     | $ :: $ as keep (integer, list integer) with
       | $x :: $xs -> [(x, xs)]

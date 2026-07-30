@@ -47,23 +47,23 @@ builtinTypes = concat
 
     -- | Make a binary operator type scheme (no type variables)
     binOp :: Type -> Type -> Type -> TypeScheme
-    binOp t1 t2 t3 = Forall [] [] $ binOpT t1 t2 t3
+    binOp t1 t2 t3 = Forall [] [] [] $ binOpT t1 t2 t3
 
     -- | Unary operation
     unaryOp :: Type -> Type -> TypeScheme
-    unaryOp t1 t2 = Forall [] [] $ TFun t1 t2
+    unaryOp t1 t2 = Forall [] [] [] $ TFun t1 t2
 
     forallA :: Type -> TypeScheme
-    forallA = Forall [a] []
+    forallA = Forall [] [a] []
 
     -- | forallA with binary op
     forallABinOp :: Type -> Type -> Type -> TypeScheme
-    forallABinOp t1 t2 t3 = Forall [a] [] $ binOpT t1 t2 t3
+    forallABinOp t1 t2 t3 = Forall [] [a] [] $ binOpT t1 t2 t3
 
     -- Constants (from Primitives.hs)
     constantsTypes =
-      [ ("f.pi", Forall [] [] TFloat)
-      , ("f.e", Forall [] [] TFloat)
+      [ ("f.pi", Forall [] [] [] TFloat)
+      , ("f.e", Forall [] [] [] TFloat)
       ]
 
     -- Primitives from Primitives.hs (strictPrimitives and lazyPrimitives)
@@ -72,58 +72,58 @@ builtinTypes = concat
       , ("addSuperscript", binOp TInt TInt TInt)  -- MathValue operations
       , ("assert", binOp TString TBool TBool)
       , ("assertEqual", forallA $ ternOpT TString (TVar a) (TVar a) TBool)
-      , ("sortWithSign", Forall [] [] $ TFun (TCollection (TCollection TInt)) (TTuple [TInt, TCollection TInt]))
-      , ("updateFunctionArgs", Forall [] [] $ TFun TMathValue (TFun (TCollection TMathValue) TMathValue))
-      , ("functionSymbol", Forall [] [] $ TFun TString (TFun (TCollection TMathValue) TMathValue))
-      , ("symbolIndices", Forall [] [] $
+      , ("sortWithSign", Forall [] [] [] $ TFun (TCollection (TCollection TInt)) (TTuple [TInt, TCollection TInt]))
+      , ("updateFunctionArgs", Forall [] [] [] $ TFun TMathValue (TFun (TCollection TMathValue) TMathValue))
+      , ("functionSymbol", Forall [] [] [] $ TFun TString (TFun (TCollection TMathValue) TMathValue))
+      , ("symbolIndices", Forall [] [] [] $
           TFun TMathValue (TCollection (TInductive "TensorIndex" [])))
-      , ("requireAnalyticDerivative", Forall [] [] $
+      , ("requireAnalyticDerivative", Forall [] [] [] $
           TFun TMathValue (TFun TMathValue TMathValue))
-      , ("quoteScalar", Forall [] [] $ TFun TMathValue TMathValue)
+      , ("quoteScalar", Forall [] [] [] $ TFun TMathValue TMathValue)
       , ("mathFunctionName", forallA $ TFun (TVar a) TString)
-      , ("casTerms", Forall [] [] $ TFun TMathValue (TCollection TMathValue))
-      , ("casFromTerms", Forall [] [] $ TFun (TCollection TMathValue) TMathValue)
-      , ("termCoeff", Forall [] [] $ TFun TMathValue TMathValue)
-      , ("termMonomial", Forall [] [] $ TFun TMathValue (TCollection (TTuple [TMathValue, TMathValue])))
+      , ("casTerms", Forall [] [] [] $ TFun TMathValue (TCollection TMathValue))
+      , ("casFromTerms", Forall [] [] [] $ TFun (TCollection TMathValue) TMathValue)
+      , ("termCoeff", Forall [] [] [] $ TFun TMathValue TMathValue)
+      , ("termMonomial", Forall [] [] [] $ TFun TMathValue (TCollection (TTuple [TMathValue, TMathValue])))
       , ("typeOf", forallA $ TFun (TVar a) TString)
       , ("inspect", forallA $ TFun (TVar a) TString)
       -- Unsafe cast for cas-quotient generated code only (M4;
       -- design/type-cas-quotient.md): projQ/reprQ cross between a
       -- quotient's nominal type and its base representation.
-      , ("casQuotientCast", Forall [TyVar "a", TyVar "b"] []
+      , ("casQuotientCast", Forall [] [TyVar "a", TyVar "b"] []
           (TFun (TVar (TyVar "a")) (TVar (TyVar "b"))))
-      , ("differentialClosed", Forall [] [] $ TFun TMathValue (TFun TMathValue TBool))
-      , ("isInPolyAtoms", Forall [] [] $ TFun TMathValue (TFun (TCollection TString) TBool))
+      , ("differentialClosed", Forall [] [] [] $ TFun TMathValue (TFun TMathValue TBool))
+      , ("isInPolyAtoms", Forall [] [] [] $ TFun TMathValue (TFun (TCollection TString) TBool))
       , ("isPureInteger", forallA $ TFun (TVar a) TBool)
       , ("isPureFraction", forallA $ TFun (TVar a) TBool)
-      , ("numReductionRules", Forall [] [] $ TFun (TTuple []) TInt)
-      , ("numDerivativeRules", Forall [] [] $ TFun (TTuple []) TInt)
-      , ("ruleNames", Forall [] [] $ TFun (TTuple []) (TCollection TString))
-      , ("derivativeNames", Forall [] [] $ TFun (TTuple []) (TCollection TString))
-      , ("hasReductionRule", Forall [] [] $ TFun TString TBool)
-      , ("hasDerivativeRule", Forall [] [] $ TFun TString TBool)
-      , ("applyTermRule", Forall [] [] $
+      , ("numReductionRules", Forall [] [] [] $ TFun (TTuple []) TInt)
+      , ("numDerivativeRules", Forall [] [] [] $ TFun (TTuple []) TInt)
+      , ("ruleNames", Forall [] [] [] $ TFun (TTuple []) (TCollection TString))
+      , ("derivativeNames", Forall [] [] [] $ TFun (TTuple []) (TCollection TString))
+      , ("hasReductionRule", Forall [] [] [] $ TFun TString TBool)
+      , ("hasDerivativeRule", Forall [] [] [] $ TFun TString TBool)
+      , ("applyTermRule", Forall [] [] [] $
           TFun TMathValue (TFun TMathValue (TFun TMathValue TMathValue)))
       -- Trigger-symbol pre-filter for `declare rule auto`. True iff the
       -- value tree references at least one of the named symbols/functions.
-      , ("containsAnySymbol", Forall [] [] $
+      , ("containsAnySymbol", Forall [] [] [] $
           TFun (TCollection TString) (TFun TMathValue TBool))
       -- CAS-specialised iterateRules used by `mathNormalize`. Trigger sets
       -- live in EvalState and are read inside the primitive, so only the
       -- rule list and value are parameters.
-      , ("iterateRulesCAS", Forall [] [] $
+      , ("iterateRulesCAS", Forall [] [] [] $
           TFun (TCollection (TFun TMathValue TMathValue))
                (TFun TMathValue TMathValue))
       -- Per-term trigger guard for generated pattern-rule steps.
-      , ("casContainsAnySymbol", Forall [] [] $
+      , ("casContainsAnySymbol", Forall [] [] [] $
           TFun (TCollection TString) (TFun TMathValue TBool))
       -- Phase A.5 deep-traversal primitives.
       -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
-      , ("mapPolyAll", Forall [] [] $
+      , ("mapPolyAll", Forall [] [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
-      , ("mapTermAll", Forall [] [] $
+      , ("mapTermAll", Forall [] [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
-      , ("mapFracAll", Forall [] [] $
+      , ("mapFracAll", Forall [] [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
       , ("tensorIndices", forallA $
@@ -235,7 +235,7 @@ builtinTypes = concat
       , ("writeIORef", forallA $ binOpT (TIORef (TVar a)) (TVar a) (TIO (TTuple [])))
       , ("readIORef", forallA $ TFun (TIORef (TVar a)) (TIO (TVar a)))
       -- Process operations
-      , ("readProcess", Forall [a] [] $ ternOpT TString (TCollection TString) TString (TIO TString))
+      , ("readProcess", Forall [] [a] [] $ ternOpT TString (TCollection TString) TString (TIO TString))
       ]
 
     -- Type conversion functions (from Primitives.Types.hs)
@@ -251,20 +251,20 @@ builtinTypes = concat
     -- Matchers (only primitive matchers defined in Haskell)
     -- Note: integer, bool, char, string, float, list, multiset, set, sortedList, unorderedPair, eq are defined in lib/
     matcherTypes =
-      [ ("something", forallA $ TMatcher (TVar a))
+      [ ("something", forallA $ TMatcher CapNone (TVar a))
       ]
 
     -- String functions (from Primitives.String.hs)
     stringTypes =
-      [ ("pack", Forall [] [] $ TFun (TCollection TChar) TString)
-      , ("unpack", Forall [] [] $ TFun TString (TCollection TChar))
-      , ("unconsString", Forall [] [] $ TFun TString (TTuple [TChar, TString]))
+      [ ("pack", Forall [] [] [] $ TFun (TCollection TChar) TString)
+      , ("unpack", Forall [] [] [] $ TFun TString (TCollection TChar))
+      , ("unconsString", Forall [] [] [] $ TFun TString (TTuple [TChar, TString]))
       , ("lengthString", unaryOp TString TInt)
       , ("appendString", binOp TString TString TString)
       , ("splitString", binOp TString TString (TCollection TString))
       , ("regex", binOp TString TString (TCollection (TTuple [TString, TString, TString])))
       , ("regexCg", binOp TString TString (TCollection (TTuple [TString, TCollection TString, TString])))
-      , ("read", Forall [] [] (TIO TString))
+      , ("read", Forall [] [] [] (TIO TString))
       , ("readTsv", unaryOp TString (TVar a))
       , ("show", forallA $ TFun (TVar a) TString)
       , ("showTsv", forallA $ TFun (TVar a) TString)
@@ -275,8 +275,8 @@ builtinTypes = concat
     -- Note: isInteger and isRational are already in typeFunctionsTypes
     utilityTypes =
       [ -- Boolean constructors
-        ("True", Forall [] [] TBool)
-      , ("False", Forall [] [] TBool)
+        ("True", Forall [] [] [] TBool)
+      , ("False", Forall [] [] [] TBool)
       -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),
       -- and other algebraicDataMatcher constructors are now automatically registered
       -- when the matcher is defined via registerAlgebraicConstructors

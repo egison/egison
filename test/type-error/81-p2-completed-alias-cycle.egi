@@ -1,0 +1,31 @@
+-- P2 D4 fail-closed boundary: once both sides of an alias-only cycle have
+-- completed, the cycle must remain Unseen.  Dropping its producer summary
+-- would let a later matcher literal treat the alias as Known evidence.
+
+inductive P2CompletedCycleTree a :=
+  | P2CompletedCycleLeaf a
+  | P2CompletedCycleNode (P2CompletedCycleTree a)
+
+inductive pattern P2CompletedCycleTree a :=
+  | p2CompletedCycleLeaf a
+  | p2CompletedCycleNode (P2CompletedCycleTree a)
+
+def p2CompletedCycleLeft {a}
+  : Matcher (P2CompletedCycleTree none) (P2CompletedCycleTree a) :=
+  p2CompletedCycleRight
+
+def p2CompletedCycleRight {a}
+  : Matcher (P2CompletedCycleTree none) (P2CompletedCycleTree a) :=
+  p2CompletedCycleLeft
+
+def p2CompletedCycleUse {a}
+  : Matcher (P2CompletedCycleTree none) (P2CompletedCycleTree a) :=
+  matcher
+    | p2CompletedCycleLeaf $ as something with
+      | P2CompletedCycleLeaf $value -> [value]
+      | _ -> []
+    | p2CompletedCycleNode $ as p2CompletedCycleLeft with
+      | P2CompletedCycleNode $rest -> [rest]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

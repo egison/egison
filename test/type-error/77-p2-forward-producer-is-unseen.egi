@@ -1,0 +1,32 @@
+-- P2 D4 fail-closed boundary: an annotated definition that appears later in
+-- the same load batch is not an already-known producer.  Its signature is
+-- available from the prepass, but must not be used as Shape evidence.
+
+inductive P2ForwardTree a :=
+  | P2ForwardLeaf a
+  | P2ForwardNode (P2ForwardTree a)
+
+inductive pattern P2ForwardTree a :=
+  | p2ForwardLeaf a
+  | p2ForwardNode (P2ForwardTree a)
+
+def p2ForwardLeft {a}
+  : Matcher (P2ForwardTree none) (P2ForwardTree a) :=
+  matcher
+    | p2ForwardLeaf $ as something with
+      | P2ForwardLeaf $value -> [value]
+      | _ -> []
+    | p2ForwardNode $ as p2ForwardRight with
+      | P2ForwardNode $rest -> [rest]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def p2ForwardRight {a}
+  : Matcher (P2ForwardTree none) (P2ForwardTree a) :=
+  matcher
+    | p2ForwardLeaf $ as something with
+      | P2ForwardLeaf $value -> [value]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

@@ -12,6 +12,10 @@ This module defines the type system for Egison.
 
 module Language.Egison.Type.Types
   ( Type(..)
+  , Capability(..)
+  , CapVar(..)
+  , TypeFormer(..)
+  , TypeFormerId(..)
   , SymbolSet(..)
   , TypeAtom(..)
   , prettyTypeAtomValue
@@ -26,7 +30,18 @@ module Language.Egison.Type.Types
   , InstanceInfo(..)
   , instType
   , freshTyVar
+  , freshCapVar
   , freeTyVars
+  , freeCapVars
+  , freeCapVarsCapability
+  , mapCapability
+  , mapTypeCapabilities
+  , substCapVar
+  , substCapVarInType
+  , mkTypeFormer
+  , typeFormerOf
+  , capabilitySkeleton
+  , capExprToCapability
   , isTensorType
   , isScalarType
   , isCASType
@@ -54,13 +69,48 @@ import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
 
-import           Language.Egison.AST        (TypeExpr(..), SymbolSetExpr(..), TypeAtomExpr(..))
+import           Language.Egison.AST        (CapabilityExpr(..), TypeExpr(..),
+                                             SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Index ()
 
 -- | Type variable
 newtype TyVar = TyVar String
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype Hashable
+
+-- | Capability variable.  Its constructor is intentionally distinct from
+-- the flexible 'CapVar' node of 'Capability'.
+newtype CapVar = MkCapVar String
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype Hashable
+
+-- | Canonical identity of a type former in the frozen signature
+-- environment.  Surface synonyms are removed before an ID is constructed.
+newtype TypeFormerId = TypeFormerId String
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving newtype Hashable
+
+-- | Canonical type former together with its kind-level arity.
+--
+-- Keeping arity in the identity prevents malformed applications of the same
+-- spelling from being considered equal by capability matching.
+data TypeFormer = TypeFormer
+  { typeFormerId    :: TypeFormerId
+  , typeFormerArity :: Int
+  } deriving (Eq, Ord, Show, Generic, Hashable)
+
+-- | Structural capability carried by a matcher.
+--
+-- Flexible variables and rigid skolems are separate constructors so an
+-- annotation can be checked without its quantified capability being seeded
+-- by the implementation being checked.
+data Capability
+  = CapNone
+  | CapVar CapVar
+  | CapSkolem CapVar
+  | CapCon TypeFormer [Capability]
+  | CapTuple [Capability]
+  deriving (Eq, Ord, Show, Generic, Hashable)
 
 -- | Shape dimension (can be concrete or variable)
 data ShapeDimType
@@ -130,8 +180,8 @@ data Type
   | TInductive String [Type]          -- ^ Inductive data type with type arguments
   | TTensor Type                      -- ^ Tensor type (only element type is kept). Vector and Matrix are aliases for Tensor
   | THash Type Type                   -- ^ Hash map type
-  | TMatcher Type                     -- ^ Matcher type, e.g., Matcher a
-  | TMatcherSlot Type Type            -- ^ Matcher consumer position, e.g., MatcherSlot tau_p tau_t (structural index tau_p / target index tau_t)
+  | TMatcher Capability Type          -- ^ Matcher type, e.g., Matcher (List p) [a]
+  | TMatcherSlot Capability Type      -- ^ Matcher consumer position, e.g., MatcherSlot p a
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
   | TIO Type                          -- ^ IO type (for IO actions)
   | TIORef Type                       -- ^ IORef type
@@ -144,9 +194,11 @@ data Type
   | TPoly Type SymbolSet              -- ^ Poly type, e.g., Poly Integer [x, y] or Poly Integer [..]
   deriving (Eq, Ord, Show, Generic, Hashable)
 
--- | Type scheme for polymorphic types (∀a. C a => Type)
--- Includes type constraints for type class support
-data TypeScheme = Forall [TyVar] [Constraint] Type
+-- | Type scheme with separately quantified capability and type variables.
+--
+-- The two binder lists are intentionally distinct: instantiating a target
+-- type variable must never instantiate or refine a capability variable.
+data TypeScheme = Forall [CapVar] [TyVar] [Constraint] Type
   deriving (Eq, Show, Generic)
 
 -- | Type class constraint. May carry multiple type arguments for
@@ -200,6 +252,10 @@ instType ii = case instTypes ii of
 freshTyVar :: String -> Int -> TyVar
 freshTyVar prefix n = TyVar (prefix ++ show n)
 
+-- | Generate a fresh capability variable with a given prefix.
+freshCapVar :: String -> Int -> CapVar
+freshCapVar prefix n = MkCapVar (prefix ++ show n)
+
 -- | Get free type variables from a type
 freeTyVars :: Type -> Set TyVar
 freeTyVars TInt             = Set.empty
@@ -218,8 +274,8 @@ freeTyVars (TCollection t)  = freeTyVars t
 freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
 freeTyVars (TTensor t)      = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
-freeTyVars (TMatcher t)     = freeTyVars t
-freeTyVars (TMatcherSlot s t) = freeTyVars s `Set.union` freeTyVars t
+freeTyVars (TMatcher _ t)     = freeTyVars t
+freeTyVars (TMatcherSlot _ t) = freeTyVars t
 freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
@@ -236,6 +292,97 @@ freeTyVarsSymbolSet :: SymbolSet -> Set TyVar
 freeTyVarsSymbolSet (SymbolSetClosed _) = Set.empty
 freeTyVarsSymbolSet SymbolSetOpen       = Set.empty
 freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
+
+-- | Get free flexible capability variables from a capability.
+--
+-- Rigid skolems are constants, not free variables, and are therefore
+-- deliberately excluded.
+freeCapVarsCapability :: Capability -> Set CapVar
+freeCapVarsCapability CapNone         = Set.empty
+freeCapVarsCapability (CapVar v)      = Set.singleton v
+freeCapVarsCapability (CapSkolem _)   = Set.empty
+freeCapVarsCapability (CapCon _ caps) = Set.unions (map freeCapVarsCapability caps)
+freeCapVarsCapability (CapTuple caps) = Set.unions (map freeCapVarsCapability caps)
+
+-- | Get free capability variables from every matcher occurrence in a type.
+freeCapVars :: Type -> Set CapVar
+freeCapVars TInt               = Set.empty
+freeCapVars TMathValue         = Set.empty
+freeCapVars TPolyExpr          = Set.empty
+freeCapVars TTermExpr          = Set.empty
+freeCapVars TSymbolExpr        = Set.empty
+freeCapVars TIndexExpr         = Set.empty
+freeCapVars TFloat             = Set.empty
+freeCapVars TBool              = Set.empty
+freeCapVars TChar              = Set.empty
+freeCapVars TString            = Set.empty
+freeCapVars (TVar _)           = Set.empty
+freeCapVars (TTuple ts)        = Set.unions (map freeCapVars ts)
+freeCapVars (TCollection t)    = freeCapVars t
+freeCapVars (TInductive _ ts)  = Set.unions (map freeCapVars ts)
+freeCapVars (TTensor t)        = freeCapVars t
+freeCapVars (THash k v)        = freeCapVars k `Set.union` freeCapVars v
+freeCapVars (TMatcher cap t) =
+  freeCapVarsCapability cap `Set.union` freeCapVars t
+freeCapVars (TMatcherSlot cap t) =
+  freeCapVarsCapability cap `Set.union` freeCapVars t
+freeCapVars (TFun t1 t2)       = freeCapVars t1 `Set.union` freeCapVars t2
+freeCapVars (TIO t)            = freeCapVars t
+freeCapVars (TIORef t)         = freeCapVars t
+freeCapVars TPort              = Set.empty
+freeCapVars TAny               = Set.empty
+freeCapVars TFactor            = Set.empty
+freeCapVars (TTerm t _)        = freeCapVars t
+freeCapVars (TFrac t)          = freeCapVars t
+freeCapVars (TPoly t _)        = freeCapVars t
+
+-- | Bottom-up transformation of a capability.
+mapCapability :: (Capability -> Capability) -> Capability -> Capability
+mapCapability f = go
+  where
+    go cap = f (descend cap)
+    descend (CapCon former caps) = CapCon former (map go caps)
+    descend (CapTuple caps)      = CapTuple (map go caps)
+    descend leaf                 = leaf
+
+-- | Bottom-up transformation of all capability occurrences in a type.
+--
+-- Ordinary type nodes and type variables are retained verbatim.  The walker
+-- still descends through them so nested matcher types are reached.
+mapTypeCapabilities :: (Capability -> Capability) -> Type -> Type
+mapTypeCapabilities f = go
+  where
+    go (TTuple ts)          = TTuple (map go ts)
+    go (TCollection t)      = TCollection (go t)
+    go (TInductive n ts)    = TInductive n (map go ts)
+    go (TTensor t)          = TTensor (go t)
+    go (THash k v)          = THash (go k) (go v)
+    go (TMatcher cap t)     = TMatcher (mapCapability f cap) (go t)
+    go (TMatcherSlot cap t) = TMatcherSlot (mapCapability f cap) (go t)
+    go (TFun a b)           = TFun (go a) (go b)
+    go (TIO t)              = TIO (go t)
+    go (TIORef t)           = TIORef (go t)
+    go (TFrac t)            = TFrac (go t)
+    go (TTerm t ss)         = TTerm (go t) ss
+    go (TPoly t ss)         = TPoly (go t) ss
+    go leaf                 = leaf
+
+-- | Substitute one flexible capability variable.
+--
+-- Skolems are rigid and are never replaced.
+substCapVar :: CapVar -> Capability -> Capability -> Capability
+substCapVar old new = mapCapability replace
+  where
+    replace (CapVar v) | v == old = new
+    replace cap                    = cap
+
+-- | Substitute one capability variable throughout the matcher occurrences of
+-- a type, without changing any ordinary type variable.
+substCapVarInType :: CapVar -> Capability -> Type -> Type
+substCapVarInType old new = mapTypeCapabilities replace
+  where
+    replace (CapVar v) | v == old = new
+    replace cap                    = cap
 
 -- | Bottom-up transformation of a type: rebuild every composite node from
 -- its transformed children, then apply @f@ to the rebuilt node (so @f@ sees
@@ -257,8 +404,8 @@ mapType f = go
     descend (TInductive n ts)  = TInductive n (map go ts)
     descend (TTensor t)        = TTensor (go t)
     descend (THash k v)        = THash (go k) (go v)
-    descend (TMatcher t)       = TMatcher (go t)
-    descend (TMatcherSlot a b) = TMatcherSlot (go a) (go b)
+    descend (TMatcher cap t)       = TMatcher cap (go t)
+    descend (TMatcherSlot cap t)   = TMatcherSlot cap (go t)
     descend (TFun a b)         = TFun (go a) (go b)
     descend (TIO t)            = TIO (go t)
     descend (TIORef t)         = TIORef (go t)
@@ -337,8 +484,8 @@ hasAmbiguousOpenTower ty = case ty of
       TInductive _ ts  -> any hasAmbiguousOpenTower ts
       TTensor t1       -> hasAmbiguousOpenTower t1
       THash k v        -> hasAmbiguousOpenTower k || hasAmbiguousOpenTower v
-      TMatcher t1      -> hasAmbiguousOpenTower t1
-      TMatcherSlot a b -> hasAmbiguousOpenTower a || hasAmbiguousOpenTower b
+      TMatcher _ t1      -> hasAmbiguousOpenTower t1
+      TMatcherSlot _ t1  -> hasAmbiguousOpenTower t1
       TFun a b         -> hasAmbiguousOpenTower a || hasAmbiguousOpenTower b
       TIO t1           -> hasAmbiguousOpenTower t1
       TIORef t1        -> hasAmbiguousOpenTower t1
@@ -404,7 +551,7 @@ typeConstructorName (TCollection _) = "Collection"  -- Element type is ignored
 typeConstructorName (TTuple _) = "Tuple"
 typeConstructorName (TTensor _) = "Tensor"
 typeConstructorName (THash _ _) = "Hash"
-typeConstructorName (TMatcher _) = "Matcher"
+typeConstructorName (TMatcher _ _) = "Matcher"
 typeConstructorName (TMatcherSlot _ _) = "MatcherSlot"
 typeConstructorName (TFun _ _) = "Fun"
 typeConstructorName (TIO _) = "IO"
@@ -432,6 +579,93 @@ sanitizeMethodName "-"  = "minus"
 sanitizeMethodName "*"  = "times"
 sanitizeMethodName "/"  = "div"
 sanitizeMethodName name = name
+
+-- | Construct a canonical type former from a surface spelling and arity.
+--
+-- This is the deliberately small D5-core allowlist: it removes only fixed
+-- surface synonyms.  It does not consult aliases, CAS equivalence, subtyping,
+-- tensor normalization, or type-class instances.
+mkTypeFormer :: String -> Int -> TypeFormer
+mkTypeFormer surfaceName arity =
+  TypeFormer (TypeFormerId (canonicalName surfaceName)) arity
+  where
+    canonicalName "List"     = "Collection"
+    canonicalName "Vector"   = "Tensor"
+    canonicalName "Matrix"   = "Tensor"
+    canonicalName "DiffForm" = "Tensor"
+    canonicalName name       = name
+
+-- | Decompose a canonical core type former and its ordinary type arguments.
+--
+-- Tuple products are represented by 'CapTuple' and therefore return
+-- 'Nothing'.  Function, effect, matcher, and gradual types are opaque
+-- barriers.  CAS nodes are exposed only as raw canonical heads here; callers
+-- constructing certified CAS capabilities must additionally use the
+-- target-indexed virtual pattern signatures required by D5-CAS.
+typeFormerOf :: Type -> Maybe (TypeFormer, [Type])
+typeFormerOf TInt              = Just (mkTypeFormer "Integer" 0, [])
+typeFormerOf TMathValue        = Just (mkTypeFormer "MathValue" 0, [])
+typeFormerOf TPolyExpr         = Just (mkTypeFormer "PolyExpr" 0, [])
+typeFormerOf TTermExpr         = Just (mkTypeFormer "TermExpr" 0, [])
+typeFormerOf TSymbolExpr       = Just (mkTypeFormer "SymbolExpr" 0, [])
+typeFormerOf TIndexExpr        = Just (mkTypeFormer "IndexExpr" 0, [])
+typeFormerOf TFloat            = Just (mkTypeFormer "Float" 0, [])
+typeFormerOf TBool             = Just (mkTypeFormer "Bool" 0, [])
+typeFormerOf TChar             = Just (mkTypeFormer "Char" 0, [])
+typeFormerOf TString           = Just (mkTypeFormer "String" 0, [])
+typeFormerOf (TCollection t)   = Just (mkTypeFormer "Collection" 1, [t])
+typeFormerOf (TInductive n ts) = Just (mkTypeFormer n (length ts), ts)
+typeFormerOf (TTensor t)       = Just (mkTypeFormer "Tensor" 1, [t])
+typeFormerOf (THash k v)       = Just (mkTypeFormer "Hash" 2, [k, v])
+typeFormerOf TFactor           = Just (mkTypeFormer "Factor" 0, [])
+typeFormerOf (TTerm t _)       = Just (mkTypeFormer "Term" 1, [t])
+typeFormerOf (TFrac t)         = Just (mkTypeFormer "Frac" 1, [t])
+typeFormerOf (TPoly t _)       = Just (mkTypeFormer "Poly" 1, [t])
+typeFormerOf _                 = Nothing
+
+-- | Build a structural capability template from a core result type.
+--
+-- The caller supplies the mapping for ordinary type variables, making the
+-- boundary between the two sorts explicit.  The helper is conservative:
+-- effectful, function, matcher, gradual, and CAS-view types are opaque and
+-- return 'Nothing'.  In particular it never invokes ordinary type equality or
+-- CAS ground equivalence.  Its input must already be a matcher-independent
+-- structural type (tau_p), not an ordinary target type.  Consequently a
+-- closed argument such as the @P2Atom@ in @Collection P2Atom@ is retained:
+-- it is evidence contributed by a nested constructor pattern, not structure
+-- manufactured by target specialization.
+capabilitySkeleton :: (TyVar -> Capability) -> Type -> Maybe Capability
+capabilitySkeleton onVar = go
+  where
+    go (TVar v)         = Just (onVar v)
+    -- Tuple components are structural roots in their own right.  Unlike a
+    -- type-former argument, a closed component such as `Ordering` must retain
+    -- its constructor head; otherwise `(less, less)` would incorrectly ask
+    -- for `(none, none)`.
+    go (TTuple ts)      = CapTuple <$> mapM go ts
+    go TFactor          = Nothing
+    go TTerm {}         = Nothing
+    go TFrac {}         = Nothing
+    go TPoly {}         = Nothing
+    go ty = do
+      (former, args) <- typeFormerOf ty
+      CapCon former <$> mapM go args
+
+-- | Convert a source capability expression to the internal capability sort.
+--
+-- Name/kind elaboration is responsible for distinguishing variables from
+-- former names before this conversion.  Surface aliases are intentionally not
+-- accepted here; 'mkTypeFormer' only erases the fixed core synonyms.
+capExprToCapability :: CapabilityExpr -> Capability
+capExprToCapability CENone = CapNone
+capExprToCapability (CEVar name) = CapVar (MkCapVar name)
+capExprToCapability (CECon name args) =
+  let caps = map capExprToCapability args
+  in CapCon (mkTypeFormer name (length caps)) caps
+capExprToCapability (CEList cap) =
+  CapCon (mkTypeFormer "Collection" 1) [capExprToCapability cap]
+capExprToCapability (CETuple caps) =
+  CapTuple (map capExprToCapability caps)
 
 -- | Convert TypeExpr (from AST) to Type (internal representation)
 typeExprToType :: TypeExpr -> Type
@@ -461,8 +695,10 @@ typeExprToType (TETensor elemT) = TTensor (typeExprToType elemT)
 typeExprToType (TEVector elemT) = TTensor (typeExprToType elemT)  -- Vector is an alias for Tensor
 typeExprToType (TEMatrix elemT) = TTensor (typeExprToType elemT)  -- Matrix is an alias for Tensor
 typeExprToType (TEDiffForm elemT) = TTensor (typeExprToType elemT)  -- DiffForm is an alias for Tensor
-typeExprToType (TEMatcher t) = TMatcher (typeExprToType t)
-typeExprToType (TEMatcherSlot s t) = TMatcherSlot (typeExprToType s) (typeExprToType t)
+typeExprToType (TEMatcher cap t) =
+  TMatcher (capExprToCapability cap) (typeExprToType t)
+typeExprToType (TEMatcherSlot cap t) =
+  TMatcherSlot (capExprToCapability cap) (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
@@ -507,8 +743,8 @@ expandTypeAliases aliases ty
     go (TCollection t)     = TCollection (go t)
     go (TTensor t)         = TTensor (go t)
     go (THash k v)         = THash (go k) (go v)
-    go (TMatcher t)        = TMatcher (go t)
-    go (TMatcherSlot s t)  = TMatcherSlot (go s) (go t)
+    go (TMatcher cap t)       = TMatcher cap (go t)
+    go (TMatcherSlot cap t)   = TMatcherSlot cap (go t)
     go (TFun a b)          = TFun (go a) (go b)
     go (TIO t)             = TIO (go t)
     go (TIORef t)          = TIORef (go t)
@@ -539,8 +775,10 @@ normalizeInductiveTypes (TInductive name ts) = TInductive name (map normalizeInd
 normalizeInductiveTypes (TTuple ts) = TTuple (map normalizeInductiveTypes ts)
 normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t)
 normalizeInductiveTypes (THash k v) = THash (normalizeInductiveTypes k) (normalizeInductiveTypes v)
-normalizeInductiveTypes (TMatcher t) = TMatcher (normalizeInductiveTypes t)
-normalizeInductiveTypes (TMatcherSlot s t) = TMatcherSlot (normalizeInductiveTypes s) (normalizeInductiveTypes t)
+normalizeInductiveTypes (TMatcher cap t) =
+  TMatcher cap (normalizeInductiveTypes t)
+normalizeInductiveTypes (TMatcherSlot cap t) =
+  TMatcherSlot cap (normalizeInductiveTypes t)
 normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (normalizeInductiveTypes ret)
 normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
@@ -560,4 +798,3 @@ capitalizeFirst (c:cs) = toUpper c : cs
 lowerFirst :: String -> String
 lowerFirst []     = []
 lowerFirst (c:cs) = toLower c : cs
-

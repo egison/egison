@@ -31,7 +31,7 @@ def query := list (integer, eq)
 
 def sequence := list (time, list eq)
 
-def time {a, b} : Matcher Integer := matcher
+def time {a, b} : Matcher Integer Integer := matcher
   | interval $ $ as (integer, integer) with
     | $t -> [(I t, t)]
   | $ as something with

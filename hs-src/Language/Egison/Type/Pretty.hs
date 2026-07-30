@@ -7,18 +7,23 @@ This module provides pretty printing for Egison types.
 
 module Language.Egison.Type.Pretty
   ( prettyType
+  , prettyCapability
   , prettyTypeScheme
   , prettyTypeExpr
+  , prettyCapabilityExpr
   , prettyTensorShape
   , prettyIndex
   ) where
 
 import           Data.List                  (intercalate)
 
-import           Language.Egison.AST        (TypeExpr (..), SymbolSetExpr(..), TypeAtomExpr(..))
+import           Language.Egison.AST        (CapabilityExpr (..), TypeExpr (..),
+                                             SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
-import           Language.Egison.Type.Types (ShapeDimType (..), TensorShape (..), TyVar (..), Type (..),
+import           Language.Egison.Type.Types (CapVar (..), Capability (..), ShapeDimType (..),
+                                             TensorShape (..), TyVar (..), Type (..),
+                                             TypeFormer (..), TypeFormerId (..),
                                              TypeScheme (..), SymbolSet(..), prettyTypeAtomValue)
 
 -- | Pretty print a Type
@@ -45,8 +50,10 @@ prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyHashVa
     -- Hash value types need parentheses if they are function types
     prettyHashValueType t@(TFun _ _) = "(" ++ prettyType t ++ ")"
     prettyHashValueType t            = prettyTypeAtom t
-prettyType (TMatcher t)     = "Matcher " ++ prettyTypeAtom t
-prettyType (TMatcherSlot s t) = "MatcherSlot " ++ prettyTypeAtom s ++ " " ++ prettyTypeAtom t
+prettyType (TMatcher capability t) =
+  "Matcher " ++ prettyCapabilityAtom capability ++ " " ++ prettyTypeAtom t
+prettyType (TMatcherSlot capability t) =
+  "MatcherSlot " ++ prettyCapabilityAtom capability ++ " " ++ prettyTypeAtom t
 prettyType (TFun t1 t2)     = prettyTypeArg t1 ++ " -> " ++ prettyType t2
   where
     prettyTypeArg t@(TFun _ _) = "(" ++ prettyType t ++ ")"
@@ -60,6 +67,24 @@ prettyType TFactor          = "Factor"
 prettyType (TTerm t ss)      = "Term " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t)         = "Frac " ++ prettyTypeAtom t
 prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
+
+-- | Pretty print a matcher capability. Applications use the same
+-- type-former notation as source annotations.
+prettyCapability :: Capability -> String
+prettyCapability CapNone = "none"
+prettyCapability (CapVar (MkCapVar v)) = v
+prettyCapability (CapSkolem (MkCapVar v)) = v
+prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name
+prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) args) =
+  name ++ " " ++ unwords (map prettyCapabilityAtom args)
+prettyCapability (CapTuple []) = "()"
+prettyCapability (CapTuple capabilities) =
+  "(" ++ intercalate ", " (map prettyCapability capabilities) ++ ")"
+
+prettyCapabilityAtom :: Capability -> String
+prettyCapabilityAtom capability@(CapCon _ (_:_)) =
+  "(" ++ prettyCapability capability ++ ")"
+prettyCapabilityAtom capability = prettyCapability capability
 
 -- | Pretty print a SymbolSet
 prettySymbolSet :: SymbolSet -> String
@@ -90,12 +115,15 @@ prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme
 prettyTypeScheme :: TypeScheme -> String
-prettyTypeScheme (Forall [] [] t) = prettyType t
-prettyTypeScheme (Forall [] cs t) =
+prettyTypeScheme (Forall [] [] [] t) = prettyType t
+prettyTypeScheme (Forall [] [] cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
-prettyTypeScheme (Forall vs [] t) =
-  "∀" ++ unwords (map (\(TyVar v) -> v) vs) ++ ". " ++ prettyType t
-prettyTypeScheme (Forall _vs cs t) =
+prettyTypeScheme (Forall capVars typeVars [] t) =
+  "∀" ++ unwords (map capVarName capVars ++ map tyVarName typeVars) ++ ". " ++ prettyType t
+  where
+    capVarName (MkCapVar v) = v
+    tyVarName (TyVar v) = v
+prettyTypeScheme (Forall _capVars _typeVars cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
 
 -- | Pretty print constraints (new format: "{Eq a, Ord b}")
@@ -143,8 +171,10 @@ prettyTypeExpr (TEFun t1 t2)  = prettyTypeExprArg t1 ++ " -> " ++ prettyTypeExpr
   where
     prettyTypeExprArg t@(TEFun _ _) = "(" ++ prettyTypeExpr t ++ ")"
     prettyTypeExprArg t             = prettyTypeExpr t
-prettyTypeExpr (TEMatcher t)  = "Matcher " ++ prettyTypeExprAtom t
-prettyTypeExpr (TEMatcherSlot s t) = "MatcherSlot " ++ prettyTypeExprAtom s ++ " " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEMatcher capability t) =
+  "Matcher " ++ prettyCapabilityExprAtom capability ++ " " ++ prettyTypeExprAtom t
+prettyTypeExpr (TEMatcherSlot capability t) =
+  "MatcherSlot " ++ prettyCapabilityExprAtom capability ++ " " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPattern t)  = "Pattern " ++ prettyTypeExprAtom t
 prettyTypeExpr (TETensor t) = "Tensor " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEApp t args) =
@@ -163,6 +193,24 @@ prettyTypeExpr TEFactor = "Factor"
 prettyTypeExpr (TETerm t ss) = "Term " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
 prettyTypeExpr (TEFrac t) = "Frac " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
+
+-- | Pretty print a source-level matcher capability.
+prettyCapabilityExpr :: CapabilityExpr -> String
+prettyCapabilityExpr CENone = "none"
+prettyCapabilityExpr (CEVar v) = v
+prettyCapabilityExpr (CECon name []) = name
+prettyCapabilityExpr (CECon name args) =
+  name ++ " " ++ unwords (map prettyCapabilityExprAtom args)
+prettyCapabilityExpr (CEList capability) =
+  "[" ++ prettyCapabilityExpr capability ++ "]"
+prettyCapabilityExpr (CETuple []) = "()"
+prettyCapabilityExpr (CETuple capabilities) =
+  "(" ++ intercalate ", " (map prettyCapabilityExpr capabilities) ++ ")"
+
+prettyCapabilityExprAtom :: CapabilityExpr -> String
+prettyCapabilityExprAtom capability@(CECon _ (_:_)) =
+  "(" ++ prettyCapabilityExpr capability ++ ")"
+prettyCapabilityExprAtom capability = prettyCapabilityExpr capability
 
 -- | Pretty print a SymbolSetExpr
 prettySymbolSetExpr :: SymbolSetExpr -> String
@@ -188,4 +236,3 @@ prettyTypeExprAtom t@(TEList _)  = prettyTypeExpr t
 prettyTypeExprAtom t@(TETuple _) = prettyTypeExpr t
 prettyTypeExprAtom t@TEFactor    = prettyTypeExpr t
 prettyTypeExprAtom t             = "(" ++ prettyTypeExpr t ++ ")"
-

@@ -1,0 +1,21 @@
+-- P2 D4: a recursive matcher routed through an application is a producer-flow
+-- dependency, not a known capability seed.  Until the producer/path equation
+-- graph is connected to Infer, this unsupported recursive flow must fail
+-- closed instead of being approximated as unseen or ordinary evidence.
+
+inductive P2Recursive a :=
+  | P2Next (P2Recursive a)
+
+inductive pattern P2Recursive a :=
+  | p2Next (P2Recursive a)
+
+def identityP2 {a} (x : a) : a := x
+
+def p2BadRecursive {a}
+  : Matcher (P2Recursive none) (P2Recursive a) :=
+  matcher
+    | p2Next $ as identityP2 p2BadRecursive with
+      | P2Next $rest -> [rest]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

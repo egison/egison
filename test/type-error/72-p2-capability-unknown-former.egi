@@ -1,0 +1,5 @@
+-- P2 capability name elaboration.
+-- Expected: Type error / Capability kind error: unknown capability former
+-- `P2MissingCapability`.
+
+def p2UnknownCapability : Matcher P2MissingCapability Integer := integer

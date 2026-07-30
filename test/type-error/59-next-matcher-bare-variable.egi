@@ -1,18 +1,18 @@
 -- R12 component checking is based on the complete inferred type.  A
--- variable whose type is Matcher a has the same bare capability as the
+-- variable whose type is `Matcher none a` has the same absent capability as the
 -- literal in 40-matcher-next-structural.egi.
 --
--- Expected: Type error (bare Matcher capability at a list-headed hole)
+-- Expected: Type error (`none` capability at a list-headed hole)
 
 inductive Box := Box [Integer]
 inductive pattern Box := box [Integer]
 
-def mPoly {a} : Matcher a :=
+def mPoly {a} : Matcher none a :=
   matcher
     | $ as something with
       | $tgt -> [tgt]
 
-def bad : Matcher Box :=
+def bad : Matcher Box Box :=
   matcher
     | box $ as mPoly with
       | Box $xs -> [xs]

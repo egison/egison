@@ -1,4 +1,4 @@
-def assocMultiset {a, b, c} (a: MatcherSlot b b) : Matcher [(b, Integer)] := matcher
+def assocMultiset {a, b, c} (a: MatcherSlot p b) : Matcher [(p, none)] [(b, Integer)] := matcher
   | [] as () with
     | [] -> [()]
     | _  -> []

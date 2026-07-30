@@ -364,7 +364,7 @@ type TIPatternDef = (PrimitivePatPattern, TIExpr, [TIBindingExpr])
 
 -- | Get the type of a typed expression (extracts Type from TypeScheme)
 tiExprType :: TIExpr -> Type
-tiExprType (TIExpr (Forall _ _ t) _) = t
+tiExprType (TIExpr (Forall _ _ _ t) _) = t
 
 -- | Get the type scheme of a typed expression
 tiExprScheme :: TIExpr -> TypeScheme
@@ -372,11 +372,11 @@ tiExprScheme = tiScheme
 
 -- | Get the type variables of a typed expression
 tiExprTypeVars :: TIExpr -> [TyVar]
-tiExprTypeVars (TIExpr (Forall tvs _ _) _) = tvs
+tiExprTypeVars (TIExpr (Forall _ tvs _ _) _) = tvs
 
 -- | Get the constraints of a typed expression
 tiExprConstraints :: TIExpr -> [Constraint]
-tiExprConstraints (TIExpr (Forall _ cs _) _) = cs
+tiExprConstraints (TIExpr (Forall _ _ cs _) _) = cs
 
 -- | Strip type information, returning the untyped expression
 -- This recursively converts TIExpr back to IExpr for evaluation
@@ -483,7 +483,7 @@ stripTypeTopExpr (TIPatternFunctionDecl name _scheme params retType body) =
   IPatternFunctionDecl name tyVars params retType (stripTypePat body)
   where
     -- Extract type variables from the type scheme
-    Forall tyVars _ _ = _scheme
+    Forall _ tyVars _ _ = _scheme
     
     -- Helper function to strip type from pattern
     stripTypePat :: TIPattern -> IPattern
@@ -627,7 +627,7 @@ data TIPatternNode
 
 -- | Get the type of a typed pattern (extracts Type from TypeScheme)
 tipType :: TIPattern -> Type
-tipType (TIPattern (Forall _ _ t) _) = t
+tipType (TIPattern (Forall _ _ _ t) _) = t
 
 -- | Typed loop range
 data TILoopRange = TILoopRange TIExpr TIExpr TIPattern

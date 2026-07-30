@@ -11,7 +11,7 @@ inductive pattern String :=
   | s.cons Char String
   | s.join String String
 
-def string : Matcher String :=
+def string : Matcher String String :=
   matcher
 --    | regexCg #$regexpr $ $ $ as (string, list string, string) with
 --      | $tgt -> regexCg regexpr tgt

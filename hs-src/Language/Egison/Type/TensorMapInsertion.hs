@@ -148,8 +148,8 @@ containsNonLiftableType ty = case ty of
   TInductive _ ts -> any containsNonLiftableType ts
   TTensor t -> containsNonLiftableType t
   THash k v -> containsNonLiftableType k || containsNonLiftableType v
-  TMatcher t -> containsNonLiftableType t
-  TMatcherSlot p t -> containsNonLiftableType p || containsNonLiftableType t
+  TMatcher _ t -> containsNonLiftableType t
+  TMatcherSlot _ t -> containsNonLiftableType t
   TTerm t _ -> containsNonLiftableType t
   TFrac t -> containsNonLiftableType t
   TPoly t _ -> containsNonLiftableType t
@@ -189,7 +189,7 @@ data CallbackParamPlan = CallbackParamPlan
   }
 
 mkVarTIExpr :: String -> Type -> TIExpr
-mkVarTIExpr name ty = TIExpr (Forall [] [] ty) (TIVarExpr name)
+mkVarTIExpr name ty = TIExpr (Forall [] [] [] ty) (TIVarExpr name)
 
 mkCallbackParamPlan :: Int -> Type -> Bool -> CallbackParamPlan
 mkCallbackParamPlan index actualParam needsLift =
@@ -317,9 +317,9 @@ wrapWithTensorMap2Fallback funcExpr =
           var1TI = mkVarTIExpr varName1 (TTensor param1)
           var2TI = mkVarTIExpr varName2 (TTensor param2)
           innerType = normalizeTensorType (TTensor result)
-          innerExpr = TIExpr (Forall [] [] innerType) (TITensorMap2Expr funcExpr var1TI var2TI)
+          innerExpr = TIExpr (Forall [] [] [] innerType) (TITensorMap2Expr funcExpr var1TI var2TI)
           lambdaType = TFun (TTensor param1) (TFun (TTensor param2) innerType)
-          lambdaScheme = Forall [] [] lambdaType
+          lambdaScheme = Forall [] [] [] lambdaType
       in TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerExpr)
     _ -> funcExpr
 
@@ -355,7 +355,7 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
     Just (callbackParams, liftedParams, resultType) ->
       let body = buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams liftedParams []
           lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
-          lambdaScheme = Forall [] [] lambdaType
+          lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
       in Just $ TIExpr lambdaScheme lambdaNode
 
@@ -373,7 +373,7 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [] scalarArgs
           Just scalarArg -> scalarArg
           Nothing -> callbackParamOuterExpr param
       args = map argFor callbackParams
-  in TIExpr (Forall [] [] resultType) (TIApplyExpr funcExpr args)
+  in TIExpr (Forall [] [] [] resultType) (TIApplyExpr funcExpr args)
 buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [param] scalarArgs =
   let index = callbackParamIndex param
       scalarName = "tmap_elem" ++ show (index + 1)
@@ -386,9 +386,9 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [param] scala
                 []
                 ((index, scalarExpr) : scalarArgs)
       lambdaType = TFun (callbackParamActualType param) (tiExprType inner)
-      lambdaExpr = TIExpr (Forall [] [] lambdaType) (TILambdaExpr Nothing [scalarVar] inner)
+      lambdaExpr = TIExpr (Forall [] [] [] lambdaType) (TILambdaExpr Nothing [scalarVar] inner)
       mappedType = normalizeTensorType (TTensor (tiExprType inner))
-  in TIExpr (Forall [] [] mappedType) (TITensorMapExpr lambdaExpr (callbackParamOuterExpr param))
+  in TIExpr (Forall [] [] [] mappedType) (TITensorMapExpr lambdaExpr (callbackParamOuterExpr param))
 buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param2:restParams) scalarArgs =
   let index1 = callbackParamIndex param1
       index2 = callbackParamIndex param2
@@ -408,10 +408,10 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param
         TFun (callbackParamActualType param1)
              (TFun (callbackParamActualType param2) (tiExprType inner))
       lambdaExpr =
-        TIExpr (Forall [] [] lambdaType) (TILambdaExpr Nothing [scalarVar1, scalarVar2] inner)
+        TIExpr (Forall [] [] [] lambdaType) (TILambdaExpr Nothing [scalarVar1, scalarVar2] inner)
       mappedType = normalizeTensorType (TTensor (tiExprType inner))
   in TIExpr
-       (Forall [] [] mappedType)
+       (Forall [] [] [] mappedType)
        (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
 
 -- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
@@ -447,7 +447,7 @@ wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expecte
 -- | Insert tensorMap in a TIExpr with type scheme information
 insertTensorMapsInExpr :: ClassEnv -> TypeScheme -> TIExpr -> EvalM TIExpr
 insertTensorMapsInExpr classEnv scheme tiExpr = do
-  let (Forall _vars constraints _ty) = scheme
+  let (Forall _capVars _vars constraints _ty) = scheme
   expandedNode <- insertInNode classEnv constraints (tiExprNode tiExpr)
   -- Note: We don't wrap at this level. Wrapping only happens for function arguments
   -- in TIApplyExpr to avoid wrapping definitions like `def (*') := i.*`
@@ -462,7 +462,7 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       
       -- Lambda expressions: process body
       TILambdaExpr mVar params body -> do
-        let (Forall _ bodyConstraints _) = tiScheme body
+        let (Forall _ _ bodyConstraints _) = tiScheme body
             allConstraints = cs ++ bodyConstraints
         body' <- insertTensorMapsWithConstraints env allConstraints body
         return $ TILambdaExpr mVar params body'
@@ -478,12 +478,12 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         -- and `map f xs` where f is a unary scalar function that may receive tensor elements.
         -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
         -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
-        let (Forall _ funcConstraints _) = tiScheme func'
+        let (Forall _ _ funcConstraints _) = tiScheme func'
             baseConstraints = cs ++ funcConstraints
             -- For each argument, merge base constraints with the argument's own constraints
             funcType = tiExprType func'
             wrapArg (index, arg) =
-              let (Forall _ argConstraints _) = tiScheme arg
+              let (Forall _ _ argConstraints _) = tiScheme arg
                   argAllConstraints = nub (baseConstraints ++ argConstraints)
                   expectedArgType = getParamType funcType index
               in wrapFunctionArgumentIfNeeded env argAllConstraints funcType index expectedArgType arg
@@ -694,10 +694,10 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
           (True, [arg1, arg2]) -> do
             -- Insert tensorMap2Wedge for binary scalar functions
             let -- Preserve the function's original scheme with its constraints
-                (Forall tvs funcConstraints _) = tiScheme func'
+                (Forall capVars tvs funcConstraints _) = tiScheme func'
                 -- Unlift the function type to get the scalar version
                 unliftedFuncType = unliftFunctionType funcType
-                unliftedFunc = TIExpr (Forall tvs funcConstraints unliftedFuncType) (tiExprNode func')
+                unliftedFunc = TIExpr (Forall capVars tvs funcConstraints unliftedFuncType) (tiExprNode func')
             return $ TITensorMap2WedgeExpr unliftedFunc arg1 arg2
           _ ->
             -- Keep WedgeApply for tensor functions or non-binary functions
@@ -721,10 +721,10 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
 -- comes from the enclosing scope, not the expression itself.
 insertTensorMapsWithConstraints :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
 insertTensorMapsWithConstraints env contextConstraints expr = do
-  let (Forall tvs exprConstraints ty) = tiScheme expr
+  let (Forall capVars tvs exprConstraints ty) = tiScheme expr
       -- Merge context constraints with expression's own constraints, deduplicating
       mergedConstraints = nub (contextConstraints ++ exprConstraints)
-      mergedScheme = Forall tvs mergedConstraints ty
+      mergedScheme = Forall capVars tvs mergedConstraints ty
   insertTensorMapsInExpr env mergedScheme expr
 
 -- | Wrap function application with tensorMap if needed
@@ -791,8 +791,8 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                                     TTensor t -> t
                                     _ -> argType2
 
-                      varScheme1 = Forall [] [] elemType1
-                      varScheme2 = Forall [] [] elemType2
+                      varScheme1 = Forall [] [] [] elemType1
+                      varScheme2 = Forall [] [] [] elemType2
                       varTIExpr1 = TIExpr varScheme1 (TIVarExpr varName1)
                       varTIExpr2 = TIExpr varScheme2 (TIVarExpr varName2)
 
@@ -802,14 +802,14 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                       instantiatedFuncType = tiExprType currentFunc
                       unliftedFuncType = unliftFunctionType instantiatedFuncType
                       funcScheme = tiScheme currentFunc
-                      (Forall tvs funcConstraints _) = funcScheme
-                      unliftedFuncScheme = Forall tvs funcConstraints unliftedFuncType
+                      (Forall capVars tvs funcConstraints _) = funcScheme
+                      unliftedFuncScheme = Forall capVars tvs funcConstraints unliftedFuncType
                       unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
 
                       -- Build inner expression with both variables applied
                       innerType2 = applyOneArgType (applyOneArgType unliftedFuncType)
                       -- After applying both arguments, this is a fully-applied result - no constraints needed
-                      innerFuncScheme = Forall [] [] innerType2
+                      innerFuncScheme = Forall [] [] [] innerType2
                       innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr1, varTIExpr2])
 
                   -- Process remaining arguments after consuming two
@@ -820,7 +820,7 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                   -- Build lambda: \varName1 varName2 -> innerTIExpr
                   -- Lambda has no constraints - it's just a wrapper that receives scalars
                   let lambdaType = TFun elemType1 (TFun elemType2 finalType)
-                      lambdaScheme = Forall [] [] lambdaType
+                      lambdaScheme = Forall [] [] [] lambdaType
                       lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerTIExpr)
 
                   return $ TITensorMap2Expr lambdaTI arg1 arg2
@@ -836,7 +836,7 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
         else do
           -- First argument doesn't need tensorMap, apply normally and continue
           let appliedType = applyOneArgType currentType
-              appliedScheme = Forall [] constraints appliedType
+              appliedScheme = Forall [] [] constraints appliedType
               appliedTI = TIExpr appliedScheme (TIApplyExpr currentFunc [arg1])
           
           -- Process remaining arguments (recursive call)
@@ -865,7 +865,7 @@ insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType 
                    TTensor t -> t
                    _ -> argType
 
-      varScheme = Forall [] [] elemType
+      varScheme = Forall [] [] [] elemType
       varTIExpr = TIExpr varScheme (TIVarExpr varName)
 
       -- Unlift the function type for use inside tensorMap
@@ -874,8 +874,8 @@ insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType 
       instantiatedFuncType = tiExprType currentFunc
       unliftedFuncType = unliftFunctionType instantiatedFuncType
       funcScheme = tiScheme currentFunc
-      (Forall tvs funcConstraints _) = funcScheme
-      unliftedFuncScheme = Forall tvs funcConstraints unliftedFuncType
+      (Forall capVars tvs funcConstraints _) = funcScheme
+      unliftedFuncScheme = Forall capVars tvs funcConstraints unliftedFuncType
       unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
 
       -- Build inner expression (recursive call)
@@ -885,7 +885,7 @@ insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType 
       innerConstraints = case innerType of
                            TFun _ _ -> funcConstraints  -- Partial application
                            _ -> []  -- Fully applied: no constraints
-      innerFuncScheme = Forall [] innerConstraints innerType
+      innerFuncScheme = Forall [] [] innerConstraints innerType
       innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr])
 
   -- Process remaining arguments
@@ -896,7 +896,7 @@ insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType 
   -- Build lambda: \varName -> innerTIExpr
   -- Lambda has no constraints - it's just a wrapper that receives a scalar
   let lambdaType = TFun elemType finalType
-      lambdaScheme = Forall [] [] lambdaType
+      lambdaScheme = Forall [] [] [] lambdaType
       lambdaTI = TIExpr lambdaScheme (TILambdaExpr Nothing [var] innerTIExpr)
 
   return $ TITensorMapExpr lambdaTI arg

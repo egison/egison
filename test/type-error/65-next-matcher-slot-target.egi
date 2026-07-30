@@ -1,14 +1,14 @@
 -- Algorithm W Step 3a / R12: an existing MatcherSlot component must have
--- both indices checked.  Its structural index Integer fits the head hole,
+-- both indices checked.  Its capability `none` fits the head hole,
 -- but its target String does not fit the hole's Integer target.
 --
 -- Expected: Type error (slot target-index mismatch)
 
 -- A top-level annotation places the complete slot type in the lookup
 -- environment before the matcher definition is inferred.
-def wrongTargetSlot : MatcherSlot Integer String := undefined
+def wrongTargetSlot : MatcherSlot none String := undefined
 
-def bad : Matcher [Integer] :=
+def bad : Matcher [none] [Integer] :=
   matcher
     | $ :: _ as wrongTargetSlot with
       | $x :: _ -> [x]

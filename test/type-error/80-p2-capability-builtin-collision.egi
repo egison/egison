@@ -1,0 +1,6 @@
+-- P2 capability signature freezing.
+-- Expected: Type error / Capability kind error: a user inductive whose
+-- canonical former is the builtin Collection former must be rejected even
+-- when its declared arity happens to agree.
+
+inductive List a := P2BuiltinCollision a

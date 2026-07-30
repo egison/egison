@@ -31,7 +31,7 @@ assertEqual "captured value pattern sees pre-atom bindings"
     | ($p :: _, $ls ++ #p :: $rs) -> (ls, rs))
   [([1], [3])]
 
-def weird {a} (m : MatcherSlot a a) : Matcher [a] :=
+def weird {a} (m : MatcherSlot p a) : Matcher [p] [a] :=
   matcher
     | [] as () with
       | [] -> [()]
@@ -54,7 +54,7 @@ assertEqual "closed value pattern at second position"
 -- The disclosed unchecked case: behind an opaque (slot-typed) matcher
 -- parameter the site cannot be checked statically; the same-atom left
 -- reference silently mismatches at runtime (symbol comparison), yielding [].
-def viaParam {a} (m : MatcherSlot [a] [a]) (xs : [a]) : [[a]] :=
+def viaParam {a} (m : MatcherSlot [p] [a]) (xs : [a]) : [[a]] :=
   matchAll xs as m with $ys ++ #ys -> ys
 
 assertEqual "opaque-matcher site is unchecked; silent mismatch"

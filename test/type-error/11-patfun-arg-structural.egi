@@ -1,10 +1,10 @@
 --
 -- Pattern function structural propagation, argument side (paper PAT-APP;
 -- review counterexample M1).  `idp`'s body is just its parameter, so the
--- argument's cons-headed structural index flows through to the
--- application; `something` fails the check.
+-- argument's list capability flows through to the application;
+-- `something` fails the capability check.
 --
--- Expected: Type error (Matcher a vs MatcherSlot [taup] [Integer])
+-- Expected: Type error (Matcher none a vs MatcherSlot [p] [Integer])
 --
 
 def pattern idp {a} (p: [a]) : [a] := ~p

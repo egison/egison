@@ -14,13 +14,13 @@ inductive pattern Card :=
   | joker
 
 -- Matcher definitions
-def suit {a} : Matcher Suit := algebraicDataMatcher
+def suit {a} : Matcher Suit Suit := algebraicDataMatcher
   | spade
   | heart
   | club
   | diamond
 
-def card {a, b} : Matcher Card := matcher
+def card {a, b} : Matcher Card Card := matcher
   | card $ $ as (suit, mod 13) with
     | Card $x $y -> [(x, y)]
     | Joker -> matchAll ([Spade, Heart, Club, Diamond], [1..13]) as (set something, set something) with

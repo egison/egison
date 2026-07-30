@@ -36,6 +36,7 @@ module Language.Egison.AST
   , extractNameFromVarWithIndices
   -- Type annotations
   , TypeExpr (..)
+  , CapabilityExpr (..)
   , SymbolSetExpr (..)
   , TypeAtomExpr (..)
   , TensorShapeExpr (..)
@@ -497,6 +498,21 @@ extractNameFromVarWithIndices (VarWithIndices name _) = name
 -- Type expressions (for type annotations)
 --
 
+-- | Capability expression in source code.
+--
+-- Capability variables and ordinary type variables deliberately use
+-- different AST nodes, even when they have the same source spelling.  This
+-- prevents a type substitution from accidentally refining a matcher
+-- capability.  'CECon' contains a canonicalizable type-former spelling and
+-- its capability arguments; aliases are not part of the capability language.
+data CapabilityExpr
+  = CENone                              -- ^ No constructor capability
+  | CEVar String                        -- ^ Capability variable, e.g., p
+  | CECon String [CapabilityExpr]       -- ^ Type-former capability, e.g., List p
+  | CEList CapabilityExpr              -- ^ List syntax, e.g., [p]
+  | CETuple [CapabilityExpr]            -- ^ Product capability, e.g., (p, q)
+  deriving (Show, Eq)
+
 -- | Type expression in source code
 data TypeExpr
   = TEInt                              -- ^ Integer (= MathValue)
@@ -509,8 +525,10 @@ data TypeExpr
   | TEList TypeExpr                    -- ^ List type, e.g., [a]
   | TETuple [TypeExpr]                 -- ^ Tuple type, e.g., (a, b)
   | TEFun TypeExpr TypeExpr            -- ^ Function type, e.g., a -> b
-  | TEMatcher TypeExpr                 -- ^ Matcher type
-  | TEMatcherSlot TypeExpr TypeExpr    -- ^ MatcherSlot type, e.g., MatcherSlot a a (structural / target)
+  | TEMatcher CapabilityExpr TypeExpr
+                                      -- ^ Matcher type, e.g., Matcher (List p) [a]
+  | TEMatcherSlot CapabilityExpr TypeExpr
+                                      -- ^ Matcher consumer position, e.g., MatcherSlot p a
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
   | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
   | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a
@@ -582,4 +600,3 @@ data TypedVarWithIndices = TypedVarWithIndices
   , typedVarParams      :: [TypedParam]      -- ^ Typed parameters (can include tuples)
   , typedVarRetType     :: TypeExpr          -- ^ Return type
   } deriving (Show, Eq)
-

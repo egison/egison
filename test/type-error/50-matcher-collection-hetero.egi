@@ -1,13 +1,10 @@
 --
--- Heterogeneous matcher collection (matcher rigidity).  Putting `something :
--- Matcher b` and `list integer : Matcher [Integer]` in one list would unify
--- b with [Integer], giving `something` a matcher type whose structural
--- capability it does not have: binding $m to the first element and using it
--- at a cons pattern would then pass the dual check yet get stuck at runtime.
--- Matcher types are rigid -- their unification is forbidden -- so the list
--- literal itself is rejected.
+-- Heterogeneous matcher collection.  `something : Matcher none b` and
+-- `list integer : Matcher [none] [Integer]` have different capability
+-- heads.  Unifying only their target types must not strengthen
+-- `something`; the list literal is rejected.
 --
--- Expected: Type error (matcher types are rigid: Matcher b vs Matcher [Integer])
+-- Expected: Type error (capability mismatch: none vs [none])
 --
 
 def t := matchAll [something, list integer] as list something with

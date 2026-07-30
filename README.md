@@ -102,10 +102,21 @@ def poker (cs: [Card]) : String :=
 We can pattern-match against graphs.
 We can write a program to solve the travelling salesman problem in a single pattern-matching expression.
 
+Matcher types have two indices: `Matcher capability target` (and,
+for matcher-consuming parameters, `MatcherSlot capability target`).
+The capability describes the pattern-constructor structure that the matcher
+can safely consume, independently of its ordinary target type. `none` means
+that no constructor capability is promised. A structured capability uses a
+canonical declared type former with its exact arity, such as `[p]` or
+`Maybe p`; transparent surface type aliases may still be used in the target
+index, but not as capability heads.
+The implemented guarantees and the current full-D4/D5-CAS boundaries are
+documented in [design/p2-matcher-capability.md](design/p2-matcher-capability.md).
+
 ```hs
-def station : Matcher String := string
-def price : Matcher Integer := integer
-def graph : Matcher [(String, [(String, Integer)])] :=
+def station : Matcher String String := string
+def price : Matcher none Integer := integer
+def graph : Matcher [(String, [(String, none)])] [(String, [(String, Integer)])] :=
   multiset (station, multiset (station, price))
 
 def graphData : [(String, [(String, Integer)])] :=

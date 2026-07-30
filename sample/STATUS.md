@@ -28,7 +28,9 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 > `inductive` / `inductive pattern` 宣言の追加で型クリーン化。
 > **パラメータ付き algebraicDataMatcher の正しい形** = ①データ宣言
 > `inductive Edge a b := Edge a b` ②パターン宣言 `inductive pattern Edge a b := edge a b`
-> ③slot 注釈付き def(`{a,b,c,d} (a: MatcherSlot b b) ... : Matcher (Edge b d)`)の3点セット。
+> ③slot 注釈付き def
+> (`{a,b,c,d} (a: MatcherSlot p b) (c: MatcherSlot q d) : Matcher (Edge p q) (Edge b d)`)
+> の3点セット。`p` と `q` は各 slot の capability を独立に合成する。
 > chopsticks / gsp / tree / salesman2 / graph / unify には別の既存エラーが残っている。
 
 ## ディレクトリ別一覧

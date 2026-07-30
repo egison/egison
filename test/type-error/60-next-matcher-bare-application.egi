@@ -1,19 +1,19 @@
 -- R12 component checking must not skip applications.  keep mPoly has the
--- same complete inferred type Matcher a as mPoly itself.
+-- same complete inferred type `Matcher none a` as mPoly itself.
 --
--- Expected: Type error (bare Matcher capability at a list-headed hole)
+-- Expected: Type error (`none` capability at a list-headed hole)
 
 inductive Box := Box [Integer]
 inductive pattern Box := box [Integer]
 
 def keep {a} (x : a) : a := x
 
-def mPoly {a} : Matcher a :=
+def mPoly {a} : Matcher none a :=
   matcher
     | $ as something with
       | $tgt -> [tgt]
 
-def bad : Matcher Box :=
+def bad : Matcher Box Box :=
   matcher
     | box $ as keep mPoly with
       | Box $xs -> [xs]

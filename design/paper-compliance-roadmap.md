@@ -2,13 +2,21 @@
 
 論文: *A Calculus and Type System for Ad-hoc Polymorphic Pattern Matching on Non-free Data Types* (λ_P)。
 
-本書は「論文の型システムを Egison 上に**全規則を強制する健全な検査器**として完成させる」ために残っている課題をまとめる。
-完了済みの実装内容と詳細な根拠は [`design/matcher-slot.md`](./matcher-slot.md) を参照。
+> **pre-P2 roadmap。** 本文は、P2 より前の一ソート設計を前提にした課題と実装状況を
+> 保存した歴史資料である。現行 P2 の契約は `Matcher κ τ` と
+> `MatcherSlot κ τ` であり、`κ` は capability、`τ` は通常の対象型を表す。
+> 両添字は必須で一添字の糖衣はなく、対象型への代入は capability を変更しない。
+> 以下の一添字 `Matcher τ` と、通常型二つを持つ旧 `MatcherSlot τ_s τ_t` は
+> pre-P2 の表記・意味論として読むこと。
 
-## 0. 現状サマリ
+本書は「論文の型システムを Egison 上に**全規則を強制する健全な検査器**として完成させる」
+ために当時残っていた課題をまとめたものである。
+当時の実装内容と詳細な根拠は [`design/matcher-slot.md`](./matcher-slot.md) を参照。
+
+## 0. 当時の現状サマリ
 
 **忠実に実装・実証済み(論文の中核)**:
-- `Matcher τ` / `MatcherSlot τ_s τ_t` の区別・糖衣
+- pre-P2 の `Matcher τ` / `MatcherSlot τ_s τ_t` の区別・一添字糖衣
 - COERCE-MATCHER-TO-SLOT 二重検査 / COERCE-SLOT-TUPLE / TUPLE-MATCHER
 - T-MATCHALL/T-MATCH 構造的許容性(独立 τ_p、§B.2 の 4×2 マトリクス、ネスト、slot-tuple、**本体内 match-site**、
   **明示 self-match-site 再帰** = `concretizeDeclaredTypes`)

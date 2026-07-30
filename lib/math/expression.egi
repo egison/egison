@@ -27,7 +27,10 @@ inductive pattern IndexExpr :=
   | sup MathValue
   | user MathValue
 
-def indexExpr : Matcher IndexExpr :=
+-- D5-CAS boundary: these annotations name the runtime pattern view separately
+-- from its target.  MathValue views over Factor/Term targets remain outside
+-- certified CapTargetOK until target-indexed virtual signatures are defined.
+def indexExpr : Matcher IndexExpr IndexExpr :=
   matcher
     | sub $ as (mathValue) with
         | Sub $e -> [e]
@@ -43,7 +46,7 @@ def indexExpr : Matcher IndexExpr :=
     | $ as something with
         | $tgt -> [tgt]
 
-def mathValue : Matcher MathValue :=
+def mathValue : Matcher MathValue MathValue :=
   matcher
     | frac $ $ as (mathValue, mathValue) with
         | Frac $p1 $p2 -> [(p1, p2)]
@@ -127,7 +130,7 @@ def mathValue : Matcher MathValue :=
     | $ as something with
         | $tgt -> [tgt]
 
-def multExpr : Matcher MathValue :=
+def multExpr : Matcher MathValue MathValue :=
   matcher
     | ($ ^ $) * $ as (factor, integer, multExpr) with
         | $tgt ->
@@ -148,21 +151,21 @@ def multExpr : Matcher MathValue :=
     | $ as something with
         | $tgt -> [tgt]
 
-def termExpr : Matcher MathValue := mathValue
+def termExpr : Matcher MathValue MathValue := mathValue
 
 -- Phase 5 Step 5.0: basic matchers (atoms, factor, symbol).
 -- These deliberately delegate to `mathValue` so that they can be used as
 -- generic decomposition matchers under the `factor` / `symbol` names while
 -- the full parametric matchers below provide coefficient-aware variants.
 
-def symbol : Matcher MathValue := mathValue
+def symbol : Matcher MathValue MathValue := mathValue
 
 -- factor: matcher for atomic CAS shapes (single symbol, apply1-4, quote, func).
 -- Returns Matcher Factor so that pattern variables bound through this matcher
 -- get the static type Factor — enabling compile-time dispatch to the
 -- `Differentiable Factor` instance from inside Term/Poly instances when the
 -- pattern signature is `as (factor, integer)` (e.g. `$fx ^ $n`).
-def factor : Matcher Factor :=
+def factor : Matcher MathValue Factor :=
   matcher
     | symbol $ $ as (string, list indexExpr) with
         | Frac (Plus [Term 1 [(Symbol $v $js, 1)]]) (Plus [Term 1 []]) ->
@@ -211,7 +214,7 @@ def factor : Matcher Factor :=
 -- This keeps `match (3 * x) as poly integer with | term $c _ -> c` working
 -- without requiring callers to coerce manually.
 
-def term {a} (m: MatcherSlot a a) : Matcher (Term a [..]) :=
+def term {a} (m: MatcherSlot p a) : Matcher MathValue (Term a [..]) :=
   matcher
     | term $ $ as (m, assocMultiset mathValue) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]
@@ -258,7 +261,7 @@ def term {a} (m: MatcherSlot a a) : Matcher (Term a [..]) :=
     | $ as something with
         | $tgt -> [tgt]
 
-def poly {a} (m: MatcherSlot a a) : Matcher MathValue :=
+def poly {a} (m: MatcherSlot p a) : Matcher MathValue MathValue :=
   matcher
     | poly $ as (multiset (term m)) with
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
@@ -317,7 +320,7 @@ def poly {a} (m: MatcherSlot a a) : Matcher MathValue :=
     | $ as something with
         | $tgt -> [tgt]
 
-def frac {a} (m: MatcherSlot a a) : Matcher MathValue :=
+def frac {a} (m: MatcherSlot p a) : Matcher MathValue MathValue :=
   matcher
     | frac $ $ as (m, m) with
         | Frac $p1 $p2 -> [(p1, p2)]
@@ -364,7 +367,7 @@ def frac {a} (m: MatcherSlot a a) : Matcher MathValue :=
 
 -- mathExpr: an alias for `mathValue` used by older code and the parametric
 -- matcher tests. Kept for backward compatibility.
-def mathExpr : Matcher MathValue := mathValue
+def mathExpr : Matcher MathValue MathValue := mathValue
 
 
 def isSymbol (mexpr: MathValue) : Bool :=

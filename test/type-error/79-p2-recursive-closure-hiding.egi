@@ -1,0 +1,24 @@
+-- P2 D4 fail-closed boundary: a local closure that captures the recursive
+-- producer cannot turn that producer into Known evidence when the closure is
+-- applied as a next matcher.
+
+inductive P2ClosureTree a :=
+  | P2ClosureLeaf a
+  | P2ClosureNode (P2ClosureTree a)
+
+inductive pattern P2ClosureTree a :=
+  | p2ClosureLeaf a
+  | p2ClosureNode (P2ClosureTree a)
+
+def p2ClosureHidden {a}
+  : Matcher (P2ClosureTree none) (P2ClosureTree a) :=
+  let produce ignored := p2ClosureHidden
+  in matcher
+    | p2ClosureLeaf $ as something with
+      | P2ClosureLeaf $value -> [value]
+      | _ -> []
+    | p2ClosureNode $ as produce 0 with
+      | P2ClosureNode $rest -> [rest]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

@@ -100,6 +100,15 @@ data EvalState = EvalState
                                        --   the value-pattern scope check (paper Def 4.2(4), the
                                        --   vp-scoped premise of WT-ATOM).  Persists across load
                                        --   batches, like the type environments.
+  , producerDependencyEnv :: Map.Map String (Set.Set String)
+                                       -- ^ P2 D4 fail-closed summaries for
+                                       --   top-level aliases/closures whose
+                                       --   matcher value still depends on an
+                                       --   unresolved or cyclic producer.
+                                       --   Persisted so a later load unit
+                                       --   cannot turn such a producer into
+                                       --   Known evidence merely by crossing
+                                       --   the batch boundary.
   }
 
 initialEvalState :: EvalState
@@ -123,6 +132,7 @@ initialEvalState = EvalState
   , casSubtypeEdges = []
   , declaredSymbolOrder = []
   , matcherShapeEnv = Map.empty
+  , producerDependencyEnv = Map.empty
   }
 
 class (Applicative m, Monad m) => MonadEval m where
@@ -194,6 +204,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Matcher clause shapes for the value-pattern scope check (Def 4.2(4)).
   getMatcherShapeEnv :: m (Map.Map String [PrimitivePatPattern])
   setMatcherShapeEnv :: Map.Map String [PrimitivePatPattern] -> m ()
+  -- P2 top-level producer provenance across load units.
+  getProducerDependencyEnv :: m (Map.Map String (Set.Set String))
+  setProducerDependencyEnv :: Map.Map String (Set.Set String) -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
   pushFuncName name = do
@@ -335,6 +348,11 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { matcherShapeEnv = env }
 
+  getProducerDependencyEnv = producerDependencyEnv <$> get
+  setProducerDependencyEnv env = do
+    st <- get
+    put $ st { producerDependencyEnv = env }
+
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
   topFuncName = lift topFuncName
@@ -381,6 +399,8 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setCasSubtypeEdges = lift . setCasSubtypeEdges
   getMatcherShapeEnv = lift getMatcherShapeEnv
   setMatcherShapeEnv = lift . setMatcherShapeEnv
+  getProducerDependencyEnv = lift getProducerDependencyEnv
+  setProducerDependencyEnv = lift . setProducerDependencyEnv
 
 mLabelFuncName :: MonadEval m => Maybe Var -> m a -> m a
 mLabelFuncName Nothing m = m

@@ -6,7 +6,7 @@
 
 inductive DatabaseTable := | DatabaseTable String String
 
-def databaseTable {} : Matcher (String, String) :=
+def databaseTable {} : Matcher (none, none) (String, String) :=
   algebraicDataMatcher
     | databaseTable string string
 

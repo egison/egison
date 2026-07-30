@@ -11,7 +11,7 @@ inductive pattern Ordering :=
     | equal
     | greater
 
-def ordering : Matcher Ordering :=
+def ordering : Matcher Ordering Ordering :=
   algebraicDataMatcher
     | less
     | equal

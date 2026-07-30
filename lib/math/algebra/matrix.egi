@@ -6,7 +6,7 @@ inductive pattern Matrix a:=
   | quadCons a (Matrix a) (Matrix a) (Matrix a)
   | matCons Integer Integer a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
 
-def matrix : Matcher (Matrix MathValue) :=
+def matrix : Matcher (Matrix MathValue) (Matrix MathValue) :=
   matcher
     | quadCons $ $ $ $ as (mathValue, matrix, matrix, matrix) with
       | $tgt ->

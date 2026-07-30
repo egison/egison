@@ -50,7 +50,8 @@ import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..), stringT
 import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), InstanceInfo(..),
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName,
-                                            sanitizeMethodName, freeTyVars, instType, classParam, mapType)
+                                            sanitizeMethodName, freeTyVars, freeCapVars,
+                                            instType, classParam, mapType)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)
 
@@ -105,8 +106,8 @@ extractTypeSubstitutions instTy actualTy = go instTy actualTy
       go instArg actualArg ++ go instRet actualRet
     go (THash instK instV) (THash actualK actualV) =
       go instK actualK ++ go instV actualV
-    go (TMatcher instT) (TMatcher actualT) = go instT actualT
-    go (TMatcherSlot instS instT) (TMatcherSlot actualS actualT) = go instS actualS ++ go instT actualT
+    go (TMatcher _ instT) (TMatcher _ actualT) = go instT actualT
+    go (TMatcherSlot _ instT) (TMatcherSlot _ actualT) = go instT actualT
     go (TIO instT) (TIO actualT) = go instT actualT
     go (TIORef instT) (TIORef actualT) = go instT actualT
     go TPort TPort = []
@@ -238,7 +239,7 @@ expandTypeClassMethodsT tiExpr = do
         case tiExprNode func of
           TIVarExpr methodName -> do
             -- Try to resolve if func is a method call using func's own constraints
-            let (Forall _ funcConstraints _) = tiScheme func
+            let (Forall _ _ funcConstraints _) = tiScheme func
             resolved <- tryResolveMethodCall classEnv' scope funcConstraints methodName args'
             case resolved of
               Just result -> return result
@@ -477,7 +478,7 @@ expandTypeClassMethodsT tiExpr = do
     -- Parent constraints are not passed to avoid constraint accumulation
     expandTIExprWithConstraints :: ClassEnv -> LocalScope -> TIExpr -> EvalM TIExpr
     expandTIExprWithConstraints classEnv' scope expr = do
-      let scheme@(Forall _ exprConstraints exprType) = tiScheme expr
+      let scheme@(Forall _ _ exprConstraints exprType) = tiScheme expr
           -- Use only the expression's own constraints
           -- Type inference has already assigned correct constraints to each expression
           allConstraints = exprConstraints
@@ -500,14 +501,14 @@ expandTypeClassMethodsT tiExpr = do
               -- Get method type to determine arity
               typeEnv <- getTypeEnv
               case lookupEnv (stringToVar varName) typeEnv of
-                Just (Forall _ _ _ty) -> do
+                Just (Forall _ _ _ _ty) -> do
                   -- Use the expression's actual type (exprType) instead of the method's declared type (ty)
                   -- because eta-expansion should create parameters matching the expected usage context
                   let arity = getMethodArity exprType
                       paramTypes = getParamTypes exprType
                       paramNames = ["etaVar" ++ show i | i <- [1..arity]]
                       paramVars = map stringToVar paramNames
-                      paramExprs = zipWith (\n t -> TIExpr (Forall [] [] t) (TIVarExpr n)) paramNames paramTypes
+                      paramExprs = zipWith (\n t -> TIExpr (Forall [] [] [] t) (TIVarExpr n)) paramNames paramTypes
                       methodKey = sanitizeMethodName varName
 
                   -- Determine dictionary name based on type
@@ -518,14 +519,18 @@ expandTypeClassMethodsT tiExpr = do
                       let dictParamName = "dict_" ++ className
                       -- Look up dictionary type from type environment
                       dictHashType <- case lookupEnv (stringToVar dictParamName) typeEnv of
-                        Just (Forall _ _ dictType) -> return dictType
+                        Just (Forall _ _ _ dictType) -> return dictType
                         Nothing -> return $ THash TString TAny  -- Fallback
                       -- Get method type from ClassEnv instead of dictHashType
                       let methodType = getMethodTypeFromClass classEnv' className methodKey tyArg
                           methodConstraint = Constraint className tyArgs
-                          methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
-                          dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
-                          indexExpr = TIExpr (Forall [] [] TString)
+                          methodScheme =
+                            Forall (Set.toList $ freeCapVars methodType)
+                                   (Set.toList $ freeTyVars tyArg)
+                                   [methodConstraint]
+                                   methodType
+                          dictExpr = TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictParamName)
+                          indexExpr = TIExpr (Forall [] [] [] TString)
                                             (TIConstantExpr (StringExpr (pack methodKey)))
                           dictAccess = TIExpr methodScheme $
                                        TIIndexedExpr False dictExpr [Sub indexExpr]
@@ -536,7 +541,7 @@ expandTypeClassMethodsT tiExpr = do
                           let resultType = applyParamsToType methodType (length paramExprs)
                               bodyScheme = case resultType of
                                              TFun _ _ -> methodScheme
-                                             _ -> Forall [] [] resultType
+                                             _ -> Forall [] [] [] resultType
                               body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
                           return $ TILambdaExpr Nothing paramVars body
                     _ -> do
@@ -553,30 +558,34 @@ expandTypeClassMethodsT tiExpr = do
 
                           -- Look up dictionary type from type environment
                           dictHashType <- case lookupEnv (stringToVar dictName) typeEnv of
-                            Just (Forall _ _ dictType) -> return dictType
+                            Just (Forall _ _ _ dictType) -> return dictType
                             Nothing -> return $ THash TString TAny  -- Fallback
 
                           -- Get method type from ClassEnv instead of dictHashType
                           let methodType = getMethodTypeFromClass classEnv' className methodKey tyArg
                               methodConstraint = Constraint className tyArgs
-                              methodScheme = Forall (Set.toList $ freeTyVars tyArg) [methodConstraint] methodType
+                              methodScheme =
+                                Forall (Set.toList $ freeCapVars methodType)
+                                       (Set.toList $ freeTyVars tyArg)
+                                       [methodConstraint]
+                                       methodType
 
                           -- Check if instance has nested constraints
                           dictExprBase <- if null (instContext inst)
                             then do
                               -- No constraints: dictionary is a simple hash
-                              return $ TIExpr (Forall [] [] dictHashType) (TIVarExpr dictName)
+                              return $ TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictName)
                             else do
                               -- Has constraints: dictionary is a function that returns a hash
                               -- Get the result type (should be the hash type after applying arguments)
                               let dictFuncType = case dictHashType of
                                     TFun _ resultType -> TFun dictHashType resultType
                                     _ -> TFun (THash TString TAny) dictHashType
-                                  dictFuncExpr = TIExpr (Forall [] [] dictFuncType) (TIVarExpr dictName)
+                                  dictFuncExpr = TIExpr (Forall [] [] [] dictFuncType) (TIVarExpr dictName)
                               dictArgs <- mapM (resolveDictionaryArg classEnv') (instContext inst)
-                              return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
+                              return $ TIExpr (Forall [] [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
 
-                          let indexExpr = TIExpr (Forall [] [] TString)
+                          let indexExpr = TIExpr (Forall [] [] [] TString)
                                                (TIConstantExpr (StringExpr (pack methodKey)))
                               dictAccess = TIExpr methodScheme $
                                            TIIndexedExpr False dictExprBase [Sub indexExpr]
@@ -587,7 +596,7 @@ expandTypeClassMethodsT tiExpr = do
                               let resultType = applyParamsToType methodType (length paramExprs)
                                   bodyScheme = case resultType of
                                                  TFun _ _ -> methodScheme
-                                                 _ -> Forall [] [] resultType
+                                                 _ -> Forall [] [] [] resultType
                                   body = TIExpr bodyScheme (TIApplyExpr dictAccess paramExprs)
                               return $ TILambdaExpr Nothing paramVars body
                         Nothing -> checkConstrainedVariable
@@ -600,7 +609,7 @@ expandTypeClassMethodsT tiExpr = do
             checkConstrainedVariable = do
               typeEnv <- getTypeEnv
               case lookupEnv (stringToVar varName) typeEnv of
-                Just (Forall _ originalConstraints _)
+                Just (Forall _ _ originalConstraints _)
                   | not (null originalConstraints) -> do
                       -- De-expand constraints to match the function's dict params
                       let minOrigCs = deExpandConstraints classEnv' originalConstraints
@@ -622,15 +631,15 @@ expandTypeClassMethodsT tiExpr = do
                           dictArgs <- mapM (resolveDictionaryArg classEnv') (map resolveType minOrigCs)
                           -- Clear constraints on the inner var ref to prevent
                           -- applyConcreteConstraintDictionaries from adding dicts again
-                          let Forall vs _ ty = scheme
-                              varExpr = TIExpr (Forall vs [] ty) (TIVarExpr varName)
+                          let Forall capVars vs _ ty = scheme
+                              varExpr = TIExpr (Forall capVars vs [] ty) (TIVarExpr varName)
                           return $ TIApplyExpr varExpr dictArgs
                         else do
                           -- Type variable: pass dict params for de-expanded constraints
                           let makeDict c =
                                 let dictName = constraintToDictParam c
                                     dictType = TVar (TyVar "dict")
-                                in TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                                in TIExpr (Forall [] [] [] dictType) (TIVarExpr dictName)
                               dictArgs = map makeDict minOrigCs
                               varExpr = TIExpr scheme (TIVarExpr varName)
                           return $ TIApplyExpr varExpr dictArgs
@@ -657,8 +666,8 @@ expandTypeClassMethodsT tiExpr = do
           isConcreteType' _        = True
           shouldClear = not (null exprConstraints) && all isConcrete exprConstraints
           scheme' = case expandedNode of
-            TIApplyExpr _ _    | shouldClear -> let Forall vs _ ty = scheme in Forall vs [] ty
-            TIIndexedExpr {}   | shouldClear -> let Forall vs _ ty = scheme in Forall vs [] ty
+            TIApplyExpr _ _    | shouldClear -> let Forall capVars vs _ ty = scheme in Forall capVars vs [] ty
+            TIIndexedExpr {}   | shouldClear -> let Forall capVars vs _ ty = scheme in Forall capVars vs [] ty
             _                                -> scheme
       return $ TIExpr scheme' expandedNode
 
@@ -805,11 +814,11 @@ expandTypeClassMethodsT tiExpr = do
             TVar _ -> do
               -- Type variable: use dictionary parameter with superclass chain
               let dictParamName = "dict_" ++ constraintClass
-                  dictExpr = TIExpr (Forall [] [] dictHashType) (TIVarExpr dictParamName)
+                  dictExpr = TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictParamName)
                   chainedDict = buildSuperclassChain dictExpr path
                   methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
-                  methodScheme = Forall [] [] methodType
-                  indexExpr = TIExpr (Forall [] [] TString)
+                  methodScheme = Forall [] [] [] methodType
+                  indexExpr = TIExpr (Forall [] [] [] TString)
                                     (TIConstantExpr (StringExpr (pack methodKey)))
                   dictAccess = TIExpr methodScheme $
                                TIIndexedExpr False chainedDict [Sub indexExpr]
@@ -846,16 +855,16 @@ expandTypeClassMethodsT tiExpr = do
                     let instTypeName = concatMap typeToName (instTypes inst)
                         dictName = lowerFirst ownerClass ++ instTypeName
                         methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
-                        methodScheme = Forall [] [] methodType
+                        methodScheme = Forall [] [] [] methodType
                     dictExprBase <- if null (instContext inst)
-                      then return $ TIExpr (Forall [] [] dictHashType) (TIVarExpr dictName)
+                      then return $ TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictName)
                       else do
                         let dictFuncType = TFun (THash TString TAny) dictHashType
-                            dictFuncExpr = TIExpr (Forall [] [] dictFuncType) (TIVarExpr dictName)
+                            dictFuncExpr = TIExpr (Forall [] [] [] dictFuncType) (TIVarExpr dictName)
                             substitutedConstraints = substituteInstanceConstraints (instType inst) actualType (instContext inst)
                         dictArgs <- mapM (resolveDictionaryArg classEnv') substitutedConstraints
-                        return $ TIExpr (Forall [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
-                    let indexExpr = TIExpr (Forall [] [] TString)
+                        return $ TIExpr (Forall [] [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
+                    let indexExpr = TIExpr (Forall [] [] [] TString)
                                           (TIConstantExpr (StringExpr (pack methodKey)))
                         dictAccess = TIExpr methodScheme $
                                      TIIndexedExpr False dictExprBase [Sub indexExpr]
@@ -878,7 +887,7 @@ expandTypeClassMethodsT tiExpr = do
     resolveDictionaryArgWithDepth :: ClassEnv -> Int -> Constraint -> EvalM TIExpr
     resolveDictionaryArgWithDepth _ 0 (Constraint className _) = do
       -- Depth limit reached, return error placeholder
-      return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr ("dict_" ++ className ++ "_TOO_DEEP"))
+      return $ TIExpr (Forall [] [] [] (TVar (TyVar "error"))) (TIVarExpr ("dict_" ++ className ++ "_TOO_DEEP"))
     
     resolveDictionaryArgWithDepth classEnv depth constraint@(Constraint className tyArgs) = do
       let tyArg = constraintType constraint  -- principal (first) type
@@ -888,7 +897,7 @@ expandTypeClassMethodsT tiExpr = do
           -- e.g., for {Eq a}, return dict_Eq
           let dictParamName = "dict_" ++ className
               dictType = TVar (TyVar "dict")
-          return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictParamName)
+          return $ TIExpr (Forall [] [] [] dictType) (TIVarExpr dictParamName)
         _ -> do
           -- Concrete type: find matching instance using all constraint types.
           let instances = lookupInstances className classEnv
@@ -899,7 +908,7 @@ expandTypeClassMethodsT tiExpr = do
               let instTypeName = concatMap typeToName (instTypes inst)
                   dictName = lowerFirst className ++ instTypeName
                   dictType = TVar (TyVar "dict")
-                  dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+                  dictExpr = TIExpr (Forall [] [] [] dictType) (TIVarExpr dictName)
               
               -- Check if this instance has nested constraints
               -- e.g., instance {Eq a} Eq [a] has constraint {Eq a}
@@ -926,10 +935,10 @@ expandTypeClassMethodsT tiExpr = do
                   -- Apply dictionary function to resolved dictionaries
                   -- e.g., eqCollection eqInteger (when resolving Eq [Integer])
                   --       eqCollection (eqCollection eqInteger) (when resolving Eq [[Integer]])
-                  return $ TIExpr (Forall [] [] dictType) (TIApplyExpr dictExpr dictArgs)
+                  return $ TIExpr (Forall [] [] [] dictType) (TIApplyExpr dictExpr dictArgs)
             Nothing -> do
               -- No instance found - this is an error, but return a dummy for now
-              return $ TIExpr (Forall [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
+              return $ TIExpr (Forall [] [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
 
 -- | Generate dictionary parameter name from constraint
 -- Used for both dictionary parameter generation and dictionary argument passing
@@ -980,9 +989,9 @@ findSuperclassPath classEnv startClass targetClass
 buildSuperclassChain :: TIExpr -> [String] -> TIExpr
 buildSuperclassChain dictExpr [] = dictExpr
 buildSuperclassChain dictExpr (step:rest) =
-  let indexExpr = TIExpr (Forall [] [] TString)
+  let indexExpr = TIExpr (Forall [] [] [] TString)
                          (TIConstantExpr (StringExpr (pack ("__super_" ++ step))))
-      accessed = TIExpr (Forall [] [] (THash TString TAny))
+      accessed = TIExpr (Forall [] [] [] (THash TString TAny))
                         (TIIndexedExpr False dictExpr [Sub indexExpr])
   in buildSuperclassChain accessed rest
 
@@ -1029,7 +1038,7 @@ getMethodTypeFromClass classEnv className methodKey constraintType =
 -- | Add dictionary parameters to a function based on its type scheme constraints
 -- This transforms constrained functions into dictionary-passing style
 addDictionaryParametersT :: TypeScheme -> TIExpr -> EvalM TIExpr
-addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
+addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
   | null constraints = return tiExpr  -- No constraints, no change
   | otherwise = do
       classEnv <- getClassEnv
@@ -1073,18 +1082,19 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           case vNode of
             TIVarExpr methodName -> do
               case lookupEnv (stringToVar methodName) typeEnv of
-                Just (Forall _ vConstraints _) | not (null vConstraints) -> do
+                Just (Forall _ _ vConstraints _) | not (null vConstraints) -> do
                   -- Method has constraints, apply dictionary parameters
-                  let dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p)) dictParams
+                  let dictArgExprs = map (\p -> TIExpr (Forall [] [] [] (TVar (TyVar "dict"))) (TIVarExpr p)) dictParams
                       vApplied = TIExpr (tiScheme v) (TIApplyExpr v dictArgExprs)
                   return (k, vApplied)
                 _ -> return (k, v)  -- No constraints, keep as-is
             _ -> return (k, v)  -- Not a variable, keep as-is
           ) pairs
         
-        let hashExpr' = TIExpr (tiScheme expr) (TIHashExpr pairs')
+        let Forall capVars _ _ _ = tiScheme expr
+            hashExpr' = TIExpr (tiScheme expr) (TIHashExpr pairs')
             newNode = TILambdaExpr Nothing dictVars hashExpr'
-            newScheme = Forall [] [] wrapperType
+            newScheme = Forall capVars [] [] wrapperType
         return $ TIExpr newScheme newNode
       
       -- Not a lambda: wrap in a lambda with dictionary parameters
@@ -1097,9 +1107,9 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
             -- Check if this variable has constraints that match our constraints
             typeEnv <- getTypeEnv
             case lookupEnv (stringToVar varName) typeEnv of
-              Just (Forall _ varConstraints _) | not (null varConstraints) -> do
+              Just (Forall _ _ varConstraints _) | not (null varConstraints) -> do
                 -- Check which constraints from varConstraints match parent constraints cs
-                let (Forall _ exprConstraints _) = tiScheme expr
+                let (Forall _ _ exprConstraints _) = tiScheme expr
                     matchingConstraints = filter (\(Constraint eName eType) ->
                           any (\(Constraint pName pType) ->
                             eName == pName && eType == pType) cs) exprConstraints
@@ -1107,15 +1117,16 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                   then replaceMethodCallsWithDictAccessT env cs expr
                   else do
                     -- Apply matching dictionary parameters
-                    let dictArgExprs = map (\p -> TIExpr (Forall [] [] (TVar (TyVar "dict"))) (TIVarExpr p))
+                    let dictArgExprs = map (\p -> TIExpr (Forall [] [] [] (TVar (TyVar "dict"))) (TIVarExpr p))
                                            (map constraintToDictParam matchingConstraints)
                         varExpr = TIExpr (tiScheme expr) (TIVarExpr varName)
                     return $ TIExpr (tiScheme expr) (TIApplyExpr varExpr dictArgExprs)
               _ -> replaceMethodCallsWithDictAccessT env cs expr
           _ -> replaceMethodCallsWithDictAccessT env cs expr
-        let wrapperType = tiExprType expr
+        let Forall capVars _ _ _ = tiScheme expr
+            wrapperType = tiExprType expr
             newNode = TILambdaExpr Nothing dictVars expr'
-            newScheme = Forall [] [] wrapperType
+            newScheme = Forall capVars [] [] wrapperType
         return $ TIExpr newScheme newNode
     
     -- Remap old expanded dict references to superclass chain accesses.
@@ -1144,7 +1155,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
           let tryConstraint (Constraint cn _ty) =
                 case findSuperclassPath classEnv cn targetClass of
                   Just path ->
-                    let dictExpr = TIExpr (Forall [] [] (THash TString TAny))
+                    let dictExpr = TIExpr (Forall [] [] [] (THash TString TAny))
                                          (TIVarExpr ("dict_" ++ cn))
                     in Just (buildSuperclassChain dictExpr path)
                   Nothing -> Nothing
@@ -1155,7 +1166,7 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
     -- Replace method calls with dictionary access in TIExpr
     replaceMethodCallsWithDictAccessT :: ClassEnv -> [Constraint] -> TIExpr -> EvalM TIExpr
     replaceMethodCallsWithDictAccessT env cs tiExpr = do
-      let scheme@(Forall _ exprConstraints exprType) = tiScheme tiExpr
+      let scheme@(Forall _ _ exprConstraints exprType) = tiScheme tiExpr
       newNode <- replaceMethodCallsInNode env cs exprConstraints exprType (tiExprNode tiExpr)
       return $ TIExpr scheme newNode
     
@@ -1172,12 +1183,12 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
                 paramTypes = getParamTypes exprType
                 paramNames = ["etaVar" ++ show i | i <- [1..arity]]
                 paramVars = map stringToVar paramNames
-                paramExprs = zipWith (\n t -> TIExpr (Forall [] [] t) (TIVarExpr n)) paramNames paramTypes
-                dictExpr = TIExpr (Forall [] [] (THash TString TAny)) (TIVarExpr dictParam)
+                paramExprs = zipWith (\n t -> TIExpr (Forall [] [] [] t) (TIVarExpr n)) paramNames paramTypes
+                dictExpr = TIExpr (Forall [] [] [] (THash TString TAny)) (TIVarExpr dictParam)
                 chainedDict = buildSuperclassChain dictExpr path
                 methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) tyArg
-                methodScheme = Forall [] [] methodType
-                indexExpr = TIExpr (Forall [] [] TString)
+                methodScheme = Forall [] [] [] methodType
+                indexExpr = TIExpr (Forall [] [] [] TString)
                                   (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
                 dictAccess = TIExpr methodScheme $
                              TIIndexedExpr False chainedDict [Sub indexExpr]
@@ -1197,11 +1208,11 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
               Just (constraint, ownerClass, path) -> do
                 let dictParam = constraintToDictParam constraint
                     tyArg = constraintType constraint
-                    dictExpr = TIExpr (Forall [] [] (THash TString TAny)) (TIVarExpr dictParam)
+                    dictExpr = TIExpr (Forall [] [] [] (THash TString TAny)) (TIVarExpr dictParam)
                     chainedDict = buildSuperclassChain dictExpr path
                     methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) tyArg
-                    methodScheme = Forall [] [] methodType
-                    indexExpr = TIExpr (Forall [] [] TString) 
+                    methodScheme = Forall [] [] [] methodType
+                    indexExpr = TIExpr (Forall [] [] [] TString)
                                       (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
                     dictAccess = TIExpr methodScheme $
                                  TIIndexedExpr False chainedDict [Sub indexExpr]
@@ -1274,12 +1285,13 @@ addDictionaryParametersT (Forall _vars constraints _ty) tiExpr
       _ -> return node
 
 -- | Apply dictionaries to expressions with concrete type constraints
--- This is used for top-level definitions like: def integer : Matcher Integer := eq
+-- This is used for top-level definitions such as:
+-- def integer : Matcher none Integer := eq
 -- where the right-hand side (eq) has concrete type constraints {Eq Integer}
 applyConcreteConstraintDictionaries :: TIExpr -> EvalM TIExpr
 applyConcreteConstraintDictionaries expr = do
   classEnv <- getClassEnv
-  let scheme@(Forall vars constraints _) = tiScheme expr
+  let scheme@(Forall capVars vars constraints _) = tiScheme expr
 
   -- First, recursively process sub-expressions
   expr' <- case tiExprNode expr of
@@ -1312,7 +1324,7 @@ applyConcreteConstraintDictionaries expr = do
     then do
       dictArgs <- mapM (resolveDictionaryForConstraint classEnv) minConstraints
       let resultType = tiExprType expr'
-          newScheme = Forall vars [] resultType
+          newScheme = Forall capVars vars [] resultType
       -- Insert dict args between function and regular args
       case tiExprNode expr' of
         TIApplyExpr func args ->
@@ -1341,7 +1353,7 @@ applyConcreteConstraintDictionaries expr = do
           let instTypeName = concatMap typeToName (instTypes inst)
               dictName = lowerFirst className ++ instTypeName
               dictType = TVar (TyVar "dict")
-              dictExpr = TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+              dictExpr = TIExpr (Forall [] [] [] dictType) (TIVarExpr dictName)
           
           -- Check if instance has nested constraints
           if null (instContext inst)
@@ -1351,12 +1363,12 @@ applyConcreteConstraintDictionaries expr = do
             else do
               -- Has constraints: need to resolve them recursively
               nestedDictArgs <- mapM (resolveDictionaryForConstraint classEnv) (instContext inst)
-              return $ TIExpr (Forall [] [] dictType) (TIApplyExpr dictExpr nestedDictArgs)
+              return $ TIExpr (Forall [] [] [] dictType) (TIApplyExpr dictExpr nestedDictArgs)
         Nothing -> do
           -- No instance found - return dummy dictionary
           let dictName = "dict_" ++ className ++ "_NOT_FOUND"
               dictType = TVar (TyVar "dict")
-          return $ TIExpr (Forall [] [] dictType) (TIVarExpr dictName)
+          return $ TIExpr (Forall [] [] [] dictType) (TIVarExpr dictName)
 
 -- | Expand type class method calls in patterns
 -- This is a public wrapper for expandTIPattern used by TypedDesugar
@@ -1711,8 +1723,8 @@ fixUnboundDictRefs classEnv = goE Set.empty
             Just ci -> (classMethods ci, classSupers ci)
             Nothing -> ([], [])
           candidates = runtimeDispatchCandidates (lookupInstances cls classEnv)
-          anyScheme = Forall [] [] TAny
-          strScheme = Forall [] [] TString
+          anyScheme = Forall [] [] [] TAny
+          strScheme = Forall [] [] [] TString
           strKey k = TIExpr strScheme (TIConstantExpr (StringExpr (pack k)))
           mkMethod (mname, mty) =
             let key = sanitizeMethodName mname
@@ -1729,5 +1741,5 @@ fixUnboundDictRefs classEnv = goE Set.empty
             | otherwise =
                 [ (strKey ("__super_" ++ s), dispatchDictFor (depth - 1) s)
                 | s <- supers ]
-      in TIExpr (Forall [] [] (THash TString TAny))
+      in TIExpr (Forall [] [] [] (THash TString TAny))
                 (TIHashExpr (mapMaybe mkMethod methods ++ superEntries))

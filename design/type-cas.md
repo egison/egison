@@ -2,6 +2,15 @@
 
 > **関連ドキュメント**: ユーザによるタワー拡張 (実装済) の設計・決定記録は [type-cas-tower.md](./type-cas-tower.md)、実装記録は [type-cas-tower-implementation.md](./type-cas-tower-implementation.md)、商機構は [type-cas-quotient.md](./type-cas-quotient.md) を参照。
 
+> **P2 matcher 注記**: 現行の matcher 型は `Matcher κ τ`、
+> consumer 位置は `MatcherSlot κ τ` であり、両添字を必須とする。本書の古い節に残る
+> 一添字 `Matcher τ` は pre-P2 の概念表記であって、現行構文ではない。とくに
+> `MathValue` の pattern view を `Factor`／`Term` などの target に使う経路は、
+> target-indexed virtual signature と runtime preservation certificate が未整備の
+> legacy CAS 境界である。これを canonical capability equality や
+> `CapTargetOK` の証拠とは扱わない。実装境界は
+> [p2-matcher-capability.md](./p2-matcher-capability.md) を参照。
+
 > **メモ**: 本ドキュメント中の `coerce` / `embed` (typeclass) は実装上は **`reshape` primitive 一本に統一**されている。型注釈 (`def x : T := e` または `(e : T)`) を書くだけで AST elaboration が `IReshape T e` を挿入し、runtime の `casReshapeAs T v` が CAS 構造を target type に書き換える。設計説明文中の `coerce`/`embed` 用語は意味的に `reshape` 経由として読み替えてよい。
 
 ## 概要

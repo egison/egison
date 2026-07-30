@@ -1,10 +1,10 @@
 --
 -- Nested constructor sub-pattern (paper Appendix B, "Nested constructor
 -- sub-patterns").  The element position of the cons is pinned to Tile by
--- `num`, so the structural index is [Tile]; `multiset something` fails
--- [b'] <: [Tile].
+-- `num`, so the element requires Tile capability; `multiset something`
+-- provides only `[none]`.
 --
--- Expected: Type error (multiset something vs MatcherSlot [Tile] ...)
+-- Expected: Type error (`[none]` vs the required `[Tile]` capability)
 --
 
 inductive Tile := Num Integer | Hnr Integer

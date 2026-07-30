@@ -1,14 +1,14 @@
 --
--- Structurally inadmissible next matcher (paper Appendix B, the `weird`
+-- Capability-inadmissible next matcher (paper Appendix B, the `weird`
 -- matcher; Definition 4.2(1a) / PP-Con).  The tail hole of the cons
--- clause has structural index [a''], which `something` cannot fill; the
+-- clause requires list capability, which `something` cannot fill; the
 -- runtime counterpart would route a cons sub-pattern to something and
 -- get stuck.
 --
--- Expected: Type error (something at the list-headed tail hole)
+-- Expected: Type error (`none` at the list-capable tail hole)
 --
 
-def weird {a} (m: MatcherSlot a a) : Matcher [a] :=
+def weird {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
   matcher
     | [] as () with
       | [] -> [()]

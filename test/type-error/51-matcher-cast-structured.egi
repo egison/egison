@@ -1,5 +1,5 @@
--- Matcher rigidity: a bare-variable matcher value cannot be bound at a
--- structured matcher type.  This cast would let cons patterns reach
+-- A no-capability matcher value cannot be bound at a structured matcher
+-- type.  This cast would let cons patterns reach
 -- `something`, which cannot decompose them (well-typed but stuck).
 
-def m2 : Matcher [Integer] := something
+def m2 : Matcher [none] [Integer] := something

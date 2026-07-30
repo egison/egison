@@ -28,13 +28,13 @@ done
 |---|---|---|
 | 01-something-cons | COERCE-MATCHER-TO-SLOT(論文 B Case 2) | `something` × cons パターン |
 | 02-something-cons-param | 同(B Case 3) | 関数パラメータ経由、**適用点**で拒否 |
-| 03-nested-ctor-element | PAT-CON の構造伝播(B.2.3) | `multiset something` × ネスト構築子 `num` |
+| 03-nested-ctor-element | PAT-CON の capability 伝播(B.2.3) | `multiset something` × ネスト構築子 `num` |
 | 04-something-tuple-pattern | MS Progress のタプルケース | `something` × タプルパターン(積型頭の slot) |
 | 05-matcher-target-mismatch | ターゲット不一致(B.2.1) | `num` パターン × `[Integer]` |
 | 06-target-type-mismatch | T-MATCHALL のターゲット側 | `matchAll 5 as multiset integer` |
-| 10-patfun-body-structural | PAT-APP 構造側・本体(レビュー反例 M1) | `pair $x []` × `something` |
-| 11-patfun-arg-structural | PAT-APP 構造側・引数(M1) | `idp ($x :: $xs)` × `something` |
-| 12-patfun-nested-arg-structural | PAT-APP 構造側・ネスト引数(B.2.3) | `pair (num $n) []` × `multiset something` |
+| 10-patfun-body-structural | PAT-APP capability 側・本体(レビュー反例 M1) | `pair $x []` × `something` |
+| 11-patfun-arg-structural | PAT-APP capability 側・引数(M1) | `idp ($x :: $xs)` × `something` |
+| 12-patfun-nested-arg-structural | PAT-APP capability 側・ネスト引数(B.2.3) | `pair (num $n) []` × `multiset something` |
 | 13-patfun-target | PAT-APP ターゲット側 | `seqp`(`[Tile]`)× `[Integer]` ターゲット |
 | 14-patfun-arg-target | PAT-APP 引数ターゲット(B.1.2) | `seqp #1 _`(`Integer` vs `Tile`) |
 | 20-patfun-linearity-unused | PATFUN-DEF 線形性(M2) | 未使用パラメータ |
@@ -48,28 +48,49 @@ done
 | 40-matcher-next-structural | Def 4.2(1a) / PP-Con(B の `weird`) | 構築子頭 hole への `something` |
 | 41-matcher-body-matchsite | 本体内 match-site 検査 | matcher 本体内の `integer` × cons |
 | 42-tuple-pattern-arity | PAT-TUPLE | タプルパターンの arity 不一致 |
-| 50-matcher-collection-hetero | Matcher rigidity | `[something, list integer]`(異種 matcher のコレクション) |
-| 51-matcher-cast-structured | Matcher rigidity | `def m2 : Matcher [Integer] := something`(構造型への束縛) |
+| 50-matcher-collection-hetero | capability equality | `[something, list integer]`(`none` と `[none]` の異種 capability) |
+| 51-matcher-cast-structured | capability preservation | `def m2 : Matcher [none] [Integer] := something`(capability 強化の拒否) |
 | 52-missing-signature-constraint | シグネチャ完全性(残存制約検査) | 本体が `<=`({Ord a})を要求するのにシグネチャに無い |
-| 53-matcher-alias-specialize | Matcher rigidity | `def myint : Matcher Integer := eq`(注釈による特殊化) |
-| 54-something-structured-hole | PP-Con 遅延判定 | 注釈で後から [Integer] に確定する hole への `something` |
+| 53-matcher-alias-specialize | capability preservation | `def myint : Matcher Integer Integer := eq`(`none` からの capability 強化を拒否) |
+| 54-something-structured-hole | PP-Con 遅延判定 | 結果注釈を capability evidence に使わず，list tail hole への `something` を拒否 |
 | 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
-| 56-multisite-structural-join | 同(構造要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
+| 56-multisite-structural-join | 同(capability 要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
 | 57-next-matcher-nontuple | T-MATCHER / R12 成分境界 | 2 hole に積を返す非 tuple application |
-| 58-next-matcher-slot-structural | Algorithm W Step 3a / R12 | target は一致するが構造添字が不一致の既存 slot |
-| 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の裸能力 matcher を構造 hole へ渡す |
-| 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ完全型を構造 hole へ渡す |
-| 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ完全型を構造 hole へ渡す |
-| 62-next-matcher-nested-rename | `fresh_rename` / R12 | `Maybe [a]` の入れ子骨格を欠く matcher |
+| 58-next-matcher-slot-structural | Algorithm W Step 3a / R12 | target は一致するが capability が不一致の既存 slot |
+| 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の `none` matcher を構造 hole へ渡す |
+| 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ `none` capability を構造 hole へ渡す |
+| 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ `none` capability を構造 hole へ渡す |
+| 62-next-matcher-nested-rename | capability rename / R12 | `Maybe [p]` の入れ子骨格を欠く matcher |
 | 63-next-matcher-zero-hole | T-MATCHER / R12 成分境界 | 0 hole に `()` 以外の next matcher |
 | 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
-| 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | 構造添字は一致するが target 添字が不一致の既存 slot |
-| 66-next-matcher-repeated-slot | OneWay / R12 | 反復 slot 変数を介して matcher 側変数を再束縛しない |
+| 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | capability は一致するが target 添字が不一致の既存 slot |
+| 66-next-matcher-repeated-slot | exact merge / R12 | 同一 target の反復 slot に `Choice` と `none` が届く不一致 |
+| 67-p2-target-specialization-cons | P2 capability/target separation | target を list へ特殊化した `none` matcher で cons を拒否 |
+| 68-p2-unseen-observable-parameter | P2 D1 finalization | `None` 型の節だけでは observable parameter を確定できない |
+| 69-p2-exact-clause-mismatch | P2 D1 exact merge | 同じ result slot へ異なる clause capability が届く |
+| 70-p2-recursive-annotation-is-not-evidence | P2 D4 | 再帰需要と結果注釈だけで Shape evidence を生成しない |
+| 71-p2-recursive-transform-requires-flow | P2 D4 fail-closed boundary | producer/path 方程式が必要な application 経由の再帰 flow を拒否 |
+| 72-p2-capability-unknown-former | P2 capability name elaboration | 未宣言 head を `Capability kind error` で拒否 |
+| 73-p2-capability-arity-mismatch | P2 capability kind elaboration | user inductive head の arity 不一致を `Capability kind error` で拒否 |
+| 74-p2-capability-alias-head | P2 canonical former discipline | transparent surface type alias の capability head 使用を `Capability kind error` で拒否 |
+| 75-p2-local-capability-unknown-former | P2 local annotation elaboration | 式内注釈からの未宣言 capability head bypass を `Capability kind error` で拒否 |
+| 76-p2-recursive-alias-hiding | P2 D4 scoped producer flow | local alias 経由で recursive producer origin を隠す next matcher を拒否 |
+| 77-p2-forward-producer-is-unseen | P2 D4 batch producer flow | signature prepass で型だけ見える未確定 forward producer を Known evidence にせず拒否 |
+| 78-p2-forward-alias-cycle | P2 D4 cross-definition flow | 先行 alias から現在の producer へ戻る top-level cycle を Known evidence にせず拒否 |
+| 79-p2-recursive-closure-hiding | P2 D4 scoped closure flow | recursive producer を capture した local closure の適用を Known evidence にせず拒否 |
+| 80-p2-capability-builtin-collision | P2 frozen former signature | builtin と同じ canonical ID を持つ user inductive を `Capability kind error` で拒否 |
+| 81-p2-completed-alias-cycle | P2 D4 closed producer SCC | 完了済み alias-only cycle を Known evidence にせず拒否 |
+| 82-p2-any-cannot-witness-capability | P2 match-site fail-closed | `Any` を structured matcher capability の witness にせず拒否 |
 
 ## ケース追加時の注意
 
 - 1ファイル1ケース。先頭コメントに対応規則と期待エラーを書く。
 - 追加時は必ず実行して、**意図したエラーで**拒否されることを確認する
   (無関係なエラーや parse error で偶然 reject されると回帰検出にならない)。
+- 72--75 と 80 は共通の `Type error:` に加えて `Capability kind error` を含むことを
+  確認する。これにより，後段の型推論エラーによる偶然の reject と区別する。
+- 76--79 と 81 は `producer/path Shape equations` を含むことを確認し、別の型エラーで
+  偶然 reject されていないことを確認する。
+- 82 は `Any cannot witness a structured matcher capability` を含むことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。

@@ -1,0 +1,28 @@
+-- P2 D4 fail-closed boundary: a completed alias is not Known evidence while
+-- it still depends on the current (formerly forward) producer.  Otherwise
+-- two annotated top-level definitions could hide a producer cycle across the
+-- per-definition InferState boundary.
+
+inductive P2ForwardAliasTree a :=
+  | P2ForwardAliasLeaf a
+  | P2ForwardAliasNode (P2ForwardAliasTree a)
+
+inductive pattern P2ForwardAliasTree a :=
+  | p2ForwardAliasLeaf a
+  | p2ForwardAliasNode (P2ForwardAliasTree a)
+
+def p2ForwardAlias {a}
+  : Matcher (P2ForwardAliasTree none) (P2ForwardAliasTree a) :=
+  p2ForwardCycle
+
+def p2ForwardCycle {a}
+  : Matcher (P2ForwardAliasTree none) (P2ForwardAliasTree a) :=
+  matcher
+    | p2ForwardAliasLeaf $ as something with
+      | P2ForwardAliasLeaf $value -> [value]
+      | _ -> []
+    | p2ForwardAliasNode $ as p2ForwardAlias with
+      | P2ForwardAliasNode $rest -> [rest]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

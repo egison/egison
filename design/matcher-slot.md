@@ -1,12 +1,20 @@
-# MatcherSlot の実装設計（再挑戦）
+# MatcherSlot の実装設計（pre-P2 実装史）
 
-## 背景
+> **pre-P2 資料。** 本文は、P2 以前の一ソート表現から `MatcherSlot` を導入した際の
+> 実装判断を保存した歴史資料である。現行 P2 の契約は
+> `Matcher κ τ`（マッチャー値）と `MatcherSlot κ τ`（マッチャー引数位置）であり、
+> `κ` は capability、`τ` は通常の対象型を表す。両方の添字は必須で、一添字の糖衣は
+> 設けない。また、通常の対象型の単一化・代入は capability を変更しない。
+> 以下に現れる `Matcher τ` および旧来の `MatcherSlot τ_s τ_t` は、二つの役割を
+> 通常型だけで表していた pre-P2 の表記・意味論として読むこと。
+
+## 背景（pre-P2）
 
 論文 *A Calculus and Type System for Ad-hoc Polymorphic Pattern Matching on
 Non-free Data Types*（λ_P）の型システムは **`Matcher τ` と `MatcherSlot τ_s τ_t`
-の区別**を中核に置く。現行 Egison の型検査器は単一引数の `Matcher τ`
+の区別**を中核に置く。当時の Egison の型検査器は単一引数の `Matcher τ`
 （`Type/Types.hs` の `TMatcher Type`）のみを持ち、`MatcherSlot` は存在しない。
-本ドキュメントはその差を埋める実装を、論文の現行版に沿って再実装する記録である。
+本ドキュメントはその差を埋めた実装過程を、当時の論文に沿って記録したものである。
 
 （注: 旧ドキュメントは「完了」と記録していたが、その実装変更は未コミットで失われ、
 現コードには MatcherSlot が全く無かった。本ドキュメントはクリーンな再実装。

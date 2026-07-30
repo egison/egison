@@ -2,10 +2,10 @@
 -- Pattern function structural propagation into a nested argument (paper
 -- Appendix B, "Propagation through pattern functions").  Supplying
 -- `num $n` for pair's first parameter drives Tile into the element
--- position of the recorded scheme, so the application's structural index
--- is [Tile] and `multiset something` fails [b'] <: [Tile].
+-- position of the recorded scheme, so the application requires `[Tile]`
+-- capability and `multiset something` supplies only `[none]`.
 --
--- Expected: Type error (multiset something vs MatcherSlot [Tile] [Tile])
+-- Expected: Type error (`[none]` vs the required `[Tile]` capability)
 --
 
 inductive Tile := Num Integer | Hnr Integer

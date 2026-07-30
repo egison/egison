@@ -132,6 +132,8 @@ Library
                    Language.Egison.RState
                    Language.Egison.Tensor
                    Language.Egison.Type
+                   Language.Egison.Type.Capability
+                   Language.Egison.Type.ShapeSolver
                    Language.Egison.Type.Check
                    Language.Egison.Type.Env
                    Language.Egison.Type.Error
@@ -167,6 +169,7 @@ Test-Suite test
     , test-framework
     , test-framework-hunit
     , filepath
+    , containers
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -Wall -Wno-name-shadowing

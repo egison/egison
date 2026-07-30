@@ -869,7 +869,7 @@ typeAtomSimple =
   <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> try matcherSlotTypeExpr
-  <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
+  <|> try matcherTypeExpr
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
   <|> TEVar     <$> typeNameIdent     -- uppercase type names (Nat, Tree, Ordering, etc.)
@@ -896,7 +896,7 @@ typeAtom =
   <|> try fracTypeExpr
   <|> try polyTypeExpr
   <|> try matcherSlotTypeExpr
-  <|> TEMatcher <$> (reserved "Matcher" >> typeAtomOrParenType)
+  <|> try matcherTypeExpr
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
   <|> TEVar     <$> typeNameIdent     -- uppercase type names (Nat, Tree, Ordering, etc.)
@@ -968,16 +968,64 @@ polyTypeExpr = do
   symbolSet <- symbolSetExpr
   return $ TEPoly coeffType symbolSet
 
--- | Parse a MatcherSlot type. "MatcherSlot a b" reads two atoms (structural / target);
--- "MatcherSlot a" is sugar for "MatcherSlot a a".
+-- | Parse a Matcher type. Both the capability and target indices are
+-- mandatory; capability applications must be parenthesized so that their end
+-- is unambiguous, e.g. @Matcher (List p) [a]@.
+matcherTypeExpr :: Parser TypeExpr
+matcherTypeExpr = do
+  _ <- reserved "Matcher"
+  capability <- capabilityAtomOrParenExpr
+  target <- typeAtomOrParenType
+  return $ TEMatcher capability target
+
+-- | Parse a MatcherSlot type. Both indices are mandatory, just as for
+-- 'matcherTypeExpr'; there is deliberately no one-index compatibility form.
 matcherSlotTypeExpr :: Parser TypeExpr
 matcherSlotTypeExpr = do
   _ <- reserved "MatcherSlot"
-  s <- typeAtomOrParenType
-  mt <- optional typeAtomOrParenType
-  return $ case mt of
-    Just t  -> TEMatcherSlot s t
-    Nothing -> TEMatcherSlot s s
+  capability <- capabilityAtomOrParenExpr
+  target <- typeAtomOrParenType
+  return $ TEMatcherSlot capability target
+
+-- | Parse an atomic capability index, or a parenthesized capability
+-- application/product. Keeping application behind parentheses gives the
+-- surrounding two-index matcher syntax a unique split point.
+capabilityAtomOrParenExpr :: Parser CapabilityExpr
+capabilityAtomOrParenExpr =
+      try parenCapabilityOrTuple
+  <|> capabilityAtom
+
+parenCapabilityOrTuple :: Parser CapabilityExpr
+parenCapabilityOrTuple = parens $ do
+  first <- optional capabilityExprWithApp
+  case first of
+    Nothing -> return $ CETuple []
+    Just capability -> do
+      rest <- optional (symbol "," >> capabilityExprWithApp `sepBy1` symbol ",")
+      return $ case rest of
+        Nothing           -> capability
+        Just capabilities -> CETuple (capability : capabilities)
+
+capabilityExprWithApp :: Parser CapabilityExpr
+capabilityExprWithApp = do
+  capabilities <- some capabilityAtom
+  case capabilities of
+    [capability] -> return capability
+    CECon name args : rest -> return $ CECon name (args ++ rest)
+    _ -> fail "a capability application must start with a type former"
+
+capabilityAtom :: Parser CapabilityExpr
+capabilityAtom =
+      CENone <$ reserved "none"
+  <|> CEList <$> brackets capabilityExprWithApp
+  <|> try parenCapabilityOrTuple
+  <|> CEVar <$> typeVarIdent
+  <|> (\name -> CECon name []) <$> capabilityFormerIdent
+
+-- Capability formers include built-in type names, so unlike
+-- 'typeNameIdent' this parser intentionally accepts reserved type keywords.
+capabilityFormerIdent :: Parser String
+capabilityFormerIdent = lexeme $ (:) <$> upperChar <*> many identChar
 
 -- | Parse a symbol set expression
 -- Either [..] for open, or [x, y, sqrt 2, sin x, ...] for closed.

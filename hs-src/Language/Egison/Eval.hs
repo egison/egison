@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, batchForwardProducerDependencies)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
@@ -64,6 +64,7 @@ import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
 import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.EvalState (ConstructorInfo(..))
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 
@@ -182,6 +183,21 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                            DefineWithType tv _            -> Just (typedVarName tv)
                            _                              -> Nothing] ]
   accum <- foldM (processOneExpr opts permissive printValues batchDefNames) emptyAccum exprs'
+
+  -- Preserve only unresolved/cyclic producer summaries across load units.
+  -- Every name declared by this batch shadows an older summary, including
+  -- the important case where a formerly cyclic name is redefined by a
+  -- completed matcher literal and therefore becomes Known.
+  previousProducerDependencies <- getProducerDependencyEnv
+  let externalProducerDependencies =
+        Set.foldr Map.delete previousProducerDependencies batchDefNames
+      completedProducerDependencies =
+        batchForwardProducerDependencies
+          externalProducerDependencies
+          batchDefNames
+          (accumBindings accum)
+  setProducerDependencyEnv
+    (Map.union completedProducerDependencies externalProducerDependencies)
 
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
@@ -326,10 +342,8 @@ buildAndMergeEnvironments exprs opts = do
       patternConstructorEnv = ebrPatternConstructorEnv envResult
       newPatternFuncEnv = ebrPatternTypeEnv envResult
       mergedPatternEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
-                               (foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
-                                      currentPatternEnv
-                                      (patternEnvToList patternConstructorEnv))
-                               (patternEnvToList newPatternFuncEnv)
+                               currentPatternEnv
+                               (patternEnvToList patternConstructorEnv)
       mergedPatternFuncEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
                                    currentPatternFuncEnv
                                    (patternEnvToList newPatternFuncEnv)
@@ -397,8 +411,16 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
       currentPatternFuncStructEnv' <- getPatternFuncStructEnv
       currentCasEdges <- getCasSubtypeEdges
       currentMatcherShapes <- getMatcherShapeEnv
+      currentProducerDependencies <- getProducerDependencyEnv
       let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
           enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
+          externalProducerDependencies =
+            Set.foldr Map.delete currentProducerDependencies batchDefNames
+          completedProducerDependencies =
+            batchForwardProducerDependencies
+              externalProducerDependencies
+              batchDefNames
+              (accumBindings acc)
           initState = (initialInferStateWithConfig inferConfig) {
             inferEnv = enrichedTypeEnv,
             inferClassEnv = currentClassEnv,
@@ -407,6 +429,15 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
             inferPatternFuncStructEnv = currentPatternFuncStructEnv',
             inferCasSubtypeEdges = currentCasEdges,
             inferBatchDefNames = batchDefNames,
+            inferProducerDependencies =
+              Map.union
+                completedProducerDependencies
+                externalProducerDependencies,
+            inferCompletedBatchDefNames =
+              Set.fromList
+                [ name
+                | (Var name _, _) <- accumBindings acc
+                ],
             inferMatcherShapes = currentMatcherShapes
           }
       (result, warnings, finalState) <- liftIO $
@@ -415,30 +446,45 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
       when (not (null warnings)) $
         liftIO $ mapM_ (hPutStrLn stderr . formatTypeWarning) warnings
 
-      setTypeEnv (inferEnv finalState)
-      setClassEnv (inferClassEnv finalState)
-      setPatternEnv (inferPatternEnv finalState)
-      setPatternFuncEnv (inferPatternFuncEnv finalState)
-      setPatternFuncStructEnv (inferPatternFuncStructEnv finalState)
-      setMatcherShapeEnv (inferMatcherShapes finalState)
-
       case result of
-        Left err -> handleTypeError err acc expr printValues
+        Left err -> handleTypeError permissive err acc expr printValues
 
-        Right (Nothing, _subst) ->
+        Right (Nothing, _subst) -> do
+          persistSuccessfulInferState finalState
           return acc
 
-        Right (Just tiTopExpr, _subst) ->
+        Right (Just tiTopExpr, _subst) -> do
+          persistSuccessfulInferState finalState
           runTypedDesugaring opts acc tiTopExpr printValues
 
--- | Handle type error: fall back to untyped evaluation in permissive mode.
-handleTypeError :: TypeError -> PipelineAccum -> TopExpr -> Bool -> EvalM PipelineAccum
-handleTypeError err acc expr printValues = do
-  liftIO $ hPutStrLn stderr $ "Type error:\n" ++ formatTypeError err
-  topExpr' <- desugarTopExpr expr
-  case topExpr' of
-    Nothing      -> return acc
-    Just iExpr   -> return $ classifyITopExpr iExpr printValues acc
+-- | Commit inference environments only after the complete top-level item has
+-- type-checked.  A failed inference state may still contain a monomorphic
+-- recursive placeholder or another temporary scope entry, so publishing it
+-- before inspecting the result would make type errors mutate later checking.
+persistSuccessfulInferState :: InferState -> EvalM ()
+persistSuccessfulInferState finalState = do
+  setTypeEnv (inferEnv finalState)
+  setClassEnv (inferClassEnv finalState)
+  setPatternEnv (inferPatternEnv finalState)
+  setPatternFuncEnv (inferPatternFuncEnv finalState)
+  setPatternFuncStructEnv (inferPatternFuncStructEnv finalState)
+  setMatcherShapeEnv (inferMatcherShapes finalState)
+
+-- | Report a type error.  Permissive mode keeps the historical untyped
+-- fallback, while strict mode must stop before an ill-typed expression can
+-- enter the runtime environment.
+handleTypeError :: Bool -> TypeError -> PipelineAccum -> TopExpr -> Bool -> EvalM PipelineAccum
+handleTypeError permissive err acc expr printValues = do
+  let message = "Type error:\n" ++ formatTypeError err
+  if permissive
+    then do
+      liftIO $ hPutStrLn stderr message
+      topExpr' <- desugarTopExpr expr
+      case topExpr' of
+        Nothing    -> return acc
+        Just iExpr -> return $ classifyITopExpr iExpr printValues acc
+    else
+      throwError (Default message)
 
 -- | Run TensorMap insertion and TypeClass expansion (Phase 7a-7b),
 -- then classify the resulting ITopExpr.

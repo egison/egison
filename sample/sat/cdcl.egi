@@ -15,7 +15,7 @@ def stage := integer
 
 def taggedLiteral := (literal, stage)
 
-def assignment : Matcher Assignment :=
+def assignment : Matcher Assignment Assignment :=
   matcher
     | deduced $ $ as (taggedLiteral, multiset taggedLiteral) with
       | Deduced $e $es -> [(e, es)]

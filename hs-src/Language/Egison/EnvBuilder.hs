@@ -38,7 +38,8 @@ import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, 
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
-                                             freeTyVars, sanitizeMethodName, typeExprToType,
+                                             freeCapVars, freeTyVars,
+                                             sanitizeMethodName, typeExprToType,
                                              capitalizeFirst, lowerFirst)
 import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst)
 import qualified Data.Set as Set
@@ -91,6 +92,8 @@ buildEnvironments exprs = do
   priorAliases <- getCasTypeAliasEnv
   let declaredTypes = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
                                     ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ])
+  capabilityFormerArities <-
+    buildCapabilityFormerArities exprs priorCtorEnv
 
   -- Phase alpha (extensible CAS tower): collect `declare cas-type` aliases
   -- first (prepass, so declaration order does not matter for users of the
@@ -111,6 +114,12 @@ buildEnvironments exprs = do
             "may appear in a nested Poly tower: " ++ prettyType t)
         (HashMap.toList newAliases)
   let aliasEnv = HashMap.union newAliases priorAliases
+
+  -- Elaborate the capability sort against the frozen type-former signature.
+  -- This deliberately happens before ordinary declaration processing:
+  -- malformed capability annotations must not be turned into well-formed
+  -- TypeFormer values merely by counting their surface arguments.
+  mapM_ (validateTopExprCapabilities capabilityFormerArities aliasEnv) exprs
 
   -- Phase beta: collect `declare cas-subtype` edges (alias-expanded) and run
   -- the D1 join-semilattice check per edge, in declaration order.
@@ -134,6 +143,651 @@ buildEnvironments exprs = do
 
   -- Process each top-level expression to collect declarations
   foldM (processTopExpr declaredTypes aliasEnv) initialResult exprs
+
+--------------------------------------------------------------------------------
+-- Capability name/kind elaboration
+--------------------------------------------------------------------------------
+
+-- | Arity environment for canonical capability formers.  It is separate from
+-- the ordinary type environment because capability variables and ordinary
+-- type variables are different sorts, and because transparent aliases are
+-- intentionally absent from this signature.
+type CapabilityFormerArities =
+  HashMap.HashMap Types.TypeFormerId Int
+
+-- | Construct the frozen former signature used by capability annotations.
+--
+-- Builtin entries mirror 'Types.typeFormerOf'.  User inductive declarations
+-- are added from both the current batch and the accumulated constructor
+-- environment.  The latter retains declarations with at least one
+-- constructor; empty inductive declarations need a future dedicated
+-- type-former environment if they are to survive across load-unit boundaries.
+buildCapabilityFormerArities
+  :: [TopExpr]
+  -> ConstructorEnv
+  -> EvalM CapabilityFormerArities
+buildCapabilityFormerArities exprs priorCtorEnv = do
+  mapM_ rejectBuiltinCollision userEntries
+  foldM register HashMap.empty
+    (builtinCapabilityFormerArities ++ userEntries)
+  where
+    userEntries =
+      [ (name, length params)
+      | InductiveDecl name params _ <- exprs
+      ]
+      ++ [ (ctorTypeName info, length (ctorTypeParams info))
+         | info <- HashMap.elems priorCtorEnv
+         ]
+
+    builtinFormerIds =
+      Set.fromList
+        [ Types.typeFormerId (Types.mkTypeFormer name arity)
+        | (name, arity) <- builtinCapabilityFormerArities
+        ]
+
+    rejectBuiltinCollision (surfaceName, arity) =
+      let former = Types.mkTypeFormer surfaceName arity
+          formerId = Types.typeFormerId former
+      in when (Set.member formerId builtinFormerIds) $
+           capabilityKindError "type-former signature" $
+             "inductive type `" ++ surfaceName
+             ++ "` collides with builtin canonical capability former "
+             ++ describeCapabilityFormer formerId
+
+    register arities (surfaceName, arity) =
+      let former = Types.mkTypeFormer surfaceName arity
+          formerId = Types.typeFormerId former
+      in case HashMap.lookup formerId arities of
+           Nothing ->
+             return (HashMap.insert formerId arity arities)
+           Just previousArity
+             | previousArity == arity ->
+                 return arities
+             | otherwise ->
+                 capabilityKindError "type-former signature" $
+                   "canonical former " ++ describeCapabilityFormer formerId
+                   ++ " is declared at both arity "
+                   ++ show previousArity ++ " and arity " ++ show arity
+
+-- | Closed builtin portion of the capability former signature.
+builtinCapabilityFormerArities :: [(String, Int)]
+builtinCapabilityFormerArities =
+  [ ("Integer", 0)
+  , ("MathValue", 0)
+  , ("PolyExpr", 0)
+  , ("TermExpr", 0)
+  , ("SymbolExpr", 0)
+  , ("IndexExpr", 0)
+  , ("Float", 0)
+  , ("Bool", 0)
+  , ("Char", 0)
+  , ("String", 0)
+  , ("Collection", 1)
+  , ("Tensor", 1)
+  , ("Hash", 2)
+  , ("Factor", 0)
+  , ("Term", 1)
+  , ("Frac", 1)
+  , ("Poly", 1)
+  ]
+
+-- | Validate every declaration surface that can contain a TypeExpr.
+validateTopExprCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> TopExpr
+  -> EvalM ()
+validateTopExprCapabilities arities aliases topExpr =
+  case topExpr of
+    Define (VarWithIndices name _) body ->
+      validateExprCapabilities
+        arities aliases ("body of definition `" ++ name ++ "`") body
+
+    DefineWithType typedVar body -> do
+      let name = typedVarName typedVar
+      validateTypedVarCapabilities
+        arities aliases ("type signature of `" ++ name ++ "`") typedVar
+      validateExprCapabilities
+        arities aliases ("body of definition `" ++ name ++ "`") body
+
+    Test expression ->
+      validateExprCapabilities arities aliases "test expression" expression
+
+    Execute expression ->
+      validateExprCapabilities arities aliases "execute expression" expression
+
+    InductiveDecl typeName _ constructors ->
+      mapM_ (validateInductiveConstructorCapabilities typeName) constructors
+
+    ClassDeclExpr (ClassDecl className _ superclasses methods) -> do
+      let context = "class `" ++ className ++ "`"
+      mapM_ (validateConstraintCapabilities arities aliases context)
+            superclasses
+      mapM_ (validateClassMethodCapabilities className) methods
+
+    InstanceDeclExpr
+        (InstanceDecl constraints className instanceTypes methods) -> do
+      let context = "instance `" ++ className ++ "`"
+      mapM_ (validateConstraintCapabilities arities aliases context)
+            constraints
+      mapM_ (validateTypeExprCapabilities arities aliases context)
+            instanceTypes
+      mapM_ (validateInstanceMethodCapabilities className) methods
+
+    PatternInductiveDecl typeName _ constructors ->
+      mapM_ (validatePatternConstructorCapabilities typeName) constructors
+
+    PatternFunctionDecl name _ params retType body -> do
+      let context = "pattern function `" ++ name ++ "`"
+      mapM_ (validateTypeExprCapabilities arities aliases context . snd) params
+      validateTypeExprCapabilities arities aliases context retType
+      validatePatternCapabilities arities aliases context body
+
+    DeclareSymbol _ maybeType ->
+      mapM_ (validateTypeExprCapabilities
+               arities aliases "declare symbol annotation")
+            maybeType
+
+    DeclareMathFunc name maybeType ->
+      mapM_ (validateTypeExprCapabilities
+               arities aliases ("declare mathfunc `" ++ name ++ "`"))
+            maybeType
+
+    DeclareCasType name body ->
+      validateTypeExprCapabilities
+        arities aliases ("declare cas-type `" ++ name ++ "`") body
+
+    DeclareCasSubtype left right -> do
+      validateTypeExprCapabilities
+        arities aliases "left side of declare cas-subtype" left
+      validateTypeExprCapabilities
+        arities aliases "right side of declare cas-subtype" right
+
+    DeclareCasQuotient name base reducer -> do
+      validateTypeExprCapabilities
+        arities aliases ("declare cas-quotient `" ++ name ++ "`") base
+      validateExprCapabilities
+        arities aliases ("reducer of declare cas-quotient `" ++ name ++ "`")
+        reducer
+
+    DeclareIdeal generators ->
+      mapM_ (validateExprCapabilities arities aliases "declare ideal")
+            generators
+
+    DeclareRule maybeName _ pattern rhs -> do
+      let context =
+            case maybeName of
+              Nothing ->
+                "unnamed declare rule"
+              Just name ->
+                "declare rule `" ++ name ++ "`"
+      validatePatternCapabilities arities aliases context pattern
+      validateExprCapabilities arities aliases context rhs
+
+    DeclareDerivative name derivative ->
+      validateExprCapabilities
+        arities aliases ("declare derivative `" ++ name ++ "`") derivative
+
+    DeclareApply name _ body ->
+      validateExprCapabilities
+        arities aliases ("declare apply `" ++ name ++ "`") body
+
+    _ ->
+      return ()
+  where
+    validateInductiveConstructorCapabilities typeName
+        (InductiveConstructor ctorName fields) =
+      mapM_ (validateTypeExprCapabilities arities aliases context) fields
+      where
+        context =
+          "constructor `" ++ ctorName ++ "` of inductive `" ++ typeName ++ "`"
+
+    validatePatternConstructorCapabilities typeName
+        (PatternConstructor ctorName fields) =
+      mapM_ (validateTypeExprCapabilities arities aliases context) fields
+      where
+        context =
+          "pattern constructor `" ++ ctorName
+          ++ "` of inductive pattern `" ++ typeName ++ "`"
+
+    validateClassMethodCapabilities className
+        (ClassMethod methodName params retType maybeDefault) = do
+      let context =
+            "method `" ++ methodName ++ "` of class `" ++ className ++ "`"
+      mapM_ (validateTypedParamCapabilities arities aliases context) params
+      validateTypeExprCapabilities arities aliases context retType
+      mapM_ (validateExprCapabilities arities aliases context) maybeDefault
+
+    validateInstanceMethodCapabilities className
+        (InstanceMethod methodName _ body) =
+      validateExprCapabilities arities aliases context body
+      where
+        context =
+          "method `" ++ methodName ++ "` of instance `" ++ className ++ "`"
+
+validateTypedVarCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> TypedVarWithIndices
+  -> EvalM ()
+validateTypedVarCapabilities arities aliases context typedVar = do
+  mapM_ (validateConstraintCapabilities arities aliases context)
+        (typedVarConstraints typedVar)
+  mapM_ (validateTypedParamCapabilities arities aliases context)
+        (typedVarParams typedVar)
+  validateTypeExprCapabilities
+    arities aliases context (typedVarRetType typedVar)
+
+validateConstraintCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> ConstraintExpr
+  -> EvalM ()
+validateConstraintCapabilities arities aliases context
+    (ConstraintExpr _ typeExprs) =
+  mapM_ (validateTypeExprCapabilities arities aliases context) typeExprs
+
+validateTypedParamCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> TypedParam
+  -> EvalM ()
+validateTypedParamCapabilities arities aliases context typedParam =
+  case typedParam of
+    TPVar _ typeExpr ->
+      validate typeExpr
+    TPInvertedVar _ typeExpr ->
+      validate typeExpr
+    TPTuple params ->
+      mapM_ (validateTypedParamCapabilities arities aliases context) params
+    TPWildcard typeExpr ->
+      validate typeExpr
+    TPUntypedVar _ ->
+      return ()
+    TPUntypedWildcard ->
+      return ()
+  where
+    validate = validateTypeExprCapabilities arities aliases context
+
+-- | Traverse expressions so local signatures and annotations cannot bypass
+-- capability name/kind elaboration.
+validateExprCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> Expr
+  -> EvalM ()
+validateExprCapabilities arities aliases context expression =
+  case expression of
+    ConstantExpr _ ->
+      return ()
+    VarExpr _ ->
+      return ()
+    FreshVarExpr ->
+      return ()
+    IndexedExpr _ base indices -> do
+      validate base
+      mapM_ (mapM_ validate) indices
+    SubrefsExpr _ base index -> do
+      validate base
+      validate index
+    SuprefsExpr _ base index -> do
+      validate base
+      validate index
+    UserrefsExpr _ base index -> do
+      validate base
+      validate index
+    TupleExpr elements ->
+      mapM_ validate elements
+    CollectionExpr elements ->
+      mapM_ validate elements
+    ConsExpr headExpr tailExpr -> do
+      validate headExpr
+      validate tailExpr
+    JoinExpr left right -> do
+      validate left
+      validate right
+    HashExpr entries ->
+      mapM_ (\(key, value) -> validate key >> validate value) entries
+    VectorExpr elements ->
+      mapM_ validate elements
+    LambdaExpr _ body ->
+      validate body
+    LambdaExpr' _ body ->
+      validate body
+    TypedLambdaExpr params retType body -> do
+      mapM_ (validateTypeExprCapabilities arities aliases context . snd) params
+      validateTypeExprCapabilities arities aliases context retType
+      validate body
+    MemoizedLambdaExpr _ body ->
+      validate body
+    TypedMemoizedLambdaExpr params retType body -> do
+      mapM_ (validateTypedParamCapabilities arities aliases context) params
+      validateTypeExprCapabilities arities aliases context retType
+      validate body
+    CambdaExpr _ body ->
+      validate body
+    PatternFunctionExpr _ body ->
+      validatePatternCapabilities arities aliases context body
+    IfExpr condition consequent alternative -> do
+      validate condition
+      validate consequent
+      validate alternative
+    LetExpr bindings body -> do
+      mapM_ (validateBindingCapabilities arities aliases context) bindings
+      validate body
+    LetRecExpr bindings body -> do
+      mapM_ (validateBindingCapabilities arities aliases context) bindings
+      validate body
+    WithSymbolsExpr _ body ->
+      validate body
+    MatchExpr _ target matcher clauses -> do
+      validate target
+      validate matcher
+      mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
+    MatchAllExpr _ target matcher clauses -> do
+      validate target
+      validate matcher
+      mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
+    MatchLambdaExpr matcher clauses -> do
+      validate matcher
+      mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
+    MatchAllLambdaExpr matcher clauses -> do
+      validate matcher
+      mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
+    MatcherExpr patternDefs ->
+      mapM_ (validatePatternDefCapabilities arities aliases context) patternDefs
+    AlgebraicDataMatcherExpr constructors ->
+      mapM_ (mapM_ validate . snd) constructors
+    QuoteExpr quoted ->
+      validate quoted
+    QuoteSymbolExpr quoted ->
+      validate quoted
+    WedgeApplyExpr function arguments -> do
+      validate function
+      mapM_ validate arguments
+    DoExpr bindings body -> do
+      mapM_ (validateBindingCapabilities arities aliases context) bindings
+      validate body
+    PrefixExpr _ operand ->
+      validate operand
+    InfixExpr _ left right -> do
+      validate left
+      validate right
+    SectionExpr _ left right -> do
+      mapM_ validate left
+      mapM_ validate right
+    SeqExpr left right -> do
+      validate left
+      validate right
+    ApplyExpr function arguments -> do
+      validate function
+      mapM_ validate arguments
+    AnonParamFuncExpr _ body ->
+      validate body
+    AnonTupleParamFuncExpr _ body ->
+      validate body
+    AnonListParamFuncExpr _ body ->
+      validate body
+    AnonParamExpr _ ->
+      return ()
+    GenerateTensorExpr size body -> do
+      validate size
+      validate body
+    TensorExpr shape body -> do
+      validate shape
+      validate body
+    TensorContractExpr tensor ->
+      validate tensor
+    TensorMapExpr function tensor -> do
+      validate function
+      validate tensor
+    TensorMap2Expr function tensor1 tensor2 -> do
+      validate function
+      validate tensor1
+      validate tensor2
+    TransposeExpr permutation tensor -> do
+      validate permutation
+      validate tensor
+    FlipIndicesExpr tensor ->
+      validate tensor
+    FunctionExpr _ ->
+      return ()
+    TypeAnnotation body typeExpr -> do
+      validate body
+      validateTypeExprCapabilities arities aliases context typeExpr
+    SimplifyUsingExpr body _ ->
+      validate body
+  where
+    validate = validateExprCapabilities arities aliases context
+
+validateBindingCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> BindingExpr
+  -> EvalM ()
+validateBindingCapabilities arities aliases context binding =
+  case binding of
+    Bind _ expression ->
+      validate expression
+    BindWithIndices _ expression ->
+      validate expression
+    BindWithType typedVar expression -> do
+      validateTypedVarCapabilities arities aliases context typedVar
+      validate expression
+  where
+    validate = validateExprCapabilities arities aliases context
+
+validateMatchClauseCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> MatchClause
+  -> EvalM ()
+validateMatchClauseCapabilities arities aliases context (pattern, body) = do
+  validatePatternCapabilities arities aliases context pattern
+  validateExprCapabilities arities aliases context body
+
+validatePatternDefCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> PatternDef
+  -> EvalM ()
+validatePatternDefCapabilities arities aliases context patternDef = do
+  validateExprCapabilities arities aliases context (patDefMatcher patternDef)
+  mapM_ (validateExprCapabilities arities aliases context . snd)
+        (patDefClauses patternDef)
+
+validatePatternCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> Pattern
+  -> EvalM ()
+validatePatternCapabilities arities aliases context pattern =
+  case pattern of
+    WildCard ->
+      return ()
+    PatVar _ ->
+      return ()
+    ValuePat expression ->
+      validateExprCapabilities arities aliases context expression
+    PredPat expression ->
+      validateExprCapabilities arities aliases context expression
+    IndexedPat body indices -> do
+      validate body
+      mapM_ (validateExprCapabilities arities aliases context) indices
+    LetPat bindings body -> do
+      mapM_ (validateBindingCapabilities arities aliases context) bindings
+      validate body
+    InfixPat _ left right -> do
+      validate left
+      validate right
+    NotPat body ->
+      validate body
+    AndPat left right -> do
+      validate left
+      validate right
+    OrPat left right -> do
+      validate left
+      validate right
+    ForallPat left right -> do
+      validate left
+      validate right
+    TuplePat elements ->
+      mapM_ validate elements
+    InductivePat _ arguments ->
+      mapM_ validate arguments
+    LoopPat _ (LoopRange start end endPattern) repeatPattern body -> do
+      validateExprCapabilities arities aliases context start
+      validateExprCapabilities arities aliases context end
+      validate endPattern
+      validate repeatPattern
+      validate body
+    ContPat ->
+      return ()
+    PApplyPat function arguments -> do
+      validateExprCapabilities arities aliases context function
+      mapM_ validate arguments
+    VarPat _ ->
+      return ()
+    InductiveOrPApplyPat _ arguments ->
+      mapM_ validate arguments
+    SeqNilPat ->
+      return ()
+    SeqConsPat headPattern tailPattern -> do
+      validate headPattern
+      validate tailPattern
+    LaterPatVar ->
+      return ()
+    DApplyPat functionPattern arguments -> do
+      validate functionPattern
+      mapM_ validate arguments
+  where
+    validate = validatePatternCapabilities arities aliases context
+
+-- | Walk an ordinary TypeExpr and elaborate only its embedded capability
+-- annotations.  Ordinary type name resolution remains the responsibility of
+-- the existing type elaboration path.
+validateTypeExprCapabilities
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> TypeExpr
+  -> EvalM ()
+validateTypeExprCapabilities arities aliases context typeExpr =
+  case typeExpr of
+    TEList element ->
+      validate element
+    TETuple elements ->
+      mapM_ validate elements
+    TEFun argument result -> do
+      validate argument
+      validate result
+    TEMatcher capability target -> do
+      validateCapabilityExpr arities aliases context capability
+      validate target
+    TEMatcherSlot capability target -> do
+      validateCapabilityExpr arities aliases context capability
+      validate target
+    TEPattern target ->
+      validate target
+    TEIO target ->
+      validate target
+    TETensor element ->
+      validate element
+    TEVector element ->
+      validate element
+    TEMatrix element ->
+      validate element
+    TEDiffForm element ->
+      validate element
+    TEApp headType arguments -> do
+      validate headType
+      mapM_ validate arguments
+    TEConstrained constraints body -> do
+      mapM_ (validateConstraintCapabilities arities aliases context)
+            constraints
+      validate body
+    TETerm coefficient _ ->
+      validate coefficient
+    TEFrac coefficient ->
+      validate coefficient
+    TEPoly coefficient _ ->
+      validate coefficient
+    _ ->
+      return ()
+  where
+    validate = validateTypeExprCapabilities arities aliases context
+
+-- | Check a capability expression against the frozen former signature.
+--
+-- The transparent-alias check intentionally precedes canonical lookup so an
+-- alias never gains capability meaning from the shape of its expansion.
+validateCapabilityExpr
+  :: CapabilityFormerArities
+  -> HashMap.HashMap String Type
+  -> String
+  -> CapabilityExpr
+  -> EvalM ()
+validateCapabilityExpr arities aliases context capabilityExpr =
+  case capabilityExpr of
+    CENone ->
+      return ()
+    CEVar _ ->
+      return ()
+    CEList element ->
+      validateCapabilityExpr arities aliases context element
+    CETuple elements ->
+      mapM_ (validateCapabilityExpr arities aliases context) elements
+    CECon surfaceName arguments -> do
+      when (isTransparentTypeAlias aliases surfaceName) $
+        capabilityKindError context $
+          "capability head `" ++ surfaceName
+          ++ "` is a transparent type alias; use its canonical declared "
+          ++ "type former instead"
+      let former = Types.mkTypeFormer surfaceName (length arguments)
+          formerId = Types.typeFormerId former
+      case HashMap.lookup formerId arities of
+        Nothing ->
+          capabilityKindError context $
+            "unknown capability former `" ++ surfaceName ++ "`"
+        Just expectedArity ->
+          when (length arguments /= expectedArity) $
+            capabilityKindError context $
+              "capability former `" ++ surfaceName ++ "` expects "
+              ++ show expectedArity ++ " argument"
+              ++ plural expectedArity ++ ", but was given "
+              ++ show (length arguments)
+      mapM_ (validateCapabilityExpr arities aliases context) arguments
+
+isTransparentTypeAlias :: HashMap.HashMap String Type -> String -> Bool
+isTransparentTypeAlias aliases name =
+  case HashMap.lookup name aliases of
+    Nothing ->
+      False
+    Just (TInductive nominalName [])
+      | nominalName == name ->
+          False
+    Just _ ->
+      True
+
+capabilityKindError :: String -> String -> EvalM a
+capabilityKindError context detail =
+  throwError $ Default $
+    "Type error:\nCapability kind error in " ++ context ++ ": " ++ detail
+
+describeCapabilityFormer :: Types.TypeFormerId -> String
+describeCapabilityFormer (Types.TypeFormerId name) = "`" ++ name ++ "`"
+
+plural :: Int -> String
+plural 1 = ""
+plural _ = "s"
 
 -- | Validate and register a single `declare cas-type` alias.
 -- Rules (design/type-cas-tower-implementation.md section 2):
@@ -236,11 +890,12 @@ resolveCasTypeAliases priorAliases = go (0 :: Int)
         full = HashMap.union m priorAliases
         m'   = HashMap.map (Types.expandTypeAliases full) m
 
--- | Rewrite bare declared-inductive-type names that 'typeExprToType' produced as
--- type variables (e.g. @Matcher Nat@ parses to @TMatcher (TVar "Nat")@) into the
--- concrete @TInductive@.  Without this, an explicit signature @nat : Matcher Nat@
--- is generalized to @forall a. Matcher a@, so a recursive matcher's self-reference
--- instantiates to a fresh inner type and fails the MatcherSlot structural check.
+-- | Rewrite bare declared-inductive-type names that 'typeExprToType' produced
+-- as type variables (e.g. the target index in @Matcher p Nat@) into the
+-- concrete @TInductive@.  Without this, an explicit signature
+-- @nat : Matcher p Nat@ is generalized to @forall a. Matcher p a@, so a
+-- recursive matcher's self-reference instantiates to a fresh target type and
+-- fails the MatcherSlot capability/target check.
 -- Only names declared via @inductive@ in this batch are rewritten; undeclared
 -- capitalized names (e.g. a stale @MathExpr@) stay type variables.
 concretizeDeclaredTypes :: Set.Set String -> Type -> Type
@@ -356,8 +1011,9 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         retType = t2t (typedVarRetType typedVar)
         paramTypes = map (typedParamToType aliasEnv) params
         
-        -- Build function type, then keep declared inductive type names concrete
-        -- (e.g. `nat : Matcher Nat` stays `Matcher Nat`, not `forall a. Matcher a`).
+        -- Build the function type, then keep declared inductive names in the
+        -- target index concrete (e.g. `nat : Matcher p Nat` does not become
+        -- `forall a. Matcher p a`).
         funType = concretizeDeclaredTypes declaredTypes (foldr TFun retType paramTypes)
 
         -- Convert constraints from AST to internal representation
@@ -366,7 +1022,8 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         -- Generalize free type variables in the type signature
         -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
         freeVars = Set.toList (freeTyVars funType)
-        typeScheme = Types.Forall freeVars constraints funType
+        typeScheme = Types.Forall (Set.toList (freeCapVars funType))
+                                  freeVars constraints funType
         
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv var typeScheme typeEnv
@@ -409,7 +1066,8 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         
         -- Quantify over type parameters
         tyVars = map TyVar typeParams
-        typeScheme = Types.Forall tyVars [] patternFuncType
+        typeScheme = Types.Forall (Set.toList (freeCapVars patternFuncType))
+                                  tyVars [] patternFuncType
         
         patternEnv = ebrPatternTypeEnv result
         patternEnv' = extendPatternEnv name typeScheme patternEnv
@@ -436,7 +1094,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     let ty = case mTypeExpr of
                Just texpr -> t2t texpr
                Nothing    -> TInt  -- Default to Integer (MathValue)
-        scheme = Forall [] [] ty
+        scheme = Forall [] [] [] ty
         typeEnv = ebrTypeEnv result
         -- Add each symbol to the type environment
         typeEnv' = foldr (\name env -> extendEnv (stringToVar name) scheme env) typeEnv names
@@ -474,7 +1132,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     let ty = case mTypeExpr of
                Just texpr -> t2t texpr
                Nothing    -> TFun TMathValue TMathValue
-        scheme = Forall [] [] ty
+        scheme = Forall [] [] [] ty
         typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv (stringToVar name) scheme typeEnv
         names'   = Set.insert name (ebrMathFuncNames result)
@@ -495,7 +1153,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
             mathFunTy 0 = TMathValue
             mathFunTy n = TFun TMathValue (mathFunTy (n - 1))
             ty' = mathFunTy arity
-            scheme' = Forall [] [] ty'
+            scheme' = Forall [] [] [] ty'
             typeEnv' = extendEnv (stringToVar name) scheme' (ebrTypeEnv result)
         return result { ebrTypeEnv = typeEnv' }
       else throwError $ Default $
@@ -524,7 +1182,8 @@ registerConstructor aliasEnv typeName typeParams resultType (typeEnv, ctorEnv)
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme = Types.Forall tyVars [] constructorType
+      typeScheme = Types.Forall (Set.toList (freeCapVars constructorType))
+                                tyVars [] constructorType
       
       -- Add to type environment
       typeEnv' = extendEnv (stringToVar ctorName) typeScheme typeEnv
@@ -550,7 +1209,8 @@ registerClassMethod aliasEnv tyVars className typeEnv (ClassMethod methName para
       -- Constraint with all class type params (single-param classes still
       -- produce a singleton list).
       constraint = Types.Constraint className (map TVar tyVars)
-      typeScheme = Types.Forall tyVars [constraint] methodType
+      typeScheme = Types.Forall (Set.toList (freeCapVars methodType))
+                                tyVars [constraint] methodType
   in
     extendEnv (stringToVar methName) typeScheme typeEnv
 
@@ -588,7 +1248,8 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
           dictType = THash TString dictValueType
           freeVars = Set.toList (freeTyVars dictType)
-          dictScheme = Types.Forall freeVars instConstraints dictType
+          dictScheme = Types.Forall (Set.toList (freeCapVars dictType))
+                                    freeVars instConstraints dictType
       in
         extendEnv (stringToVar dictName) dictScheme typeEnv'
   where
@@ -616,7 +1277,8 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
               -- Create type scheme with constraints from the instance context
               -- e.g., {Eq a} [a] -> [a] -> Bool for instance {Eq a} Eq [a]
-              typeScheme = Types.Forall freeVars constraints substitutedType
+              typeScheme = Types.Forall (Set.toList (freeCapVars substitutedType))
+                                        freeVars constraints substitutedType
           in
             extendEnv (stringToVar generatedMethodName) typeScheme env
     
@@ -656,7 +1318,8 @@ registerPatternConstructor aliasEnv _typeName typeParams resultType patternCtorE
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme = Types.Forall tyVars [] patternCtorType
+      typeScheme = Types.Forall (Set.toList (freeCapVars patternCtorType))
+                                tyVars [] patternCtorType
       
       -- Add to pattern constructor environment (same format as PatternTypeEnv)
       patternCtorEnv' = extendPatternEnv ctorName typeScheme patternCtorEnv
@@ -674,4 +1337,3 @@ typedParamToType aliasEnv = go
     go (TPUntypedVar _) = TVar (TyVar "a")  -- Will be inferred
     go TPUntypedWildcard = TVar (TyVar "a")  -- Will be inferred
     t2t = Types.expandTypeAliases aliasEnv . typeExprToType
-
