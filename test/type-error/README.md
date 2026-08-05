@@ -88,6 +88,7 @@ done
 | 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `none` への特殊化を拒否 |
 | 88-patfun-param-target | PATFUN-DEF / PAT-EMBED target | `~parameter` が宣言された `Integer` target を保持し，結果の `Bool` へ再型付けされることを拒否 |
 | 89-patfun-exact-arity | PAT-APP exact arity | target-only の関数型統一では受理できる pattern function の過少適用を拒否 |
+| 90-closed-field-slot-application | PP-Con / Matcher Consistency (1a) | closed list field が推論した `MatcherSlot` へ `something` を渡す適用を拒否 |
 
 ## ケース追加時の注意
 
@@ -103,5 +104,7 @@ done
   含むことを確認し，別の型エラーで偶然 reject されていないことを確認する。
 - 88 は `Integer` と `Bool`，89 は `expects 2 arguments, but got 1` を含むことを
   確認し，pattern function の別の検査で偶然 reject されていないことを確認する。
+- 90 は `MatcherSlot` を含むことを確認し，closed field の定義自体ではなく，推論された
+  consumer slot への不適合な適用で reject されたことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。

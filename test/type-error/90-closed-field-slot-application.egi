@@ -1,0 +1,18 @@
+-- PP-Con gives the closed list field a list-headed consumer slot.  An
+-- untyped parameter retains that MatcherSlot demand, so rejection of
+-- `something` is delayed to this function's application site.
+--
+-- Expected: Type error (a bare `none` matcher cannot fill the list slot)
+
+inductive Box := Box [Integer]
+inductive pattern Box := box [Integer]
+
+def boxMatcherWith m :=
+  matcher
+    | box $ as m with
+      | Box $items -> [items]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def bad := boxMatcherWith something

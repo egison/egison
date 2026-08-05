@@ -261,6 +261,15 @@ data HoleProducerOrigin
   | HoleUnsupportedRecursiveProducer
   deriving (Eq, Show)
 
+-- | Evidence used only for PP-Con field-head validation.  The slot-variable
+-- set records consumer-owned capability metas that Step 3a' may solve from a
+-- declared field skeleton.  Matcher producers never enter this set, so the
+-- validation pass cannot strengthen them from a target type.
+data FieldValidationEvidence = FieldValidationEvidence
+  { fieldValidationEvidence :: Cap.CapEvidence
+  , fieldValidationSlotVars :: Set.Set CapVar
+  } deriving (Show)
+
 -- | A matcher clause's primitive-pattern-pattern together with the complete
 -- next-matcher components captured before target unification.  ShapeCap is
 -- derived from these seeds only after ordinary clause inference has finished,
@@ -3223,9 +3232,11 @@ inferIExprWithContext expr ctx = case expr of
           _                  -> return Cap.CapUnseen
         where
           structuredEvidence = do
-            (evidence, remaining) <-
+            (evidence, _validationEvidence, remaining) <-
               primitivePatternEvidence
-                observability patternEnv shapeSubst ctx ppPat components
+                observability patternEnv shapeSubst ctx
+                (not (hasNestedStructuredPPat ppPat))
+                ppPat components
             unless (null remaining) $
               throwError $ MatcherCapabilityError
                 ("internal ShapeCap error: " ++ show (length remaining)
@@ -3235,36 +3246,65 @@ inferIExprWithContext expr ctx = case expr of
             return evidence
 
       -- Consume the flattened next-matcher components in primitive-pattern
-      -- hole order and construct partial evidence recursively.  Constructor
-      -- names are related to capability heads exclusively through their fresh
-      -- declared signatures.
+      -- hole order and construct two evidence trees recursively.  Projection
+      -- evidence keeps recursive producers unseen (D4 non-seeding), while
+      -- validation evidence retains every actual hole producer capability.
+      -- Constructor names are related to capability heads exclusively through
+      -- their fresh declared signatures.
       primitivePatternEvidence
         :: Cap.ObservabilityLookup
         -> PatternTypeEnv
         -> Subst
         -> TypeErrorContext
+        -> Bool
         -> PrimitivePatPattern
         -> [HoleComponentType]
-        -> Infer (Cap.CapEvidence, [HoleComponentType])
-      primitivePatternEvidence observability patternEnv shapeSubst ctx =
+        -> Infer
+             ( Cap.CapEvidence
+             , FieldValidationEvidence
+             , [HoleComponentType]
+             )
+      primitivePatternEvidence observability patternEnv shapeSubst ctx
+                               certifiedFieldValidation =
         go
         where
           go PPWildCard components =
-            return (Cap.CapUnseen, components)
+            return
+              ( Cap.CapUnseen
+              , FieldValidationEvidence Cap.CapUnseen Set.empty
+              , components
+              )
           go (PPValuePat _) components =
-            return (Cap.CapUnseen, components)
+            return
+              ( Cap.CapUnseen
+              , FieldValidationEvidence Cap.CapUnseen Set.empty
+              , components
+              )
           go PPPatVar [] =
             throwError $ MatcherCapabilityError
               "internal ShapeCap error: a pattern hole has no next-matcher component"
               ctx
           go PPPatVar (component : components) =
             return
-              (holeComponentEvidence shapeSubst component, components)
+              ( holeComponentEvidence shapeSubst component
+              , holeComponentValidationEvidence shapeSubst component
+              , components
+              )
           go (PPTuplePat patterns) components = do
-            (children, remaining) <- goMany patterns components
-            return (Cap.CapTupleEvidence children, remaining)
+            (children, validationChildren, remaining) <-
+              goMany patterns components
+            return
+              ( Cap.CapTupleEvidence children
+              , FieldValidationEvidence
+                  (Cap.CapTupleEvidence
+                    (map fieldValidationEvidence validationChildren))
+                  (Set.unions
+                    (map fieldValidationSlotVars validationChildren))
+              , remaining
+              )
           go (PPInductivePat name patterns) components = do
-            (children, remaining) <- goMany patterns components
+            (children, validationChildren, remaining) <-
+              goMany patterns components
             case lookupPatternEnv name patternEnv of
               Nothing ->
                 -- The generic constructor path has no frozen signature from
@@ -3272,7 +3312,11 @@ inferIExprWithContext expr ctx = case expr of
                 -- extended Egison behavior, but contribute no certified shape
                 -- evidence; inferPrimitivePatPattern already emitted the
                 -- opt-in compatibility warning.
-                return (Cap.CapUnseen, remaining)
+                return
+                  ( Cap.CapUnseen
+                  , FieldValidationEvidence Cap.CapUnseen Set.empty
+                  , remaining
+                  )
               Just scheme -> do
                 (_constraints, constructorType) <-
                   instantiateSchemeInState scheme
@@ -3284,42 +3328,261 @@ inferIExprWithContext expr ctx = case expr of
                      ++ show (length fieldTypes) ++ " declared field(s), but the "
                      ++ "matcher clause supplies " ++ show (length patterns))
                     ctx
+                -- Shape HCSlot consumers with the complete PP-Con field
+                -- skeleton before result projection.  Otherwise a mixed
+                -- field can make projection fix its closed branches to none
+                -- before validation has installed their required heads.
+                alignedValidation <-
+                  if certifiedFieldValidation
+                    then
+                      zipWithM
+                        (alignFieldValidationEvidence observability ctx)
+                        fieldTypes
+                        validationChildren
+                    else
+                      -- Nested structured primitive-pattern patterns belong
+                      -- to the existing opt-in compatibility boundary.  The
+                      -- whole clause follows the pre-validation projection
+                      -- path: do not install a certified field skeleton that
+                      -- an enclosing constructor could subsequently treat as
+                      -- closed-field evidence.
+                      return
+                        (replicate
+                          (length validationChildren)
+                          (FieldValidationEvidence Cap.CapUnseen Set.empty))
+                validationSubst <- gets inferGlobalSubst
+                let childrenAfterValidation =
+                      map
+                        (applySubstCapEvidence validationSubst)
+                        children
                 alignedChildren <-
                   zipWithM
                     (alignProjectionEvidence
                        observability (freeTyVars resultType) ctx)
                     fieldTypes
-                    children
-                evidence <-
-                  either
-                    (\detail ->
-                      throwError $ MatcherCapabilityError
+                    childrenAfterValidation
+                currentSubst <- gets inferGlobalSubst
+                let projectedChildren =
+                      map
+                        (applySubstCapEvidence currentSubst)
+                        alignedChildren
+                    alignedValidation' =
+                      map
+                        (applySubstFieldValidation currentSubst)
+                        alignedValidation
+                    alignedValidationChildren =
+                      map fieldValidationEvidence alignedValidation'
+                    clauseEvidenceError detail =
+                      MatcherCapabilityError
                         ("clause `" ++ prettyStr (PPInductivePat name patterns)
                          ++ "`: " ++ detail
-                         ++ "; child evidence = " ++ show alignedChildren
+                         ++ "; projection child evidence = "
+                         ++ show projectedChildren
+                         ++ "; validation child evidence = "
+                         ++ show alignedValidationChildren
                          ++ "; capability substitution = "
                          ++ show (unCapSubst shapeSubst))
-                        ctx)
+                        ctx
+                -- Closed fields do not contribute assignments to the result
+                -- capability, but an actual hole producer must still match
+                -- their declared capability-visible skeleton.  Step 3a' may
+                -- solve only consumer-owned HCSlot metas to that skeleton;
+                -- HCMatcher producers remain rigid.  Wildcards and value
+                -- refinements arrive as CapUnseen and carry no obligation.
+                -- Keep this check separate from result projection.
+                when certifiedFieldValidation $
+                  mapM_
+                    (\(index, fieldType, child) ->
+                      either
+                        (\detail ->
+                          throwError
+                            (clauseEvidenceError
+                              ("constructor field " ++ show index ++ ": "
+                               ++ detail)))
+                        return
+                        (Cap.validateFieldEvidence
+                           observability fieldType child))
+                    (zip3
+                      [1 :: Int ..]
+                      fieldTypes
+                      alignedValidationChildren)
+                evidence <-
+                  either
+                    (throwError . clauseEvidenceError)
                     return
                     (Cap.projectConstructorEvidence
-                       observability fieldTypes resultType alignedChildren)
-                return (evidence, remaining)
+                       observability fieldTypes resultType projectedChildren)
+                -- In the certified fragment, a nested primitive constructor
+                -- contributes its projected root to both traversals after its
+                -- actual hole producers have been checked.  Compatibility
+                -- clauses retain projection only and propagate no validation
+                -- evidence to an enclosing constructor.
+                return
+                  ( evidence
+                  , if certifiedFieldValidation
+                      then
+                        FieldValidationEvidence
+                          evidence
+                          (Set.unions
+                            (map fieldValidationSlotVars alignedValidation'))
+                      else
+                        FieldValidationEvidence Cap.CapUnseen Set.empty
+                  , remaining
+                  )
 
           goMany [] components =
-            return ([], components)
+            return ([], [], components)
           goMany (pattern' : patterns) components = do
-            (evidence, remaining) <- go pattern' components
-            (restEvidence, finalRemaining) <-
+            (evidence, validationEvidence, remaining) <-
+              go pattern' components
+            (restEvidence, restValidationEvidence, finalRemaining) <-
               goMany patterns remaining
-            return (evidence : restEvidence, finalRemaining)
+            return
+              ( evidence : restEvidence
+              , validationEvidence : restValidationEvidence
+              , finalRemaining
+              )
+
+          -- Step 3a' turns an undetermined next-matcher parameter into an
+          -- HCSlot consumer.  Unlike an HCMatcher producer, that consumer may
+          -- receive the declared PP-Con field skeleton even when the field is
+          -- closed and therefore contributes nothing to result projection.
+          alignFieldValidationEvidence
+            :: Cap.ObservabilityLookup
+            -> TypeErrorContext
+            -> Type
+            -> FieldValidationEvidence
+            -> Infer FieldValidationEvidence
+          alignFieldValidationEvidence observable validationCtx fieldType
+                                       validation = do
+            before <- gets inferGlobalSubst
+            let current = applySubstFieldValidation before validation
+            evidence <- align fieldType (fieldValidationEvidence current)
+            after <- gets inferGlobalSubst
+            return $
+              applySubstFieldValidation after
+                (current { fieldValidationEvidence = evidence })
+            where
+              align _ Cap.CapUnseen =
+                return Cap.CapUnseen
+              align (TVar _) evidence =
+                return evidence
+              align expected@(TTuple componentTypes) evidence =
+                case evidence of
+                  Cap.CapTupleEvidence components
+                    | length componentTypes == length components ->
+                        Cap.CapTupleEvidence
+                          <$> zipWithM align componentTypes components
+                  Cap.CapKnown capability@(CapVar variable) ->
+                    solveSlotHead expected variable capability evidence
+                  _ ->
+                    return evidence
+              align expected evidence =
+                case typeFormerOf expected of
+                  Nothing ->
+                    return evidence
+                  Just (former, arguments) ->
+                    case observable former of
+                      Just mask
+                        | length mask == length arguments ->
+                            case evidence of
+                              Cap.CapConEvidence evidenceFormer children
+                                | evidenceFormer == former
+                                , length children == length arguments ->
+                                    Cap.CapConEvidence former
+                                      <$> zipWith3M
+                                            (\isObservable argument child ->
+                                              if isObservable
+                                                then align argument child
+                                                else return child)
+                                            mask arguments children
+                              Cap.CapKnown capability@(CapVar variable) ->
+                                solveSlotHead
+                                  expected variable capability evidence
+                              _ ->
+                                return evidence
+                      _ ->
+                        return evidence
+
+              solveSlotHead expected variable capability evidence = do
+                isSlot <- slotVariableIsCurrent variable
+                isProtected <-
+                  Set.member variable <$> gets inferProtectedCaps
+                if not isSlot || isProtected
+                  then return evidence
+                  else do
+                    template <-
+                      fieldValidationCapabilityTemplate observable expected
+                    _ <- unifyTypesWithContext
+                           (TMatcherSlot capability TAny)
+                           (TMatcherSlot template TAny)
+                           validationCtx
+                    committed <- gets inferGlobalSubst
+                    align expected
+                      (Cap.evidenceFromCapability
+                        (applyCapSubst committed capability))
+
+              -- Follow the current substitution from every originally
+              -- consumer-owned meta.  Fresh leaves introduced by an earlier
+              -- skeleton solve therefore remain consumer-owned at an outer
+              -- nested field.
+              slotVariableIsCurrent variable = do
+                substitution <- gets inferGlobalSubst
+                let currentVariables =
+                      Set.unions
+                        [ freeCapVarsCapability
+                            (applyCapSubst substitution (CapVar original))
+                        | original <-
+                            Set.toList (fieldValidationSlotVars validation)
+                        ]
+                return (variable `Set.member` currentVariables)
+
+          -- Fresh PP-Con skeleton for an HCSlot consumer.  Observable heads
+          -- recurse, while every variable/opaque leaf stays fresh; in
+          -- particular @[Integer]@ yields @Collection p@ and @[[Integer]]@
+          -- yields @Collection (Collection p)@.  This template is never used
+          -- to strengthen an HCMatcher producer.
+          fieldValidationCapabilityTemplate
+            :: Cap.ObservabilityLookup
+            -> Type
+            -> Infer Capability
+          fieldValidationCapabilityTemplate observable fieldType =
+            case fieldType of
+              TVar _ ->
+                freshCapability "fieldValidationCap"
+              TTuple componentTypes ->
+                CapTuple
+                  <$> mapM
+                        (fieldValidationCapabilityTemplate observable)
+                        componentTypes
+              _ ->
+                case typeFormerOf fieldType of
+                  Just (former, arguments) ->
+                    case observable former of
+                      Just mask
+                        | length mask == length arguments ->
+                            CapCon former
+                              <$> zipWithM
+                                    (\isObservable argument ->
+                                      if isObservable
+                                        then fieldValidationCapabilityTemplate
+                                               observable argument
+                                        else return CapNone)
+                                    mask arguments
+                      _ ->
+                        freshCapability "fieldValidationCap"
+                  Nothing ->
+                    freshCapability "fieldValidationCap"
 
           -- Projection sometimes needs a constructor/tuple head that is not
           -- yet known because the actual next matcher is a flexible input
           -- slot.  This is an ordinary Algorithm-W capability constraint,
           -- not evidence manufactured from the target: constrain only a
           -- flexible capability, and only along a signature path that reaches
-          -- a result parameter.  Rigid skolems and known mismatching heads are
-          -- left for projection to reject.
+          -- a result parameter.  In particular, a closed field never solves a
+          -- producer from its target; its already-present evidence is checked
+          -- separately by validateFieldEvidence.  Rigid skolems and known
+          -- mismatching heads are left for validation/projection to reject.
           alignProjectionEvidence
             :: Cap.ObservabilityLookup
             -> Set.Set TyVar
@@ -3464,6 +3727,66 @@ inferIExprWithContext expr ctx = case expr of
           HCTuple components ->
             Cap.CapTupleEvidence
               (map (holeComponentEvidence shapeSubst) components)
+
+      -- Closed-field validation observes the actual component capability even
+      -- when recursive provenance deliberately remains CapUnseen for result
+      -- projection.  Only primitive wildcards/value refinements create true
+      -- validation-side unseen evidence; those cases never call this helper.
+      holeComponentValidationEvidence
+        :: Subst
+        -> HoleComponentType
+        -> FieldValidationEvidence
+      holeComponentValidationEvidence shapeSubst component =
+        case component of
+          HCMatcher _ capability _ ->
+            let capability' = applyCapSubst shapeSubst capability
+            in FieldValidationEvidence
+                 (Cap.evidenceFromCapability capability')
+                 Set.empty
+          HCSlot _ capability _ ->
+            let capability' = applyCapSubst shapeSubst capability
+            in FieldValidationEvidence
+                 (Cap.evidenceFromCapability capability')
+                 (freeCapVarsCapability capability')
+          HCTuple components ->
+            let validations =
+                  map (holeComponentValidationEvidence shapeSubst) components
+            in FieldValidationEvidence
+                 (Cap.CapTupleEvidence
+                   (map fieldValidationEvidence validations))
+                 (Set.unions (map fieldValidationSlotVars validations))
+
+      applySubstCapEvidence :: Subst -> Cap.CapEvidence -> Cap.CapEvidence
+      applySubstCapEvidence _ Cap.CapUnseen = Cap.CapUnseen
+      applySubstCapEvidence substitution (Cap.CapKnown capability) =
+        Cap.evidenceFromCapability
+          (applyCapSubst substitution capability)
+      applySubstCapEvidence substitution
+                            (Cap.CapConEvidence former children) =
+        Cap.CapConEvidence former
+          (map (applySubstCapEvidence substitution) children)
+      applySubstCapEvidence substitution
+                            (Cap.CapTupleEvidence components) =
+        Cap.CapTupleEvidence
+          (map (applySubstCapEvidence substitution) components)
+
+      applySubstFieldValidation
+        :: Subst
+        -> FieldValidationEvidence
+        -> FieldValidationEvidence
+      applySubstFieldValidation substitution validation =
+        FieldValidationEvidence
+          { fieldValidationEvidence =
+              applySubstCapEvidence substitution
+                (fieldValidationEvidence validation)
+          , fieldValidationSlotVars =
+              Set.unions
+                [ freeCapVarsCapability
+                    (applyCapSubst substitution (CapVar variable))
+                | variable <-
+                    Set.toList (fieldValidationSlotVars validation)
+                ]
+          }
 
       holeComponentCapTargetAssumptions
         :: Subst

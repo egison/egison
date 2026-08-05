@@ -126,6 +126,25 @@ root shape evidence. Fresh hole capabilities are resolved only by actual
 next-matcher components and constructor-signature projection, never by the
 shared target alone.
 
+Result projection and field admissibility are separate operations. Generic
+constructor projection transports only evidence that reaches a variable in the
+constructor result. The certified actual-clause path additionally checks every
+non-unseen hole producer against the declared field's capability-visible
+skeleton, including nested observable heads. Thus a value of type
+`Matcher none [Integer]` is valid, but it cannot fill the hole of a general
+`box $` clause whose declared field is `[Integer]`. Wildcard and captured-value
+refinements contribute unseen evidence and impose no next-matcher obligation.
+
+An undetermined next-matcher parameter committed to `MatcherSlot` by Step 3a'
+is consumer-owned. PP-Con may therefore solve that slot's capability meta to a
+fresh instance of the declared field skeleton (observable heads retained,
+leaves fresh). An `HCMatcher` value is a producer instead: field validation may
+inspect its existing capability but never strengthen it from the field target.
+The nested structured primitive-pattern fallback in Section 4.1 remains a
+whole-clause uncertified path: it keeps generic result projection, but skips
+both this slot-skeleton alignment and closed-field validation. The warning
+option controls reporting only, not which inference path is taken.
+
 ### 2.5 Allocated/protected producer ledger
 
 The production solver maintains explicit sets for capability variables

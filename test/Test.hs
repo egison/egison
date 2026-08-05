@@ -68,6 +68,7 @@ main = do
          , typePmCompatibilityWarningTests
          , patternFunctionDualSchemeTests
          , patternFunctionTypeErrorTests
+         , closedFieldTypeErrorTests
          , strictPipelineTests
          , strictSelectedCoreTests
          , annotationRigidityTests
@@ -1066,6 +1067,64 @@ p2CapabilityTests =
           [Capability.CapKnown q, Capability.CapKnown p])
         projected
 
+  , TestLabel "TypePM: closed fields validate actual producer evidence" .
+      TestCase $ do
+        let collectionFormer = mkTypeFormer "Collection" 1
+            boxFormer = mkTypeFormer "ClosedFieldBox" 0
+            observable former
+              | former == collectionFormer = Just [True]
+              | former == boxFormer = Just []
+              | otherwise = Nothing
+            fieldType = TCollection TInt
+            resultType = TInductive "ClosedFieldBox" []
+            listEvidence =
+              Capability.CapConEvidence collectionFormer
+                [Capability.CapKnown CapNone]
+            nestedListEvidence =
+              Capability.CapConEvidence collectionFormer [listEvidence]
+            noCapability = Capability.CapKnown CapNone
+            flexibleCapability =
+              Capability.CapKnown
+                (CapVar (MkCapVar "closedFieldProducer"))
+        assertEqual
+          "wildcard/value evidence carries no field-head obligation"
+          (Right ())
+          (Capability.validateFieldEvidence
+            observable fieldType Capability.CapUnseen)
+        assertEqual
+          "a list-capable next matcher satisfies the closed field skeleton"
+          (Right ())
+          (Capability.validateFieldEvidence
+            observable fieldType listEvidence)
+        assertEqual
+          "nested visible heads remain part of the field skeleton"
+          (Right ())
+          (Capability.validateFieldEvidence
+            observable (TCollection fieldType) nestedListEvidence)
+        case Capability.validateFieldEvidence
+               observable (TCollection fieldType) listEvidence of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "an outer-only list producer filled a nested list field"
+        case Capability.validateFieldEvidence
+               observable fieldType noCapability of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "a none-capability producer filled a closed list-headed field"
+        case Capability.validateFieldEvidence
+               observable fieldType flexibleCapability of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "a closed field target manufactured a flexible producer head"
+        assertEqual
+          "closed field evidence is not projected into a nullary result"
+          (Right (Capability.CapConEvidence boxFormer []))
+          (Capability.projectConstructorEvidence
+            observable [fieldType] resultType [noCapability])
+
   , TestLabel "P2: CapTargetOK is canonical and context-relative" . TestCase $ do
       let p = CapVar (MkCapVar "p")
           a = TVar (TyVar "a")
@@ -1569,6 +1628,7 @@ strictSelectedCoreTests =
               ++ map Load selectedCoreLibraries
               ++ [ LoadFile "test/lib/core/p2-capability.egi"
                  , LoadFile "test/lib/core/pattern-function.egi"
+                 , LoadFile "test/lib/core/closed-field-next-matcher.egi"
                  ])
     case result of
       Left err ->
@@ -1616,6 +1676,61 @@ patternFunctionTypeErrorTests =
           Right _ ->
             assertFailure
               ("an invalid pattern function was accepted: " ++ file)
+
+-- | Closed constructor fields do not project into a nullary result
+-- capability, but an actual primitive-pattern hole still has to expose the
+-- field's visible head.  Require the field-evidence diagnostic so these cases
+-- cannot pass because of an unrelated target or parser error.
+closedFieldTypeErrorTests :: Test
+closedFieldTypeErrorTests =
+  TestLabel "closed constructor-field next-matcher rejection" . TestList $
+    map rejects
+      [ ( "test/type-error/24-patfun-nested-matcher-slot.egi"
+        , "expected evidence headed by Collection/1"
+        )
+      , ( "test/type-error/59-next-matcher-bare-variable.egi"
+        , "expected evidence headed by Collection/1"
+        )
+      , ( "test/type-error/60-next-matcher-bare-application.egi"
+        , "expected evidence headed by Collection/1"
+        )
+      , ( "test/type-error/61-next-matcher-bare-lambda.egi"
+        , "expected evidence headed by Collection/1"
+        )
+      , ( "test/type-error/90-closed-field-slot-application.egi"
+        , "MatcherSlot"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              -- The closed-field head is capability-visible only after the
+              -- frozen signature contains a Collection pattern constructor.
+              collectionVisibility <-
+                readTopExprs
+                  "inductive pattern [a] := closedFieldVisibility"
+              evalTopExprsNoPrint env
+                (collectionVisibility ++ [LoadFile file])
+        case result of
+          Left err
+            | "Type error:" `isInfixOf` show err
+            , expectedFragment `isInfixOf` show err ->
+                return ()
+            | otherwise ->
+                assertFailure
+                  ("closed-field rejection failed for an unexpected reason: "
+                   ++ show err)
+          Right _ ->
+            assertFailure
+              ("a none-capability next matcher filled a closed list field: "
+               ++ file)
 
 -- | Both sorts of binder in an explicit scheme are rigid for the duration of
 -- checking.  These reject cases are wired into the normal HUnit suite so they

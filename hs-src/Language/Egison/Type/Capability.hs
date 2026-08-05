@@ -23,6 +23,7 @@ module Language.Egison.Type.Capability
   , mergeCapEvidence
   , mergeCapEvidences
   , projectionRelevantVariables
+  , validateFieldEvidence
   , projectConstructorEvidence
   , finalizeCapEvidence
   , capTargetOK
@@ -575,6 +576,92 @@ collectAssignments observability resultVariables fieldType rawEvidence =
                 else Right Map.empty)
             (zip3 mask arguments children)
           foldM mergeAssignments Map.empty assignments
+
+-- | Validate the capability-visible skeleton of one actual constructor-field
+-- producer.
+--
+-- This is deliberately separate from result projection.  A closed field such
+-- as @[Integer]@ cannot contribute evidence to a nullary result such as @Box@,
+-- but a general @box $@ clause still requires its actual next matcher to have
+-- a collection head.  At an actual clause leaf, 'CapUnseen' represents a
+-- wildcard/value refinement; a nested constructor may also return unseen only
+-- after validating its own actual holes.  Neither carries an outstanding
+-- obligation here.  Opaque leaves likewise impose no structure.  This
+-- operation never turns a field target into capability evidence or solves a
+-- capability variable from it.
+validateFieldEvidence
+  :: ObservabilityLookup
+  -> Type
+  -> CapEvidence
+  -> Either String ()
+validateFieldEvidence observability fieldType =
+  validate fieldType . canonicalEvidence
+  where
+    validate _ CapUnseen = Right ()
+    validate fieldType evidence =
+      case fieldType of
+        TVar _ ->
+          Right ()
+        TTuple componentTypes ->
+          case evidence of
+            CapTupleEvidence componentEvidence
+              | length componentTypes /= length componentEvidence ->
+                  Left ("tuple field/evidence arity mismatch: "
+                        ++ show (length componentTypes) ++ " versus "
+                        ++ show (length componentEvidence))
+              | otherwise ->
+                  fmap (const ()) $
+                    zipWithIndexM
+                      (\index (componentType, component) ->
+                        prefixError ("tuple component " ++ show index ++ ": ")
+                          (validate componentType component))
+                      (zip componentTypes componentEvidence)
+            _ ->
+              Left ("expected tuple evidence for field type "
+                    ++ show fieldType ++ ", but found "
+                    ++ describeEvidence evidence)
+        _ ->
+          case typeFormerOf fieldType of
+            Nothing ->
+              Right ()
+            Just (former, arguments) -> do
+              maybeMask <- validatedMask
+                ("field type " ++ show fieldType)
+                observability
+                former
+                (length arguments)
+              case maybeMask of
+                Nothing ->
+                  Right ()
+                Just mask -> do
+                  children <- case evidence of
+                    CapConEvidence evidenceFormer evidenceChildren
+                      | evidenceFormer /= former ->
+                          Left ("expected evidence headed by "
+                                ++ describeFormer former ++ ", but found "
+                                ++ describeFormer evidenceFormer)
+                      | length evidenceChildren /= length arguments ->
+                          Left ("evidence headed by "
+                                ++ describeFormer former ++ " has "
+                                ++ show (length evidenceChildren)
+                                ++ " children; expected "
+                                ++ show (length arguments))
+                      | otherwise ->
+                          Right evidenceChildren
+                    _ ->
+                      Left ("expected evidence headed by "
+                            ++ describeFormer former ++ ", but found "
+                            ++ describeEvidence evidence)
+                  fmap (const ()) $
+                    zipWithIndexM
+                      (\index (isObservable, argument, child) ->
+                        if isObservable
+                          then prefixError
+                                 (describeFormer former ++ " parameter "
+                                  ++ show index ++ ": ")
+                                 (validate argument child)
+                          else Right ())
+                      (zip3 mask arguments children)
 
 mergeAssignments
   :: EvidenceAssignments
