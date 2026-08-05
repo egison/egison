@@ -1,0 +1,29 @@
+-- Canonical pattern-function DualScheme regressions.
+
+def pattern dualPair {a, b}
+  (left : a) (right : b) : (a, b) := (~left, ~right)
+
+-- Both applications use one stored scheme, but must receive independent
+-- capability and target instances.
+assertEqual
+  "pattern function: both sorts are fresh at each named application"
+  (match (([1, 2], True), (3, [False]))
+     as ((list integer, bool), (integer, list bool)) with
+   | (dualPair ($x :: _) $b,
+      dualPair $n ($y :: _)) -> (x, b, n, y))
+  (1, True, 3, False)
+
+-- EnvBuilder exposes a target-only header before the later body is checked.
+-- This remains an executable Egison extension; enabling compatibility
+-- warnings reports the boundary without changing the result.
+def useForwardPatternFunction (value : Integer) : Integer :=
+  match value as something with
+  | forwardPatternFunction $result -> result
+
+def pattern forwardPatternFunction
+  (parameter : Integer) : Integer := ~parameter
+
+assertEqual
+  "pattern function: a header-only forward application remains executable"
+  (useForwardPatternFunction 7)
+  7

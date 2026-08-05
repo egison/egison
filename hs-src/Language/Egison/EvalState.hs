@@ -29,10 +29,12 @@ import qualified Data.Set                         as Set
 
 import qualified Data.Map.Strict                  as Map
 
-import           Language.Egison.AST              (PrimitivePatPattern)
 import           Language.Egison.IExpr
 import           Language.Egison.Type.Types       (Type, TypeScheme)
-import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv, extendEnv)
+import           Language.Egison.Type.Env          (TypeEnv, ClassEnv, PatternTypeEnv,
+                                                     PatternFunctionEnv, emptyEnv,
+                                                     emptyClassEnv, emptyPatternEnv,
+                                                     emptyPatternFunctionEnv, extendEnv)
 
 -- | Instance environment: maps class name -> method name -> type -> implementation
 -- The implementation is stored as a function reference (Var name)
@@ -60,13 +62,11 @@ data EvalState = EvalState
   , typeEnv        :: TypeEnv        -- ^ Type environment (for type inference)
   , classEnv       :: ClassEnv       -- ^ Class environment (for type inference)
   , patternEnv     :: PatternTypeEnv -- ^ Pattern constructor environment (for type inference)
-  , patternFuncEnv :: PatternTypeEnv -- ^ Pattern function environment (for disambiguation)
-  , patternFuncStructEnv :: PatternTypeEnv -- ^ Pattern function structural signatures (paper PATFUN-DEF):
-                                       --   for each pattern function, the scheme of
-                                       --   beta_1 -> ... -> beta_k -> tau_p_body, where beta_i is the
-                                       --   structural index of parameter i and tau_p_body is the body's
-                                       --   structural index.  Instantiated at application sites (PAT-APP)
-                                       --   to propagate the arguments' structural indices into the result.
+  , patternFuncDeclEnv :: PatternTypeEnv
+                                       -- ^ Header-only target declarations collected before body checking.
+                                       --   Used only for name resolution and warned forward-extension paths.
+  , patternFuncEnv :: PatternFunctionEnv
+                                       -- ^ Successfully checked canonical DualSchemes.
   , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
@@ -119,8 +119,8 @@ initialEvalState = EvalState
   , typeEnv = emptyEnv
   , classEnv = emptyClassEnv
   , patternEnv = emptyPatternEnv
-  , patternFuncEnv = emptyPatternEnv
-  , patternFuncStructEnv = emptyPatternEnv
+  , patternFuncDeclEnv = emptyPatternEnv
+  , patternFuncEnv = emptyPatternFunctionEnv
   , reductionRulesCount = 0
   , derivativeRulesCount = 0
   , reductionRuleNames = []
@@ -158,12 +158,12 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Pattern environment operations
   getPatternEnv :: m PatternTypeEnv
   setPatternEnv :: PatternTypeEnv -> m ()
-  -- Pattern function environment operations
-  getPatternFuncEnv :: m PatternTypeEnv
-  setPatternFuncEnv :: PatternTypeEnv -> m ()
-  -- Pattern function structural-signature environment operations (paper PATFUN-DEF/PAT-APP)
-  getPatternFuncStructEnv :: m PatternTypeEnv
-  setPatternFuncStructEnv :: PatternTypeEnv -> m ()
+  -- Header-only pattern function declarations.
+  getPatternFuncDeclEnv :: m PatternTypeEnv
+  setPatternFuncDeclEnv :: PatternTypeEnv -> m ()
+  -- Successfully checked pattern-function DualSchemes.
+  getPatternFuncEnv :: m PatternFunctionEnv
+  setPatternFuncEnv :: PatternFunctionEnv -> m ()
   -- Phase 7.4/7.5: reduction-rule and derivative-rule registration counts.
   -- Counts only — full data is held by EnvBuildResult during build phase
   -- and isn't currently threaded into the runtime state.
@@ -275,15 +275,15 @@ instance Monad m => MonadEval (StateT EvalState m) where
     st <- get
     put $ st { patternEnv = env }
   
+  getPatternFuncDeclEnv = patternFuncDeclEnv <$> get
+  setPatternFuncDeclEnv env = do
+    st <- get
+    put $ st { patternFuncDeclEnv = env }
+
   getPatternFuncEnv = patternFuncEnv <$> get
   setPatternFuncEnv env = do
     st <- get
     put $ st { patternFuncEnv = env }
-
-  getPatternFuncStructEnv = patternFuncStructEnv <$> get
-  setPatternFuncStructEnv env = do
-    st <- get
-    put $ st { patternFuncStructEnv = env }
 
   getReductionRulesCount = reductionRulesCount <$> get
   setReductionRulesCount n = do
@@ -371,10 +371,10 @@ instance (MonadEval m) => MonadEval (ExceptT e m) where
   setClassEnv = lift . setClassEnv
   getPatternEnv = lift getPatternEnv
   setPatternEnv = lift . setPatternEnv
+  getPatternFuncDeclEnv = lift getPatternFuncDeclEnv
+  setPatternFuncDeclEnv = lift . setPatternFuncDeclEnv
   getPatternFuncEnv = lift getPatternFuncEnv
   setPatternFuncEnv = lift . setPatternFuncEnv
-  getPatternFuncStructEnv = lift getPatternFuncStructEnv
-  setPatternFuncStructEnv = lift . setPatternFuncStructEnv
   getReductionRulesCount = lift getReductionRulesCount
   setReductionRulesCount = lift . setReductionRulesCount
   getDerivativeRulesCount = lift getDerivativeRulesCount

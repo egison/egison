@@ -228,17 +228,57 @@ ordinary frozen constructor/capability correspondence is reported.
 The diagnostic must identify the legacy view boundary. It must not treat the
 view as constructor evidence for unrelated ordinary capabilities.
 
-### 4.5 Pattern functions awaiting the `DualScheme` bridge
+### 4.5 Pattern-function fallback boundary
 
-A pattern-function definition or application is reported when its production
-scheme has not been translated through the `DualScheme` bridge. Completion of
-that bridge requires capability and target binders to be instantiated,
-generalized, rigidly checked, and substituted as separate sorts, while
-preserving the structural index of every parameter and result.
+A successfully checked pattern-function definition is stored as one canonical
+`DualScheme`. The scheme contains the capability and target of every argument
+and of the result, with capability binders and ordinary type binders kept in
+separate sorts. The expression-facing function scheme is only a target
+projection computed from this canonical scheme and shares its quantified
+binders. Both binder lists are set-like: definition-side generalization
+constructs duplicate-free lists, and instantiation rejects a malformed scheme
+with duplicate binders, matching the mechanized input invariant.
 
-Ordinary pattern-function typing may continue unchanged while this warning is
-active. A target-only scheme or a scheme reconstructed from an already-zonked
-ordinary type is not sufficient evidence that the bridge is complete.
+A finalized named application instantiates both binder lists in one freshening
+step and applies the same paired substitution to every argument and the result.
+It then checks the result target, each argument target, and each argument
+capability. This `DualScheme` generalization/instantiation and PAT-APP component
+is on the synchronized direct path and is not reported merely because it belongs
+to a pattern function. This statement does not place the complete definition
+body or its embedded expressions on that path; they remain subject to the other
+extension boundaries in this inventory and to the bridge obligations in
+Section 6.
+
+If the definition body itself contains a residual non-core pattern form from
+Section 4.6, that body boundary is reported when the definition is checked.
+The inferred `DualScheme` is still retained, but later finalized named
+applications do not repeat—or silently substitute for—the definition-site
+diagnostic.
+
+Only the following pattern-function applications cross this compatibility
+boundary:
+
+- a header-only forward or mutually recursive reference whose body has
+  not yet produced a finalized `DualScheme`; and
+- an explicit expression-headed `IPApplyPat`. This path always infers its head
+  through the ordinary lexical environment, even when that head is a variable
+  whose spelling also names a finalized top-level pattern function; only the
+  resolved named surface form selects canonical PAT-APP dispatch.
+
+Those paths retain Egison's target-only application checking and are reported.
+A header permits name resolution and target checking, but it is not capability
+evidence. Production must not reconstruct a capability scheme from that header
+or from an already-zonked target type. A direct or nested self-call is not a
+fallback: PATFUN-DEF rejects it under the mechanized core's nonrecursion side
+condition.
+
+When a later load unit redeclares a pattern-function name, its header masks the
+older finalized scheme before any item in that unit is checked. Only successful
+checking installs the replacement scheme; permissive fallback leaves the new
+runtime body header-only. Duplicate declarations of one pattern-function name
+inside the same expanded load unit are rejected, because choosing different
+declarations in the static and runtime environments would invalidate the
+stored contract.
 
 ### 4.6 Non-core pattern forms
 

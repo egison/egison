@@ -20,6 +20,8 @@ module Language.Egison.Type.Types
   , TypeAtom(..)
   , prettyTypeAtomValue
   , TypeScheme(..)
+  , Dual(..)
+  , DualScheme(..)
   , TyVar(..)
   , TensorShape(..)
   , ShapeDimType(..)
@@ -35,6 +37,10 @@ module Language.Egison.Type.Types
   , freeTySkolems
   , freeCapVars
   , freeCapVarsCapability
+  , freeCapVarsDual
+  , freeTyVarsDual
+  , freeCapVarsDualScheme
+  , freeTyVarsDualScheme
   , freeCapSkolems
   , freeCapSkolemsCapability
   , mapCapability
@@ -58,6 +64,8 @@ module Language.Egison.Type.Types
   , sanitizeMethodName
   , typeExprToType
   , normalizeInductiveTypes
+  , dualSchemeTargetType
+  , dualSchemeTargetScheme
   , expandTypeAliases
   , reservedCasTypeNames
   , capitalizeFirst
@@ -205,6 +213,71 @@ data Type
 -- type variable must never instantiate or refine a capability variable.
 data TypeScheme = Forall [CapVar] [TyVar] [Constraint] Type
   deriving (Eq, Show, Generic)
+
+-- | The two independently substituted components of a pattern type.
+--
+-- This is the production counterpart of @TypePM.Dual@: the capability is in
+-- the capability sort, while the target is an ordinary Egison type (which may
+-- itself contain matcher capabilities).
+data Dual = Dual
+  { dualCapability :: Capability
+  , dualTarget     :: Type
+  } deriving (Eq, Show, Generic, Hashable)
+
+-- | A pattern-function type quantified in both solver sorts.
+--
+-- All argument duals and the result dual are instantiated together.  Keeping
+-- them in one scheme preserves capability/target correlations across one
+-- pattern-function application.
+data DualScheme = DualScheme
+  { dualCapBinders :: [CapVar]
+  , dualTyBinders  :: [TyVar]
+  , dualArgs       :: [Dual]
+  , dualResult     :: Dual
+  } deriving (Eq, Show, Generic, Hashable)
+
+-- | Capability variables occurring in both components of a dual.
+freeCapVarsDual :: Dual -> Set CapVar
+freeCapVarsDual (Dual capability target) =
+  freeCapVarsCapability capability `Set.union` freeCapVars target
+
+-- | Ordinary variables occur only in the target component.
+freeTyVarsDual :: Dual -> Set TyVar
+freeTyVarsDual = freeTyVars . dualTarget
+
+-- | Free capability variables of a dual scheme, excluding its binders.
+freeCapVarsDualScheme :: DualScheme -> Set CapVar
+freeCapVarsDualScheme scheme =
+  let variables =
+        Set.unions
+          (map freeCapVarsDual (dualResult scheme : dualArgs scheme))
+  in variables `Set.difference` Set.fromList (dualCapBinders scheme)
+
+-- | Free ordinary variables of a dual scheme, excluding its binders.
+freeTyVarsDualScheme :: DualScheme -> Set TyVar
+freeTyVarsDualScheme scheme =
+  let variables =
+        Set.unions
+          (map freeTyVarsDual (dualResult scheme : dualArgs scheme))
+  in variables `Set.difference` Set.fromList (dualTyBinders scheme)
+
+-- | Erase pattern capabilities and expose the ordinary function type used by
+-- expression elaboration.  This is a projection of the canonical dual scheme,
+-- never an independently generalized signature.
+dualSchemeTargetType :: DualScheme -> Type
+dualSchemeTargetType scheme =
+  foldr TFun
+    (dualTarget (dualResult scheme))
+    (map dualTarget (dualArgs scheme))
+
+-- | Quantified ordinary projection of a dual scheme.
+dualSchemeTargetScheme :: DualScheme -> TypeScheme
+dualSchemeTargetScheme scheme =
+  Forall
+    (dualCapBinders scheme)
+    (dualTyBinders scheme)
+    []
+    (dualSchemeTargetType scheme)
 
 -- | Type class constraint. May carry multiple type arguments for
 -- multi-param classes (e.g. `Coerce a b` → `Constraint "Coerce" [a, b]`).
@@ -718,8 +791,8 @@ typeFormerOf _                 = Nothing
 -- effectful, function, matcher, gradual, and CAS-view types are opaque and
 -- return 'Nothing'.  In particular it never invokes ordinary type equality or
 -- CAS ground equivalence.  Its input must already be a matcher-independent
--- structural type (tau_p), not an ordinary target type.  Consequently a
--- closed argument such as the @P2Atom@ in @Collection P2Atom@ is retained:
+-- constructor-derived type, not an ordinary target specialization.
+-- Consequently a closed argument such as @Atom@ in @Collection Atom@ is retained:
 -- it is evidence contributed by a nested constructor pattern, not structure
 -- manufactured by target specialization.
 capabilitySkeleton :: (TyVar -> Capability) -> Type -> Maybe Capability

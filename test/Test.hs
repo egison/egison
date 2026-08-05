@@ -4,6 +4,7 @@ import           Control.Monad.IO.Class         (liftIO)
 import           Control.Monad.Except           (catchError)
 import           Data.List                      (isInfixOf, sort, (\\))
 import qualified Data.Map.Strict                as Map
+import qualified Data.Set                       as Set
 import           System.Environment             (getArgs)
 import           System.FilePath.Glob           (glob)
 import           System.IO                      (hFlush, stdout)
@@ -13,20 +14,31 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
-import           Language.Egison.IExpr          (IExpr (..), Var (..))
+import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
+                                                  ITopExpr (..),
+                                                  TITopExpr (..), Var (..))
 import qualified Language.Egison.Type.Capability as Capability
-import           Language.Egison.Type.Env       (emptyPatternEnv,
+import qualified Language.Egison.Type.Env       as TypeEnv
+import           Language.Egison.Type.Env       (emptyEnv,
                                                   emptyClassEnv,
+                                                  emptyPatternEnv,
+                                                  emptyPatternFunctionEnv,
                                                   extendPatternEnv,
+                                                  extendPatternFunctionEnv,
+                                                  lookupPatternFunctionEnv,
+                                                  lookupPatternEnv,
                                                   lookupEnvExact)
-import           Language.Egison.Type.Error     (TypeWarning (..),
+import           Language.Egison.Type.Error     (TypeError (..), TypeWarning (..),
                                                   formatTypeWarning)
 import           Language.Egison.Type.Infer     (InferConfig (..),
                                                   InferState (..),
                                                   defaultInferConfig,
                                                   inferIExpr,
+                                                  inferITopExpr,
                                                   initialInferStateWithConfig,
-                                                  runInferWithWarnings)
+                                                  instantiateDualSchemeInState,
+                                                  runInferWithWarnings,
+                                                  runInferWithWarningsAndState)
 import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   applyCapSubst,
                                                   applyTypeSubst,
@@ -35,8 +47,10 @@ import           Language.Egison.Type.Subst     (applyCapSubstToType,
 import qualified Language.Egison.Type.ShapeSolver as ShapeSolver
 import           Language.Egison.Type.Types     (CapVar (..),
                                                   Capability (..),
+                                                  Dual (..), DualScheme (..),
                                                   TypeScheme (..),
                                                   TyVar (..), Type (..),
+                                                  dualSchemeTargetScheme,
                                                   mkTypeFormer)
 import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
                                                   matchCapability, matchOneWay,
@@ -52,6 +66,8 @@ main = do
     p2CapabilityTests
       ++ [ matcherOneWayTests
          , typePmCompatibilityWarningTests
+         , patternFunctionDualSchemeTests
+         , patternFunctionTypeErrorTests
          , strictPipelineTests
          , strictSelectedCoreTests
          , annotationRigidityTests
@@ -185,6 +201,758 @@ typePmCompatibilityWarningTests =
         assertFailure
           ("expected exactly one Any-to-slot compatibility warning, got " ++
            show other)
+
+patternFunctionDualSchemeTests :: Test
+patternFunctionDualSchemeTests =
+  TestLabel "pattern-function DualScheme" . TestList $
+    [ TestLabel "definition stores one correlated DualScheme" . TestCase $ do
+        let typeA = TyVar "a"
+            typeB = TyVar "b"
+            declaration =
+              IPatternFunctionDecl
+                "dualPair"
+                [typeA, typeB]
+                [("left", TVar typeA), ("right", TVar typeB)]
+                (TTuple [TVar typeA, TVar typeB])
+                (ITuplePat [IVarPat "left", IVarPat "right"])
+            config =
+              defaultInferConfig
+                { cfgTypePmCompatibilityWarnings = True }
+            ambientScheme =
+              Forall [] [] [] (TTuple [TVar typeA, TVar typeB])
+            headerScheme =
+              Forall [] [typeA, typeB] []
+                (TFun (TVar typeA)
+                  (TFun (TVar typeB)
+                    (TTuple [TVar typeA, TVar typeB])))
+            initialState =
+              (initialInferStateWithConfig config)
+                { inferEnv =
+                    TypeEnv.extendEnv
+                      (Var "ambientTargets" []) ambientScheme emptyEnv
+                , inferPatternFuncDeclEnv =
+                    extendPatternEnv
+                      "dualPair" headerScheme emptyPatternEnv
+                }
+
+        (result, warnings, finalState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr declaration)
+            initialState
+
+        assertEqual
+          "a directly checked pattern-function definition is in the compatibility profile"
+          []
+          warnings
+        case result of
+          Right
+            ( Just
+                (TIPatternFunctionDecl
+                  "dualPair" typedScheme _parameters _resultType _body)
+            , _substitution
+            ) ->
+              case lookupPatternFunctionEnv
+                     "dualPair" (inferPatternFuncEnv finalState) of
+                Nothing ->
+                  assertFailure
+                    "the checked pattern-function scheme was not stored"
+                Just storedScheme -> do
+                  assertEqual
+                    "the typed declaration and inference environment share one scheme"
+                    typedScheme
+                    storedScheme
+                  assertCorrelatedPairScheme storedScheme
+                  let targetProjection =
+                        dualSchemeTargetScheme storedScheme
+                  assertEqual
+                    "the declaration environment stores the canonical target projection"
+                    (Just targetProjection)
+                    (lookupPatternEnv
+                      "dualPair" (inferPatternFuncDeclEnv finalState))
+                  assertEqual
+                    "the ordinary environment stores the same target projection"
+                    (Just targetProjection)
+                    (lookupEnvExact
+                      (Var "dualPair" []) (inferEnv finalState))
+          Right other ->
+            assertFailure
+              ("unexpected typed pattern-function result: " ++ show other)
+          Left err ->
+            assertFailure
+                  ("the correlated pattern-function definition failed: " ++ show err)
+
+    , TestLabel "definition distinguishes recursion from a shadowed head" . TestCase $ do
+        let declaration =
+              IPatternFunctionDecl
+                "selfPattern"
+                []
+                []
+                TInt
+                (IValuePat
+                  (IMatchExpr
+                    BFSMode
+                    (IConstantExpr (IntegerExpr 1))
+                    (IConstantExpr SomethingExpr)
+                    [ (IPApplyPat (IVarExpr "selfPattern") []
+                      , IConstantExpr (IntegerExpr 1)
+                      )
+                    ]))
+        (result, _warnings, _finalState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr declaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        case result of
+          Left (RecursivePatternFunction "selfPattern" _) -> return ()
+          Left err ->
+            assertFailure
+              ("the self call failed for an unexpected reason: " ++ show err)
+          Right _ ->
+            assertFailure
+              "a nested direct pattern-function self call was accepted"
+
+        let hiddenName = "selfCallAfterNotPattern"
+            hiddenDeclaration =
+              IPatternFunctionDecl
+                hiddenName
+                []
+                []
+                TInt
+                (IAndPat
+                  (INotPat (IPatVar hiddenName))
+                  (IPApplyPat (IVarExpr hiddenName) []))
+        (hiddenResult, _hiddenWarnings, _hiddenState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr hiddenDeclaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        case hiddenResult of
+          Left (RecursivePatternFunction rejectedName _)
+            | rejectedName == hiddenName -> return ()
+          Left err ->
+            assertFailure
+              ("a self call after a non-exporting pattern failed unexpectedly: " ++
+               show err)
+          Right _ ->
+            assertFailure
+              "a not-pattern binder incorrectly hid a real self call"
+
+        let shadowedName = "shadowedDefinitionHead"
+            shadowedDeclaration =
+              IPatternFunctionDecl
+                shadowedName
+                []
+                []
+                TInt
+                (ILetPat
+                  [ ( PDPatVar (Var shadowedName [])
+                    , ILambdaExpr
+                        Nothing
+                        [Var "localValue" []]
+                        (IVarExpr "localValue")
+                    )
+                  ]
+                  (IPApplyPat
+                    (IVarExpr shadowedName)
+                    [IWildCard]))
+        (shadowedResult, _shadowedWarnings, shadowedState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr shadowedDeclaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        case shadowedResult of
+          Left err ->
+            assertFailure
+              ("a lexically shadowed explicit head was mistaken for recursion: " ++
+               show err)
+          Right _ ->
+            case lookupPatternFunctionEnv
+                   shadowedName (inferPatternFuncEnv shadowedState) of
+              Just _ -> return ()
+              Nothing ->
+                assertFailure
+                  "the accepted shadowed definition lost its DualScheme"
+
+        let patternBoundName = "patternBoundDefinitionHead"
+            patternBoundDeclaration =
+              IPatternFunctionDecl
+                patternBoundName
+                []
+                []
+                (TFun TInt TInt)
+                (IAndPat
+                  (IVarPat patternBoundName)
+                  (IPApplyPat (IVarExpr patternBoundName) []))
+        (patternBoundResult, _patternBoundWarnings, patternBoundState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr patternBoundDeclaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        case patternBoundResult of
+          Left err ->
+            assertFailure
+              ("an exported IVarPat binding was mistaken for recursion: " ++
+               show err)
+          Right _ ->
+            case lookupPatternFunctionEnv
+                   patternBoundName (inferPatternFuncEnv patternBoundState) of
+              Just _ -> return ()
+              Nothing ->
+                assertFailure
+                  "the pattern-bound definition lost its DualScheme"
+
+    , TestLabel "definition rejects duplicate parameter names" . TestCase $ do
+        let declaration =
+              IPatternFunctionDecl
+                "duplicateParameters"
+                []
+                [("same", TInt), ("same", TInt)]
+                TInt
+                (IVarPat "same")
+        (result, _warnings, _finalState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr declaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        case result of
+          Left
+            (DuplicatePatternFunctionParameters
+              "duplicateParameters" ["same"] _) -> return ()
+          Left err ->
+            assertFailure
+              ("duplicate parameters failed for an unexpected reason: " ++
+               show err)
+          Right _ ->
+            assertFailure
+              "duplicate pattern-function parameter names were accepted"
+
+    , TestLabel "definition reports an extended body before finalizing" .
+        TestCase $ do
+          let declaration =
+                IPatternFunctionDecl
+                  "predicateBody"
+                  []
+                  []
+                  TInt
+                  (IPredPat
+                    (ILambdaExpr
+                      Nothing
+                      [Var "candidate" []]
+                      (IConstantExpr (BoolExpr True))))
+              config =
+                defaultInferConfig
+                  { cfgTypePmCompatibilityWarnings = True }
+          (result, warnings, finalState) <-
+            runInferWithWarningsAndState
+              (inferITopExpr declaration)
+              (initialInferStateWithConfig config)
+          case result of
+            Left err ->
+              assertFailure
+                ("the extended pattern-function body failed: " ++ show err)
+            Right _ ->
+              case lookupPatternFunctionEnv
+                     "predicateBody" (inferPatternFuncEnv finalState) of
+                Nothing ->
+                  assertFailure
+                    "the extended body lost its inferred DualScheme"
+                Just _ -> return ()
+          case warnings of
+            [TypePmCompatibilityWarning detail _] ->
+              assertBool
+                "the definition warning identifies the predicate-pattern boundary"
+                ("predicate pattern" `isInfixOf` detail)
+            other ->
+              assertFailure
+                ("expected one pattern-function body warning, got " ++ show other)
+
+    , TestLabel "replacement masks an older DualScheme before forward use" .
+        TestCase $ do
+          result <- fromEvalM
+            defaultOption
+              { optNoPrelude = True
+              , optTypeCheckStrict = True
+              }
+            $ do
+                env0 <- initialEnv
+                oldDeclaration <- readTopExprs $ unlines
+                  [ "def pattern replaceable"
+                  , "  (left : Integer) (right : Integer)"
+                  , "  : (Integer, Integer) := (~left, ~right)"
+                  ]
+                env1 <- evalTopExprsNoPrint env0 oldDeclaration
+                before <-
+                  fmap (fmap (length . dualArgs)) $
+                    lookupPatternFunctionEnv "replaceable" <$>
+                      getPatternFuncEnv
+                replacement <- readTopExprs $ unlines
+                  [ "def useReplacement (target : Integer) : Integer :="
+                  , "  match target as something with"
+                  , "  | replaceable $captured -> captured"
+                  , "def pattern replaceable"
+                  , "  (value : Integer) : Integer := ~value"
+                  ]
+                _ <- evalTopExprsNoPrint env1 replacement
+                after <-
+                  fmap (fmap (length . dualArgs)) $
+                    lookupPatternFunctionEnv "replaceable" <$>
+                      getPatternFuncEnv
+                return (before, after)
+          case result of
+            Right counts ->
+              assertEqual
+                "the new header shadows the old body until replacement succeeds"
+                (Just 2, Just 1)
+                counts
+            Left err ->
+              assertFailure
+                ("the replacement batch failed: " ++ show err)
+
+    , TestLabel "failed permissive replacement cannot inherit an old scheme" .
+        TestCase $ do
+          result <- fromEvalM
+            defaultOption
+              { optNoPrelude = True
+              , optTypeCheckStrict = False
+              }
+            $ do
+                env0 <- initialEnv
+                oldDeclaration <- readTopExprs
+                  "def pattern replaceable (value : Integer) : Integer := ~value"
+                env1 <- evalTopExprsNoPrint env0 oldDeclaration
+                invalidReplacement <- readTopExprs
+                  "def pattern replaceable (value : Integer) : Bool := ~value"
+                _ <- evalTopExprsNoPrint env1 invalidReplacement
+                finalized <-
+                  lookupPatternFunctionEnv "replaceable" <$>
+                    getPatternFuncEnv
+                header <-
+                  lookupPatternEnv "replaceable" <$>
+                    getPatternFuncDeclEnv
+                return (finalized, header)
+          case result of
+            Right pair ->
+              assertEqual
+                "an unchecked runtime replacement remains header-only"
+                (Nothing, Just (Forall [] [] [] (TFun TInt TBool)))
+                pair
+            Left err ->
+              assertFailure
+                ("the permissive replacement failed: " ++ show err)
+
+    , TestLabel "one batch rejects duplicate pattern-function names" .
+        TestCase $ do
+          result <- fromEvalM
+            defaultOption
+              { optNoPrelude = True
+              , optTypeCheckStrict = True
+              }
+            $ do
+                env <- initialEnv
+                declarations <- readTopExprs $ unlines
+                  [ "def pattern duplicated (value : Integer)"
+                  , "  : Integer := ~value"
+                  , "def pattern duplicated (value : Bool)"
+                  , "  : Bool := ~value"
+                  ]
+                evalTopExprsNoPrint env declarations
+          case result of
+            Left err
+              | "Duplicate pattern-function declaration(s)" `isInfixOf`
+                  show err -> return ()
+              | otherwise ->
+                  assertFailure
+                    ("duplicate declarations failed unexpectedly: " ++ show err)
+            Right _ ->
+              assertFailure
+                "duplicate pattern-function declarations were accepted"
+
+    , TestLabel "instantiation rejects duplicate binders" . TestCase $ do
+        let capabilityBinder = MkCapVar "duplicateCapability"
+            targetBinder = TyVar "duplicateTarget"
+            malformedScheme =
+              DualScheme
+                [capabilityBinder, capabilityBinder]
+                [targetBinder, targetBinder]
+                [Dual (CapVar capabilityBinder) (TVar targetBinder)]
+                (Dual (CapVar capabilityBinder) (TVar targetBinder))
+        (result, warnings, _finalState) <-
+          runInferWithWarningsAndState
+            (instantiateDualSchemeInState malformedScheme)
+            (initialInferStateWithConfig defaultInferConfig)
+        assertEqual "malformed scheme validation emits no warning" [] warnings
+        case result of
+          Left (MatcherCapabilityError detail _)
+            | "duplicate binder(s)" `isInfixOf` detail -> return ()
+            | otherwise ->
+                assertFailure
+                  ("duplicate binders failed unexpectedly: " ++ detail)
+          Left err ->
+            assertFailure
+              ("duplicate binders produced the wrong error: " ++ show err)
+          Right _ ->
+            assertFailure
+              "duplicate DualScheme binders were silently instantiated"
+
+    , TestLabel "instantiation freshens both sorts together" . TestCase $ do
+        let capLeft = MkCapVar "leftCapability"
+            capRight = MkCapVar "rightCapability"
+            typeLeft = TyVar "leftTarget"
+            typeRight = TyVar "rightTarget"
+            scheme =
+              DualScheme
+                [capLeft, capRight]
+                [typeLeft, typeRight]
+                [ Dual
+                    (CapVar capLeft)
+                    (TMatcher (CapVar capLeft) (TVar typeLeft))
+                , Dual
+                    (CapVar capRight)
+                    (TMatcher (CapVar capRight) (TVar typeRight))
+                ]
+                (Dual
+                  (CapTuple [CapVar capLeft, CapVar capRight])
+                  (TTuple
+                    [ TMatcher (CapVar capLeft) (TVar typeLeft)
+                    , TMatcher (CapVar capRight) (TVar typeRight)
+                    ]))
+            instantiateTwice = do
+              first <- instantiateDualSchemeInState scheme
+              second <- instantiateDualSchemeInState scheme
+              return (first, second)
+
+        (result, warnings, finalState) <-
+          runInferWithWarningsAndState
+            instantiateTwice
+            (initialInferStateWithConfig defaultInferConfig)
+
+        assertEqual "instantiation itself emits no warning" [] warnings
+        case result of
+          Left err ->
+            assertFailure
+              ("dual-scheme instantiation failed: " ++ show err)
+          Right (first, second) ->
+            case (correlatedPairImages first, correlatedPairImages second) of
+              ( Just (firstCapLeft, firstCapRight,
+                      firstTypeLeft, firstTypeRight)
+                , Just (secondCapLeft, secondCapRight,
+                        secondTypeLeft, secondTypeRight)
+                ) -> do
+                  let firstCapabilities = [firstCapLeft, firstCapRight]
+                      secondCapabilities = [secondCapLeft, secondCapRight]
+                      firstTargets = [firstTypeLeft, firstTypeRight]
+                      secondTargets = [secondTypeLeft, secondTypeRight]
+                      allCapabilities =
+                        firstCapabilities ++ secondCapabilities
+                  assertBool
+                    "capability images within the first instance are distinct"
+                    (firstCapLeft /= firstCapRight)
+                  assertBool
+                    "capability images within the second instance are distinct"
+                    (secondCapLeft /= secondCapRight)
+                  assertBool
+                    "target images within the first instance are distinct"
+                    (firstTypeLeft /= firstTypeRight)
+                  assertBool
+                    "target images within the second instance are distinct"
+                    (secondTypeLeft /= secondTypeRight)
+                  assertBool
+                    "separate instances must not share capability images"
+                    (all (`notElem` secondCapabilities) firstCapabilities)
+                  assertBool
+                    "separate instances must not share target images"
+                    (all (`notElem` secondTargets) firstTargets)
+                  assertBool
+                    "fresh capability images are recorded as allocated"
+                    (all
+                      (\variable ->
+                        Set.member variable
+                          (inferAllocatedCapVars finalState))
+                      allCapabilities)
+                  assertBool
+                    "fresh capability images are protected from strengthening"
+                    (all
+                      (\variable ->
+                        Set.member variable (inferProtectedCaps finalState))
+                      allCapabilities)
+              other ->
+                assertFailure
+                  ("instantiation lost an argument/result correlation: " ++
+                   show other)
+
+    , TestLabel "named applications distinguish finalized and header-only schemes" .
+        TestCase $ do
+          let typeVariable = TyVar "a"
+              headerScheme =
+                Forall [] [typeVariable] []
+                  (TFun (TVar typeVariable) (TVar typeVariable))
+              finalizedScheme =
+                DualScheme
+                  []
+                  [typeVariable]
+                  [Dual CapNone (TVar typeVariable)]
+                  (Dual CapNone (TVar typeVariable))
+              namedApplication functionName =
+                IMatchExpr
+                  BFSMode
+                  (IConstantExpr (IntegerExpr 1))
+                  (IConstantExpr SomethingExpr)
+                  [ ( IInductiveOrPApplyPat functionName [IPatVar "value"]
+                    , IVarExpr "value"
+                    )
+                  ]
+              config enabled =
+                defaultInferConfig
+                  { cfgTypePmCompatibilityWarnings = enabled }
+              applicationState enabled functionName maybeFinalized =
+                (initialInferStateWithConfig (config enabled))
+                  { inferEnv =
+                      TypeEnv.extendEnv
+                        (Var functionName []) headerScheme emptyEnv
+                  , inferPatternFuncDeclEnv =
+                      extendPatternEnv
+                        functionName headerScheme emptyPatternEnv
+                  , inferPatternFuncEnv =
+                      case maybeFinalized of
+                        Just scheme ->
+                          extendPatternFunctionEnv
+                            functionName scheme emptyPatternFunctionEnv
+                        Nothing -> emptyPatternFunctionEnv
+                  }
+              expressionHeadedApplication =
+                IMatchExpr
+                  BFSMode
+                  (IConstantExpr (IntegerExpr 1))
+                  (IConstantExpr SomethingExpr)
+                  [ ( IPApplyPat
+                        (IApplyExpr
+                          (ILambdaExpr
+                            Nothing
+                            [Var "function" []]
+                            (IVarExpr "function"))
+                          [IVarExpr "headerIdentity"])
+                        [IPatVar "value"]
+                    , IVarExpr "value"
+                    )
+                  ]
+              shadowedName = "shadowedPatternFunction"
+              shadowedScheme =
+                DualScheme [] [] [] (Dual CapNone TInt)
+              shadowedApplication =
+                ILetExpr
+                  [ ( PDPatVar (Var shadowedName [])
+                    , ILambdaExpr
+                        Nothing
+                        [Var "localValue" []]
+                        (IVarExpr "localValue")
+                    )
+                  ]
+                  (IMatchExpr
+                    BFSMode
+                    (IConstantExpr (IntegerExpr 1))
+                    (IConstantExpr SomethingExpr)
+                    [ ( IPApplyPat
+                          (IVarExpr shadowedName)
+                          [IPatVar "value"]
+                      , IVarExpr "value"
+                      )
+                    ])
+              shadowedState enabled =
+                let targetProjection =
+                      dualSchemeTargetScheme shadowedScheme
+                in (initialInferStateWithConfig (config enabled))
+                    { inferEnv =
+                        TypeEnv.extendEnv
+                          (Var shadowedName []) targetProjection emptyEnv
+                    , inferPatternFuncDeclEnv =
+                        extendPatternEnv
+                          shadowedName targetProjection emptyPatternEnv
+                    , inferPatternFuncEnv =
+                        extendPatternFunctionEnv
+                          shadowedName shadowedScheme emptyPatternFunctionEnv
+                    }
+
+          (finalizedResult, finalizedWarnings) <-
+            runInferWithWarnings
+              (inferIExpr (namedApplication "finalizedIdentity"))
+              (applicationState
+                True "finalizedIdentity" (Just finalizedScheme))
+          case finalizedResult of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("the finalized named application failed: " ++ show err)
+          assertEqual
+            "a finalized named application has no compatibility warning"
+            []
+            finalizedWarnings
+
+          (headerResultOff, headerWarningsOff) <-
+            runInferWithWarnings
+              (inferIExpr (namedApplication "headerIdentity"))
+              (applicationState False "headerIdentity" Nothing)
+          (headerResultOn, headerWarningsOn) <-
+            runInferWithWarnings
+              (inferIExpr (namedApplication "headerIdentity"))
+              (applicationState True "headerIdentity" Nothing)
+          assertEqual
+            "warning reporting must not change header-only inference"
+            (show headerResultOff)
+            (show headerResultOn)
+          case headerResultOn of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("the header-only extension path failed: " ++ show err)
+          assertEqual
+            "the header-only path is silent when the option is disabled"
+            []
+            headerWarningsOff
+          case headerWarningsOn of
+            [TypePmCompatibilityWarning detail _] -> do
+              assertBool
+                "the warning identifies the header-only function"
+                ("`headerIdentity`" `isInfixOf` detail)
+              assertBool
+                "the warning explains that the DualScheme is not finalized"
+                ("uses only a header because its DualScheme is not finalized"
+                  `isInfixOf` detail)
+            other ->
+              assertFailure
+                ("expected exactly one header-only compatibility warning, got " ++
+                 show other)
+
+          (expressionResultOff, expressionWarningsOff) <-
+            runInferWithWarnings
+              (inferIExpr expressionHeadedApplication)
+              (applicationState False "headerIdentity" Nothing)
+          (expressionResultOn, expressionWarningsOn) <-
+            runInferWithWarnings
+              (inferIExpr expressionHeadedApplication)
+              (applicationState True "headerIdentity" Nothing)
+          assertEqual
+            "warning reporting must not change expression-headed inference"
+            (show expressionResultOff)
+            (show expressionResultOn)
+          case expressionResultOn of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("the expression-headed extension path failed: " ++ show err)
+          assertEqual
+            "the expression-headed path is silent when the option is disabled"
+            []
+            expressionWarningsOff
+          case expressionWarningsOn of
+            [TypePmCompatibilityWarning detail _] ->
+              assertBool
+                "the expression-headed boundary is reported exactly once"
+                ("expression-headed pattern application" `isInfixOf` detail)
+            other ->
+              assertFailure
+                ("expected exactly one expression-headed warning, got " ++
+                 show other)
+
+          (shadowedResultOff, shadowedWarningsOff) <-
+            runInferWithWarnings
+              (inferIExpr shadowedApplication)
+              (shadowedState False)
+          (shadowedResultOn, shadowedWarningsOn) <-
+            runInferWithWarnings
+              (inferIExpr shadowedApplication)
+              (shadowedState True)
+          assertEqual
+            "warning reporting must not change shadowed-head inference"
+            (show shadowedResultOff)
+            (show shadowedResultOn)
+          case shadowedResultOn of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("an explicit variable head ignored its lexical binding: " ++
+                 show err)
+          assertEqual
+            "a shadowed explicit head is silent when warnings are disabled"
+            []
+            shadowedWarningsOff
+          case shadowedWarningsOn of
+            [TypePmCompatibilityWarning detail _] ->
+              assertBool
+                "the shadowed variable still uses the expression-headed boundary"
+                ("expression-headed pattern application" `isInfixOf` detail)
+            other ->
+              assertFailure
+                ("expected one warning for the shadowed explicit head, got " ++
+                 show other)
+    ]
+  where
+    assertCorrelatedPairScheme scheme =
+      case scheme of
+        DualScheme
+          capabilityBinders
+          targetBinders
+          [ Dual (CapVar leftCapability) (TVar leftTarget)
+          , Dual (CapVar rightCapability) (TVar rightTarget)
+          ]
+          (Dual
+            (CapTuple
+              [CapVar resultLeftCapability, CapVar resultRightCapability])
+            (TTuple [TVar resultLeftTarget, TVar resultRightTarget])) -> do
+              assertEqual
+                "the first result capability comes from the first argument"
+                leftCapability
+                resultLeftCapability
+              assertEqual
+                "the second result capability comes from the second argument"
+                rightCapability
+                resultRightCapability
+              assertEqual
+                "the first result target comes from the first argument"
+                leftTarget
+                resultLeftTarget
+              assertEqual
+                "the second result target comes from the second argument"
+                rightTarget
+                resultRightTarget
+              assertEqual
+                "the scheme quantifies exactly its capability images"
+                (sort [leftCapability, rightCapability])
+                (sort capabilityBinders)
+              assertEqual
+                "the scheme quantifies exactly its target images"
+                (sort [leftTarget, rightTarget])
+                (sort targetBinders)
+        other ->
+          assertFailure
+            ("unexpected correlated pattern-function scheme: " ++ show other)
+
+    correlatedPairImages instanceValue =
+      case instanceValue of
+        ( [ Dual
+              (CapVar leftCapability)
+              (TMatcher (CapVar leftTargetCapability) (TVar leftTarget))
+          , Dual
+              (CapVar rightCapability)
+              (TMatcher (CapVar rightTargetCapability) (TVar rightTarget))
+          ]
+          , Dual
+              (CapTuple
+                [CapVar resultLeftCapability, CapVar resultRightCapability])
+              (TTuple
+                [ TMatcher
+                    (CapVar resultLeftTargetCapability)
+                    (TVar resultLeftTarget)
+                , TMatcher
+                    (CapVar resultRightTargetCapability)
+                    (TVar resultRightTarget)
+                ])
+          )
+            | leftCapability == resultLeftCapability
+            , rightCapability == resultRightCapability
+            , leftCapability == leftTargetCapability
+            , rightCapability == rightTargetCapability
+            , leftCapability == resultLeftTargetCapability
+            , rightCapability == resultRightTargetCapability
+            , leftTarget == resultLeftTarget
+            , rightTarget == resultRightTarget ->
+                Just
+                  (leftCapability, rightCapability, leftTarget, rightTarget)
+        _ -> Nothing
 
 -- | Pure regressions for the two-sort P2 representation and evidence
 -- calculus.  Language-level acceptance/rejection cases live in
@@ -799,13 +1567,55 @@ strictSelectedCoreTests =
             env
             (casBridgeStubs
               ++ map Load selectedCoreLibraries
-              ++ [LoadFile "test/lib/core/p2-capability.egi"])
+              ++ [ LoadFile "test/lib/core/p2-capability.egi"
+                 , LoadFile "test/lib/core/pattern-function.egi"
+                 ])
     case result of
       Left err ->
         assertFailure
           ("strict selected-library P2 regression failed: " ++ show err)
       Right _ ->
         return ()
+
+-- | The standalone type-error corpus is normally checked by a separate
+-- sweep.  Keep the two DualScheme-specific rejection boundaries in the
+-- ordinary HUnit run as well, and require their intended diagnostics so an
+-- unrelated parse or linearity failure cannot satisfy the test accidentally.
+patternFunctionTypeErrorTests :: Test
+patternFunctionTypeErrorTests =
+  TestLabel "pattern-function target and arity rejection" . TestList $
+    map rejects
+      [ ( "test/type-error/88-patfun-param-target.egi"
+        , ["Type error:", "Integer", "Bool"]
+        )
+      , ( "test/type-error/89-patfun-exact-arity.egi"
+        , ["Type error:", "expects 2 arguments, but got 1"]
+        )
+      ]
+  where
+    rejects (file, expectedFragments) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | all
+                (\fragment -> fragment `isInfixOf` show err)
+                expectedFragments ->
+                return ()
+            | otherwise ->
+                assertFailure
+                  ("pattern-function rejection failed for an unexpected reason: " ++
+                   show err)
+          Right _ ->
+            assertFailure
+              ("an invalid pattern function was accepted: " ++ file)
 
 -- | Both sorts of binder in an explicit scheme are rigid for the duration of
 -- checking.  These reject cases are wired into the normal HUnit suite so they

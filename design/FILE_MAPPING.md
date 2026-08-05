@@ -18,9 +18,9 @@
 ### Phase 2: 環境構築
 | ファイル | 役割 | 主要な型・関数 |
 |---------|------|---------------|
-| `EnvBuilder.hs` | 環境構築。ClassDecl/InstanceDeclからClassEnv/TypeEnvを構築 | `buildEnvironments`, `EnvBuildResult` |
-| `Type/Env.hs` | 型環境・クラス環境のデータ型と操作 | `TypeEnv`, `ClassEnv`, `ClassInfo`, `InstanceInfo` |
-| `EvalState.hs` | 評価状態。MonadEvalクラスで環境アクセスを抽象化 | `EvalState`, `MonadEval`, `getClassEnv`, `getTypeEnv` |
+| `EnvBuilder.hs` | 環境構築。クラス・値・パターンコンストラクタ・パターン関数 header を収集 | `buildEnvironments`, `EnvBuildResult`, `ebrPatternConstructorEnv`, `ebrPatternTypeEnv` |
+| `Type/Env.hs` | 型環境・クラス環境・検査済みパターン関数環境のデータ型と操作 | `TypeEnv`, `ClassEnv`, `PatternTypeEnv`, `PatternFunctionEnv` |
+| `EvalState.hs` | 評価状態。header-only と finalized pattern-function 環境を別々に永続化 | `EvalState`, `MonadEval`, `getPatternFuncDeclEnv`, `getPatternFuncEnv` |
 
 ### Phase 3-4: Desugar (構文糖衣展開)
 | ファイル | 役割 | 主要な型・関数 |
@@ -38,12 +38,12 @@
 ### Phase 5-6: 型推論
 | ファイル | 役割 | 主要な型・関数 |
 |---------|------|---------------|
-| `Type/Infer.hs` | IExpr型推論（統合モジュール）。制約収集、スーパークラス展開、TIExpr生成を含む | `inferIExpr`, `inferITopExpr`, `Infer`モナド, `InferState`, `expandSuperclasses`, `addConstraints` |
+| `Type/Infer.hs` | IExpr型推論（統合モジュール）。二-sort capability/target 推論とパターン関数の定義・適用を含む | `inferIExpr`, `inferITopExpr`, `inferIPattern`, `instantiateDualSchemeInState`, `generalizeDualSchemeInState` |
 | `Type/Unify.hs` | 型単一化。TensorHandlingモードで3種の単一化を統合 | `unify`, `unifyStrict`, `unifyWithTopLevel`, `unifyWithConstraints`, `TensorHandling(..)` |
-| `Type/Subst.hs` | 型代入 | `Subst`, `applySubst`, `composeSubst` |
-| `Type/Types.hs` | 型データ型定義 | `Type(..)`, `TypeScheme(..)`, `Constraint(..)`, `ClassInfo`, `InstanceInfo` |
+| `Type/Subst.hs` | capability/target の二-sort代入 | `Subst`, `applySubst`, `applySubstDual`, `composeSubst` |
+| `Type/Types.hs` | 型・capability・dual scheme のデータ型定義 | `Type(..)`, `Capability(..)`, `TypeScheme(..)`, `Dual(..)`, `DualScheme(..)` |
 | `Type/Error.hs` | 型エラー・型警告の定義 | `TypeError(..)`, `TypeWarning(..)`, `formatTypeError` |
-| `Type/Env.hs` | 型環境の操作 | `TypeEnv`, `ClassEnv`, `PatternTypeEnv`, `extendEnv`, `lookupEnv`, `lookupClass`, `lookupInstances` |
+| `Type/Env.hs` | 型環境の操作 | `TypeEnv`, `ClassEnv`, `PatternTypeEnv`, `PatternFunctionEnv`, `lookupPatternEnv`, `lookupPatternFunctionEnv` |
 | `Type/Instance.hs` | インスタンス検索 | `findMatchingInstanceForType` |
 
 **型推論の内部処理**:
@@ -51,6 +51,10 @@
 - `addConstraints` でスーパークラスを自動展開（`expandSuperclasses`）
 - 推論結果から `TIExpr` (型付き内部表現) を直接生成
 - `resolveConstraintsInTIExpr` で型変数の具体化後に制約を解決
+- パターン関数定義では全 argument/result dual を一つの canonical `DualScheme` に一般化して保存
+- finalized named application では capability/target binder を同時に fresh instantiate
+- header-only の前方・相互参照と expression-headed application のみ target-only compatibility fallback（body の非 core 形式は定義時に warning，直接自己参照は拒否）
+- cross-load 再定義は古い finalized scheme を先に無効化し，同一 load unit の重複宣言は拒否
 
 ### Phase 7: TypedDesugar (型駆動の変換)
 
@@ -164,7 +168,7 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 │ Phase 2: buildEnvironments (EnvBuilder.hs)                  │
 │   [TopExpr] → EnvBuildResult                                │
 │   出力: TypeEnv, ClassEnv, ConstructorEnv,                  │
-│         PatternConstructorEnv, PatternFuncEnv                │
+│         PatternConstructorEnv, pattern-function headers      │
 │   ClassDeclExpr → ClassInfo (classSupers, classMethods)     │
 │   InstanceDeclExpr → InstanceInfo (instContext, instType)   │
 │   DefineWithType → TypeScheme を TypeEnv に登録             │
@@ -188,6 +192,8 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 │   Hindley-Milner + 型クラス制約収集                         │
 │   スーパークラス自動展開 (expandSuperclasses)               │
 │   TIExpr を直接生成（各ノードに TypeScheme を付与）          │
+│   pattern function: DualScheme を一般化・保存               │
+│   named application: capability/target を同時 instantiate   │
 │   ※ 旧 Phase 7 (Type Attachment) はここに統合済み           │
 │   基盤: Unify.hs, Subst.hs, Types.hs, Instance.hs          │
 └────────────┬────────────────────────────────────────────────┘
@@ -251,4 +257,3 @@ tensorMap挿入後に引数の型（スカラー vs テンソル）が確定す�
 ### 辞書パッシング（Haskellスタイル）
 
 型クラスの辞書はハッシュテーブルで表現される。各辞書はメソッドの実装に加え、スーパークラスの辞書への参照を `__super_ClassName` キーで保持する。関数の制約パラメータは `deExpandConstraints` で最小化され、メソッドアクセスはスーパークラスチェーン経由で行われる。
-

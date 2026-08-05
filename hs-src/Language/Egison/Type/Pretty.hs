@@ -8,6 +8,8 @@ This module provides pretty printing for Egison types.
 module Language.Egison.Type.Pretty
   ( prettyType
   , prettyCapability
+  , prettyDual
+  , prettyDualScheme
   , prettyTypeScheme
   , prettyTypeExpr
   , prettyCapabilityExpr
@@ -21,7 +23,8 @@ import           Language.Egison.AST        (CapabilityExpr (..), TypeExpr (..),
                                              SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
-import           Language.Egison.Type.Types (CapVar (..), Capability (..), ShapeDimType (..),
+import           Language.Egison.Type.Types (CapVar (..), Capability (..), Dual (..),
+                                             DualScheme (..), ShapeDimType (..),
                                              TensorShape (..), TyVar (..), Type (..),
                                              TypeFormer (..), TypeFormerId (..),
                                              TypeScheme (..), SymbolSet(..), prettyTypeAtomValue)
@@ -81,6 +84,24 @@ prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) args) =
 prettyCapability (CapTuple []) = "()"
 prettyCapability (CapTuple capabilities) =
   "(" ++ intercalate ", " (map prettyCapability capabilities) ++ ")"
+
+-- | Pretty print one capability/target pattern dual.
+prettyDual :: Dual -> String
+prettyDual (Dual capability target) =
+  prettyCapability capability ++ " ▷ " ++ prettyType target
+
+-- | Pretty print a two-sorted pattern-function scheme.
+prettyDualScheme :: DualScheme -> String
+prettyDualScheme scheme =
+  quantifiers ++
+  "(" ++ intercalate ", " (map prettyDual (dualArgs scheme)) ++ ") => " ++
+  prettyDual (dualResult scheme)
+  where
+    binders =
+      [ name | MkCapVar name <- dualCapBinders scheme ] ++
+      [ name | TyVar name <- dualTyBinders scheme ]
+    quantifiers =
+      if null binders then "" else "∀" ++ unwords binders ++ ". "
 
 prettyCapabilityAtom :: Capability -> String
 prettyCapabilityAtom capability@(CapCon _ (_:_)) =

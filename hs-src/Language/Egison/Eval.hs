@@ -35,9 +35,9 @@ module Language.Egison.Eval
   , expandLoads
   ) where
 
-import           Control.Monad              (foldM, forM_, when)
+import           Control.Monad              (foldM, forM_, unless, when)
 import           Data.IORef                 (newIORef)
-import           Data.List                  (intercalate)
+import           Data.List                  (intercalate, nub)
 import           Control.Monad.Except       (throwError, catchError)
 import           Control.Monad.Reader       (ask, asks)
 import           Control.Monad.State
@@ -55,7 +55,12 @@ import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgTypePmCompatibilityWarnings, batchForwardProducerDependencies)
-import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
+import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv,
+                                           extendEnvMany, envToList,
+                                           classEnvToList, lookupInstances,
+                                           patternEnvToList, mergeClassEnv,
+                                           extendPatternEnv,
+                                           removePatternFunctionEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
 import           Language.Egison.Type.Error (TypeError, formatTypeError, formatTypeWarning)
@@ -328,9 +333,25 @@ casQuotientTemplate q = unlines
 
 buildAndMergeEnvironments :: [TopExpr] -> EgisonOpts -> EvalM ()
 buildAndMergeEnvironments exprs opts = do
+  let patternFunctionNames =
+        [ name
+        | PatternFunctionDecl name _ _ _ _ <- exprs
+        ]
+      duplicatePatternFunctionNames =
+        nub
+          [ name
+          | name <- patternFunctionNames
+          , length (filter (== name) patternFunctionNames) > 1
+          ]
+  unless (null duplicatePatternFunctionNames) $
+    throwError $ Default $
+      "Duplicate pattern-function declaration(s) in one load unit: " ++
+      intercalate ", " duplicatePatternFunctionNames
+
   currentTypeEnv <- getTypeEnv
   currentClassEnv <- getClassEnv
   currentPatternEnv <- getPatternEnv
+  currentPatternFuncDeclEnv <- getPatternFuncDeclEnv
   currentPatternFuncEnv <- getPatternFuncEnv
 
   envResult <- buildEnvironments exprs
@@ -344,14 +365,24 @@ buildAndMergeEnvironments exprs opts = do
       mergedPatternEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
                                currentPatternEnv
                                (patternEnvToList patternConstructorEnv)
-      mergedPatternFuncEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
-                                   currentPatternFuncEnv
+      mergedPatternFuncDeclEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
+                                   currentPatternFuncDeclEnv
                                    (patternEnvToList newPatternFuncEnv)
+      -- A replacement header shadows both the old header and the old checked
+      -- body.  Keep only the new header until its body succeeds and publishes
+      -- a new DualScheme; otherwise a forward use (or permissive fallback)
+      -- could be checked against the stale body contract.
+      invalidatedPatternFuncEnv =
+        foldr
+          (removePatternFunctionEnv . fst)
+          currentPatternFuncEnv
+          (patternEnvToList newPatternFuncEnv)
 
   setTypeEnv mergedTypeEnv
   setClassEnv mergedClassEnv
   setPatternEnv mergedPatternEnv
-  setPatternFuncEnv mergedPatternFuncEnv
+  setPatternFuncDeclEnv mergedPatternFuncDeclEnv
+  setPatternFuncEnv invalidatedPatternFuncEnv
 
   -- Phase alpha (extensible CAS tower): persist `declare cas-type` aliases so
   -- Desugar (this batch) and later load batches can expand annotation types.
@@ -409,12 +440,12 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
                           , cfgTypePmCompatibilityWarnings = optTypePmCompatibilityWarnings opts
                           }
       currentPatternEnv' <- getPatternEnv
+      currentPatternFuncDeclEnv' <- getPatternFuncDeclEnv
       currentPatternFuncEnv' <- getPatternFuncEnv
-      currentPatternFuncStructEnv' <- getPatternFuncStructEnv
       currentCasEdges <- getCasSubtypeEdges
       currentMatcherShapes <- getMatcherShapeEnv
       currentProducerDependencies <- getProducerDependencyEnv
-      let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncEnv']
+      let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncDeclEnv']
           enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
           externalProducerDependencies =
             Set.foldr Map.delete currentProducerDependencies batchDefNames
@@ -427,8 +458,8 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
             inferEnv = enrichedTypeEnv,
             inferClassEnv = currentClassEnv,
             inferPatternEnv = currentPatternEnv',
+            inferPatternFuncDeclEnv = currentPatternFuncDeclEnv',
             inferPatternFuncEnv = currentPatternFuncEnv',
-            inferPatternFuncStructEnv = currentPatternFuncStructEnv',
             inferCasSubtypeEdges = currentCasEdges,
             inferBatchDefNames = batchDefNames,
             inferProducerDependencies =
@@ -468,8 +499,8 @@ persistSuccessfulInferState finalState = do
   setTypeEnv (inferEnv finalState)
   setClassEnv (inferClassEnv finalState)
   setPatternEnv (inferPatternEnv finalState)
+  setPatternFuncDeclEnv (inferPatternFuncDeclEnv finalState)
   setPatternFuncEnv (inferPatternFuncEnv finalState)
-  setPatternFuncStructEnv (inferPatternFuncStructEnv finalState)
   setMatcherShapeEnv (inferMatcherShapes finalState)
 
 -- | Report a type error.  Permissive mode keeps the historical untyped

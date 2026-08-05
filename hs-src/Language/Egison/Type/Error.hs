@@ -126,6 +126,11 @@ data TypeError
     --   condition): each parameter must be used exactly once in the body, in
     --   declaration order.  Fields: function name, declared parameters, actual
     --   parameter uses in body order.
+  | DuplicatePatternFunctionParameters String [String] TypeErrorContext
+    -- ^ Pattern function parameter names must be pairwise distinct.
+  | RecursivePatternFunction String TypeErrorContext
+    -- ^ The mechanized core admits only nonrecursive pattern-function
+    --   definitions; the function occurs in its own body.
   | PatternFunctionParamUnderBranchError String [String] TypeErrorContext
     -- ^ Pattern function parameters used under a branching or repeating pattern
     --   (or-, loop-, not-, forall-pattern): such an occurrence may be expanded
@@ -235,6 +240,16 @@ formatTypeError err = case err of
       "Pattern function '" ++ name ++ "' must use each parameter exactly once, in declaration order:\n" ++
       "  Parameters:    " ++ intercalate ", " (map ("~" ++) params) ++ "\n" ++
       "  Uses in body:  " ++ (if null uses then "(none)" else intercalate ", " (map ("~" ++) uses))
+
+  DuplicatePatternFunctionParameters name duplicates ctx ->
+    formatWithContext ctx $
+      "Pattern function '" ++ name ++ "' declares duplicate parameter name(s):\n" ++
+      "  Parameters:  " ++ intercalate ", " duplicates
+
+  RecursivePatternFunction name ctx ->
+    formatWithContext ctx $
+      "Pattern function '" ++ name ++ "' contains a call to itself; " ++
+      "recursive pattern-function definitions are not supported by the mechanized core"
 
   PatternFunctionParamUnderBranchError name offenders ctx ->
     formatWithContext ctx $

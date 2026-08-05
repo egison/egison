@@ -86,6 +86,8 @@ done
 | 85-p2-pattern-function-annotation-rigidity | P2 D3 pattern-function checking | pattern function の明示通常型 binder を rigid に検査する |
 | 86-p2-pattern-function-nested-annotation-rigidity | P2 D3 nested pattern annotation | pattern-function body の nested annotation でも同じ rigid binder を共有する |
 | 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `none` への特殊化を拒否 |
+| 88-patfun-param-target | PATFUN-DEF / PAT-EMBED target | `~parameter` が宣言された `Integer` target を保持し，結果の `Bool` へ再型付けされることを拒否 |
+| 89-patfun-exact-arity | PAT-APP exact arity | target-only の関数型統一では受理できる pattern function の過少適用を拒否 |
 
 ## ケース追加時の注意
 
@@ -99,5 +101,7 @@ done
 - 82 は `Any cannot witness a structured matcher capability` を含むことを確認する。
 - 83--86 は `TSkolem`，87 は capability skolem の surface 表示 `Matcher $skc` を
   含むことを確認し，別の型エラーで偶然 reject されていないことを確認する。
+- 88 は `Integer` と `Bool`，89 は `expects 2 arguments, but got 1` を含むことを
+  確認し，pattern function の別の検査で偶然 reject されていないことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。

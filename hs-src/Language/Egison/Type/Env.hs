@@ -37,6 +37,13 @@ module Language.Egison.Type.Env
   , extendPatternEnv
   , lookupPatternEnv
   , patternEnvToList
+  -- * Checked pattern-function dual environment
+  , PatternFunctionEnv(..)
+  , emptyPatternFunctionEnv
+  , extendPatternFunctionEnv
+  , removePatternFunctionEnv
+  , lookupPatternFunctionEnv
+  , patternFunctionEnvToList
   ) where
 
 import           Data.List                  (sortBy, sortOn)
@@ -50,6 +57,7 @@ import           Language.Egison.IExpr      (Var(..), Index(..))
 import           Language.Egison.VarEntry   (VarEntry(..))
 import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Type (..), TypeScheme (..),
+                                             DualScheme,
                                              Constraint(..), ClassInfo(..),
                                              InstanceInfo(..), freeCapVars,
                                              freeTyVars, freshCapVar, freshTyVar,
@@ -61,10 +69,18 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
 newtype TypeEnv = TypeEnv { unTypeEnv :: Map String [VarEntry TypeScheme] }
   deriving (Eq, Show)
 
--- | Pattern type environment: maps pattern function names to type schemes
--- This is separate from the value type environment
+-- | Target-only signatures used for frozen pattern constructors or for
+-- pattern-function headers, depending on the owning state field.  Finalized
+-- pattern functions use the separate two-sorted 'PatternFunctionEnv'.
 newtype PatternTypeEnv = PatternTypeEnv { unPatternTypeEnv :: Map String TypeScheme }
   deriving (Eq, Show)
+
+-- | Fully checked pattern-function signatures.  Header-only declarations are
+-- intentionally kept in 'PatternTypeEnv' until their bodies have produced a
+-- complete capability/target 'DualScheme'.
+newtype PatternFunctionEnv = PatternFunctionEnv
+  { unPatternFunctionEnv :: Map String DualScheme
+  } deriving (Eq, Show)
 
 -- | Empty type environment
 emptyEnv :: TypeEnv
@@ -364,3 +380,29 @@ lookupPatternEnv name (PatternTypeEnv env) = Map.lookup name env
 -- | Convert pattern type environment to list
 patternEnvToList :: PatternTypeEnv -> [(String, TypeScheme)]
 patternEnvToList (PatternTypeEnv env) = Map.toList env
+
+-- | Empty checked pattern-function environment.
+emptyPatternFunctionEnv :: PatternFunctionEnv
+emptyPatternFunctionEnv = PatternFunctionEnv Map.empty
+
+-- | Add or replace a finalized pattern-function dual scheme.
+extendPatternFunctionEnv
+  :: String -> DualScheme -> PatternFunctionEnv -> PatternFunctionEnv
+extendPatternFunctionEnv name scheme (PatternFunctionEnv env) =
+  PatternFunctionEnv (Map.insert name scheme env)
+
+-- | Remove a finalized pattern-function scheme.  Environment prepasses use
+-- this when a new declaration shadows an older checked body: the new header
+-- remains available for forward references, but the old body contract must
+-- not be reused before the replacement body has itself been checked.
+removePatternFunctionEnv :: String -> PatternFunctionEnv -> PatternFunctionEnv
+removePatternFunctionEnv name (PatternFunctionEnv env) =
+  PatternFunctionEnv (Map.delete name env)
+
+-- | Look up a finalized pattern-function dual scheme.
+lookupPatternFunctionEnv :: String -> PatternFunctionEnv -> Maybe DualScheme
+lookupPatternFunctionEnv name (PatternFunctionEnv env) = Map.lookup name env
+
+-- | Convert a finalized pattern-function environment to a stable list.
+patternFunctionEnvToList :: PatternFunctionEnv -> [(String, DualScheme)]
+patternFunctionEnvToList (PatternFunctionEnv env) = Map.toList env

@@ -265,7 +265,7 @@ builtinTypes = concat
       , ("regex", binOp TString TString (TCollection (TTuple [TString, TString, TString])))
       , ("regexCg", binOp TString TString (TCollection (TTuple [TString, TCollection TString, TString])))
       , ("read", Forall [] [] [] (TIO TString))
-      , ("readTsv", unaryOp TString (TVar a))
+      , ("readTsv", forallA $ TFun TString (TVar a))
       , ("show", forallA $ TFun (TVar a) TString)
       , ("showTsv", forallA $ TFun (TVar a) TString)
       ]

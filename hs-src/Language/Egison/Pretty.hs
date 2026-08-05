@@ -27,7 +27,7 @@ import           Language.Egison.Data
 import           Language.Egison.IExpr hiding (TIPatternNode(..))
 import           Language.Egison.IExpr (TIPatternNode(..))
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Pretty (prettyTypeScheme)
+import           Language.Egison.Type.Pretty (prettyDualScheme, prettyTypeScheme)
 
 --
 -- Pretty printing for Non-S syntax
@@ -953,8 +953,8 @@ instance Pretty TITopExpr where
   pretty (TIDeclareSymbol names ty) =
     let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
     in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> pretty ":" <+> prettyTypeDoc ty
-  pretty (TIPatternFunctionDecl name typeScheme params retType body) =
-    let typeStr = prettyTypeScheme typeScheme
+  pretty (TIPatternFunctionDecl name dualScheme params retType body) =
+    let typeStr = prettyDualScheme dualScheme
         paramsDoc = hsep (map prettyParam params)
         retTypeDoc = prettyTypeDoc retType
     in pretty "def" <+> pretty "pattern" <+> pretty name <+> pretty ":" <+> pretty typeStr <+>

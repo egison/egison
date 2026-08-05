@@ -2,12 +2,12 @@
 
 論文: *A Calculus and Type System for Ad-hoc Polymorphic Pattern Matching on Non-free Data Types* (λ_P)。
 
-> **pre-P2 roadmap。** 本文は、P2 より前の一ソート設計を前提にした課題と実装状況を
-> 保存した歴史資料である。現行 P2 の契約は `Matcher κ τ` と
+> **歴史的な一-sort roadmap。** 本文は、旧一-sort設計を前提にした課題と実装状況を
+> 保存した歴史資料である。現行 TypePM の契約は `Matcher κ τ` と
 > `MatcherSlot κ τ` であり、`κ` は capability、`τ` は通常の対象型を表す。
 > 両添字は必須で一添字の糖衣はなく、対象型への代入は capability を変更しない。
 > 以下の一添字 `Matcher τ` と、通常型二つを持つ旧 `MatcherSlot τ_s τ_t` は
-> pre-P2 の表記・意味論として読むこと。
+> 歴史的な表記・意味論として読むこと。
 
 本書は「論文の型システムを Egison 上に**全規則を強制する健全な検査器**として完成させる」
 ために当時残っていた課題をまとめたものである。
@@ -16,7 +16,7 @@
 ## 0. 当時の現状サマリ
 
 **忠実に実装・実証済み(論文の中核)**:
-- pre-P2 の `Matcher τ` / `MatcherSlot τ_s τ_t` の区別・一添字糖衣
+- 当時の `Matcher τ` / `MatcherSlot τ_s τ_t` の区別・一添字糖衣
 - COERCE-MATCHER-TO-SLOT 二重検査 / COERCE-SLOT-TUPLE / TUPLE-MATCHER
 - T-MATCHALL/T-MATCH 構造的許容性(独立 τ_p、§B.2 の 4×2 マトリクス、ネスト、slot-tuple、**本体内 match-site**、
   **明示 self-match-site 再帰** = `concretizeDeclaredTypes`)
@@ -94,7 +94,7 @@ hole target 単一化前に一括保存し，`Matcher` の構造・target 双対
 成分境界後の検査は式構文形に依存しない。旧 `MatcherNextMatcherWarning` 経路は
 削除した。Coverage（課題 B）は引き続き opt-in warning である。
 
-残るのは scheme lookup をまたぐ能力由来の保存（P2 項目7）であり，本課題の
+当時残っていたのは scheme lookup をまたぐ capability provenance の保存であり，本課題の
 fixed-monomorphic な補修とは分離する。詳細は
 [`type-pm-mech/problem/resolved-next-matcher-slot-checking.md`](../../type-pm-mech/problem/resolved-next-matcher-slot-checking.md)
 を参照。
@@ -160,7 +160,7 @@ prior 宣言型を補うことで解消(`buildEnvironments` 内のみの小改�
 
 ---
 
-### 課題 I: パターン関数の構造シグネチャ + パラメータ線形性 (PATFUN-DEF / PAT-APP) — ✅ **完了(2026-06、レビュー M1/M2 対応)**
+### 課題 I: パターン関数の canonical `DualScheme` + パラメータ線形性 (PATFUN-DEF / PAT-APP) — ✅ **実装済み(2026-08、レビュー M1/M2 対応)**
 
 > **背景**: 論文レビューで Type Safety への反例が発見された。旧 PAT-APP は適用全体の構造インデックスを
 > fresh α とし(引数の σ_i も捨てる)、パターン関数適用が match site に構造的要求を一切課さなかった:
@@ -169,29 +169,42 @@ prior 宣言型を補うことで解消(`buildEnvironments` 内のみの小改�
 > さらに実装の旧 `IPApplyPat` は**ターゲット側も未検査**で、`seqp #1 _ as multiset tile`(論文 §B.1.2 の
 > 「型エラーになる」例)が素通りして silent fail していた。
 >
-> **実装(2026-06)**:
-> - `IPatternFunctionDecl`: パラメータごとに fresh 構造インデックス β_i を発行(`inferPatfunParamTaup` 経由で
->   `IVarPat` が返す)。本体推論中に `taupCombine`/`taupFromCtor` が局所的に解いて捨てる構造方程式を
->   `inferPatfunTaupEqs` に記録し、定義末で**一括再解決**して構造シグネチャ
->   `β_1 -> … -> β_k -> τ_p_body` に適用(unifier の変数の向きで β リンクが落ちる問題への対策)。
->   全自由変数で全称化し `inferPatternFuncStructEnv`(EvalState 経由でバッチ間永続)に登録。
-> - `IPApplyPat`: (1) ターゲット側 = 関数型を `parg_1 -> … -> parg_k -> expectedType` と unify してから
->   引数を解決済み型に対し推論(τ_t のトップダウン・コヒーレント計算を維持)。(2) 構造側 = 構造シグネチャを
->   fresh インスタンス化し、引数の τ_p を β_i と unify、`τ_p_body` のインスタンスを適用の τ_p として返す
->   (IInductivePat = PAT-CON と同じ装置)。シグネチャ未登録時は fresh にフォールバック。
+> **現行実装(2026-08)**:
+> - `IPatternFunctionDecl`: 各パラメータに fresh capability を割り当て、注釈 target と組にした
+>   `Dual` を `inferPatfunParamDuals` で本体の `IVarPat` へ渡す。本体推論後、最終 substitution を
+>   全 argument dual と result dual に適用し、capability 変数と通常型変数を別 sort として一度に
+>   一般化する。得られた `DualScheme { dualArgs, dualResult }` を canonical signature として
+>   `PatternFunctionEnv` に保存する。
+> - 式側で必要な通常関数型は `dualSchemeTargetScheme` により canonical `DualScheme` から射影する。
+>   binder と全 argument/result の capability-target 相関は canonical scheme を正本として維持する。
+> - finalized named application: 名前解決済み `IInductiveOrPApplyPat` に対し，capability binders と
+>   target binders を一度の fresh instantiation で
+>   同時に置換し、同じ substitution を全引数と結果で共有する。result target、各 argument target、
+>   各 argument capability を順に照合し、result dual を適用全体へ返す。
+> - body 未検査の header-only 前方・相互参照と expression-headed application だけは canonical
+>   capability 契約を持たないため target-only compatibility fallback を使う。この二つの適用経路は
+>   `--type-pm-compatibility-warnings` の対象である。finalized named application と定義そのものは、
+>   パターン関数であることだけを理由に warning を出さないが，定義 body に残る非 core パターン形式は
+>   定義時に extension boundary として報告する。
+> - cross-load の再定義では新 header が古い finalized scheme を先に無効化し，body 検査成功時だけ
+>   新 scheme を登録する。同じ expanded load unit 内の同名宣言は拒否する。
+> - 同じ定義名への直接または式・matcher 内に入れ子になった自己呼び出しは，PATFUN-DEF の
+>   nonrecursive side condition として拒否する。
 > - **パラメータ線形性(レビュー M2)**: 各パラメータは本体中に「ちょうど1回・宣言順・分岐(or/loop/not/forall)外」
 >   で出現しなければならない。違反は専用型エラー(`PatternFunctionLinearityError` /
 >   `PatternFunctionParamUnderBranchError`)。unused(束縛欠落)・重複(束縛曖昧)・順序違反(Δ-threading 破壊)・
 >   分岐下(パスにより 0 回/複数回展開)の全モードを静的に遮断。
 >
-> **検証**: 反例 4 種+線形性違反 4 種が型エラー化、受理側(`pair $x []` × multiset integer、`idp $x` × something、
-> `pair (num $s $n) []` × multiset tile)は従来通り受理・正常動作。`pair (num $s $n) []` × multiset something は
-> `MatcherSlot [Tile] [Tile]` で拒否(構造伝播がネスト引数まで届く)。mahjong -t クリーン、mini-test 全 0 fail、
-> math サンプル全 ok(slowdown なし)、cabal test 21/21。`mini-test/120-patfun-struct-index.egi` に正例を追加
-> (拒否例はファイル内コメントに列挙)。
+> **現行検証(2026-08)**: canonical scheme の保存，二-sort の同時 fresh instantiation，binder hygiene，
+> finalized/header-only の warning 境界，再定義時の無効化，自己参照・重複宣言の拒否を targeted
+> `patternFunctionDualSchemeTests` で確認した。`strictSelectedCoreTests` には surface 正例
+> `test/lib/core/pattern-function.egi` を組み込み，独立した多相適用と header-only 前方参照を strict mode で確認した。
+> target 保持と exact arity の拒否は `test/type-error/88-patfun-param-target.egi` と
+> `89-patfun-exact-arity.egi` を通常の HUnit 実行にも組み込んだ。全体の `cabal test` は 85/85 pass。
 >
-> **論文側**: PATFUN-DEF(β_i・構造 unifier U・線形性側条件)/ PAT-APP(τ_p^f⟨σ̄⟩ ▷ τ⟨ρ̄⟩)へ改訂、
-> Σ_F は双対スキーム `∀ᾱ. Pattern (Uβ_i ▷ τ_i) → … → Pattern (Uτ_p^f ▷ τ)` を記録(2026-06 改訂)。
+> **論文側**: PATFUN-DEF(各引数/result の capability-target dual と線形性側条件) /
+> PAT-APP(一つの双対スキームの simultaneous instantiation)へ改訂する。Σ_F は引数と結果の全 dual、
+> capability binders、target binders を一つの `DualScheme` として記録する。
 
 ---
 
@@ -488,9 +501,9 @@ A→B→C で論文準拠度が最も大きく前進する(Matcher Consistency �
 - `applySubstWithConstraintsM` / `applySubstToTIExprM` も global を経由
   (zonk 後の unifier は「global との差分」になるため、ローカル subst 適用だけでは
   型の case 分析(例: `extractInnerTypesFromMatcher`)が未解決変数を誤読する)。
-- 投機的単一化の隔離: `withIsolatedConstraints` と `patternDualType` が
-  global も save/restore(taupFromCtor / taupCombine / 構造シグネチャ再解決の
-  catchError-discard が global を汚染しないように)。
+- 投機的な pattern dual 検査の隔離: `patternDualType` は `saveConstraintState` /
+  `restoreConstraintState` により global substitution、制約、warning、deferred hole check、
+  capability allocation/protection state を保存・復元する。破棄した probe が後続推論を汚染しない。
 
 **露出した stdlib / 設計の非準拠と対処**:
 1. **instance 辞書ハッシュはヘテロ**(メソッド型混在+`__super_*` に辞書型;

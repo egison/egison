@@ -1,0 +1,7 @@
+-- A pattern parameter embedding retains the target declared at PATFUN-DEF.
+-- Checking the body top-down must not silently retype an Integer parameter as
+-- the Bool result merely because ~parameter appears at the result position.
+--
+-- Expected: Type error (Integer vs Bool)
+
+def pattern wrongParamTarget (parameter : Integer) : Bool := ~parameter

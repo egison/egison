@@ -56,7 +56,8 @@ import           Data.Hashable
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
-import           Language.Egison.Type.Types (Type(..), TypeScheme(..), Constraint(..), TyVar(..))
+import           Language.Egison.Type.Types (Type(..), TypeScheme(..), DualScheme(..),
+                                             Constraint(..), TyVar(..))
 
 data ITopExpr
   = IDefine Var IExpr
@@ -430,9 +431,9 @@ data TITopExpr
   | TILoadFile String                  -- ^ Load file (should not appear after expandLoads)
   | TILoad String                      -- ^ Load library (should not appear after expandLoads)
   | TIDeclareSymbol [String] Type      -- ^ Typed symbol declaration
-  | TIPatternFunctionDecl String TypeScheme [(String, Type)] Type TIPattern  -- ^ Typed pattern function declaration
+  | TIPatternFunctionDecl String DualScheme [(String, Type)] Type TIPattern  -- ^ Typed pattern function declaration
     -- String: function name
-    -- TypeScheme: type scheme with type parameters and constraints
+    -- DualScheme: canonical capability/target scheme for arguments and result
     -- [(String, Type)]: parameters (name and type with type params substituted)
     -- Type: return type (with type params substituted)
     -- TIPattern: typed body
@@ -657,11 +658,12 @@ stripTypeTopExpr (TIExecute expr) = IExecute (stripType expr)
 stripTypeTopExpr (TILoadFile file) = ILoadFile file
 stripTypeTopExpr (TILoad file) = ILoad file
 stripTypeTopExpr (TIDeclareSymbol names ty) = IDeclareSymbol names (Just ty)
-stripTypeTopExpr (TIPatternFunctionDecl name _scheme params retType body) = 
+stripTypeTopExpr (TIPatternFunctionDecl name scheme params retType body) =
   IPatternFunctionDecl name tyVars params retType (stripTypePat body)
   where
-    -- Extract type variables from the type scheme
-    Forall _ tyVars _ _ = _scheme
+    -- Restore the source-level ordinary binders from the canonical dual
+    -- scheme.  Capability binders have no surface entry in this declaration.
+    tyVars = dualTyBinders scheme
     
     -- Helper function to strip type from pattern
     stripTypePat :: TIPattern -> IPattern

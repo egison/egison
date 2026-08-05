@@ -12,7 +12,7 @@
 ### 型システム関連
 
 - **`pattern.md`** - パターンマッチング設計
-- **`pattern-function-implementation.md`** - パターン関数実装詳細 ✨ NEW (2026-02-08)
+- **`pattern-function-implementation.md`** - パターン関数の canonical `DualScheme` 設計と実装詳細
 - **`type-tensor.md`** - テンソル型システム
 - **`type-tensor-simple.md`** - テンソル型システム（簡易版）
 
@@ -41,9 +41,11 @@
 
 ## 📝 最近の更新
 
-### 2026-02-08: パターン関数の実装完了 ✅
-- パターン関数の型推論を実装
-- 型クラス展開のサポート（パターン内で`+`などの演算子が使用可能に）
-- 環境管理の統一化（`recursiveBind`で一括処理）
-- 詳細は `pattern-function-implementation.md` と `COMPLETED.md` を参照
+### 2026-08-05: パターン関数を二-sort設計へ同期
 
+- 引数と結果の capability/target を一つの canonical `DualScheme` に保存
+- 適用時に capability binders と target binders を同時に fresh instantiate
+- header-only の前方・相互参照，expression-headed application，および body に残る非 core パターン形式を compatibility warning で明示（直接自己参照は定義時に拒否）
+- 再定義時は古い finalized scheme を先に無効化し，同一 load unit 内の重複宣言は拒否
+- runtime は引き続き `IPatternFuncExpr` と `recursiveBind` による統一的な環境 capture を使用
+- 詳細は `pattern-function-implementation.md` と `type-pm-compatibility.md` を参照

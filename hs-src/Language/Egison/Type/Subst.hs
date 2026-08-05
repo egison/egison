@@ -18,6 +18,7 @@ module Language.Egison.Type.Subst
   , applyCapSubst
   , applyCapSubstToType
   , applySubstScheme
+  , applySubstDual
   , applySubstConstraint
   , SubstIndex
   , emptySubstIndex
@@ -33,6 +34,7 @@ import           GHC.Generics               (Generic)
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
 import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Type (..), TypeScheme (..),
+                                             Dual (..),
                                              Constraint (..), SymbolSet (..),
                                              mapTypeCapabilities)
 
@@ -168,6 +170,13 @@ applySubstScheme (Subst tys caps) (Forall capVars tyVars cs t) =
   in Forall capVars tyVars
        (map (applySubstConstraint s') cs)
        (applySubst s' t)
+
+-- | Apply one paired substitution to both sorts of a pattern dual.
+applySubstDual :: Subst -> Dual -> Dual
+applySubstDual substitution (Dual capability target) =
+  Dual
+    (applyCapSubst substitution capability)
+    (applySubst substitution target)
 
 -- | Apply a substitution to a constraint
 applySubstConstraint :: Subst -> Constraint -> Constraint

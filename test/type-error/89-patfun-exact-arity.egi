@@ -1,0 +1,14 @@
+-- PAT-APP consumes the complete argument list of its DualScheme.  With only
+-- target-function unification, the missing Bool argument below could be
+-- mistaken for a function-valued pattern result, so this specifically checks
+-- the exact-arity premise.
+--
+-- Expected: Type error (expects 2 arguments, but got 1)
+
+def pattern exactArity
+  (first : Integer) (second : Bool) : (Integer, Bool) :=
+  (~first, ~second)
+
+def underappliedPatternFunction :=
+  match (\value -> (1, value)) as something with
+  | exactArity $first -> first
