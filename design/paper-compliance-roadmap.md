@@ -183,7 +183,7 @@ prior 宣言型を補うことで解消(`buildEnvironments` 内のみの小改�
 >   各 argument capability を順に照合し、result dual を適用全体へ返す。
 > - body 未検査の header-only 前方・相互参照と expression-headed application だけは canonical
 >   capability 契約を持たないため target-only compatibility fallback を使う。この二つの適用経路は
->   `--type-pm-compatibility-warnings` の対象である。finalized named application と定義そのものは、
+>   `--outside-egison-core-warnings` の対象である。finalized named application と定義そのものは、
 >   パターン関数であることだけを理由に warning を出さないが，定義 body に残る非 core パターン形式は
 >   定義時に extension boundary として報告する。
 > - cross-load の再定義では新 header が古い finalized scheme を先に無効化し，body 検査成功時だけ

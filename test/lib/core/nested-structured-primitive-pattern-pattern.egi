@@ -1,0 +1,18 @@
+-- Surface regression for the nested primitive-pattern diagnostic boundary.
+-- The nested primitive-pattern pattern is accepted by Egison and is reported
+-- only when --nested-structured-primitive-pattern-pattern-warnings is enabled.
+
+inductive NestedPPatWarningDemo :=
+  | NestedPPatWarningJoin Integer NestedPPatWarningDemo
+  | NestedPPatWarningCons Integer NestedPPatWarningDemo
+
+inductive pattern NestedPPatWarningDemo :=
+  | nestedPPatWarningJoin Integer NestedPPatWarningDemo
+  | nestedPPatWarningCons Integer NestedPPatWarningDemo
+
+def nestedPPatWarningMatcher :=
+  matcher
+    | nestedPPatWarningJoin $ (nestedPPatWarningCons #$val $) as (something, something) with
+      | $tgt -> []
+    | $ as something with
+      | $tgt -> [tgt]

@@ -74,9 +74,14 @@ data TypeWarning
   | MatcherCoverageWarning Type [String] TypeErrorContext
     -- ^ A @matcher@ lacks a general clause for some pattern constructor(s) of its matched
     --   type (paper Coverage, Def 4.2(3)): the matched type, then the missing constructors.
-  | TypePmCompatibilityWarning String TypeErrorContext
-    -- ^ The extended Egison checker proceeds through a construct outside the
-    --   conservative type-pm compatibility profile.
+  | OutsideEgisonCoreWarning String TypeErrorContext
+    -- ^ The production checker proceeds through an extension outside Egison core.
+  | PatternHoleBeforePrimitiveValuePatternWarning String TypeErrorContext
+    -- ^ A primitive-pattern pattern (rendered in the first field) has a pattern
+    --   hole to the left of a primitive value pattern in DFS source order.
+  | NestedStructuredPrimitivePatternPatternWarning String TypeErrorContext
+    -- ^ A primitive-pattern pattern (rendered in the first field) nests a
+    --   constructor or tuple inside another structured node.
   | ClassMethodShadowWarning String String TypeErrorContext
     -- ^ A top-level definition reuses a class method name (method name, class name).
     --   The definition replaces the dispatching binding, so the method stops
@@ -148,12 +153,13 @@ data TypeError
     -- ^ ShapeCap evidence for a matcher literal is inconsistent or leaves an
     --   observable capability parameter undetermined.
   | MatchCapturedValuePatScope [String] String TypeErrorContext
-    -- ^ Value-pattern scope condition (paper Def 4.2(4), the vp-scoped premise of WT-ATOM;
-    --   surfaced by the type-pm-mech mechanization).  A value pattern captured by a #$x
-    --   of the given matcher clause (rendered pp) is evaluated at clause selection, under
-    --   the atom's environment: bindings made before the atom are available, but the listed
-    --   pattern variables are bound to its left within the same clause pattern and do not
-    --   exist yet.  Checked at match sites whose matcher clause shapes are statically known.
+    -- ^ Production use-site safeguard for a primitive-pattern pattern outside
+    --   the core's PPatCoreOrder restriction. A value pattern captured by a #$x
+    --   of the given matcher clause (rendered pp) is evaluated at clause selection,
+    --   under the atom's environment: bindings made before the atom are available,
+    --   but the listed pattern variables are bound to its left within the same
+    --   clause pattern and do not exist yet. Checked at match sites whose matcher
+    --   clause shapes are statically known.
   deriving (Eq, Show, Generic)
 
 
@@ -277,7 +283,7 @@ formatTypeError err = case err of
       " it cannot reference " ++ intercalate ", " (map (\v -> "'" ++ v ++ "'") vars) ++
       ", bound to its left in the same clause pattern" ++
       " (bindings made before the atom are available)" ++
-      "\n  (value-pattern scope condition; paper Def 4.2(4))"
+      "\n  (production use-site safeguard for a primitive-pattern pattern outside Egison core)"
 
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String
@@ -331,10 +337,21 @@ formatTypeWarning warn = case warn of
       " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
       "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
 
-  TypePmCompatibilityWarning detail ctx ->
+  OutsideEgisonCoreWarning detail ctx ->
     formatWithContext ctx $
-      "Warning: Outside the conservative type-pm compatibility profile: " ++ detail ++
+      "Warning: Outside Egison core: " ++ detail ++
       "\n  Type checking continues through Egison's extension path."
+
+  PatternHoleBeforePrimitiveValuePatternWarning pattern ctx ->
+    formatWithContext ctx $
+      "Warning: primitive-pattern pattern `" ++ pattern ++
+      "` has a pattern hole to the left of a primitive value pattern." ++
+      "\n  Production Egison accepts this matcher clause, but Egison core does not."
+
+  NestedStructuredPrimitivePatternPatternWarning pattern ctx ->
+    formatWithContext ctx $
+      "Warning: nested structured primitive-pattern pattern `" ++ pattern ++ "`." ++
+      "\n  Production Egison accepts this matcher clause; its end-to-end core bridge has not been validated."
 
   ClassMethodShadowWarning name cls ctx ->
     formatWithContext ctx $

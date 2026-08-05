@@ -45,7 +45,14 @@
 
 - 引数と結果の capability/target を一つの canonical `DualScheme` に保存
 - 適用時に capability binders と target binders を同時に fresh instantiate
-- header-only の前方・相互参照，expression-headed application，および body に残る非 core パターン形式を compatibility warning で明示（直接自己参照は定義時に拒否）
+- header-only の前方・相互参照，expression-headed application，および body に残る非 core パターン形式を outside-core warning で明示（直接自己参照は定義時に拒否）
 - 再定義時は古い finalized scheme を先に無効化し，同一 load unit 内の重複宣言は拒否
 - runtime は引き続き `IPatternFuncExpr` と `recursiveBind` による統一的な環境 capture を使用
 - 詳細は `pattern-function-implementation.md` と `type-pm-compatibility.md` を参照
+
+### 2026-08-05: Egison core 境界 warning を用途別に分離
+
+- 一般の core 外拡張は `--outside-egison-core-warnings` で報告
+- primitive-pattern pattern を DFS 左から右へ走査して `$` より後に `#$x` があれば，`--pattern-hole-before-primitive-value-pattern-warnings` で報告
+- nested structured primitive-pattern pattern は `--nested-structured-primitive-pattern-pattern-warnings` で独立に報告
+- 同じ matcher atom の左 hole が束縛する変数を user value pattern が参照する場合は，従来どおり hard type error

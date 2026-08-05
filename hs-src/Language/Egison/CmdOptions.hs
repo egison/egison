@@ -44,7 +44,11 @@ data EgisonOpts = EgisonOpts {
     optDumpTi           :: Bool,       -- ^ Dump typed AST after TensorMap insertion (before type class expansion)
     optDumpTc           :: Bool,       -- ^ Dump typed AST after type class expansion (Phase 7 complete)
     optMatcherConsistencyWarnings :: Bool,       -- ^ Emit matcher Coverage warnings (paper Def 4.2(3))
-    optTypePmCompatibilityWarnings :: Bool        -- ^ Warn when checking proceeds through an extension outside the conservative type-pm compatibility profile
+    optOutsideEgisonCoreWarnings :: Bool,         -- ^ Warn when checking proceeds through an extension outside Egison core
+    optPatternHoleBeforePrimitiveValuePatternWarnings :: Bool,
+                                                   -- ^ Warn when a primitive-pattern hole precedes a primitive value pattern
+    optNestedStructuredPrimitivePatternPatternWarnings :: Bool
+                                                   -- ^ Warn about nested structured primitive-pattern patterns
     }
 
 defaultOption :: EgisonOpts
@@ -75,7 +79,9 @@ defaultOption = EgisonOpts
   , optDumpTi = False
   , optDumpTc = False
   , optMatcherConsistencyWarnings = False
-  , optTypePmCompatibilityWarnings = False
+  , optOutsideEgisonCoreWarnings = False
+  , optPatternHoleBeforePrimitiveValuePatternWarnings = False
+  , optNestedStructuredPrimitivePatternPatternWarnings = False
   }
 
 cmdParser :: ParserInfo EgisonOpts
@@ -184,8 +190,14 @@ cmdArgParser = EgisonOpts
                   (long "matcher-consistency-warnings"
                   <> help "Emit matcher Coverage warnings (paper Def 4.2(3)): a matcher lacking a general clause for some pattern constructor of its matched type. PP-Con (4.2(1a)) and arm exhaustiveness (4.2(1c)) are ordinary type errors, not gated by this flag")
             <*> switch
-                  (long "type-pm-compatibility-warnings"
-                  <> help "Warn when type checking proceeds through an Egison extension outside the conservative type-pm compatibility profile")
+                  (long "outside-egison-core-warnings"
+                  <> help "Warn when type checking proceeds through an extension outside Egison core")
+            <*> switch
+                  (long "pattern-hole-before-primitive-value-pattern-warnings"
+                  <> help "Warn when a matcher clause's primitive-pattern pattern has a pattern hole before a primitive value pattern in depth-first, left-to-right order")
+            <*> switch
+                  (long "nested-structured-primitive-pattern-pattern-warnings"
+                  <> help "Warn when a matcher clause contains a nested structured primitive-pattern pattern")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

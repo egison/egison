@@ -145,6 +145,10 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 | `--dump-typed` | Phase 5-6 | `TITopExpr` (型推論後、TypedDesugar前) | `Eval.hs` + `Pretty.hs` |
 | `--dump-ti` | Phase 7a | `TITopExpr` (TensorMap挿入後) | `Eval.hs` + `Pretty.hs` |
 | `--dump-tc` | Phase 7b | `TITopExpr` (TypeClass展開後) | `Eval.hs` + `Pretty.hs` |
+| `--outside-egison-core-warnings` | Phase 5-6 | Egison core 外の一般拡張経路 | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
+| `--pattern-hole-before-primitive-value-pattern-warnings` | Phase 5-6 | 左側に pattern hole がある primitive value pattern | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
+| `--nested-structured-primitive-pattern-pattern-warnings` | Phase 5-6 | 入れ子の structured primitive-pattern pattern | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
+| `--matcher-consistency-warnings` | Phase 5-6 | matcher Coverage | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
 | `--verbose` | 全て | 各段階の詳細 | `Eval.hs` |
 
 ## データフロー詳細

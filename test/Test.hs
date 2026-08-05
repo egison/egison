@@ -5,6 +5,8 @@ import           Control.Monad.Except           (catchError)
 import           Data.List                      (isInfixOf, sort, (\\))
 import qualified Data.Map.Strict                as Map
 import qualified Data.Set                       as Set
+import           Options.Applicative            (ParserResult (..), execParserPure,
+                                                  prefs)
 import           System.Environment             (getArgs)
 import           System.FilePath.Glob           (glob)
 import           System.IO                      (hFlush, stdout)
@@ -65,7 +67,9 @@ main = do
   flip defaultMainWithArgs args . hUnitTestToTests . test $
     p2CapabilityTests
       ++ [ matcherOneWayTests
-         , typePmCompatibilityWarningTests
+         , cliWarningFlagParsingTests
+         , primitivePatternWarningTests
+         , outsideEgisonCoreWarningTests
          , patternFunctionDualSchemeTests
          , patternFunctionTypeErrorTests
          , closedFieldTypeErrorTests
@@ -77,91 +81,203 @@ main = do
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
 
-typePmCompatibilityWarningTests :: Test
-typePmCompatibilityWarningTests =
-  TestLabel "type-pm compatibility warnings" $ TestCase $ do
-    let demoType = TInductive "NestedPPatDemo" []
-        constructorScheme =
-          Forall [] [] [] (TFun TInt (TFun demoType demoType))
-        patternEnv =
-          extendPatternEnv "join" constructorScheme $
-            extendPatternEnv "cons" constructorScheme emptyPatternEnv
-        nestedPrimitivePattern =
-          PPInductivePat "join"
-            [ PPPatVar
-            , PPInductivePat "cons"
-                [PPValuePat "val", PPPatVar]
-            ]
-        expression =
-          IMatcherExpr
-            [ ( nestedPrimitivePattern
-              , ITupleExpr
-                  [ IConstantExpr SomethingExpr
-                  , IConstantExpr SomethingExpr
-                  ]
-              , [(PDPatVar (Var "nestedTarget" []), ICollectionExpr [])]
+cliWarningFlagParsingTests :: Test
+cliWarningFlagParsingTests =
+  TestLabel "outside-core warning CLI flags" . TestList $
+    [ parses
+        "general outside-core warning flag"
+        "--outside-egison-core-warnings"
+        (True, False, False)
+    , parses
+        "pattern-hole ordering warning flag"
+        "--pattern-hole-before-primitive-value-pattern-warnings"
+        (False, True, False)
+    , parses
+        "nested structured primitive-pattern warning flag"
+        "--nested-structured-primitive-pattern-pattern-warnings"
+        (False, False, True)
+    ]
+  where
+    parses label flag expected =
+      TestLabel label . TestCase $
+        case execParserPure (prefs mempty) cmdParser [flag] of
+          Success options ->
+            assertEqual
+              "the CLI flag sets only its corresponding warning field"
+              expected
+              ( optOutsideEgisonCoreWarnings options
+              , optPatternHoleBeforePrimitiveValuePatternWarnings options
+              , optNestedStructuredPrimitivePatternPatternWarnings options
               )
-            , ( PPPatVar
-              , IConstantExpr SomethingExpr
-              , [ ( PDPatVar (Var "fallbackTarget" [])
-                  , ICollectionExpr [IVarExpr "fallbackTarget"]
-                  )
-                ]
-              )
-            ]
-        config enabled =
-          defaultInferConfig
-            { cfgTypePmCompatibilityWarnings = enabled }
-        state enabled =
-          (initialInferStateWithConfig (config enabled))
-            { inferPatternEnv = patternEnv }
+          Failure _ ->
+            assertFailure ("the CLI parser rejected " ++ flag)
+          CompletionInvoked _ ->
+            assertFailure ("the CLI parser requested completion for " ++ flag)
 
-    (resultOff, warningsOff) <-
-      runInferWithWarnings
-        (inferIExpr expression)
-        (state False)
-    (resultOn, warningsOn) <-
-      runInferWithWarnings
-        (inferIExpr expression)
-        (state True)
+primitivePatternWarningTests :: Test
+primitivePatternWarningTests =
+  TestLabel "primitive-pattern pattern warnings" . TestList $
+    [ TestLabel "flat hole before primitive value pattern" . TestCase $ do
+        let pattern =
+              PPInductivePat "pair" [PPPatVar, PPValuePat "value"]
+        (resultOff, warningsOff) <- inferMatcher pattern False False
+        (resultOn, warningsOn) <- inferMatcher pattern True False
+        assertAcceptedWithSameResult resultOff resultOn
+        assertEqual "the ordering warning is silent when disabled" [] warningsOff
+        case warningsOn of
+          [warning@(PatternHoleBeforePrimitiveValuePatternWarning rendered _)] -> do
+            assertEqual
+              "the warning renders the flat constructor"
+              "pair $ #$value"
+              rendered
+            assertBool "the warning identifies the core boundary"
+              ("Egison core does not" `isInfixOf` formatTypeWarning warning)
+          other ->
+            assertFailure
+              ("expected one hole-before-value warning, got " ++ show other)
 
-    case (resultOff, resultOn) of
-      (Right _, Right _) ->
+    , TestLabel "primitive value pattern before hole" . TestCase $ do
+        let pattern =
+              PPInductivePat "pair" [PPValuePat "value", PPPatVar]
+        (result, warnings) <- inferMatcher pattern True True
+        case result of
+          Right _ -> return ()
+          Left err ->
+            assertFailure
+              ("the reverse-order primitive pattern failed: " ++ show err)
         assertEqual
-          "the reporting option must not change inference"
-          (show resultOff)
-          (show resultOn)
-      (Left errorOff, Left errorOn) ->
-        assertFailure
-          ("the accepted nested primitive-pattern matcher failed with " ++
-           "the option off/on: " ++ show errorOff ++ " / " ++ show errorOn)
-      _ ->
-        assertFailure
-          "the reporting option changed whether the nested primitive-pattern matcher was accepted"
-    assertEqual "the option is silent when disabled" [] warningsOff
-    case warningsOn of
-      [warning@(TypePmCompatibilityWarning detail _)] -> do
-        assertBool
-          "the warning identifies the nested primitive-pattern bridge"
-          ("nested structured primitive-pattern pattern `join $ (cons #$val $)`"
-            `isInfixOf` detail)
-        let rendered = formatTypeWarning warning
-        assertBool "the warning has the standard prefix"
-          ("Warning:" `isInfixOf` rendered)
-        assertBool "the warning explains that extended checking continues"
-          ("Type checking continues through Egison's extension path"
-            `isInfixOf` rendered)
-      other ->
-        assertFailure
-          ("expected exactly one type-pm compatibility warning, got " ++
-           show other)
+          "a primitive value pattern to the left of every hole does not warn"
+          [] warnings
 
+    , TestLabel "nested structured pattern only" . TestCase $ do
+        let pattern =
+              PPInductivePat "join"
+                [ PPValuePat "outer"
+                , PPInductivePat "cons"
+                    [PPValuePat "inner", PPPatVar]
+                ]
+        (result, warnings) <- inferMatcher pattern True True
+        case result of
+          Right _ -> return ()
+          Left err ->
+            assertFailure
+              ("the accepted nested primitive pattern failed: " ++ show err)
+        case warnings of
+          [NestedStructuredPrimitivePatternPatternWarning rendered _] ->
+            assertEqual
+              "the nested diagnostic preserves the primitive-pattern tree"
+              "join #$outer (cons #$inner $)"
+              rendered
+          other ->
+            assertFailure
+              ("expected one nested-structured warning, got " ++ show other)
+
+    , TestLabel "nested pattern with hole before primitive value pattern" .
+        TestCase $ do
+          let pattern =
+                PPInductivePat "join"
+                  [ PPPatVar
+                  , PPInductivePat "cons"
+                      [PPValuePat "value", PPPatVar]
+                  ]
+          (result, warnings) <- inferMatcher pattern True True
+          case result of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("the accepted doubly diagnosed primitive pattern failed: " ++
+                 show err)
+          assertBool
+            "the ordering category is reported"
+            (any isOrderingWarning warnings)
+          assertBool
+            "the nested-structure category is reported"
+            (any isNestedWarning warnings)
+          assertEqual "the two independent categories each warn once" 2 (length warnings)
+    ]
+  where
+    demoType = TInductive "NestedPPatDemo" []
+    constructorScheme =
+      Forall [] [] [] (TFun TInt (TFun demoType demoType))
+    pairScheme =
+      Forall [] [] [] (TFun TInt (TFun TInt demoType))
+    patternEnv =
+      extendPatternEnv "pair" pairScheme $
+        extendPatternEnv "join" constructorScheme $
+          extendPatternEnv "cons" constructorScheme emptyPatternEnv
+
+    inferMatcher pattern orderWarnings nestedWarnings =
+      runInferWithWarnings
+        (inferIExpr (matcherExpression pattern))
+        ((initialInferStateWithConfig
+            defaultInferConfig
+              { cfgPatternHoleBeforePrimitiveValuePatternWarnings = orderWarnings
+              , cfgNestedStructuredPrimitivePatternPatternWarnings = nestedWarnings
+              })
+          { inferPatternEnv = patternEnv })
+
+    matcherExpression pattern =
+      IMatcherExpr
+        [ ( pattern
+          , nextMatchers (patternHoleCount pattern)
+          , [(PDPatVar (Var "structuredTarget" []), ICollectionExpr [])]
+          )
+        , ( PPPatVar
+          , IConstantExpr SomethingExpr
+          , [ ( PDPatVar (Var "fallbackTarget" [])
+              , ICollectionExpr [IVarExpr "fallbackTarget"]
+              )
+            ]
+          )
+        ]
+
+    nextMatchers 1 = IConstantExpr SomethingExpr
+    nextMatchers count =
+      ITupleExpr (replicate count (IConstantExpr SomethingExpr))
+
+    patternHoleCount pattern =
+      case pattern of
+        PPPatVar -> 1
+        PPInductivePat _ children -> sum (map patternHoleCount children)
+        PPTuplePat children -> sum (map patternHoleCount children)
+        _ -> 0
+
+    assertAcceptedWithSameResult resultOff resultOn =
+      case (resultOff, resultOn) of
+        (Right _, Right _) ->
+          assertEqual
+            "warning reporting must not change inference"
+            (show resultOff)
+            (show resultOn)
+        (Left errorOff, Left errorOn) ->
+          assertFailure
+            ("the accepted primitive-pattern matcher failed with the option " ++
+             "off/on: " ++ show errorOff ++ " / " ++ show errorOn)
+        _ ->
+          assertFailure
+            "warning reporting changed whether the matcher was accepted"
+
+    isOrderingWarning warning =
+      case warning of
+        PatternHoleBeforePrimitiveValuePatternWarning{} -> True
+        _ -> False
+
+    isNestedWarning warning =
+      case warning of
+        NestedStructuredPrimitivePatternPatternWarning{} -> True
+        _ -> False
+
+outsideEgisonCoreWarningTests :: Test
+outsideEgisonCoreWarningTests =
+  TestLabel "outside-Egison-core warnings" $ TestCase $ do
     let slotExpression =
           IApplyExpr
             (IVarExpr "slotConsumer")
             [IVarExpr "opaqueMatcher"]
         slotState enabled =
-          (initialInferStateWithConfig (config enabled))
+          (initialInferStateWithConfig
+            defaultInferConfig
+              { cfgOutsideEgisonCoreWarnings = enabled })
             { declaredSymbols = Map.fromList
                 [ ( "slotConsumer"
                   , TFun (TMatcherSlot CapNone TInt) TInt
@@ -193,14 +309,14 @@ typePmCompatibilityWarningTests =
       []
       slotWarningsOff
     case slotWarningsOn of
-      [TypePmCompatibilityWarning detail _] ->
+      [OutsideEgisonCoreWarning detail _] ->
         assertBool
           "the Any-to-slot extension is reported at its explicit boundary"
           ("explicit slot use `_ <= MatcherSlot none Integer`"
             `isInfixOf` detail)
       other ->
         assertFailure
-          ("expected exactly one Any-to-slot compatibility warning, got " ++
+          ("expected exactly one Any-to-slot outside-core warning, got " ++
            show other)
 
 patternFunctionDualSchemeTests :: Test
@@ -218,7 +334,7 @@ patternFunctionDualSchemeTests =
                 (ITuplePat [IVarPat "left", IVarPat "right"])
             config =
               defaultInferConfig
-                { cfgTypePmCompatibilityWarnings = True }
+                { cfgOutsideEgisonCoreWarnings = True }
             ambientScheme =
               Forall [] [] [] (TTuple [TVar typeA, TVar typeB])
             headerScheme =
@@ -242,7 +358,7 @@ patternFunctionDualSchemeTests =
             initialState
 
         assertEqual
-          "a directly checked pattern-function definition is in the compatibility profile"
+          "a directly checked pattern-function definition is inside Egison core"
           []
           warnings
         case result of
@@ -437,7 +553,7 @@ patternFunctionDualSchemeTests =
                       (IConstantExpr (BoolExpr True))))
               config =
                 defaultInferConfig
-                  { cfgTypePmCompatibilityWarnings = True }
+                  { cfgOutsideEgisonCoreWarnings = True }
           (result, warnings, finalState) <-
             runInferWithWarningsAndState
               (inferITopExpr declaration)
@@ -454,7 +570,7 @@ patternFunctionDualSchemeTests =
                     "the extended body lost its inferred DualScheme"
                 Just _ -> return ()
           case warnings of
-            [TypePmCompatibilityWarning detail _] ->
+            [OutsideEgisonCoreWarning detail _] ->
               assertBool
                 "the definition warning identifies the predicate-pattern boundary"
                 ("predicate pattern" `isInfixOf` detail)
@@ -699,7 +815,7 @@ patternFunctionDualSchemeTests =
                   ]
               config enabled =
                 defaultInferConfig
-                  { cfgTypePmCompatibilityWarnings = enabled }
+                  { cfgOutsideEgisonCoreWarnings = enabled }
               applicationState enabled functionName maybeFinalized =
                 (initialInferStateWithConfig (config enabled))
                   { inferEnv =
@@ -779,7 +895,7 @@ patternFunctionDualSchemeTests =
               assertFailure
                 ("the finalized named application failed: " ++ show err)
           assertEqual
-            "a finalized named application has no compatibility warning"
+            "a finalized named application has no outside-core warning"
             []
             finalizedWarnings
 
@@ -805,7 +921,7 @@ patternFunctionDualSchemeTests =
             []
             headerWarningsOff
           case headerWarningsOn of
-            [TypePmCompatibilityWarning detail _] -> do
+            [OutsideEgisonCoreWarning detail _] -> do
               assertBool
                 "the warning identifies the header-only function"
                 ("`headerIdentity`" `isInfixOf` detail)
@@ -815,7 +931,7 @@ patternFunctionDualSchemeTests =
                   `isInfixOf` detail)
             other ->
               assertFailure
-                ("expected exactly one header-only compatibility warning, got " ++
+                ("expected exactly one header-only outside-core warning, got " ++
                  show other)
 
           (expressionResultOff, expressionWarningsOff) <-
@@ -840,7 +956,7 @@ patternFunctionDualSchemeTests =
             []
             expressionWarningsOff
           case expressionWarningsOn of
-            [TypePmCompatibilityWarning detail _] ->
+            [OutsideEgisonCoreWarning detail _] ->
               assertBool
                 "the expression-headed boundary is reported exactly once"
                 ("expression-headed pattern application" `isInfixOf` detail)
@@ -872,7 +988,7 @@ patternFunctionDualSchemeTests =
             []
             shadowedWarningsOff
           case shadowedWarningsOn of
-            [TypePmCompatibilityWarning detail _] ->
+            [OutsideEgisonCoreWarning detail _] ->
               assertBool
                 "the shadowed variable still uses the expression-headed boundary"
                 ("expression-headed pattern application" `isInfixOf` detail)

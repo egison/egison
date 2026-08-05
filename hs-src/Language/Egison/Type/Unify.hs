@@ -1180,7 +1180,7 @@ coerceSlotTupleWithinUsing targetUnifier boundaryUnifier tuplePartsUnifier
         -- As at the scalar slot boundary, a raw Any component is not core
         -- evidence for a matcher head.  The extension-mode tuple solver keeps
         -- the historical gradual acceptance and is selected only after Infer
-        -- reports a compatibility warning.
+        -- reports an outside-core warning.
         TAny ->
           Left
             (MatcherRigidity

@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgTypePmCompatibilityWarnings, batchForwardProducerDependencies)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgOutsideEgisonCoreWarnings, cfgPatternHoleBeforePrimitiveValuePatternWarnings, cfgNestedStructuredPrimitivePatternPatternWarnings, batchForwardProducerDependencies)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv,
                                            extendEnvMany, envToList,
                                            classEnvToList, lookupInstances,
@@ -437,7 +437,11 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
       -- Phase 5-6: Type Inference
       let inferConfig = (if permissive then permissiveInferConfig else defaultInferConfig)
                           { cfgMatcherConsistencyWarnings = optMatcherConsistencyWarnings opts
-                          , cfgTypePmCompatibilityWarnings = optTypePmCompatibilityWarnings opts
+                          , cfgOutsideEgisonCoreWarnings = optOutsideEgisonCoreWarnings opts
+                          , cfgPatternHoleBeforePrimitiveValuePatternWarnings =
+                              optPatternHoleBeforePrimitiveValuePatternWarnings opts
+                          , cfgNestedStructuredPrimitivePatternPatternWarnings =
+                              optNestedStructuredPrimitivePatternPatternWarnings opts
                           }
       currentPatternEnv' <- getPatternEnv
       currentPatternFuncDeclEnv' <- getPatternFuncDeclEnv

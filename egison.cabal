@@ -170,6 +170,7 @@ Test-Suite test
     , test-framework-hunit
     , filepath
     , containers
+    , optparse-applicative
   Other-modules:   Paths_egison
   autogen-modules: Paths_egison
   ghc-options:  -Wall -Wno-name-shadowing

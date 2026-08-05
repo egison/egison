@@ -120,7 +120,7 @@ header-only の前方・相互参照と，明示的な `IPApplyPat` で表され
 には finalized capability 契約がない。後者は変数ヘッドであっても通常の lexical environment で
 式として推論し，同名の top-level pattern function を理由に canonical dispatch へ切り替えない。
 この二つの適用経路だけは target-only compatibility fallback を使用し，
-`--type-pm-compatibility-warnings` が有効なら warning を出す。finalized named application は，
+`--outside-egison-core-warnings` が有効なら warning を出す。finalized named application は，
 パターン関数であることを理由に warning を出さない。定義 body に残る
 predicate，indexed，loop などの非 core パターン形式は定義時に warning を出す。
 定義本体から同じパターン関数への直接または入れ子の自己呼び出しは，mechanized core の

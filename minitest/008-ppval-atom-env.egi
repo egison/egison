@@ -1,22 +1,23 @@
--- Value-pattern-pattern capture evaluates under the ATOM's environment
--- (type-pm-mech mechanization finding #3; paper Def 4.2(4), the vp-scoped
--- premise of WT-ATOM = the value-pattern scope condition).
+-- Production safeguard for primitive-pattern patterns outside Egison core.
 --
--- A value pattern captured by a #$z of a matcher clause is evaluated at
+-- Egison core's PPatCoreOrder rejects a matcher clause when a pattern hole
+-- occurs before a later primitive value pattern. Production Egison accepts
+-- that convenient syntax, so it retains the following use-site safeguard.
+-- A value pattern captured by a #$z of such a matcher clause is evaluated at
 -- clause-selection time, under the environment of the atom being reduced
 -- (PPP-VAL's rho = rho ++ theta of MS-REDUCE).  Consequences:
 --   * bindings made BEFORE the atom (earlier atoms, e.g. an earlier tuple
 --     component) ARE available -- the sortedList pivot idiom supports a
 --     pattern-bound pivot;
 --   * bindings of the SAME atom's left sub-patterns (extracted by the same
---     clause's holes) are NOT yet made -- referencing them violates the
---     value-pattern scope condition.  At match sites whose matcher clause
+--     clause's holes) are NOT yet made. At match sites whose matcher clause
 --     shapes are statically known (a matcher literal, a tuple of matchers,
---     or a (possibly applied) top-level matcher definition), the violation
---     is a TYPE ERROR:
+--     or a (possibly applied) top-level matcher definition), production
+--     rejects a reference to such a binding:
 --       matchAll [1, 2, 1, 2] as weird integer with $ys ++ #ys -> ys
 --       ==> Value pattern captured by `#$` of matcher clause `++ $ #$z` ...
---           (value-pattern scope condition; paper Def 4.2(4))
+--           (production use-site safeguard for a primitive-pattern pattern
+--            outside Egison core)
 --     When the matcher is an opaque parameter the site is not checked; the
 --     unbound reference then evaluates to an uninterpreted symbol at runtime
 --     and the comparison silently fails (see the last assertion).

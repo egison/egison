@@ -100,17 +100,26 @@ data InferConfig = InferConfig
                                  --   has intentionally partial matchers (opt-in diagnostic;
                                  --   --matcher-consistency-warnings).  PP-Con (4.2(1a)) and arm
                                  --   exhaustiveness (4.2(1c)) are ordinary type errors.
-  , cfgTypePmCompatibilityWarnings :: Bool
+  , cfgOutsideEgisonCoreWarnings :: Bool
                                  -- ^ Report uses that the production Egison checker accepts
-                                 --   outside its conservative type-pm deployment profile.
-                                 --   This does not change typing or evaluation.
+                                 --   outside Egison core. This does not change typing or evaluation.
+  , cfgPatternHoleBeforePrimitiveValuePatternWarnings :: Bool
+                                 -- ^ Report primitive-pattern patterns whose DFS source order
+                                 --   places a pattern hole before a primitive value pattern.
+  , cfgNestedStructuredPrimitivePatternPatternWarnings :: Bool
+                                 -- ^ Report structured primitive-pattern patterns nested inside
+                                 --   another constructor or tuple.
   }
 
 instance Show InferConfig where
   show cfg = "InferConfig { cfgPermissive = " ++ show (cfgPermissive cfg)
            ++ ", cfgCollectWarnings = " ++ show (cfgCollectWarnings cfg)
            ++ ", cfgMatcherConsistencyWarnings = " ++ show (cfgMatcherConsistencyWarnings cfg)
-           ++ ", cfgTypePmCompatibilityWarnings = " ++ show (cfgTypePmCompatibilityWarnings cfg)
+           ++ ", cfgOutsideEgisonCoreWarnings = " ++ show (cfgOutsideEgisonCoreWarnings cfg)
+           ++ ", cfgPatternHoleBeforePrimitiveValuePatternWarnings = " ++
+                show (cfgPatternHoleBeforePrimitiveValuePatternWarnings cfg)
+           ++ ", cfgNestedStructuredPrimitivePatternPatternWarnings = " ++
+                show (cfgNestedStructuredPrimitivePatternPatternWarnings cfg)
            ++ " }"
 
 -- | Default configuration (strict mode)
@@ -119,7 +128,9 @@ defaultInferConfig = InferConfig
   { cfgPermissive = False
   , cfgCollectWarnings = False
   , cfgMatcherConsistencyWarnings = False
-  , cfgTypePmCompatibilityWarnings = False
+  , cfgOutsideEgisonCoreWarnings = False
+  , cfgPatternHoleBeforePrimitiveValuePatternWarnings = False
+  , cfgNestedStructuredPrimitivePatternPatternWarnings = False
   }
 
 -- | Permissive configuration (for gradual adoption)
@@ -128,7 +139,9 @@ permissiveInferConfig = InferConfig
   { cfgPermissive = True
   , cfgCollectWarnings = True
   , cfgMatcherConsistencyWarnings = False
-  , cfgTypePmCompatibilityWarnings = False
+  , cfgOutsideEgisonCoreWarnings = False
+  , cfgPatternHoleBeforePrimitiveValuePatternWarnings = False
+  , cfgNestedStructuredPrimitivePatternPatternWarnings = False
   }
 
 -- | Inference state
@@ -182,7 +195,7 @@ data InferState = InferState
                                           -- ^ Protected variables whose first strengthening has
                                           --   already been reported at the extension boundary.
   , inferCoreSolverFallbackReported :: Bool
-                                          -- ^ Avoid repeating the same compatibility warning
+                                          -- ^ Avoid repeating the same outside-core warning
                                           --   for every nested/capability equation in one
                                           --   extended-Egison inference run.
   , inferCasSubtypeEdges :: Subtype.SubtypeEnv
@@ -201,10 +214,9 @@ data InferState = InferState
   , inferMatcherShapes :: Map.Map String [PrimitivePatPattern]
                                           -- ^ Clause pp shapes of top-level matcher definitions
                                           --   (name |-> pps of its (lambda-wrapped) matcher literal),
-                                          --   harvested at IDefine.  Consulted by the value-pattern
-                                          --   scope check (paper Def 4.2(4), the vp-scoped premise of
-                                          --   WT-ATOM) to resolve a match site's matcher clause
-                                          --   shapes statically.
+                                          --   harvested at IDefine. Consulted by the production
+                                          --   use-site safeguard for outside-core primitive-pattern
+                                          --   clauses to resolve matcher clause shapes statically.
   , inferRecursiveBinders :: Set.Set String
                                           -- ^ Names in the currently inferred
                                           --   recursive group.  A next-matcher
@@ -363,20 +375,18 @@ runInferWithWarningsAndState m st = do
 addWarning :: TypeWarning -> Infer ()
 addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
 
--- | Emit an opt-in diagnostic for the boundary between the conservative
--- production profile validated against type-pm-mech and Egison's larger type
--- checker.  The flag controls reporting only; inference always follows the
--- same extended-Egison path.
-warnTypePmCompatibility :: String -> TypeErrorContext -> Infer ()
-warnTypePmCompatibility detail ctx = do
-  enabled <- cfgTypePmCompatibilityWarnings <$> gets inferConfig
+-- | Emit an opt-in diagnostic when production Egison accepts an extension
+-- outside Egison core. The flag controls reporting only; inference always
+-- follows the same extended-Egison path.
+warnOutsideEgisonCore :: String -> TypeErrorContext -> Infer ()
+warnOutsideEgisonCore detail ctx = do
+  enabled <- cfgOutsideEgisonCoreWarnings <$> gets inferConfig
   when enabled $
-    addWarning (TypePmCompatibilityWarning detail ctx)
+    addWarning (OutsideEgisonCoreWarning detail ctx)
 
--- | The initial production bridge deliberately treats nested structured
--- primitive-pattern patterns as an opt-in compatibility diagnostic.  Lean's
--- core syntax can represent this recursion; the warning records that the
--- end-to-end Egison-to-core bridge for this narrower deployment profile has
+-- | The production bridge treats nested structured primitive-pattern patterns
+-- as a dedicated opt-in diagnostic. Lean's core syntax can represent this
+-- recursion; the warning records that its end-to-end Egison-to-core bridge has
 -- not yet been validated.
 hasNestedStructuredPPat :: PrimitivePatPattern -> Bool
 hasNestedStructuredPPat pattern =
@@ -389,10 +399,31 @@ hasNestedStructuredPPat pattern =
     isStructured PPTuplePat{}     = True
     isStructured _                = False
 
+-- | Detect the core ordering boundary in depth-first, left-to-right source
+-- order. Once a pattern hole has been visited, a later primitive value
+-- pattern is outside Egison core, even when the two leaves are nested under
+-- different structured nodes.
+hasPatternHoleBeforePrimitiveValuePattern :: PrimitivePatPattern -> Bool
+hasPatternHoleBeforePrimitiveValuePattern = snd . visit False
+  where
+    visit seenHole pattern =
+      case pattern of
+        PPWildCard -> (seenHole, False)
+        PPPatVar -> (True, False)
+        PPValuePat _ -> (seenHole, seenHole)
+        PPInductivePat _ children -> visitMany seenHole children
+        PPTuplePat children -> visitMany seenHole children
+
+    visitMany seenHole [] = (seenHole, False)
+    visitMany seenHole (pattern : patterns) =
+      let (seenHole', violation) = visit seenHole pattern
+          (seenHole'', laterViolation) = visitMany seenHole' patterns
+      in (seenHole'', violation || laterViolation)
+
 -- | Render a primitive-pattern pattern without losing its tree shape.
 -- 'Pretty PrimitivePatPattern' historically omits parentheses around nested
 -- constructors, which makes (for example) @join $ (cons #$val $)@ look flat
--- in a diagnostic.  Compatibility warnings need a round-trippable account of
+-- in a diagnostic. Outside-core warnings need a round-trippable account of
 -- the boundary that was actually encountered.
 renderPrimitivePatPattern :: PrimitivePatPattern -> String
 renderPrimitivePatPattern pattern =
@@ -432,16 +463,24 @@ warnMatcherCompatibility
   -> IPatternDef
   -> Infer ()
 warnMatcherCompatibility ctx (pp, _, arms) = do
-  when (hasNestedStructuredPPat pp) $
-    warnTypePmCompatibility
-      ("nested structured primitive-pattern pattern `" ++
-       renderPrimitivePatPattern pp ++
-       "` has not yet been validated by the production Egison/type-pm bridge")
-      ctx
+  when (hasNestedStructuredPPat pp) $ do
+    enabled <- cfgNestedStructuredPrimitivePatternPatternWarnings <$>
+      gets inferConfig
+    when enabled $
+      addWarning
+        (NestedStructuredPrimitivePatternPatternWarning
+          (renderPrimitivePatPattern pp) ctx)
+  when (hasPatternHoleBeforePrimitiveValuePattern pp) $ do
+    enabled <- cfgPatternHoleBeforePrimitiveValuePatternWarnings <$>
+      gets inferConfig
+    when enabled $
+      addWarning
+        (PatternHoleBeforePrimitiveValuePatternWarning
+          (renderPrimitivePatPattern pp) ctx)
   let ppBinders = primitivePatPatternBinders pp
       duplicatePpBinders = duplicateNames ppBinders
   unless (null duplicatePpBinders) $
-    warnTypePmCompatibility
+    warnOutsideEgisonCore
       ("primitive-pattern pattern `" ++ renderPrimitivePatPattern pp ++
        "` binds #$ name(s) more than once: " ++
        intercalate ", " duplicatePpBinders)
@@ -451,14 +490,14 @@ warnMatcherCompatibility ctx (pp, _, arms) = do
         duplicateArmBinders = duplicateNames armBinders
         overlappingBinders = nub (filter (`elem` ppBinders) armBinders)
     unless (null duplicateArmBinders) $
-      warnTypePmCompatibility
+      warnOutsideEgisonCore
         ("a data-pattern arm of primitive-pattern pattern `" ++
          renderPrimitivePatPattern pp ++
          "` binds name(s) more than once: " ++
          intercalate ", " duplicateArmBinders)
         ctx
     unless (null overlappingBinders) $
-      warnTypePmCompatibility
+      warnOutsideEgisonCore
         ("a data-pattern arm of primitive-pattern pattern `" ++
          renderPrimitivePatPattern pp ++
          "` rebinds #$ name(s): " ++ intercalate ", " overlappingBinders)
@@ -896,14 +935,14 @@ protectMatcherCapability capability ctx = do
     { inferProtectedCaps = inferProtectedCaps state `Set.union` owned }
 
 -- | Record one transition from the protected type-pm solver to Egison's
--- compatibility solver.  The protected ledger remains intact, so subsequent
+-- extension solver.  The protected ledger remains intact, so subsequent
 -- deltas are still audited, but one inference run produces at most one
 -- diagnostic.
 reportTypePmSolverFallback :: String -> TypeErrorContext -> Infer ()
 reportTypePmSolverFallback detail ctx = do
   reported <- gets inferCoreSolverFallbackReported
   unless reported $
-    warnTypePmCompatibility
+    warnOutsideEgisonCore
       (detail ++ "; using Egison's extended capability solver")
       ctx
   modify $ \state -> state { inferCoreSolverFallbackReported = True }
@@ -921,7 +960,7 @@ reportProtectedCapabilityStrengthening detail variables ctx = do
   let freshViolations =
         variables `Set.difference` inferReportedProtectedCaps state
   unless (Set.null freshViolations) $
-    warnTypePmCompatibility
+    warnOutsideEgisonCore
       (detail ++ ": " ++ intercalate ", "
         [name | MkCapVar name <- Set.toList freshViolations] ++
        "; using Egison's extended capability solver")
@@ -1282,7 +1321,7 @@ checkAnnotationBoundary baselineSubst environment localSubst allowExtension cont
   when (typeSkolemEscape || capabilitySkolemEscape) $
     throwError (TE.AnnotationSkolemEscape context)
   unless (null capabilityEscapes) $
-    warnTypePmCompatibility
+    warnOutsideEgisonCore
       (if allowExtension
         then "an Egison numeric/CAS/tensor annotation changes an enclosing capability metavariable"
         else "production annotation reconstruction specializes an enclosing capability metavariable")
@@ -1290,11 +1329,11 @@ checkAnnotationBoundary baselineSubst environment localSubst allowExtension cont
   unless (null typeEscapes) $
     if allowExtension && explicitlyExplainedTypeEscapes
       then
-        warnTypePmCompatibility
+        warnOutsideEgisonCore
           "an Egison numeric/CAS/tensor annotation changes an enclosing ordinary-type metavariable"
           context
       else
-        warnTypePmCompatibility
+        warnOutsideEgisonCore
           "production annotation reconstruction specializes an enclosing ordinary-type metavariable"
           context
 
@@ -1943,7 +1982,7 @@ solveWithCompatibility classEnv constraints left right ctx =
         Left err -> throwUnifyError ctx err
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
-          warnTypePmCompatibility
+          warnOutsideEgisonCore
             ("rigid annotation variable is used through Egison's extended " ++
              "numeric/CAS/tensor typing relation: `" ++
              TP.prettyType mismatchLeft ++ " ~ " ++
@@ -1959,7 +1998,7 @@ solveWithCompatibility classEnv constraints left right ctx =
 -- | Role-aware counterpart of 'solveWithCompatibility' for an explicit
 -- consumer slot.  TypePM's one-way producer-to-slot rule is attempted before
 -- the general Egison extension solver, so a core-valid slot use neither
--- strengthens its producer nor emits a compatibility warning.
+-- strengthens its producer nor emits an outside-core warning.
 solveAtSlotWithCompatibility
   :: ClassEnv
   -> [Constraint]
@@ -1984,7 +2023,7 @@ solveAtSlotWithCompatibility classEnv constraints inferred expected ctx =
         Left err -> throwUnifyError ctx err
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
-          warnTypePmCompatibility
+          warnOutsideEgisonCore
             ("slot checking uses Egison's extended numeric/CAS/tensor " ++
              "typing relation: `" ++ TP.prettyType mismatchLeft ++ " ~ " ++
              TP.prettyType mismatchRight ++ "`")
@@ -2093,7 +2132,7 @@ unifyTypesWithTopLevel t1 t2 ctx = do
         Left err -> throwUnifyError ctx err
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch [] mismatchLeft mismatchRight -> do
-          warnTypePmCompatibility
+          warnOutsideEgisonCore
             ("top-level rigid annotation uses Egison's extended " ++
              "numeric/CAS/tensor typing relation: `" ++
              TP.prettyType mismatchLeft ++ " ~ " ++
@@ -2878,7 +2917,7 @@ inferIExprWithContext expr ctx = case expr of
       inferMatcherShapeCapability patternEnv shapeSubst shapeSeeds exprCtx
     when usesLegacyCasView $ do
       markDeferredHoleGroupLegacyCas matcherHoleGroup
-      warnTypePmCompatibility
+      warnOutsideEgisonCore
         "legacy CAS pattern views use Egison's target-independent compatibility path"
         exprCtx
     -- Signature projection may solve a flexible input capability head.  Use
@@ -3311,7 +3350,7 @@ inferIExprWithContext expr ctx = case expr of
                 -- which a capability head can be projected.  Preserve the
                 -- extended Egison behavior, but contribute no certified shape
                 -- evidence; inferPrimitivePatPattern already emitted the
-                -- opt-in compatibility warning.
+                -- opt-in outside-core warning.
                 return
                   ( Cap.CapUnseen
                   , FieldValidationEvidence Cap.CapUnseen Set.empty
@@ -3970,7 +4009,7 @@ inferIExprWithContext expr ctx = case expr of
               -- Not found in pattern environment: use generic inference
               -- This is an extended-Egison compatibility path.  The
               -- mechanized checker requires a frozen constructor signature.
-              warnTypePmCompatibility
+              warnOutsideEgisonCore
                 ("primitive-pattern constructor `" ++ name ++
                  "` has no declared pattern signature; using generic inference")
                 ctx
@@ -4877,13 +4916,13 @@ warnPatternCompatibility ctx pat = do
   let extensionFeatures =
         nub (typePmPatternExtensions pat ++ resolvedExtensions)
   unless (null extensionFeatures) $
-    warnTypePmCompatibility
+    warnOutsideEgisonCore
       ("pattern form(s) checked by Egison's extension layer: " ++
        intercalate ", " extensionFeatures)
       ctx
   mapM_
     (\issue ->
-      warnTypePmCompatibility
+      warnOutsideEgisonCore
         ("pattern context accepted by Egison's extension layer: " ++ issue)
       ctx)
     (patternContextCompatibilityIssues pat)
@@ -4995,7 +5034,7 @@ capabilityTemplates ctx types = do
             -- core constructor projection.  They must not manufacture
             -- structure from their target type, so the conservative Egison
             -- extension is a fresh capability plus an opt-in diagnostic.
-            warnTypePmCompatibility
+            warnOutsideEgisonCore
               ("pattern constructor field `" ++ TP.prettyType ty ++
                "` has no core capability projection; treating it as opaque")
               ctx
@@ -5964,15 +6003,15 @@ vpAlignList acc (pp : pps) (p : ps) = do
   return (caps ++ caps', acc'')
 vpAlignList _ _ _ = Nothing
 
--- | The value-pattern scope check (paper Def 4.2(4), the vp-scoped premise
--- of WT-ATOM; surfaced by the type-pm-mech mechanization): at a match site
--- whose matcher clause shapes are statically known, a value pattern captured
--- by a #\$x may not reference pattern variables bound to its left within the
--- same clause pattern (bindings made before the atom are available; those of
--- the same clause's holes are not yet made).  Componentwise for a tuple of
+-- | Production use-site safeguard for primitive-pattern patterns that Egison
+-- accepts beyond the core's PPatCoreOrder restriction. At a match site whose
+-- matcher clause shapes are statically known, a value pattern captured by a
+-- #\$x may not reference pattern variables bound to its left within the same
+-- clause pattern (bindings made before the atom are available; those of the
+-- same clause's holes are not yet made). Core-admissible clauses cannot have
+-- such a capture after a hole. The check is componentwise for a tuple of
 -- matchers (each component is its own atom, so earlier components' bindings
--- are pre-atom for later ones).  Opaque matchers are not checked (disclosed
--- in the paper's implementation appendix).
+-- are pre-atom for later ones). Opaque production matchers are not checked.
 checkVpScope :: TypeErrorContext -> IExpr -> [IMatchClause] -> Infer ()
 checkVpScope ctx matcherExpr clauses = do
   shape <- resolveVpShape matcherExpr
@@ -6228,7 +6267,7 @@ inferTargetOnlyPatternApplication
   -> Infer (TIPattern, [(String, Type)], Subst, Capability)
 inferTargetOnlyPatternApplication
   detail funcExpr argPats expectedType ctx = do
-    warnTypePmCompatibility detail ctx
+    warnOutsideEgisonCore detail ctx
     (functionTI, functionSubst) <-
       inferIExprWithContext funcExpr ctx
     argumentTypes <- mapM (const (freshVar "parg")) argPats
@@ -7457,9 +7496,9 @@ inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = case topExpr of
   IDefine var expr -> do
     warnOnClassMethodShadow var
-    -- Harvest matcher clause shapes for the value-pattern scope check
-    -- (paper Def 4.2(4)): a top-level definition whose (lambda-wrapped)
-    -- body is a matcher literal records its clause pps under its name.
+    -- Harvest matcher clause shapes for the production use-site safeguard:
+    -- a top-level definition whose (lambda-wrapped) body is a matcher literal
+    -- records its clause pps under its name.
     case stripLambdasForShape expr of
       IMatcherExpr patDefs ->
         modify (\st -> st { inferMatcherShapes =

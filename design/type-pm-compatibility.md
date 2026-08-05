@@ -1,4 +1,4 @@
-# Type-PM Compatibility Boundary
+# Egison Core Boundary
 
 > **Status (2026-08-05).** This document defines the integration boundary
 > between Egison's production type checker and the executable two-sorted core
@@ -15,18 +15,26 @@ a validated bridge continue through their existing typing and evaluation
 paths.
 
 Crossing such an extension boundary must not silently be presented as a core
-guarantee. The optional flag
+guarantee. General production extensions are reported by the optional flag
 
 ```text
---type-pm-compatibility-warnings
+--outside-egison-core-warnings
 ```
 
-reports those crossings. Enabling the flag is diagnostic only: it must not
-change inferred types, substitutions, elaborated terms, evaluation order,
-runtime values, or failure behavior. Disabling it must preserve the existing
-production behavior exactly.
+Two independently useful primitive-pattern diagnostics have dedicated flags:
 
-The compatibility warning path is deliberately separate from strict type
+```text
+--pattern-hole-before-primitive-value-pattern-warnings
+--nested-structured-primitive-pattern-pattern-warnings
+```
+
+Enabling any warning flag is diagnostic only: it must not change inferred
+types, substitutions, elaborated terms, evaluation order, runtime values, or
+failure behavior. Disabling them must preserve the existing production
+behavior exactly. The former umbrella option is not retained as an alias: it
+did not identify which boundary was being audited.
+
+The outside-core warning path is deliberately separate from strict type
 errors. A construct rejected by the synchronized core path remains an error
 when the production checker already treats it as an error. The warning path is
 for an Egison extension or compatibility fallback through which the production
@@ -140,12 +148,46 @@ is consumer-owned. PP-Con may therefore solve that slot's capability meta to a
 fresh instance of the declared field skeleton (observable heads retained,
 leaves fresh). An `HCMatcher` value is a producer instead: field validation may
 inspect its existing capability but never strengthen it from the field target.
-The nested structured primitive-pattern fallback in Section 4.1 remains a
+The nested structured primitive-pattern fallback in Section 4.2 remains a
 whole-clause uncertified path: it keeps generic result projection, but skips
-both this slot-skeleton alignment and closed-field validation. The warning
-option controls reporting only, not which inference path is taken.
+both this slot-skeleton alignment and closed-field validation. The dedicated
+nested-structure warning option controls reporting only, not which inference
+path is taken.
 
-### 2.5 Allocated/protected producer ledger
+### 2.5 Primitive-pattern capture order
+
+Egison core visits a `PrimitivePatPattern` depth first and from left to right.
+A primitive value pattern `#$name` is core-admissible only if no pattern hole
+`$` has been visited earlier in that order. Wildcards do not change the state;
+constructor and tuple children thread the state through their children in
+source order. For example:
+
+```text
+cons #$head $       core-admissible
+cons $ #$tail       outside Egison core
+($, #$value)        outside Egison core
+join $ (cons #$v $) outside Egison core
+```
+
+Consequently, convenient production clauses such as `$ ++ #$px :: $` and
+`($, #$n) :: $` are outside the formal core whenever their parsed tree places
+the first `$` before the capture. Production may keep them; a core-facing
+matcher instead declares a pattern constructor with the required fields in the
+opposite order.
+
+The restriction removes the operational case in which primitive value-pattern
+evaluation can observe bindings contributed by a hole to its left. Equivalent
+matcher behavior can be expressed by declaring a pattern constructor whose
+field order matches the required evaluation order.
+
+Production Egison intentionally continues to accept the broader syntax for
+convenience. It reports the boundary at matcher-definition time when
+`--pattern-hole-before-primitive-value-pattern-warnings` is enabled. This
+syntax-only warning is distinct from `checkVpScope`: an actual user value
+pattern that refers to a binding made to its left in the same matcher atom is
+still a hard type error.
+
+### 2.6 Allocated/protected producer ledger
 
 The production solver maintains explicit sets for capability variables
 allocated during inference and for variables protected from later
@@ -175,7 +217,7 @@ therefore not accidentally claimed by the matcher producer.
 An extension fallback is a production path whose acceptance has not yet been
 connected to the executable core inference theorem by a validated translation.
 The fallback may continue to use Egison's existing type checker and evaluator.
-Compatibility warnings observe the fallback; they do not replace it, reject
+Outside-core warnings observe the fallback; they do not replace it, reject
 it, or reinterpret it.
 
 Warnings should be emitted once per relevant source occurrence where
@@ -184,12 +226,26 @@ source expression. Generated code should be attributed to its originating
 surface construct when that provenance is available. Warning collection must
 not mutate the inference environment or participate in solver decisions.
 
-## 4. Compatibility warning inventory
+## 4. Warning inventory
 
-The following cases are reported when
-`--type-pm-compatibility-warnings` is enabled.
+Except for the two primitive-pattern categories in Sections 4.1 and 4.2, the
+following cases are reported when `--outside-egison-core-warnings` is enabled.
 
-### 4.1 Nested structured primitive-pattern patterns
+### 4.1 Pattern hole before a primitive value pattern
+
+A matcher clause whose depth-first, left-to-right primitive-pattern traversal
+encounters `$` before a later `#$name` is reported when
+`--pattern-hole-before-primitive-value-pattern-warnings` is enabled. The
+diagnostic is attached to the matcher definition and renders the complete
+primitive-pattern tree. Production accepts and evaluates the clause unchanged;
+the warning states that the clause is outside Egison core.
+
+This category is independent of nesting. Thus `($, #$value)` produces only
+this warning, while `join $ (cons #$value $)` produces this warning and the
+nested-structure warning below when both flags are enabled. Reversing the
+relevant order, as in `(#$value, $)`, does not produce this warning.
+
+### 4.2 Nested structured primitive-pattern patterns
 
 A nested constructor or tuple inside another constructor or tuple is reported,
 for example:
@@ -204,7 +260,9 @@ or its current surface equivalent:
 join $ (cons #$val $)
 ```
 
-The diagnostic is based on the `PrimitivePatPattern` AST, not textual matching.
+This category is reported only when
+`--nested-structured-primitive-pattern-pattern-warnings` is enabled. The
+diagnostic is based on the `PrimitivePatPattern` AST, not textual matching.
 This avoids warnings for comments and ordinary user patterns and correctly
 handles operator precedence.
 
@@ -214,7 +272,7 @@ warning exists because the production Egison-to-core bridge for these
 occurrences has not yet been validated end to end. It must not state that Lean
 cannot express or infer the pattern.
 
-### 4.2 Primitive-pattern binder duplication or overlap
+### 4.3 Primitive-pattern binder duplication or overlap
 
 A fallback is reported when primitive-pattern captures are not pairwise
 distinct, or when a primitive-pattern capture overlaps a primitive-data-pattern
@@ -226,7 +284,7 @@ Once the production checker enforces the same distinctness and disjointness
 conditions as the core, these cases should become ordinary type errors and no
 longer use a compatibility fallback.
 
-### 4.3 Undeclared primitive-pattern constructor fallback
+### 4.4 Undeclared primitive-pattern constructor fallback
 
 The core requires every primitive-pattern constructor to be found in the
 frozen pattern-constructor signature. Production's generic inference for an
@@ -237,7 +295,7 @@ not obtained from the frozen signature.
 Removing generic undeclared-constructor inference and rejecting the construct
 as an ordinary type error retires this warning category.
 
-### 4.4 Legacy CAS views
+### 4.5 Legacy CAS views
 
 The target-indexed virtual signature needed to justify legacy CAS views is not
 part of the synchronized core bridge. Any special path that accepts views such
@@ -247,7 +305,7 @@ ordinary frozen constructor/capability correspondence is reported.
 The diagnostic must identify the legacy view boundary. It must not treat the
 view as constructor evidence for unrelated ordinary capabilities.
 
-### 4.5 Pattern-function fallback boundary
+### 4.6 Pattern-function fallback boundary
 
 A successfully checked pattern-function definition is stored as one canonical
 `DualScheme`. The scheme contains the capability and target of every argument
@@ -269,7 +327,7 @@ extension boundaries in this inventory and to the bridge obligations in
 Section 6.
 
 If the definition body itself contains a residual non-core pattern form from
-Section 4.6, that body boundary is reported when the definition is checked.
+Section 4.7, that body boundary is reported when the definition is checked.
 The inferred `DualScheme` is still retained, but later finalized named
 applications do not repeat—or silently substitute for—the definition-site
 diagnostic.
@@ -299,7 +357,7 @@ inside the same expanded load unit are rejected, because choosing different
 declarations in the static and runtime environments would invalidate the
 stored contract.
 
-### 4.6 Non-core pattern forms
+### 4.7 Non-core pattern forms
 
 After verified surface elaboration, any surviving pattern form without a core
 term and typing-rule translation is reported. Examples include production-only
@@ -320,7 +378,7 @@ Constructor-shaped user patterns are core-facing only when their constructor
 is present in the frozen pattern signature. Falling back to a value
 constructor or to generic constructor inference is reported.
 
-### 4.7 Protected or nested core-solver fallback
+### 4.8 Protected or nested core-solver fallback
 
 A warning is reported whenever the synchronized solver delegates a protected
 producer constraint or a nested matcher constraint to a more permissive
@@ -356,9 +414,10 @@ Coverage diagnostics remain controlled by:
 ```
 
 They must not be enabled, disabled, reclassified, or used as capability
-evidence by `--type-pm-compatibility-warnings`. Auditing a production program
-against the complete core acceptance conditions therefore requires both
-options. A matcher can exercise only synchronized inference operations while
+evidence by the outside-core warning flags. Auditing a production program
+against the complete core acceptance conditions therefore requires
+`--matcher-consistency-warnings` together with the relevant outside-core flags.
+A matcher can exercise only synchronized inference operations while
 remaining intentionally partial under the production policy, and it can be
 coverage-complete while using an unbridged Egison extension.
 
@@ -385,5 +444,5 @@ minimum:
 
 Until those obligations are discharged, the precise claim is limited to the
 mechanized core itself and to individual production components whose bridges
-have been separately validated. Compatibility warnings expose the remaining
+have been separately validated. Outside-core warnings expose the remaining
 boundary; they do not close it.

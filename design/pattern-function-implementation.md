@@ -153,7 +153,7 @@ target projection は常に canonical `DualScheme` から再計算し，binder �
 
 一つの paired substitution を全 argument/result dual に共有するため，capability と target の
 相関を適用の最後まで維持する。この通常経路は
-`--type-pm-compatibility-warnings` を有効にしても，パターン関数であることを理由に warning を出さない。
+`--outside-egison-core-warnings` を有効にしても，パターン関数であることを理由に warning を出さない。
 
 ### 名前の曖昧性解消
 
@@ -171,7 +171,7 @@ canonical `DualScheme` を利用できない次の二経路だけは，Egison �
 - body 検査がまだ完了していない header-only の前方・相互参照
 - 明示的な `IPApplyPat` による expression-headed application
 
-これらは `--type-pm-compatibility-warnings` が有効なときに warning を出す。header の
+これらは `--outside-egison-core-warnings` が有効なときに warning を出す。header の
 target 型は名前解決と通常型検査には使えるが，構造 capability の証拠にはならない。
 明示的な `IPApplyPat` は変数ヘッドであっても通常の式環境から推論するため，同名の局所束縛を
 正しく優先する。top-level pattern function と同じ綴りであることだけを理由に canonical
@@ -221,7 +221,7 @@ data EgisonValue
 - capability/target の重複 binder を instantiation 境界で拒否する。
 - 同一 application 内では，全引数と結果が同じ instantiation を共有する。
 - result target，argument target，argument capability の不一致をそれぞれ拒否する。
-- finalized named application は compatibility warning を出さない。
+- finalized named application は outside-core warning を出さない。
 - header-only の前方・相互参照および expression-headed application は option 有効時だけ warning を出す。
 - 非 core パターン形式を含む body は，scheme を保持しつつ定義時に option-controlled warning を出す。
 - 再定義の prepass は古い finalized scheme を無効化し，検査成功時だけ置き換える。

@@ -97,9 +97,9 @@ data EvalState = EvalState
   , matcherShapeEnv :: Map.Map String [PrimitivePatPattern]
                                        -- ^ Clause pp shapes of top-level matcher definitions,
                                        --   harvested at IDefine by the type checker.  Consulted by
-                                       --   the value-pattern scope check (paper Def 4.2(4), the
-                                       --   vp-scoped premise of WT-ATOM).  Persists across load
-                                       --   batches, like the type environments.
+                                       --   the production use-site safeguard for outside-core
+                                       --   primitive-pattern clauses. Persists across load batches,
+                                       --   like the type environments.
   , producerDependencyEnv :: Map.Map String (Set.Set String)
                                        -- ^ P2 D4 fail-closed summaries for
                                        --   top-level aliases/closures whose
@@ -201,7 +201,7 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Phase beta: `declare cas-subtype` edges.
   getCasSubtypeEdges :: m [(Type, Type)]
   setCasSubtypeEdges :: [(Type, Type)] -> m ()
-  -- Matcher clause shapes for the value-pattern scope check (Def 4.2(4)).
+  -- Matcher clause shapes for the outside-core production safeguard.
   getMatcherShapeEnv :: m (Map.Map String [PrimitivePatPattern])
   setMatcherShapeEnv :: Map.Map String [PrimitivePatPattern] -> m ()
   -- P2 top-level producer provenance across load units.
