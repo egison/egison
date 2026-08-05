@@ -16,7 +16,7 @@
 | 二 sort・二添字 | 実装済み | `Matcher κ τ` と `MatcherSlot κ τ` を使用し、capability と通常型を別 sort として扱う |
 | D1 ShapeCap | 実装済み | pattern constructor の署名から evidence と observability を計算し、節間を exact merge する |
 | Coverage | D1 から独立して実装済み | primitive pattern の網羅性は opt-in warning のままとし、ShapeCap を弱めない |
-| D3 代入・一般化 | 実装済み | capability 変数と通常型変数を別々に代入、一般化、具体化する |
+| D3 代入・一般化 | core fragment 実装済み | capability 変数と通常型変数を別々に代入、一般化、具体化し、top-level definition と pattern function の明示 scheme を両 sort とも rigid に検査する |
 | D4 再帰 flow | 一部実装 | scoped な name-level dependency と singleton direct-self を扱い、未解決／循環 summary を load unit 間で保持するが、一般の producer/path 方程式は未統合 |
 | D5-core `CapTargetOK` | 実装済み | 固定された構文的 type former と文脈仮定だけで検査する |
 | D5-CAS | 未実装 | 標準ライブラリを動かすための legacy compatibility boundary のみ存在する |
@@ -53,7 +53,28 @@ TMatcherSlot Capability Type
 実装箇所は `Type/Types.hs`、surface AST は `AST.hs`、構文解析は
 `Parser/NonS.hs` にある。
 
-### 2.1 capability name／kind elaboration
+### 2.1 producer-stable capability matching
+
+`Matcher κ_p τ_p` を `MatcherSlot κ_c τ_c` へ渡す片方向判定では、
+`matchCapability κ_p κ_c` を producer-first の順で呼ぶ。代入の定義域は、判定開始時の
+
+```text
+fcv(κ_c) \ fcv(κ_p)
+```
+
+に固定する。従って consumer だけに属する flexible capability variable は producer
+の構造へ解けるが、producer の変数、および producer と consumer が共有する変数は
+解けない。分解途中で producer の変数が consumer 位置へ現れても定義域へ追加しない。
+反復 consumer 変数は同じ代入で整合しなければならず、occurs check も行う。
+
+この判定は `Type/Unify.hs` の対称な `unifyCapability` とは別である。前者は
+producer-to-slot coercion と ordinary type の `matchOneWay` 内の nested matcher
+比較にだけ使い、後者は二つの producer 型または二つの slot 型の等式制約に使う。
+`coerceMatcherToSlot` は capability の片方向代入を先に求め、その代入を constraints
+と両 target 型へ適用してから通常型を unify し、二つの代入を順序どおり compose
+する。
+
+### 2.2 capability name／kind elaboration
 
 surface annotation に現れる constructor capability は、型推論より前に凍結した
 type-former signature と照合する。
@@ -64,7 +85,8 @@ type-former signature と照合する。
 - `List`／`Collection` や `Vector`／`Tensor` のように同じ canonical ID へ写る
   builtin と user inductive の衝突は、arity が同じでも拒否する。
 - top-level signature だけでなく、局所型注釈、typed lambda、class／instance、
-  pattern function、matcher clause 内の式を再帰的に検査する。
+  pattern function、matcher clause 内の式も、surface annotation に書かれた
+  capability former の名前と arity については再帰的に検査する。
 
 この検査は `EnvBuilder.hs` にあり、失敗は `Capability kind error` として報告する。
 なお、signature の永続化は現在 constructor environment から復元しているため、
@@ -146,14 +168,40 @@ capability を持てる。この近似は意図した設計判断である。
   書き換えない。
 - capability 代入 `CapVar ↦ Capability` は capability 位置へ明示的に適用する。
 - free-variable 計算、scheme の量化、instantiate は二 sort を別々に処理する。
-- 明示的な matcher 型注釈の capability は rigid な capability skolem として扱う。
+- 明示 scheme の capability binder は `CapSkolem`、通常型 binder は `TSkolem`
+  として具体化し、どちらも rigid に検査する。通常型の flexible meta は
+  `TSkolem` へ解けるが、`TSkolem` 自身を代入の定義域にはできない。
+- fresh skolem は surface parser が生成できない `$skc`／`$skt` namespace と共有
+  counter を使う。検査前から環境に自由な meta へ skolem が流出する場合は
+  `AnnotationSkolemEscape` として拒否する。
+- 検査に成功した typed tree、constraints、substitution は declared binder へ
+  deskolemize してから annotation boundary の外へ返す。従って dictionary
+  elaboration、後続の `IDefineMany` 要素、保存される scheme に skolem は残らない。
 
 したがって、通常型の Algorithm W と同じ「制約を集め、代入を解き、環境に自由でない
 変数を一般化する」という骨格を共有しつつ、両 sort の代入が混線しない。適用結果の
 target 型へ通常型代入を反映しても、それだけで capability witness が生成されることは
 ない。
 
-実装箇所は `Type/Subst.hs` と `Type/Env.hs` である。
+実装箇所は `Type/Types.hs`、`Type/Subst.hs`、`Type/Env.hs`、および annotation
+boundary を管理する `Type/Infer.hs` である。
+
+この annotation 実装の範囲は、top-level definition（`IDefine`／
+`IDefineMany`）と pattern-function declaration、およびそれらの本体に現れる
+nested expression annotation である。次の局所 annotation は `Desugar.hs` で型情報を
+消去しており、rigid binder を持つ局所 scheme checking としては未実装である。
+
+- `TypedLambdaExpr`
+- `TypedMemoizedLambdaExpr`
+- `BindWithType`
+
+また、pattern function の ordinary type variable は surface の `{...}` に明示された
+ものだけを量化する。parameter／result annotation にだけ現れる未宣言 ordinary
+variable を拒否する general well-scopedness check は未実装であり、inductive、
+pattern-inductive、class signature にも同種の前段検査が必要である。
+type class は formal P2 core の対象外であり、constraint のみに現れる変数の閉包、
+capability variable／skolem のみに依存する residual constraint の検査、
+pattern function の constraint syntax も未実装境界である。
 
 ## 6. D5-core：構文的 `CapTargetOK`
 
@@ -296,6 +344,8 @@ certification と呼ばず、次の理由から Egison 全体の certification �
 | surface type syntax | `hs-src/Language/Egison/AST.hs`, `hs-src/Language/Egison/Parser/NonS.hs` |
 | capability 代入と通常型代入 | `hs-src/Language/Egison/Type/Subst.hs` |
 | 二 sort の一般化・instantiate・skolemize | `hs-src/Language/Egison/Type/Env.hs` |
+| producer-stable capability matching | `hs-src/Language/Egison/Type/Unify.hs` |
+| annotation skolem の no-escape／deskolemize | `hs-src/Language/Egison/Type/Infer.hs` |
 | capability name／kind elaboration | `hs-src/Language/Egison/EnvBuilder.hs` |
 | D1 evidence、observability、exact merge、D5-core | `hs-src/Language/Egison/Type/Capability.hs` |
 | matcher 推論、Coverage warning、scoped provenance、direct-self、`Any` guard、legacy 境界 | `hs-src/Language/Egison/Type/Infer.hs` |
@@ -314,21 +364,32 @@ cabal test test
 ```
 
 `test/Test.hs` の `p2CapabilityTests` は、通常型／capability の別代入、nested
-capability 代入、evidence の exact identity、observability の最小不動点、
+capability 代入、producer-stable な片方向 capability matching、shared-variable
+拒否、evidence の exact identity、observability の最小不動点、
 projection、文脈相対 `CapTargetOK`、純粋 `ShapeSolver` の SCC・exact mismatch・
 expansive cycle、malformed capability arity の内部拒否を検査する。さらに pipeline
 回帰は、strict mode の評価前停止、失敗した inference state の非永続化、および
-load unit をまたぐ producer SCC summary の保持を検査する。
+load unit をまたぐ producer SCC summary の保持を検査する。P2 選択テストには、
+CAS bridge 名だけを inert stub で与えて選択した core 9 ライブラリと
+`p2-capability.egi` を strict mode で読み込む回帰、および過剰一般な通常型 annotation
+を `TSkolem` 不一致、過剰一般な capability annotation を capability skolem
+（診断上は `$skc`）との不一致として strict mode で拒否する回帰も含む。
+この選択ライブラリ回帰は `MathValue` stub、
+type class、`Any`、既存の CAS／Tensor 寛容単一化を含むため、formal non-CAS core を
+隔離した試験ではない。
 
 同じ test suite は `test/lib/**/*.egi` を自動発見するため、
 `test/lib/core/p2-capability.egi` も実行される。ここでは target 特殊化による
 capability 非強化、関数結果での保存、list／nested capability、direct-self 再帰、
 Coverage と独立な partial matcher、flexible capability projection、closed nested
-constructor を受理側から検査する。
+constructor に加え、正しい通常型 rigid annotation と type-class constraint の
+dictionary passing を受理側から検査する。
 
-ただし language-level test は `defaultOption` で全 core libraries を読み込むため、
-legacy CAS boundary も含む。従って、この test suite 全体を certified-mode test
-とは呼ばない。
+通常の自動発見 language-level test は `defaultOption` で全 core libraries を
+読み込むため legacy D5-CAS view 経路も含む。上記の strict 選択ライブラリ回帰は
+その view library を読み込まないが、前述の stub と非 core 機能を含む。どちらも
+proof-producing certificate を生成するわけではないため、test suite 全体を
+certified-mode test とは呼ばない。
 
 ### 11.2 reject テスト
 
@@ -368,13 +429,23 @@ P2 固有の reject ケースは次のとおりである。
 - `81-p2-completed-alias-cycle.egi`：完了済み alias-only SCC を evidence にしない。
 - `82-p2-any-cannot-witness-capability.egi`：`Any` で structured match-site
   capability を満たさない。
+- `83-p2-ordinary-annotation-rigidity.egi`：通常型 binder を本体から特殊化して
+  `forall a. a -> a` を捏造する過剰一般 annotation を拒否する。
+- `84-p2-nested-annotation-rigidity.egi`：top-level の通常型 rigid binder を
+  nested annotation でも共有する。
+- `85-p2-pattern-function-annotation-rigidity.egi`：pattern function の通常型
+  binder を rigid に検査する。
+- `86-p2-pattern-function-nested-annotation-rigidity.egi`：pattern-function body の
+  nested annotation でも同じ rigid binder を共有する。
+- `87-p2-capability-annotation-rigidity.egi`：明示 matcher scheme の capability
+  binder を `CapSkolem` として rigid に検査する。
 
 D5-CAS の certified-mode test はまだ存在しない。D5-CAS の metadata、certificate、
 checker integration とともに追加する必要がある。
 
 ## 12. 残作業
 
-優先度の高い未完了項目は次の三つである。
+未実装または formal core の外に残す項目は次である。
 
 1. **former signature の永続化**：constructor の有無に依存しない専用 metadata を
    `EvalState` に保持し、load unit をまたぐ空 inductive と nominal quotient の扱いを
@@ -386,6 +457,19 @@ checker integration とともに追加する必要がある。
    上の永続表現も定義する。
 3. **D5-CAS**：target-indexed virtual pattern signatures と preservation
    certificate を導入し、legacy allowlist を certified 経路で置き換える。
+4. **局所 annotation semantics**：`TypedLambdaExpr`、
+   `TypedMemoizedLambdaExpr`、`BindWithType` を型付き IR に保持し、局所 scheme
+   checking、rigid binder、no-escape を実装する。
+5. **declaration well-scopedness**：pattern function、inductive、
+   pattern-inductive、class signature の未宣言 ordinary type variable を拒否し、
+   constraint-only variable も含め scheme closure を検査する。type class を core
+   証明に含めない間も、この実装境界を明示する。
+6. **source certificate bridge**：actual clause-evidence、二種 Algorithm W、
+   `ValueTy`／`EnvTyped`／matching-state invariant、Preservation／Progress／
+   Type Safety を Egison の typed IR と対応づける。現在の checker fragment と
+   `type-pm-mech` の相対 runtime invariant の間に proof-producing certificate はない。
+7. **Coverage／module integration**：ordinary warning と covered/certified mode、
+   module certificate、raw declaration validator、標準ライブラリ全体の移行を行う。
 
 その後に、certification 条件を満たす fragment だけを受理・実行し、legacy bypass、
 `casQuotientCast`、型エラー後の untyped fallback を明示的に排除または taint として

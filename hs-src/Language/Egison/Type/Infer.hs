@@ -51,7 +51,7 @@ module Language.Egison.Type.Infer
   , clearWarnings
   ) where
 
-import           Control.Monad              (foldM, when, zipWithM, zipWithM_, unless)
+import           Control.Monad              (foldM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
 import           Data.List                  (isPrefixOf, nub, partition, intercalate)
@@ -67,7 +67,8 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , TIPattern (..), TIPatternNode (..), TILoopRange (..)
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..), stringToVar
-                                            , tiExprType, mapTIExprChildren)
+                                            , tiExprType, mapIExprTypes, mapIPatternTypes,
+                                              mapTIExprChildren)
 import           Language.Egison.Pretty     (prettyStr)
 import qualified Language.Egison.Type.Capability as Cap
 import           Language.Egison.Type.Env
@@ -83,7 +84,6 @@ import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
-import qualified Language.Egison.Type.Unify as Unify
 import           Language.Egison.Type.Instance (findMatchingInstanceForType)
 
 --------------------------------------------------------------------------------
@@ -99,12 +99,17 @@ data InferConfig = InferConfig
                                  --   has intentionally partial matchers (opt-in diagnostic;
                                  --   --matcher-consistency-warnings).  PP-Con (4.2(1a)) and arm
                                  --   exhaustiveness (4.2(1c)) are ordinary type errors.
+  , cfgTypePmCompatibilityWarnings :: Bool
+                                 -- ^ Report uses that the production Egison checker accepts
+                                 --   outside its conservative type-pm deployment profile.
+                                 --   This does not change typing or evaluation.
   }
 
 instance Show InferConfig where
   show cfg = "InferConfig { cfgPermissive = " ++ show (cfgPermissive cfg)
            ++ ", cfgCollectWarnings = " ++ show (cfgCollectWarnings cfg)
            ++ ", cfgMatcherConsistencyWarnings = " ++ show (cfgMatcherConsistencyWarnings cfg)
+           ++ ", cfgTypePmCompatibilityWarnings = " ++ show (cfgTypePmCompatibilityWarnings cfg)
            ++ " }"
 
 -- | Default configuration (strict mode)
@@ -113,6 +118,7 @@ defaultInferConfig = InferConfig
   { cfgPermissive = False
   , cfgCollectWarnings = False
   , cfgMatcherConsistencyWarnings = False
+  , cfgTypePmCompatibilityWarnings = False
   }
 
 -- | Permissive configuration (for gradual adoption)
@@ -121,6 +127,7 @@ permissiveInferConfig = InferConfig
   { cfgPermissive = True
   , cfgCollectWarnings = True
   , cfgMatcherConsistencyWarnings = False
+  , cfgTypePmCompatibilityWarnings = False
   }
 
 -- | Inference state
@@ -153,13 +160,6 @@ data InferState = InferState
                                           --   structural signature, recovering every link.
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
-  , inferInMatcherBody :: Bool           -- ^ True while inferring a `matcher` body.  The match-site
-                                          --   admissibility check (T-MATCHALL) runs normally here —
-                                          --   match-sites nested in a matcher body are genuinely
-                                          --   type-checked.  This flag only suppresses matcher-
-                                          --   Coverage (Def 4.2(3)) warnings for nested / generated
-                                          --   matchers, whose constructor set is an implementation
-                                          --   detail rather than a user-facing matcher.
   , inferDeferredHoleChecks :: [DeferredHoleCheck]
                                           -- ^ Matcher-definition next-matcher slot checks deferred
                                           --   to the end of the top-level expression (paper PP-Con,
@@ -179,6 +179,22 @@ data InferState = InferState
                                           --   so the conflict is unified — and reported — instead of
                                           --   shadowed.  Reset per top-level item (a fresh InferState
                                           --   is seeded for each).
+  , inferAllocatedCapVars :: Set.Set CapVar
+                                          -- ^ Flexible capability variables allocated by this
+                                          --   inference run.  Source variables and annotation
+                                          --   skolems are deliberately absent.
+  , inferProtectedCaps :: Set.Set CapVar   -- ^ Inference-owned producer variables that every
+                                          --   later capability substitution must fix.  Fresh
+                                          --   scheme images are protected immediately; variables
+                                          --   retained by a completed matcher are protected at
+                                          --   matcher finalization.
+  , inferReportedProtectedCaps :: Set.Set CapVar
+                                          -- ^ Protected variables whose first strengthening has
+                                          --   already been reported at the extension boundary.
+  , inferCoreSolverFallbackReported :: Bool
+                                          -- ^ Avoid repeating the same compatibility warning
+                                          --   for every nested/capability equation in one
+                                          --   extended-Egison inference run.
   , inferCasSubtypeEdges :: Subtype.SubtypeEnv
                                           -- ^ Declared `cas-subtype` edges (alias-expanded), seeded
                                           --   from EvalState per top-level item.  Consulted by the
@@ -290,11 +306,37 @@ data DeferredHoleCheck = DeferredHoleCheck
 
 -- | Initial inference state
 initialInferState :: InferState
-initialInferState = InferState 0 emptyEnv [] defaultInferConfig emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty Map.empty Set.empty Map.empty Nothing Set.empty
+initialInferState = initialInferStateWithConfig defaultInferConfig
 
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
-initialInferStateWithConfig cfg = InferState 0 emptyEnv [] cfg emptyClassEnv emptyPatternEnv emptyPatternEnv emptyPatternEnv Map.empty Nothing [] Map.empty False [] emptySubst [] Set.empty Map.empty Set.empty Map.empty Nothing Set.empty
+initialInferStateWithConfig cfg = InferState
+  { inferCounter = 0
+  , inferEnv = emptyEnv
+  , inferWarnings = []
+  , inferConfig = cfg
+  , inferClassEnv = emptyClassEnv
+  , inferPatternEnv = emptyPatternEnv
+  , inferPatternFuncEnv = emptyPatternEnv
+  , inferPatternFuncStructEnv = emptyPatternEnv
+  , inferPatfunParamTaup = Map.empty
+  , inferPatfunTaupEqs = Nothing
+  , inferConstraints = []
+  , declaredSymbols = Map.empty
+  , inferDeferredHoleChecks = []
+  , inferGlobalSubst = emptySubst
+  , inferAllocatedCapVars = Set.empty
+  , inferProtectedCaps = Set.empty
+  , inferReportedProtectedCaps = Set.empty
+  , inferCoreSolverFallbackReported = False
+  , inferCasSubtypeEdges = []
+  , inferBatchDefNames = Set.empty
+  , inferMatcherShapes = Map.empty
+  , inferRecursiveBinders = Set.empty
+  , inferProducerDependencies = Map.empty
+  , inferRecursiveOwner = Nothing
+  , inferCompletedBatchDefNames = Set.empty
+  }
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
@@ -322,6 +364,273 @@ runInferWithWarningsAndState m st = do
 -- | Add a warning
 addWarning :: TypeWarning -> Infer ()
 addWarning w = modify $ \st -> st { inferWarnings = w : inferWarnings st }
+
+-- | Emit an opt-in diagnostic for the boundary between the conservative
+-- production profile validated against type-pm-mech and Egison's larger type
+-- checker.  The flag controls reporting only; inference always follows the
+-- same extended-Egison path.
+warnTypePmCompatibility :: String -> TypeErrorContext -> Infer ()
+warnTypePmCompatibility detail ctx = do
+  enabled <- cfgTypePmCompatibilityWarnings <$> gets inferConfig
+  when enabled $
+    addWarning (TypePmCompatibilityWarning detail ctx)
+
+-- | The initial production bridge deliberately treats nested structured
+-- primitive-pattern patterns as an opt-in compatibility diagnostic.  Lean's
+-- core syntax can represent this recursion; the warning records that the
+-- end-to-end Egison-to-core bridge for this narrower deployment profile has
+-- not yet been validated.
+hasNestedStructuredPPat :: PrimitivePatPattern -> Bool
+hasNestedStructuredPPat pattern =
+  case pattern of
+    PPInductivePat _ children -> any isStructured children
+    PPTuplePat children       -> any isStructured children
+    _                         -> False
+  where
+    isStructured PPInductivePat{} = True
+    isStructured PPTuplePat{}     = True
+    isStructured _                = False
+
+-- | Render a primitive-pattern pattern without losing its tree shape.
+-- 'Pretty PrimitivePatPattern' historically omits parentheses around nested
+-- constructors, which makes (for example) @join $ (cons #$val $)@ look flat
+-- in a diagnostic.  Compatibility warnings need a round-trippable account of
+-- the boundary that was actually encountered.
+renderPrimitivePatPattern :: PrimitivePatPattern -> String
+renderPrimitivePatPattern pattern =
+  case pattern of
+    PPWildCard -> "_"
+    PPPatVar -> "$"
+    PPValuePat name -> "#$" ++ name
+    PPInductivePat name children ->
+      unwords (name : map renderChild children)
+    PPTuplePat children ->
+      "(" ++ intercalate ", " (map renderPrimitivePatPattern children) ++ ")"
+  where
+    renderChild child@PPInductivePat{} =
+      "(" ++ renderPrimitivePatPattern child ++ ")"
+    renderChild child@PPTuplePat{} =
+      renderPrimitivePatPattern child
+    renderChild child =
+      renderPrimitivePatPattern child
+
+primitivePatPatternBinders :: PrimitivePatPattern -> [String]
+primitivePatPatternBinders pattern =
+  case pattern of
+    PPValuePat name          -> [name]
+    PPInductivePat _ children -> concatMap primitivePatPatternBinders children
+    PPTuplePat children      -> concatMap primitivePatPatternBinders children
+    _                        -> []
+
+duplicateNames :: [String] -> [String]
+duplicateNames names =
+  nub [name | name <- names, length (filter (== name) names) > 1]
+
+-- | Report matcher well-formedness conditions enforced by the mechanized
+-- checker but accepted by extended Egison.  Keeping these as diagnostics lets
+-- existing programs run while making the boundary visible on demand.
+warnMatcherCompatibility
+  :: TypeErrorContext
+  -> IPatternDef
+  -> Infer ()
+warnMatcherCompatibility ctx (pp, _, arms) = do
+  when (hasNestedStructuredPPat pp) $
+    warnTypePmCompatibility
+      ("nested structured primitive-pattern pattern `" ++
+       renderPrimitivePatPattern pp ++
+       "` has not yet been validated by the production Egison/type-pm bridge")
+      ctx
+  let ppBinders = primitivePatPatternBinders pp
+      duplicatePpBinders = duplicateNames ppBinders
+  unless (null duplicatePpBinders) $
+    warnTypePmCompatibility
+      ("primitive-pattern pattern `" ++ renderPrimitivePatPattern pp ++
+       "` binds #$ name(s) more than once: " ++
+       intercalate ", " duplicatePpBinders)
+      ctx
+  forM_ arms $ \(dataPattern, _) -> do
+    let armBinders = primitivePatternNames dataPattern
+        duplicateArmBinders = duplicateNames armBinders
+        overlappingBinders = nub (filter (`elem` ppBinders) armBinders)
+    unless (null duplicateArmBinders) $
+      warnTypePmCompatibility
+        ("a data-pattern arm of primitive-pattern pattern `" ++
+         renderPrimitivePatPattern pp ++
+         "` binds name(s) more than once: " ++
+         intercalate ", " duplicateArmBinders)
+        ctx
+    unless (null overlappingBinders) $
+      warnTypePmCompatibility
+        ("a data-pattern arm of primitive-pattern pattern `" ++
+         renderPrimitivePatPattern pp ++
+         "` rebinds #$ name(s): " ++ intercalate ", " overlappingBinders)
+        ctx
+
+-- | Matcher-facing pattern forms still handled by Egison's extension layer
+-- rather than the direct TypePM.Pattern bridge.  Supported children are
+-- traversed so one match clause receives a compact, deduplicated set of
+-- diagnostics.
+typePmPatternExtensions :: IPattern -> [String]
+typePmPatternExtensions = nub . go
+  where
+    go pattern =
+      case pattern of
+        IWildCard -> []
+        IPatVar _ -> []
+        IValuePat _ -> []
+        IPredPat _ -> ["predicate pattern"]
+        IIndexedPat child _ -> "indexed pattern" : go child
+        ILetPat _ child -> "pattern-local let" : go child
+        INotPat child -> "not-pattern" : go child
+        IAndPat left right -> go left ++ go right
+        IOrPat left right -> go left ++ go right
+        IForallPat left right -> "forall-pattern" : go left ++ go right
+        ITuplePat children -> concatMap go children
+        IInductivePat _ children -> concatMap go children
+        ILoopPat _ (ILoopRange _ _ rangePattern) body endPattern ->
+          "loop pattern" :
+            (go rangePattern ++ go body ++ go endPattern)
+        IContPat -> ["continuation pattern"]
+        IPApplyPat function children ->
+          (case function of
+             IVarExpr _ -> ["pattern-function application pending the DualScheme bridge"]
+             _ -> ["expression-headed pattern application"])
+          ++ concatMap go children
+        IVarPat _ -> []
+        IInductiveOrPApplyPat _ children ->
+          concatMap go children
+        ISeqNilPat -> ["sequential-pattern terminator"]
+        ISeqConsPat left right ->
+          "sequential pattern" : go left ++ go right
+        ILaterPatVar -> ["later pattern variable"]
+        IDApplyPat function children ->
+          "symbolic dynamic pattern application" :
+            go function ++ concatMap go children
+
+-- | Resolve the constructor-or-pattern-function surface node before the
+-- speculative structural pass.  Warnings emitted inside that pass are rolled
+-- back intentionally, so known pattern-function applications must be added to
+-- the inventory here.
+resolvedPatternBridgeExtensions :: IPattern -> Infer [String]
+resolvedPatternBridgeExtensions pattern = do
+  patternFunctionEnv <- getPatternFuncEnv
+  patternConstructorEnv <- getPatternEnv
+  return . nub $ go patternFunctionEnv patternConstructorEnv pattern
+  where
+    go patternFunctionEnv patternConstructorEnv current =
+      case current of
+        IWildCard -> []
+        IPatVar _ -> []
+        IValuePat _ -> []
+        IPredPat _ -> []
+        IIndexedPat child _ -> go patternFunctionEnv patternConstructorEnv child
+        ILetPat _ child -> go patternFunctionEnv patternConstructorEnv child
+        INotPat child -> go patternFunctionEnv patternConstructorEnv child
+        IAndPat left right ->
+          go patternFunctionEnv patternConstructorEnv left ++
+          go patternFunctionEnv patternConstructorEnv right
+        IOrPat left right ->
+          go patternFunctionEnv patternConstructorEnv left ++
+          go patternFunctionEnv patternConstructorEnv right
+        IForallPat left right ->
+          go patternFunctionEnv patternConstructorEnv left ++
+          go patternFunctionEnv patternConstructorEnv right
+        ITuplePat children ->
+          concatMap (go patternFunctionEnv patternConstructorEnv) children
+        IInductivePat name children ->
+          (case lookupPatternEnv name patternConstructorEnv of
+             Just _ -> []
+             Nothing ->
+               ["pattern constructor application without a frozen pattern signature"])
+          ++ concatMap (go patternFunctionEnv patternConstructorEnv) children
+        ILoopPat _ (ILoopRange _ _ rangePattern) body endPattern ->
+          go patternFunctionEnv patternConstructorEnv rangePattern ++
+          go patternFunctionEnv patternConstructorEnv body ++
+          go patternFunctionEnv patternConstructorEnv endPattern
+        IContPat -> []
+        IPApplyPat _ children ->
+          concatMap (go patternFunctionEnv patternConstructorEnv) children
+        IVarPat _ -> []
+        IInductiveOrPApplyPat name children ->
+          (case lookupPatternEnv name patternFunctionEnv of
+             Just _ -> ["pattern-function application pending the DualScheme bridge"]
+             Nothing ->
+               case lookupPatternEnv name patternConstructorEnv of
+                 Just _ -> []
+                 Nothing ->
+                   ["pattern constructor application without a frozen pattern signature"])
+          ++ concatMap (go patternFunctionEnv patternConstructorEnv) children
+        ISeqNilPat -> []
+        ISeqConsPat left right ->
+          go patternFunctionEnv patternConstructorEnv left ++
+          go patternFunctionEnv patternConstructorEnv right
+        ILaterPatVar -> []
+        IDApplyPat function children ->
+          go patternFunctionEnv patternConstructorEnv function ++
+          concatMap (go patternFunctionEnv patternConstructorEnv) children
+
+-- | Context-shape conditions that TypePM records as an ordered, duplicate-free
+-- output context.  Egison intentionally retains non-linear and order-insensitive
+-- cases, so they are compatibility diagnostics rather than new hard errors.
+patternContextCompatibilityIssues :: IPattern -> [String]
+patternContextCompatibilityIssues pattern = nub (go pattern)
+  where
+    duplicateIssue current =
+      case duplicateNames (outputBinders current) of
+        [] -> []
+        names ->
+          ["pattern binds name(s) more than once: " ++ intercalate ", " names]
+
+    go current =
+      duplicateIssue current ++ case current of
+        IOrPat left right ->
+          let leftNames = outputBinders left
+              rightNames = outputBinders right
+              sameNames =
+                all (`elem` rightNames) leftNames &&
+                all (`elem` leftNames) rightNames
+              orderIssue =
+                [ "or-pattern branches bind the same names in different order: " ++
+                  intercalate ", " leftNames ++ " / " ++
+                  intercalate ", " rightNames
+                | sameNames, leftNames /= rightNames
+                ]
+          in orderIssue ++ go left ++ go right
+        IAndPat left right -> go left ++ go right
+        IForallPat left right -> go left ++ go right
+        ITuplePat children -> concatMap go children
+        IInductivePat _ children -> concatMap go children
+        IIndexedPat child _ -> go child
+        ILetPat _ child -> go child
+        INotPat child -> go child
+        ILoopPat _ (ILoopRange _ _ rangePattern) body endPattern ->
+          go rangePattern ++ go body ++ go endPattern
+        IPApplyPat _ children -> concatMap go children
+        IInductiveOrPApplyPat _ children -> concatMap go children
+        ISeqConsPat left right -> go left ++ go right
+        IDApplyPat function children -> go function ++ concatMap go children
+        _ -> []
+
+    outputBinders current =
+      case current of
+        IPatVar name -> [name]
+        IIndexedPat child _ -> outputBinders child
+        ILetPat _ child -> outputBinders child
+        INotPat _ -> []
+        IAndPat left right -> outputBinders left ++ outputBinders right
+        IOrPat left _ -> outputBinders left
+        IForallPat left right -> outputBinders left ++ outputBinders right
+        ITuplePat children -> concatMap outputBinders children
+        IInductivePat _ children -> concatMap outputBinders children
+        ILoopPat _ (ILoopRange _ _ rangePattern) body endPattern ->
+          outputBinders rangePattern ++ outputBinders body ++ outputBinders endPattern
+        IPApplyPat _ children -> concatMap outputBinders children
+        IVarPat name -> [name]
+        IInductiveOrPApplyPat _ children -> concatMap outputBinders children
+        ISeqConsPat left right -> outputBinders left ++ outputBinders right
+        IDApplyPat function children ->
+          outputBinders function ++ concatMap outputBinders children
+        _ -> []
 
 -- | The permissive-mode unbound-variable warning, upgraded to the
 -- forward-reference variant when the name is a definition of the current
@@ -396,8 +705,93 @@ freshCapability :: String -> Infer Capability
 freshCapability prefix = do
   st <- get
   let n = inferCounter st
-  put st { inferCounter = n + 1 }
-  return $ CapVar $ MkCapVar $ prefix ++ show n
+      variable = MkCapVar (prefix ++ show n)
+  put st
+    { inferCounter = n + 1
+    , inferAllocatedCapVars =
+        Set.insert variable (inferAllocatedCapVars st)
+    }
+  return (CapVar variable)
+
+-- | Instantiate a polymorphic scheme and immediately protect every fresh
+-- capability image.  This is the executable counterpart of
+-- @instantiateSchemeInState@ in type-pm-mech: a producer capability obtained
+-- from a scheme may be copied into a consumer, but later inference must never
+-- strengthen the producer image itself.
+instantiateSchemeInState :: TypeScheme -> Infer ([Constraint], Type)
+instantiateSchemeInState scheme@(Forall capBinders _ _ _) = do
+  st <- get
+  let counter = inferCounter st
+      (constraints, ty, nextCounter) = instantiate scheme counter
+      capImages = Set.fromList
+        [ freshCapVar "c" (counter + index)
+        | index <- [0 .. length capBinders - 1]
+        ]
+  put st
+    { inferCounter = nextCounter
+    , inferAllocatedCapVars =
+        inferAllocatedCapVars st `Set.union` capImages
+    , inferProtectedCaps =
+        inferProtectedCaps st `Set.union` capImages
+    }
+  return (constraints, ty)
+
+-- | Protect the inference-owned variables that remain visible in a finalized
+-- matcher producer.  Temporary hole and consumer variables that do not occur
+-- in the final capability are intentionally left unprotected.
+protectMatcherCapability :: Capability -> TypeErrorContext -> Infer ()
+protectMatcherCapability capability ctx = do
+  st <- get
+  let owned =
+        freeCapVarsCapability capability
+          `Set.intersection` inferAllocatedCapVars st
+      alreadyStrengthened =
+        [ variable
+        | variable <- Set.toList owned
+        , applyCapSubst (inferGlobalSubst st) (CapVar variable)
+            /= CapVar variable
+        ]
+  reportProtectedCapabilityStrengthening
+    "producer capability variable(s) were strengthened before matcher finalization"
+    (Set.fromList alreadyStrengthened)
+    ctx
+  modify $ \state -> state
+    { inferProtectedCaps = inferProtectedCaps state `Set.union` owned }
+
+-- | Record one transition from the protected type-pm solver to Egison's
+-- compatibility solver.  The protected ledger remains intact, so subsequent
+-- deltas are still audited, but one inference run produces at most one
+-- diagnostic.
+reportTypePmSolverFallback :: String -> TypeErrorContext -> Infer ()
+reportTypePmSolverFallback detail ctx = do
+  reported <- gets inferCoreSolverFallbackReported
+  unless reported $
+    warnTypePmCompatibility
+      (detail ++ "; using Egison's extended capability solver")
+      ctx
+  modify $ \state -> state { inferCoreSolverFallbackReported = True }
+
+-- | Report each protected producer variable at its first observed
+-- strengthening.  This keeps repeated zonking quiet without hiding an
+-- independent producer violation later in the same inference run.
+reportProtectedCapabilityStrengthening
+  :: String
+  -> Set.Set CapVar
+  -> TypeErrorContext
+  -> Infer ()
+reportProtectedCapabilityStrengthening detail variables ctx = do
+  state <- get
+  let freshViolations =
+        variables `Set.difference` inferReportedProtectedCaps state
+  unless (Set.null freshViolations) $
+    warnTypePmCompatibility
+      (detail ++ ": " ++ intercalate ", "
+        [name | MkCapVar name <- Set.toList freshViolations] ++
+       "; using Egison's extended capability solver")
+      ctx
+  modify $ \current -> current
+    { inferReportedProtectedCaps =
+        inferReportedProtectedCaps current `Set.union` freshViolations }
 
 -- | Get the current type environment
 getEnv :: Infer TypeEnv
@@ -467,9 +861,20 @@ checkResidualConstraints defName sigConstraints finalType finalSubst ctx = do
   classEnv <- getClassEnv
   let sigCs = map (applySubstConstraint finalSubst) sigConstraints
       sigVars = freeTyVars finalType
-      hasVar c = any (not . Set.null . freeTyVars) (constraintTypes c)
+      sigSkolems = freeTySkolems finalType
+      hasVar c =
+        any
+          (\ty -> not (Set.null (freeTyVars ty))
+               || not (Set.null (freeTySkolems ty)))
+          (constraintTypes c)
       mentionsSig c =
-        any (\t -> not (Set.null (freeTyVars t `Set.intersection` sigVars))) (constraintTypes c)
+        any
+          (\ty ->
+            not (Set.null
+              (freeTyVars ty `Set.intersection` sigVars))
+            || not (Set.null
+              (freeTySkolems ty `Set.intersection` sigSkolems)))
+          (constraintTypes c)
       entailed c = any (\sc -> constraintClass sc == constraintClass c
                             && constraintTypes sc == constraintTypes c) sigCs
 
@@ -507,6 +912,332 @@ checkResidualConstraints defName sigConstraints finalType finalSubst ctx = do
       missing = nub [ c | c <- residual', hasVar c, mentionsSig c, not (entailed c) ]
   when (not (null missing)) $
     throwError $ TE.MissingSignatureConstraint defName missing ctx
+
+-- | Restore the declared binders after a successful rigid annotation check.
+--
+-- Ordinary and capability skolems are checking-only constants.  They must
+-- not escape into the typed tree consumed by dictionary elaboration or into
+-- the inference state used by a following member of an IDefineMany batch.
+deskolemizeAnnotationType :: AnnotationSkolems -> Type -> Type
+deskolemizeAnnotationType skolems =
+  mapType replaceType . mapTypeCapabilities replaceCapability
+  where
+    replaceType (TSkolem fresh) =
+      case lookup fresh (annotationTySkolems skolems) of
+        Just declared -> TVar declared
+        Nothing       -> TSkolem fresh
+    replaceType ty = ty
+
+    replaceCapability (CapSkolem fresh) =
+      case lookup fresh (annotationCapSkolems skolems) of
+        Just declared -> CapVar declared
+        Nothing       -> CapSkolem fresh
+    replaceCapability capability = capability
+
+-- | Give source annotations nested inside an explicitly quantified
+-- definition the same rigid interpretation as its declared top-level
+-- scheme.  Desugaring preserves `(e : T)` as 'IReshape' metadata; without
+-- this traversal, a textual binder such as @a@ inside the body would remain
+-- a flexible 'TVar' even though the signature's @a@ had become a 'TSkolem'.
+skolemizeAnnotationType
+  :: AnnotationSkolems
+  -> Type
+  -> Type
+skolemizeAnnotationType skolems ty =
+  let withCapabilities =
+        foldr
+          (\(fresh, declared) accumulated ->
+            substCapVarInType declared (CapSkolem fresh) accumulated)
+          ty
+          (annotationCapSkolems skolems)
+  in foldr
+      (\(fresh, declared) accumulated ->
+        substTyVar declared (TSkolem fresh) accumulated)
+      withCapabilities
+      (annotationTySkolems skolems)
+
+skolemizeNestedAnnotations
+  :: AnnotationSkolems
+  -> IExpr
+  -> IExpr
+skolemizeNestedAnnotations skolems =
+  mapIExprTypes (skolemizeAnnotationType skolems)
+
+deskolemizeAnnotationConstraint
+  :: AnnotationSkolems
+  -> Constraint
+  -> Constraint
+deskolemizeAnnotationConstraint skolems (Constraint className types) =
+  Constraint className (map (deskolemizeAnnotationType skolems) types)
+
+deskolemizeAnnotationScheme
+  :: AnnotationSkolems
+  -> TypeScheme
+  -> TypeScheme
+deskolemizeAnnotationScheme skolems (Forall capVars tyVars constraints ty) =
+  Forall capVars tyVars
+    (map (deskolemizeAnnotationConstraint skolems) constraints)
+    (deskolemizeAnnotationType skolems ty)
+
+deskolemizeAnnotationSubst :: AnnotationSkolems -> Subst -> Subst
+deskolemizeAnnotationSubst skolems (Subst types capabilities) =
+  Subst
+    (Map.map (deskolemizeAnnotationType skolems) types)
+    (Map.map replaceCapability capabilities)
+  where
+    replaceCapability =
+      mapCapability $ \capability ->
+        case capability of
+          CapSkolem fresh ->
+            case lookup fresh (annotationCapSkolems skolems) of
+              Just declared -> CapVar declared
+              Nothing       -> capability
+          _ ->
+            capability
+
+deskolemizeAnnotationTIExpr :: AnnotationSkolems -> TIExpr -> TIExpr
+deskolemizeAnnotationTIExpr skolems (TIExpr scheme node) =
+  TIExpr
+    (deskolemizeAnnotationScheme skolems scheme)
+    (deskolemizeNode node)
+  where
+    goExpr = deskolemizeAnnotationTIExpr skolems
+    goPattern = deskolemizeAnnotationTIPattern skolems
+    goBinding (pattern', expression) = (pattern', goExpr expression)
+    goClause (pattern', expression) =
+      (goPattern pattern', goExpr expression)
+
+    deskolemizeNode (TIMatchExpr mode target matcher clauses) =
+      TIMatchExpr mode (goExpr target) (goExpr matcher) (map goClause clauses)
+    deskolemizeNode (TIMatchAllExpr mode target matcher clauses) =
+      TIMatchAllExpr mode (goExpr target) (goExpr matcher) (map goClause clauses)
+    deskolemizeNode (TIMatcherExpr patternDefinitions) =
+      TIMatcherExpr
+        [ (patternPattern, goExpr expression, map goBinding bindings)
+        | (patternPattern, expression, bindings) <- patternDefinitions
+        ]
+    deskolemizeNode (TIReshape ty inner) =
+      TIReshape (deskolemizeAnnotationType skolems ty) (goExpr inner)
+    deskolemizeNode
+      (TIRuntimeDispatch className methodName candidates arguments) =
+        TIRuntimeDispatch className methodName
+          [ (deskolemizeAnnotationType skolems ty, dictionary)
+          | (ty, dictionary) <- candidates
+          ]
+          (map goExpr arguments)
+    deskolemizeNode other =
+      mapTIExprChildren goExpr other
+
+deskolemizeAnnotationTIPattern
+  :: AnnotationSkolems
+  -> TIPattern
+  -> TIPattern
+deskolemizeAnnotationTIPattern skolems (TIPattern scheme node) =
+  TIPattern
+    (deskolemizeAnnotationScheme skolems scheme)
+    (deskolemizeNode node)
+  where
+    goExpr = deskolemizeAnnotationTIExpr skolems
+    goPattern = deskolemizeAnnotationTIPattern skolems
+    goBinding (pattern', expression) = (pattern', goExpr expression)
+
+    deskolemizeNode TIWildCard = TIWildCard
+    deskolemizeNode (TIPatVar name) = TIPatVar name
+    deskolemizeNode (TIValuePat expression) = TIValuePat (goExpr expression)
+    deskolemizeNode (TIPredPat expression) = TIPredPat (goExpr expression)
+    deskolemizeNode (TIIndexedPat pattern' expressions) =
+      TIIndexedPat (goPattern pattern') (map goExpr expressions)
+    deskolemizeNode (TILetPat bindings pattern') =
+      TILetPat (map goBinding bindings) (goPattern pattern')
+    deskolemizeNode (TINotPat pattern') = TINotPat (goPattern pattern')
+    deskolemizeNode (TIAndPat left right) =
+      TIAndPat (goPattern left) (goPattern right)
+    deskolemizeNode (TIOrPat left right) =
+      TIOrPat (goPattern left) (goPattern right)
+    deskolemizeNode (TIForallPat left right) =
+      TIForallPat (goPattern left) (goPattern right)
+    deskolemizeNode (TITuplePat patterns) =
+      TITuplePat (map goPattern patterns)
+    deskolemizeNode (TIInductivePat name patterns) =
+      TIInductivePat name (map goPattern patterns)
+    deskolemizeNode
+      (TILoopPat name (TILoopRange start end rangePattern) body endPattern) =
+        TILoopPat name
+          (TILoopRange (goExpr start) (goExpr end) (goPattern rangePattern))
+          (goPattern body)
+          (goPattern endPattern)
+    deskolemizeNode TIContPat = TIContPat
+    deskolemizeNode (TIPApplyPat expression patterns) =
+      TIPApplyPat (goExpr expression) (map goPattern patterns)
+    deskolemizeNode (TIVarPat name) = TIVarPat name
+    deskolemizeNode (TIInductiveOrPApplyPat name patterns) =
+      TIInductiveOrPApplyPat name (map goPattern patterns)
+    deskolemizeNode TISeqNilPat = TISeqNilPat
+    deskolemizeNode (TISeqConsPat left right) =
+      TISeqConsPat (goPattern left) (goPattern right)
+    deskolemizeNode TILaterPatVar = TILaterPatVar
+    deskolemizeNode (TIDApplyPat pattern' patterns) =
+      TIDApplyPat (goPattern pattern') (map goPattern patterns)
+
+-- | Enforce the local-meta boundary of explicit scheme checking.
+--
+-- Fresh inference variables created inside the definition may be solved to
+-- an annotation skolem and are deskolemized with the typed tree.  Variables
+-- already free in the surrounding environment are owned by that environment
+-- and must remain pointwise fixed.  This is stronger than merely checking
+-- that no skolem escapes: a ground annotation must not solve an environment
+-- metavariable to a ground type or capability either.
+checkAnnotationBoundary
+  :: Subst
+  -> TypeEnv
+  -> Subst
+  -> Bool
+  -> TypeErrorContext
+  -> Infer ()
+checkAnnotationBoundary baselineSubst environment localSubst allowExtension context = do
+  globalSubst <- gets inferGlobalSubst
+  let committed = composeSubst globalSubst localSubst
+      typeEscapes =
+        [ (before, after)
+        | variable <- Set.toList (freeVarsInEnv environment)
+        , let before = applySubst baselineSubst (TVar variable)
+        , let after = applySubst committed (TVar variable)
+        , before /= after
+        ]
+      capabilityEscapes =
+        [ (before, after)
+        | variable <- Set.toList (freeCapVarsInEnv environment)
+        , let before = applyCapSubst baselineSubst (CapVar variable)
+        , let after = applyCapSubst committed (CapVar variable)
+        , before /= after
+        ]
+      explicitlyExplainedTypeEscapes =
+        all (uncurry explicitAnnotationExtensionChange) typeEscapes
+      typeSkolemEscape = any (typeContainsSkolem . snd) typeEscapes
+      capabilitySkolemEscape =
+        any (capabilityContainsSkolem . snd) capabilityEscapes
+  -- Annotation skolems are always rigid.  Ground specialization of an
+  -- enclosing production metavariable is retained only as an explicit Egison
+  -- reconstruction fallback; TypePM contexts themselves are fixed.
+  when (typeSkolemEscape || capabilitySkolemEscape) $
+    throwError (TE.AnnotationSkolemEscape context)
+  unless (null capabilityEscapes) $
+    warnTypePmCompatibility
+      (if allowExtension
+        then "an Egison numeric/CAS/tensor annotation changes an enclosing capability metavariable"
+        else "production annotation reconstruction specializes an enclosing capability metavariable")
+      context
+  unless (null typeEscapes) $
+    if allowExtension && explicitlyExplainedTypeEscapes
+      then
+        warnTypePmCompatibility
+          "an Egison numeric/CAS/tensor annotation changes an enclosing ordinary-type metavariable"
+          context
+      else
+        warnTypePmCompatibility
+          "production annotation reconstruction specializes an enclosing ordinary-type metavariable"
+          context
+
+typeContainsSkolem :: Type -> Bool
+typeContainsSkolem ty =
+  case ty of
+    TSkolem _ -> True
+    TTuple values -> any typeContainsSkolem values
+    TCollection value -> typeContainsSkolem value
+    TInductive _ values -> any typeContainsSkolem values
+    THash key value -> typeContainsSkolem key || typeContainsSkolem value
+    TMatcher capability target ->
+      capabilityContainsSkolem capability || typeContainsSkolem target
+    TMatcherSlot capability target ->
+      capabilityContainsSkolem capability || typeContainsSkolem target
+    TFun argument result ->
+      typeContainsSkolem argument || typeContainsSkolem result
+    TIO value -> typeContainsSkolem value
+    TIORef value -> typeContainsSkolem value
+    TFactor -> False
+    TTerm value _ -> typeContainsSkolem value
+    TFrac value -> typeContainsSkolem value
+    TPoly value _ -> typeContainsSkolem value
+    TTensor value -> typeContainsSkolem value
+    _ -> False
+
+capabilityContainsSkolem :: Capability -> Bool
+capabilityContainsSkolem capability =
+  case capability of
+    CapSkolem _ -> True
+    CapCon _ children -> any capabilityContainsSkolem children
+    CapTuple children -> any capabilityContainsSkolem children
+    _ -> False
+
+explicitAnnotationExtensionChange :: Type -> Type -> Bool
+explicitAnnotationExtensionChange before after =
+  extensionEndpoint before || extensionEndpoint after
+  where
+    extensionEndpoint ty =
+      extensionRepresentationType ty ||
+      case ty of
+        TInt               -> True
+        TTuple values      -> any extensionEndpoint values
+        TCollection value  -> extensionEndpoint value
+        TInductive name values ->
+          egisonExtensionInductive name || any extensionEndpoint values
+        THash key value    -> extensionEndpoint key || extensionEndpoint value
+        TMatcher _ target  -> extensionEndpoint target
+        TMatcherSlot _ target -> extensionEndpoint target
+        TFun argument result ->
+          extensionEndpoint argument || extensionEndpoint result
+        TIO value          -> extensionEndpoint value
+        TIORef value       -> extensionEndpoint value
+        _                  -> False
+
+typeSchemeUsesEgisonExtension :: TypeScheme -> Bool
+typeSchemeUsesEgisonExtension (Forall _ _ constraints ty) =
+  any constraintUsesExtension constraints || typeUsesExtension ty
+  where
+    constraintUsesExtension (Constraint _ types) =
+      any typeUsesExtension types
+    typeUsesExtension current =
+      extensionRepresentationType current
+        || case current of
+             TTuple values       -> any typeUsesExtension values
+             TCollection value   -> typeUsesExtension value
+             TInductive name values ->
+               egisonExtensionInductive name || any typeUsesExtension values
+             THash key value     -> typeUsesExtension key || typeUsesExtension value
+             TMatcher _ target   -> typeUsesExtension target
+             TMatcherSlot _ target -> typeUsesExtension target
+             TFun argument result ->
+               typeUsesExtension argument || typeUsesExtension result
+             TIO value           -> typeUsesExtension value
+             TIORef value        -> typeUsesExtension value
+             _                   -> False
+
+-- | A small, explicit bridge inventory for extension operations whose types
+-- can be hidden behind an otherwise ordinary matcher or function signature.
+-- The AST-level warning inventory remains the authoritative user diagnostic;
+-- this predicate only decides whether annotation reconstruction may use the
+-- same compatibility path.
+expressionUsesEgisonExtension :: IExpr -> Bool
+expressionUsesEgisonExtension expression =
+  any (`Set.member` extensionNames) (iexprVarRefs expression)
+  where
+    extensionNames = Set.fromList
+      [ "mathValue", "termExpr", "poly", "frac", "indexExpr"
+      , "tensorIndex", "matrix", "generateTensor", "tensorShape"
+      , "subrefs", "suprefs", "userRefs", "contractWith"
+      ]
+
+deskolemizeAnnotationState :: AnnotationSkolems -> Infer ()
+deskolemizeAnnotationState skolems =
+  modify $ \state ->
+    state
+      { inferConstraints =
+          map
+            (deskolemizeAnnotationConstraint skolems)
+            (inferConstraints state)
+      , inferGlobalSubst =
+          deskolemizeAnnotationSubst skolems (inferGlobalSubst state)
+      }
 
 -- | Queue a matcher-definition hole slot check for the end of the current
 -- top-level expression (see 'inferDeferredHoleChecks').
@@ -647,7 +1378,7 @@ flushDeferredHoleChecks finalSubst = do
               "the next matcher of clause `" ++ ppStr ++
               "` cannot fill the inferred capability/target MatcherSlot"
         sSlot <-
-          unifyTypesWithContext frozenType expectedFrozenSlot ctx
+          unifyTypesAtSlotWithContext frozenType expectedFrozenSlot ctx
             `catchError` \_ ->
               throwError $ TE.TypeMismatch expectedFrozenSlot frozenType structuralMsg ctx
         return (composeSubst sSlot acc)
@@ -885,10 +1616,8 @@ lookupVar name = do
   env <- getEnv
   case lookupEnv (stringToVar name) env of
     Just scheme -> do
-      st <- get
-      let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
+      (constraints, t) <- instantiateSchemeInState scheme
       -- Track constraints for type class resolution
-      modify $ \s -> s { inferCounter = newCounter }
       addConstraints constraints
       return t
     Nothing -> do
@@ -911,10 +1640,8 @@ lookupVarWithConstraints name = do
   env <- getEnv
   case lookupEnv (stringToVar name) env of
     Just scheme -> do
-      st <- get
-      let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
+      (constraints, t) <- instantiateSchemeInState scheme
       -- Track constraints for type class resolution
-      modify $ \s -> s { inferCounter = newCounter }
       addConstraints constraints
       return (t, constraints)
     Nothing -> do
@@ -977,7 +1704,11 @@ rhsCore e                   = e
 -- spine are unified normally (they are slots or ordinary types).
 unifyMatcherDefType :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
 unifyMatcherDefType cs (TFun a1 r1) (TFun a2 r2) ctx = do
-  s1 <- unifyTypesWithConstraints cs a1 a2 ctx
+  s1 <- case a2 of
+    TMatcherSlot _ _ ->
+      unifyTypesAtSlotWithConstraints cs a1 a2 ctx
+    _ ->
+      unifyTypesWithConstraints cs a1 a2 ctx
   r1' <- applySubstWithConstraintsM s1 r1
   r2' <- applySubstWithConstraintsM s1 r2
   s2 <- unifyMatcherDefType (map (applySubstConstraint s1) cs) r1' r2' ctx
@@ -996,12 +1727,7 @@ unifyTypesWithContext t1 t2 ctx = do
   -- commitment is unified against the first instead of silently shadowing it
   -- in a later left-biased 'composeSubst'.
   (t1', t2') <- zonkPair t1 t2
-  case TU.unifyWithConstraints classEnv constraints t1' t2' of
-    Right (s, _)  -> recordGlobalSubst s >> return s  -- Discard flag in basic unification
-    Left err -> case err of
-      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
-      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
-      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
+  fst <$> solveWithCompatibility classEnv constraints t1' t2' ctx
 
 -- | Resolve both unification operands through 'inferGlobalSubst' (with the
 -- usual constraint-aware Tensor adjustment).  'applySubstWithConstraintsM'
@@ -1015,8 +1741,176 @@ zonkPair t1 t2 = do
 
 -- | Merge a committed unifier into the global zonk substitution.
 recordGlobalSubst :: Subst -> Infer ()
-recordGlobalSubst s =
-  modify $ \st -> st { inferGlobalSubst = composeSubst s (inferGlobalSubst st) }
+recordGlobalSubst substitution = do
+  st <- get
+  let nextGlobal = composeSubst substitution (inferGlobalSubst st)
+      strengthened =
+        Set.filter
+          (\variable ->
+            applyCapSubst nextGlobal (CapVar variable) /= CapVar variable)
+          (inferProtectedCaps st)
+  reportProtectedCapabilityStrengthening
+    "a later constraint strengthens protected producer capability variable(s)"
+    strengthened
+    emptyContext
+  modify $ \state -> state
+    { inferGlobalSubst = nextGlobal }
+
+-- | Run the synchronized rigid solver first.  Egison's full language retains
+-- its historical nested-matcher solver as an explicit extension path; only a
+-- successful fallback is reported, and the reporting flag never changes the
+-- chosen substitution.
+solveWithCompatibility
+  :: ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> TypeErrorContext
+  -> Infer (Subst, Bool)
+solveWithCompatibility classEnv constraints left right ctx =
+  case TU.unifyWithConstraints classEnv constraints left right of
+    Right result -> commit result
+    Left (TU.MatcherRigidity _ _) ->
+      case TU.unifyExtendedWithConstraints
+             classEnv constraints left right of
+        Right result -> do
+          reportTypePmSolverFallback
+            ("nested matcher constraint `" ++ TP.prettyType left ++
+             " ~ " ++ TP.prettyType right ++
+             "` requires Egison's permissive capability alignment")
+            ctx
+          commit result
+        Left err -> throwUnifyError ctx err
+    Left (TU.TypeMismatch mismatchLeft mismatchRight)
+      | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
+          warnTypePmCompatibility
+            ("rigid annotation variable is used through Egison's extended " ++
+             "numeric/CAS/tensor typing relation: `" ++
+             TP.prettyType mismatchLeft ++ " ~ " ++
+             TP.prettyType mismatchRight ++ "`")
+            ctx
+          commit (emptySubst, False)
+    Left err -> throwUnifyError ctx err
+  where
+    commit result@(substitution, _) = do
+      recordGlobalSubst substitution
+      return result
+
+-- | Role-aware counterpart of 'solveWithCompatibility' for an explicit
+-- consumer slot.  TypePM's one-way producer-to-slot rule is attempted before
+-- the general Egison extension solver, so a core-valid slot use neither
+-- strengthens its producer nor emits a compatibility warning.
+solveAtSlotWithCompatibility
+  :: ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> TypeErrorContext
+  -> Infer (Subst, Bool)
+solveAtSlotWithCompatibility classEnv constraints inferred expected ctx =
+  case TU.alignAtSlotWithConstraints
+         classEnv constraints inferred expected of
+    Right result -> commit result
+    Left (TU.MatcherRigidity _ _) ->
+      case TU.unifyExtendedWithConstraints
+             classEnv constraints inferred expected of
+        Right result -> do
+          reportTypePmSolverFallback
+            ("explicit slot use `" ++ TP.prettyType inferred ++
+             " <= " ++ TP.prettyType expected ++
+             "` requires Egison's extended matcher alignment")
+            ctx
+          commit result
+        Left err -> throwUnifyError ctx err
+    Left (TU.TypeMismatch mismatchLeft mismatchRight)
+      | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
+          warnTypePmCompatibility
+            ("slot checking uses Egison's extended numeric/CAS/tensor " ++
+             "typing relation: `" ++ TP.prettyType mismatchLeft ++ " ~ " ++
+             TP.prettyType mismatchRight ++ "`")
+            ctx
+          commit (emptySubst, False)
+    Left err -> throwUnifyError ctx err
+  where
+    commit result@(substitution, _) = do
+      recordGlobalSubst substitution
+      return result
+
+unifyTypesAtSlotWithContext
+  :: Type
+  -> Type
+  -> TypeErrorContext
+  -> Infer Subst
+unifyTypesAtSlotWithContext inferred expected ctx = do
+  constraints <- getConstraints
+  unifyTypesAtSlotWithConstraints constraints inferred expected ctx
+
+unifyTypesAtSlotWithConstraints
+  :: [Constraint]
+  -> Type
+  -> Type
+  -> TypeErrorContext
+  -> Infer Subst
+unifyTypesAtSlotWithConstraints constraints inferred expected ctx = do
+  classEnv <- getClassEnv
+  (inferred', expected') <- zonkPair inferred expected
+  fst <$>
+    solveAtSlotWithCompatibility
+      classEnv constraints inferred' expected' ctx
+
+-- | Egison's production numeric, CAS, and tensor typing predates rigid
+-- reconstruction.  These representation-level equalities are not core
+-- equalities, so they are admitted only by the explicit compatibility path.
+skolemExtensionMismatch
+  :: [Constraint]
+  -> Type
+  -> Type
+  -> Bool
+skolemExtensionMismatch constraints left right =
+  skolemAgainst left right || skolemAgainst right left
+  where
+    skolemAgainst (TSkolem _) extensionType =
+      extensionRepresentationType extensionType
+        || (not (null constraints) && constrainedNumericType extensionType)
+    skolemAgainst _ _ = False
+
+    constrainedNumericType TInt = True
+    constrainedNumericType TMathValue = True
+    constrainedNumericType TFactor = True
+    constrainedNumericType TTerm{} = True
+    constrainedNumericType TFrac{} = True
+    constrainedNumericType TPoly{} = True
+    constrainedNumericType _ = False
+
+extensionRepresentationType :: Type -> Bool
+extensionRepresentationType ty =
+  case ty of
+    TMathValue  -> True
+    TPolyExpr   -> True
+    TTermExpr   -> True
+    TSymbolExpr -> True
+    TIndexExpr  -> True
+    TTensor _   -> True
+    TFactor     -> True
+    TTerm _ _   -> True
+    TFrac _     -> True
+    TPoly _ _   -> True
+    TInductive name _ -> egisonExtensionInductive name
+    _           -> False
+
+egisonExtensionInductive :: String -> Bool
+egisonExtensionInductive name =
+  name `elem` ["TensorIndex", "Matrix"]
+
+throwUnifyError :: TypeErrorContext -> TU.UnifyError -> Infer a
+throwUnifyError ctx err =
+  case err of
+    TU.OccursCheck variable ty ->
+      throwError (OccursCheckError variable ty ctx)
+    TU.TypeMismatch left right ->
+      throwError (UnificationError left right ctx)
+    TU.MatcherRigidity left right ->
+      throwError (TE.TypeMismatch left right matcherRigidityMsg ctx)
 
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
@@ -1026,10 +1920,27 @@ unifyTypesWithTopLevel t1 t2 ctx = do
   (t1', t2') <- zonkPair t1 t2
   case TU.unifyWithTopLevel t1' t2' of
     Right s  -> recordGlobalSubst s >> return s
-    Left err -> case err of
-      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
-      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
-      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
+    Left (TU.MatcherRigidity _ _) ->
+      case TU.unifyExtendedWithTopLevel t1' t2' of
+        Right substitution -> do
+          reportTypePmSolverFallback
+            ("top-level nested matcher constraint `" ++
+             TP.prettyType t1' ++ " ~ " ++ TP.prettyType t2' ++
+             "` requires Egison's permissive capability alignment")
+            ctx
+          recordGlobalSubst substitution
+          return substitution
+        Left err -> throwUnifyError ctx err
+    Left (TU.TypeMismatch mismatchLeft mismatchRight)
+      | skolemExtensionMismatch [] mismatchLeft mismatchRight -> do
+          warnTypePmCompatibility
+            ("top-level rigid annotation uses Egison's extended " ++
+             "numeric/CAS/tensor typing relation: `" ++
+             TP.prettyType mismatchLeft ++ " ~ " ++
+             TP.prettyType mismatchRight ++ "`")
+            ctx
+          return emptySubst
+    Left err -> throwUnifyError ctx err
 
 -- | Unify two types with constraint-aware handling
 -- This is crucial for unifying types when type variables have constraints
@@ -1038,12 +1949,7 @@ unifyTypesWithConstraints :: [Constraint] -> Type -> Type -> TypeErrorContext ->
 unifyTypesWithConstraints constraints t1 t2 ctx = do
   classEnv <- getClassEnv
   (t1', t2') <- zonkPair t1 t2
-  case TU.unifyWithConstraints classEnv constraints t1' t2' of
-    Right (s, _)  -> recordGlobalSubst s >> return s  -- Discard flag in basic unification
-    Left err -> case err of
-      TU.OccursCheck v t -> throwError $ OccursCheckError v t ctx
-      TU.TypeMismatch a b -> throwError $ UnificationError a b ctx
-      TU.MatcherRigidity a b -> throwError $ TE.TypeMismatch a b matcherRigidityMsg ctx
+  fst <$> solveWithCompatibility classEnv constraints t1' t2' ctx
 
 -- | Infer type for constants
 inferConstant :: ConstantExpr -> Infer Type
@@ -1693,9 +2599,7 @@ inferIExprWithContext expr ctx = case expr of
     case lookupEnv (stringToVar name) env of
       Just scheme -> do
         -- Instantiate the type scheme
-        st <- get
-        let (_constraints, constructorType, newCounter) = instantiate scheme (inferCounter st)
-        modify $ \s -> s { inferCounter = newCounter }
+        (_constraints, constructorType) <- instantiateSchemeInState scheme
         -- Treat constructor as a function application
         inferIApplication name constructorType args emptySubst
       Nothing -> do
@@ -1745,15 +2649,18 @@ inferIExprWithContext expr ctx = case expr of
           (TMatcher CapNone (TVar (TyVar "a")))
           "the unique catch-all must be the final matcher clause and have exactly one variable arm `with $tgt -> ...`"
           exprCtx
-    -- Infer type of each pattern definition (matcher clause)
-    -- Each clause has: (PrimitivePatPattern, nextMatcherExpr, [(primitiveDataPat, targetExpr)])
-    -- Mark that we are inside a matcher body.  Match-sites nested here are still fully checked
-    -- for admissibility (T-MATCHALL); this flag only suppresses matcher-Coverage warnings for
-    -- the nested / generated matchers a body may build (see `inferInMatcherBody`).
-    savedInMB <- gets inferInMatcherBody
-    modify $ \st -> st { inferInMatcherBody = True }
-    results <- mapM (inferPatternDef matcherHoleGroup exprCtx) patDefs
-    modify $ \st -> st { inferInMatcherBody = savedInMB }
+    -- Compatibility diagnostics describe an extension path the production
+    -- checker actually proceeds to check.  Do not report a rejected malformed
+    -- matcher as though it had crossed an accepted fallback boundary.
+    mapM_ (warnMatcherCompatibility exprCtx) patDefs
+    -- Infer type of each pattern definition (matcher clause).  Each clause
+    -- has a primitive-pattern pattern, a next-matcher expression, and data
+    -- arms.  Nested matchers obey the same core Coverage diagnostic.
+    sharedMatcherTarget <- freshVar "matcherTarget"
+    results <-
+      mapM
+        (inferPatternDef matcherHoleGroup exprCtx sharedMatcherTarget)
+        patDefs
     
     -- Collect TIPatternDefs and substitutions
     let tiPatDefs = map fst results
@@ -1783,13 +2690,11 @@ inferIExprWithContext expr ctx = case expr of
         return (resultTy, s)
     
     let allSubst = composeSubst s_matched finalSubst
-    -- Paper Def 4.2(3) Coverage (warning-level diagnostic, non-fatal): report any pattern
-    -- constructor of the matched type that has no general clause `c $..$` (such a pattern
-    -- would get stuck at runtime).  Coverage holds vacuously for a polymorphic matched type
-    -- or one with no inductive pattern declaration (no constructors).  Suppressed inside a
-    -- matcher body (generated / nested matchers).
+    -- Paper Def 4.2(3) Coverage (warning-level diagnostic, non-fatal): use the
+    -- finalized capability, not the ordinary target, to select the frozen
+    -- constructor family.  This mirrors type-pm-mech's CoverageOK; target
+    -- specialization cannot create or remove a structural coverage duty.
     covOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
-    inMB <- gets inferInMatcherBody
     matchedTyFinal <- applySubstWithConstraintsM allSubst matchedTy
     globalSubstBeforeShape <- gets inferGlobalSubst
     patternEnv <- getPatternEnv
@@ -1797,8 +2702,11 @@ inferIExprWithContext expr ctx = case expr of
         shapeSeeds = [ seed | (_, (_, _, seed)) <- results ]
     (matcherCapability0, usesLegacyCasView) <-
       inferMatcherShapeCapability patternEnv shapeSubst shapeSeeds exprCtx
-    when usesLegacyCasView $
+    when usesLegacyCasView $ do
       markDeferredHoleGroupLegacyCas matcherHoleGroup
+      warnTypePmCompatibility
+        "legacy CAS pattern views use Egison's target-independent compatibility path"
+        exprCtx
     -- Signature projection may solve a flexible input capability head.  Use
     -- that newly committed substitution for both the literal result and the
     -- correspondence context supplied by its actual next-matcher values.
@@ -1823,16 +2731,33 @@ inferIExprWithContext expr ctx = case expr of
          ++ TP.prettyType matchedTyFinal
          ++ " under the capabilities of its actual next-matcher values")
         exprCtx
-    case (covOn && not inMB, matcherTypeHead matchedTyFinal) of
-      (True, Just hd) -> do
-        patEnv <- getPatternEnv
-        let allCtors     = [ name | (name, sch) <- patternEnvToList patEnv, ctorResultHead sch == Just hd ]
-            coveredCtors  = [ c | (pp, _, _) <- patDefs, Just c <- [generalClauseCtor pp] ]
-            missing       = filter (`notElem` coveredCtors) allCtors
-        if not (null allCtors) && not (null missing)
-          then addWarning $ MatcherCoverageWarning matchedTyFinal missing exprCtx
-          else return ()
-      _ -> return ()
+    when covOn $
+      case matcherCapability of
+        CapCon former _ -> do
+          patEnv <- getPatternEnv
+          let constructors =
+                [ (name, arity)
+                | (name, scheme) <- patternEnvToList patEnv
+                , Just (resultFormer, arity) <-
+                    [patternConstructorResult scheme]
+                , resultFormer == former
+                ]
+              missing =
+                [ name
+                | (name, arity) <- constructors
+                , not (any (isGeneralConstructorClause name arity . firstOf3) patDefs)
+                ]
+          unless (null constructors || null missing) $
+            addWarning $
+              MatcherCoverageWarning matchedTyFinal missing exprCtx
+        CapTuple components ->
+          unless (any (isGeneralTupleClause (length components) . firstOf3) patDefs) $
+            addWarning $
+              MatcherCoverageWarning
+                matchedTyFinal
+                ["tuple/" ++ show (length components)]
+                exprCtx
+        _ -> return ()
     -- Arm exhaustiveness (paper Def 4.2(1c), part of matcher consistency): once a clause's
     -- pp matches the pattern, the target is matched against that clause's data-pattern arms
     -- alone, and a miss there is a runtime failure ("Primitive data pattern match failed"),
@@ -1848,6 +2773,7 @@ inferIExprWithContext expr ctx = case expr of
              when (not (pdArmsExhaustive (map fst dataClauses))) $
                throwError $ MatcherDataArmsNotExhaustive (prettyStr pp) matchedTyFinal exprCtx)
           patDefs
+    protectMatcherCapability matcherCapability exprCtx
     return
       ( mkTIExpr
           (TMatcher matcherCapability matchedTyFinal)
@@ -1861,9 +2787,10 @@ inferIExprWithContext expr ctx = case expr of
       inferPatternDef
         :: Int
         -> TypeErrorContext
+        -> Type
         -> IPatternDef
         -> Infer (TIPatternDef, (Type, [Subst], ClauseShapeSeed))
-      inferPatternDef holeGroup ctx
+      inferPatternDef holeGroup ctx sharedTarget
                       (ppPat, nextMatcherExpr, dataClauses) = do
         -- Infer the next-matcher expression before relating it to any hole.
         -- Its component types are the intrinsic types whose Matcher
@@ -1872,10 +2799,17 @@ inferIExprWithContext expr ctx = case expr of
 
         -- Infer PrimitivePatPattern type to get matched type, pattern hole types, and variable bindings
         (matchedType, patternHoleTypes, ppBindings, s_pp) <- inferPrimitivePatPattern ppPat ctx
-        patternEnv <- getPatternEnv
+        let preSharedSubst = composeSubst s_pp s1
+        matchedTypeBeforeShared <-
+          applySubstWithConstraintsM preSharedSubst matchedType
+        sharedTargetBeforeClause <-
+          applySubstWithConstraintsM preSharedSubst sharedTarget
+        sShared <-
+          unifyTypesWithContext
+            matchedTypeBeforeShared sharedTargetBeforeClause ctx
         patternHoleCapabilities <-
-          inferPatternHoleCapabilities patternEnv patternHoleTypes ctx
-        let sBase = composeSubst s_pp s1
+          mapM (const (freshCapability "holeCap")) patternHoleTypes
+        let sBase = composeSubst sShared preSharedSubst
             holeCount = length patternHoleTypes
 
         -- T-MATCHER / Matcher Consistency (1a): decide component boundaries
@@ -1931,7 +2865,7 @@ inferIExprWithContext expr ctx = case expr of
           (\acc (undeterminedTy, slotTy) -> do
             undeterminedTy' <- applySubstWithConstraintsM acc undeterminedTy
             slotTy' <- applySubstWithConstraintsM acc slotTy
-            s <- unifyTypesWithContext undeterminedTy' slotTy' ctx
+            s <- unifyTypesAtSlotWithContext undeterminedTy' slotTy' ctx
             return (composeSubst s acc))
           emptySubst
           slotCommitments
@@ -1995,102 +2929,6 @@ inferIExprWithContext expr ctx = case expr of
             , ClauseShapeSeed ppPat components
             )
           )
-
-      -- Build the complete capability half of every primitive-pattern hole
-      -- before the enclosing matcher target or its annotation can specialize
-      -- the ordinary hole types.  Signature variables become capability
-      -- metavariables with identity shared across all holes in the clause;
-      -- fixed capability-visible structure is retained, while opaque and
-      -- declaration-unobservable branches are canonical `none`.
-      --
-      -- Thus `Just : a -> Maybe a` gives its hole a fresh capability `p`,
-      -- even if the matcher target is later specialized to `Maybe [Integer]`.
-      -- In contrast, `box : [Integer] -> Box` gives its fixed field the slot
-      -- capability `[none]`, so a bare `something` cannot falsely certify
-      -- nested list patterns.
-      inferPatternHoleCapabilities
-        :: PatternTypeEnv
-        -> [Type]
-        -> TypeErrorContext
-        -> Infer [Capability]
-      inferPatternHoleCapabilities patternEnv holeTypes ctx = do
-        baseObservability <-
-          either
-            (\detail -> throwError (MatcherCapabilityError detail ctx))
-            return
-            (Cap.observabilityLookup patternEnv)
-        snd <$> buildMany baseObservability Map.empty holeTypes
-        where
-          buildMany _ variables [] =
-            return (variables, [])
-          buildMany observable variables (ty : tys) = do
-            (variables1, capability) <-
-              buildCapability observable variables ty
-            (variables2, capabilities) <-
-              buildMany observable variables1 tys
-            return (variables2, capability : capabilities)
-
-          buildCapability observable variables ty =
-            case ty of
-              TVar variable ->
-                case Map.lookup variable variables of
-                  Just capability ->
-                    return (variables, capability)
-                  Nothing -> do
-                    capability <- freshCapability "holeCap"
-                    return
-                      (Map.insert variable capability variables, capability)
-              TTuple componentTypes -> do
-                (variables', capabilities) <-
-                  buildMany observable variables componentTypes
-                return (variables', CapTuple capabilities)
-              _ ->
-                case typeFormerOf ty of
-                  Nothing ->
-                    return (variables, CapNone)
-                  Just (former, arguments) ->
-                    case holeFormerObservability observable former of
-                      Nothing ->
-                        return (variables, CapNone)
-                      Just mask
-                        | length mask /= length arguments ->
-                            throwError $
-                              MatcherCapabilityError
-                                ("malformed observability mask for "
-                                 ++ show former ++ ": expected "
-                                 ++ show (length arguments)
-                                 ++ " position(s), got "
-                                 ++ show (length mask))
-                                ctx
-                        | otherwise -> do
-                            (variables', capabilities) <-
-                              buildVisibleArguments
-                                observable variables
-                                (zip mask arguments)
-                            return
-                              (variables', CapCon former capabilities)
-
-          buildVisibleArguments _ variables [] =
-            return (variables, [])
-          buildVisibleArguments observable variables
-                                ((isVisible, argument) : rest)
-            | not isVisible = do
-                (variables', capabilities) <-
-                  buildVisibleArguments observable variables rest
-                return (variables', CapNone : capabilities)
-            | otherwise = do
-                (variables1, capability) <-
-                  buildCapability observable variables argument
-                (variables2, capabilities) <-
-                  buildVisibleArguments observable variables1 rest
-                return (variables2, capability : capabilities)
-
-          holeFormerObservability observable former =
-            case observable former of
-              Just mask -> Just mask
-              Nothing
-                | legacyCasLeafFormer former -> Just []
-                | otherwise -> Nothing
 
       -- Infer a matcher literal's principal structural capability from the
       -- constructor/tuple-headed clauses only.  Coverage is intentionally not
@@ -2262,47 +3100,45 @@ inferIExprWithContext expr ctx = case expr of
             return (Cap.CapTupleEvidence children, remaining)
           go (PPInductivePat name patterns) components = do
             (children, remaining) <- goMany patterns components
-            scheme <-
-              case lookupPatternEnv name patternEnv of
-                Just declared -> return declared
-                Nothing ->
+            case lookupPatternEnv name patternEnv of
+              Nothing ->
+                -- The generic constructor path has no frozen signature from
+                -- which a capability head can be projected.  Preserve the
+                -- extended Egison behavior, but contribute no certified shape
+                -- evidence; inferPrimitivePatPattern already emitted the
+                -- opt-in compatibility warning.
+                return (Cap.CapUnseen, remaining)
+              Just scheme -> do
+                (_constraints, constructorType) <-
+                  instantiateSchemeInState scheme
+                let (fieldTypes, resultType) =
+                      extractFunctionArgs constructorType
+                when (length fieldTypes /= length patterns) $
                   throwError $ MatcherCapabilityError
-                    ("pattern constructor `" ++ name
-                     ++ "` has no declared signature; ShapeCap cannot infer "
-                     ++ "a capability head from a surface constructor name")
+                    ("pattern constructor `" ++ name ++ "` has "
+                     ++ show (length fieldTypes) ++ " declared field(s), but the "
+                     ++ "matcher clause supplies " ++ show (length patterns))
                     ctx
-            st <- get
-            let (_constraints, constructorType, nextCounter) =
-                  instantiate scheme (inferCounter st)
-                (fieldTypes, resultType) =
-                  extractFunctionArgs constructorType
-            modify $ \state -> state { inferCounter = nextCounter }
-            when (length fieldTypes /= length patterns) $
-              throwError $ MatcherCapabilityError
-                ("pattern constructor `" ++ name ++ "` has "
-                 ++ show (length fieldTypes) ++ " declared field(s), but the "
-                 ++ "matcher clause supplies " ++ show (length patterns))
-                ctx
-            alignedChildren <-
-              zipWithM
-                (alignProjectionEvidence
-                   observability (freeTyVars resultType) ctx)
-                fieldTypes
-                children
-            evidence <-
-              either
-                (\detail ->
-                  throwError $ MatcherCapabilityError
-                    ("clause `" ++ prettyStr (PPInductivePat name patterns)
-                     ++ "`: " ++ detail
-                     ++ "; child evidence = " ++ show alignedChildren
-                     ++ "; capability substitution = "
-                     ++ show (unCapSubst shapeSubst))
-                    ctx)
-                return
-                (Cap.projectConstructorEvidence
-                   observability fieldTypes resultType alignedChildren)
-            return (evidence, remaining)
+                alignedChildren <-
+                  zipWithM
+                    (alignProjectionEvidence
+                       observability (freeTyVars resultType) ctx)
+                    fieldTypes
+                    children
+                evidence <-
+                  either
+                    (\detail ->
+                      throwError $ MatcherCapabilityError
+                        ("clause `" ++ prettyStr (PPInductivePat name patterns)
+                         ++ "`: " ++ detail
+                         ++ "; child evidence = " ++ show alignedChildren
+                         ++ "; capability substitution = "
+                         ++ show (unCapSubst shapeSubst))
+                        ctx)
+                    return
+                    (Cap.projectConstructorEvidence
+                       observability fieldTypes resultType alignedChildren)
+                return (evidence, remaining)
 
           goMany [] components =
             return ([], components)
@@ -2380,15 +3216,28 @@ inferIExprWithContext expr ctx = case expr of
                             return evidence
 
               solveFlexibleHead fieldType capability = do
-                template <- projectionCapabilityTemplate fieldType
-                _ <- unifyTypesWithContext
-                       (TMatcher capability TAny)
-                       (TMatcher template TAny)
-                       projectionCtx
-                committed <- gets inferGlobalSubst
-                alignRelevant fieldType
-                  (Cap.evidenceFromCapability
-                    (applyCapSubst committed capability))
+                isProtected <-
+                  case capability of
+                    CapVar variable ->
+                      Set.member variable <$> gets inferProtectedCaps
+                    _ -> return False
+                if isProtected
+                  then
+                    -- A producer obtained from a polymorphic scheme is rigid
+                    -- for later structural constraints.  Projection may only
+                    -- inspect its existing shape, never manufacture one from
+                    -- the constructor target path.
+                    return (Cap.CapKnown capability)
+                  else do
+                    template <- projectionCapabilityTemplate fieldType
+                    _ <- unifyTypesWithContext
+                           (TMatcher capability TAny)
+                           (TMatcher template TAny)
+                           projectionCtx
+                    committed <- gets inferGlobalSubst
+                    alignRelevant fieldType
+                      (Cap.evidenceFromCapability
+                        (applyCapSubst committed capability))
 
               projectionCapabilityTemplate fieldType =
                 case fieldType of
@@ -2587,9 +3436,7 @@ inferIExprWithContext expr ctx = case expr of
           case lookupPatternEnv name patternEnv of
             Just scheme -> do
               -- Found in pattern environment: use the declared type
-              st <- get
-              let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
-              modify $ \s -> s { inferCounter = newCounter }
+              (_constraints, ctorType) <- instantiateSchemeInState scheme
               
               -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType
               -- Extract argument types and result type
@@ -2633,7 +3480,12 @@ inferIExprWithContext expr ctx = case expr of
             
             Nothing -> do
               -- Not found in pattern environment: use generic inference
-              -- This is for backward compatibility
+              -- This is an extended-Egison compatibility path.  The
+              -- mechanized checker requires a frozen constructor signature.
+              warnTypePmCompatibility
+                ("primitive-pattern constructor `" ++ name ++
+                 "` has no declared pattern signature; using generic inference")
+                ctx
               results <- mapM (\pp -> inferPrimitivePatPattern pp ctx) ppPats
               let matchedTypes = [mt | (mt, _, _, _) <- results]
                   patternHoleLists = [phs | (_, phs, _, _) <- results]
@@ -2842,9 +3694,7 @@ inferIExprWithContext expr ctx = case expr of
           case lookupEnv (stringToVar name) env of
             Just scheme -> do
               -- Found in environment: use the declared type
-              st <- get
-              let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
-              modify $ \s -> s { inferCounter = newCounter }
+              (_constraints, ctorType) <- instantiateSchemeInState scheme
               
               -- Data constructor type: arg1 -> arg2 -> ... -> resultType
               let (argTypes, resultType) = extractFunctionArgs ctorType
@@ -3271,9 +4121,7 @@ inferIExprWithContext expr ctx = case expr of
         --                 -> Var "e" []
         case lookupEnv varWithIndices env of
           Just scheme -> do
-            st <- get
-            let (constraints, t, newCounter) = instantiate scheme (inferCounter st)
-            modify $ \s' -> s' { inferCounter = newCounter }
+            (constraints, t) <- instantiateSchemeInState scheme
             addConstraints constraints
             return (TIExpr (Forall [] [] constraints t) (TIVarExpr varName), emptySubst)
           Nothing -> do
@@ -3544,6 +4392,20 @@ inferIExprWithContext expr ctx = case expr of
 -- real typing failure and must not be erased into an unconstrained slot.
 patternDualType :: IPattern -> TypeErrorContext -> Infer (Type, Type)
 patternDualType pat ctx = do
+  resolvedExtensions <- resolvedPatternBridgeExtensions pat
+  let extensionFeatures =
+        nub (typePmPatternExtensions pat ++ resolvedExtensions)
+  unless (null extensionFeatures) $
+    warnTypePmCompatibility
+      ("pattern form(s) checked by Egison's extension layer: " ++
+       intercalate ", " extensionFeatures)
+      ctx
+  mapM_
+    (\issue ->
+      warnTypePmCompatibility
+        ("pattern context accepted by Egison's extension layer: " ++ issue)
+        ctx)
+    (patternContextCompatibilityIssues pat)
   snapshot <- saveConstraintState
   restoreInferStateAfter (restoreConstraintState snapshot) $ do
     tv <- freshVar "taut"
@@ -3576,14 +4438,52 @@ patternTypeCapability ctx taup =
     toCapabilityVar (TyVar name) =
       CapVar (MkCapVar ("patternType@" ++ name))
 
--- | Snapshot of the state that speculative inference must not leak: the
--- type-class constraint store and the global zonk substitution.
-saveConstraintState :: Infer ([Constraint], Subst)
-saveConstraintState = (,) <$> getConstraints <*> gets inferGlobalSubst
+-- | Snapshot of state that speculative structural inference must not leak.
+-- Compatibility diagnostics are included: a failed probe is not an actual
+-- transition to Egison's extension solver.  The fresh counter is deliberately
+-- absent so variables allocated by a discarded probe are never reused.
+data ConstraintStateSnapshot = ConstraintStateSnapshot
+  { snapshotConstraints :: [Constraint]
+  , snapshotGlobalSubst :: Subst
+  , snapshotWarnings :: [TypeWarning]
+  , snapshotCoreSolverFallbackReported :: Bool
+  , snapshotDeferredHoleChecks :: [DeferredHoleCheck]
+  , snapshotAllocatedCapVars :: Set.Set CapVar
+  , snapshotProtectedCaps :: Set.Set CapVar
+  , snapshotReportedProtectedCaps :: Set.Set CapVar
+  , snapshotPatfunTaupEqs :: Maybe [(Type, Type)]
+  }
 
-restoreConstraintState :: ([Constraint], Subst) -> Infer ()
-restoreConstraintState (cs, g) =
-  modify $ \st -> st { inferConstraints = cs, inferGlobalSubst = g }
+saveConstraintState :: Infer ConstraintStateSnapshot
+saveConstraintState = do
+  state <- get
+  return ConstraintStateSnapshot
+    { snapshotConstraints = inferConstraints state
+    , snapshotGlobalSubst = inferGlobalSubst state
+    , snapshotWarnings = inferWarnings state
+    , snapshotCoreSolverFallbackReported =
+        inferCoreSolverFallbackReported state
+    , snapshotDeferredHoleChecks = inferDeferredHoleChecks state
+    , snapshotAllocatedCapVars = inferAllocatedCapVars state
+    , snapshotProtectedCaps = inferProtectedCaps state
+    , snapshotReportedProtectedCaps = inferReportedProtectedCaps state
+    , snapshotPatfunTaupEqs = inferPatfunTaupEqs state
+    }
+
+restoreConstraintState :: ConstraintStateSnapshot -> Infer ()
+restoreConstraintState snapshot =
+  modify $ \state -> state
+    { inferConstraints = snapshotConstraints snapshot
+    , inferGlobalSubst = snapshotGlobalSubst snapshot
+    , inferWarnings = snapshotWarnings snapshot
+    , inferCoreSolverFallbackReported =
+        snapshotCoreSolverFallbackReported snapshot
+    , inferDeferredHoleChecks = snapshotDeferredHoleChecks snapshot
+    , inferAllocatedCapVars = snapshotAllocatedCapVars snapshot
+    , inferProtectedCaps = snapshotProtectedCaps snapshot
+    , inferReportedProtectedCaps = snapshotReportedProtectedCaps snapshot
+    , inferPatfunTaupEqs = snapshotPatfunTaupEqs snapshot
+    }
 
 -- | Run an action but discard its effect on the type-class constraint store and the global
 -- zonk substitution.  Used for the structural-type τ_p reassembly unifications, which involve
@@ -3727,7 +4627,7 @@ checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = foldM step s0 clau
       targetTy'' <- applySubstWithConstraintsM acc1 targetTy
       rejectAnyMatcherCapabilityBypass ctx matcherTy' patternCap
       sSlot <-
-        unifyTypesWithContext
+        unifyTypesAtSlotWithContext
           matcherTy'
           (TMatcherSlot patternCap targetTy'')
           ctx
@@ -3778,38 +4678,47 @@ rejectAnyMatcherCapabilityBypass ctx matcherType requiredCapability =
         CapCon _ _    -> True
         CapTuple caps -> any capabilityRequiresProducerEvidence caps
 
--- | Head type-former name under which a type's pattern constructors are grouped (paper
--- Coverage, Def 4.2(3)).  Polymorphic / tuple / function matched types have no declared
--- pattern constructors, so they yield 'Nothing' (Coverage holds vacuously).
-matcherTypeHead :: Type -> Maybe String
-matcherTypeHead t = case t of
-  TInt           -> Just "Integer"
-  TMathValue     -> Just "MathValue"
-  TBool          -> Just "Bool"
-  TString        -> Just "String"
-  TChar          -> Just "Char"
-  TFloat         -> Just "Float"
-  TCollection _  -> Just "[]"
-  TInductive n _ -> Just n
-  _              -> Nothing
+-- | Frozen-signature information needed by capability-based Coverage.
+patternConstructorResult :: TypeScheme -> Maybe (TypeFormer, Int)
+patternConstructorResult (Forall _ _ _ ty) =
+  let (arguments, result) = go ty
+  in case typeFormerOf result of
+       Just (former, _) -> Just (former, length arguments)
+       Nothing          -> Nothing
+  where
+    go (TFun argument rest) =
+      let (arguments, result) = go rest
+      in (argument : arguments, result)
+    go result = ([], result)
 
--- | The result type-former of a pattern-constructor scheme (walks the @arg -> … -> result@
--- chain), used to group constructors by the type they construct.
-ctorResultHead :: TypeScheme -> Maybe String
-ctorResultHead (Forall _ _ _ ty) = matcherTypeHead (resultOf ty)
-  where resultOf (TFun _ r) = resultOf r
-        resultOf t          = t
+isGeneralConstructorClause
+  :: String
+  -> Int
+  -> PrimitivePatPattern
+  -> Bool
+isGeneralConstructorClause expectedName expectedArity pattern =
+  case pattern of
+    PPInductivePat name arguments ->
+      name == expectedName
+        && length arguments == expectedArity
+        && all isHole arguments
+    _ -> False
+  where
+    isHole PPPatVar = True
+    isHole _        = False
 
--- | The constructor a matcher clause is a *general* clause for (paper's @c $..$@): an
--- inductive primitive-pattern pattern whose arguments are all bare holes @$@.  Refinement
--- clauses (holes mixed with @_@ or @#$x@), value-pattern clauses, and the catch-all are not
--- general clauses and do not contribute to Coverage.
-generalClauseCtor :: PrimitivePatPattern -> Maybe String
-generalClauseCtor (PPInductivePat name args)
-  | all isHole args = Just name
-  where isHole PPPatVar = True
-        isHole _        = False
-generalClauseCtor _ = Nothing
+isGeneralTupleClause :: Int -> PrimitivePatPattern -> Bool
+isGeneralTupleClause expectedArity pattern =
+  case pattern of
+    PPTuplePat components ->
+      length components == expectedArity && all isHole components
+    _ -> False
+  where
+    isHole PPPatVar = True
+    isHole _        = False
+
+firstOf3 :: (a, b, c) -> a
+firstOf3 (first, _, _) = first
 
 -- | Strip lambda wrappers to find a matcher literal (for shape harvesting).
 stripLambdasForShape :: IExpr -> IExpr
@@ -4571,9 +5480,7 @@ inferIPattern pat expectedType ctx = case pat of
     case lookupPatternEnv name patternEnv of
       Just scheme -> do
         -- Found in pattern environment: use the declared type
-        st <- get
-        let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
-        modify $ \s -> s { inferCounter = newCounter }
+        (_constraints, ctorType) <- instantiateSchemeInState scheme
         
         -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType
         let (argTypes, resultType) = extractFunctionArgs ctorType
@@ -4596,9 +5503,7 @@ inferIPattern pat expectedType ctx = case pat of
             (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
             finalType <- applySubstWithConstraintsM s expectedType
             -- τ_p: reassemble from a FRESH instantiation (untied to expectedType) + children τ_p
-            stP <- get
-            let (_csP, ctorTypeP, ctrP) = instantiate scheme (inferCounter stP)
-            modify $ \z -> z { inferCounter = ctrP }
+            (_csP, ctorTypeP) <- instantiateSchemeInState scheme
             let (argTypesP, resultTypeP) = extractFunctionArgs ctorTypeP
             taup <- taupFromCtor ctx argTypesP resultTypeP childrenTaup
             let tipat = TIPattern (Forall [] [] [] finalType) (TIInductivePat name tipats)
@@ -4610,9 +5515,7 @@ inferIPattern pat expectedType ctx = case pat of
         env <- getEnv
         case lookupEnv (stringToVar name) env of
           Just scheme -> do
-            st <- get
-            let (_constraints, ctorType, newCounter) = instantiate scheme (inferCounter st)
-            modify $ \s -> s { inferCounter = newCounter }
+            (_constraints, ctorType) <- instantiateSchemeInState scheme
             
             let (argTypes, resultType) = extractFunctionArgs ctorType
             
@@ -4631,9 +5534,7 @@ inferIPattern pat expectedType ctx = case pat of
                 (tipats, allBindings, s, childrenTaup) <- inferPatternsLeftToRight pats argTypes' [] s0 ctx
                 finalType <- applySubstWithConstraintsM s expectedType
                 -- τ_p: reassemble from a FRESH instantiation (untied to expectedType) + children τ_p
-                stP <- get
-                let (_csP, ctorTypeP, ctrP) = instantiate scheme (inferCounter stP)
-                modify $ \z -> z { inferCounter = ctrP }
+                (_csP, ctorTypeP) <- instantiateSchemeInState scheme
                 let (argTypesP, resultTypeP) = extractFunctionArgs ctorTypeP
                 taup <- taupFromCtor ctx argTypesP resultTypeP childrenTaup
                 let tipat = TIPattern (Forall [] [] [] finalType) (TIInductivePat name tipats)
@@ -4891,9 +5792,7 @@ inferIPattern pat expectedType ctx = case pat of
         structEnv <- getPatternFuncStructEnvI
         case lookupPatternEnv fname structEnv of
           Just structScheme -> do
-            stP <- get
-            let (_csP, structTy, ctrP) = instantiate structScheme (inferCounter stP)
-            modify $ \z -> z { inferCounter = ctrP }
+            (_csP, structTy) <- instantiateSchemeInState structScheme
             let (argTaups, resultTaup) = extractFunctionArgs structTy
             taupFromCtor ctx argTaups resultTaup childrenTaup
           Nothing -> freshVar "taup"
@@ -5054,7 +5953,9 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
                       | otherwise = (ti, at)
                     (argTIExprs', argTypes') = unzip (zipWith promote argTIExprs argTypes)
                 inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs' argTypes' argSubst ctx
-                  `catchError` \_ -> throwError e
+                  `catchError` \_ -> do
+                    restoreConstraintState snapshot
+                    throwError e
               Nothing -> throwError e
       _ -> throwError e
 
@@ -5079,9 +5980,12 @@ inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
   -- The context constraints include constraints from outer scopes (e.g., {Num a} from (.) definition)
   contextConstraints <- getConstraints
   let constraints = funcConstraints ++ contextConstraints
-  case Unify.unifyWithConstraints classEnv constraints appliedFuncType expectedFuncType of
-    Right (s1, flag1) -> do
-      recordGlobalSubst s1
+  initialUnifier <-
+    (Just <$> solveWithCompatibility
+      classEnv constraints appliedFuncType expectedFuncType ctx)
+      `catchError` \_ -> return Nothing
+  case initialUnifier of
+    Just (s1, flag1) -> do
       -- Now unify argument types with parameter types
       -- Key: Unify non-function arguments FIRST to let data types constrain type variables
       paramTypesRaw <- mapM (applySubstWithConstraintsM s1) paramVars
@@ -5099,11 +6003,14 @@ inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
                      at' <- applySubstWithConstraintsM s at
                      pt' <- applySubstWithConstraintsM s pt
                      let cs' = map (applySubstConstraint s) constraints
-                     case Unify.unifyWithConstraints classEnv cs' at' pt' of
-                       Right (s', flag') -> do
-                         recordGlobalSubst s'
-                         return (composeSubst s' s, flagAcc || flag')
-                       Left _ -> throwError $ UnificationError at' pt' ctx
+                     (s', flag') <-
+                       case pt' of
+                         TMatcherSlot _ _ ->
+                           solveAtSlotWithCompatibility
+                             classEnv cs' at' pt' ctx
+                         _ ->
+                           solveWithCompatibility classEnv cs' at' pt' ctx
+                     return (composeSubst s' s, flagAcc || flag')
                   ) (s1, flag1) nonFuncArgsList
 
       -- Then unify function arguments (callbacks)
@@ -5118,11 +6025,14 @@ inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
                          (Forall _ _ argConstraints _) = argScheme
                          argCs = map (applySubstConstraint s) argConstraints
                          allCs = outerCs ++ argCs
-                     case Unify.unifyWithConstraints classEnv allCs at' pt' of
-                       Right (s', flag') -> do
-                         recordGlobalSubst s'
-                         return (composeSubst s' s, flagAcc || flag')
-                       Left _ -> throwError $ UnificationError at' pt' ctx
+                     (s', flag') <-
+                       case pt' of
+                         TMatcherSlot _ _ ->
+                           solveAtSlotWithCompatibility
+                             classEnv allCs at' pt' ctx
+                         _ ->
+                           solveWithCompatibility classEnv allCs at' pt' ctx
+                     return (composeSubst s' s, flagAcc || flag')
                   ) (s2, flag2) funcArgsList
 
       let finalS = composeSubst s3 argSubst
@@ -5152,6 +6062,7 @@ inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
           -- threading at higher up).
           isTypeVarConstraint c = any isTypeVarType (constraintTypes c)
           isTypeVarType (TVar _) = True
+          isTypeVarType (TSkolem _) = True
           isTypeVarType _        = False
           typeVarConstraints = filter isTypeVarConstraint deduplicatedConstraints
           -- Result constraints: functions (partial applications) keep constraints,
@@ -5170,7 +6081,7 @@ inferIApplicationUnifyPhase funcTIExpr funcType argTIExprs argTypes argSubst ctx
 
       return (TIExpr resultScheme (TIApplyExpr updatedFuncTI updatedArgTIs), finalS)
 
-    Left _ ->
+    Nothing ->
       -- Special case: if function has type MathValue, allow application returning MathValue
       -- (handles FunctionData application, e.g. f 0 where f := function (x))
       case appliedFuncType of
@@ -5685,9 +6596,10 @@ inferITopExpr topExpr = case topExpr of
       Just existingScheme -> do
         -- There's an explicit type signature: check that the inferred type matches
         st <- get
+        baselineGlobalSubst <- gets inferGlobalSubst
         classEnv <- getClassEnv
-        let (instConstraints0, expectedType, newCounter) =
-              skolemizeCapabilities existingScheme (inferCounter st)
+        let (instConstraints0, expectedType, annotationSkolems, newCounter) =
+              skolemizeAnnotation existingScheme (inferCounter st)
             -- Expand superclass constraints so that superclass methods are available
             -- e.g., {Ord a} -> {Ord a, Eq a} since Ord extends Eq
             instConstraints = expandSuperclasses classEnv instConstraints0
@@ -5701,7 +6613,7 @@ inferITopExpr topExpr = case topExpr of
         -- Recursive uses of an annotated definition are monomorphic within
         -- the definition.  Shadow the polymorphic declaration with this
         -- single skolemized instance so lookup cannot instantiate a fresh
-        -- capability at each recursive occurrence.  Retain the instantiated
+        -- variable of either sort at each recursive occurrence.  Retain the instantiated
         -- class constraints: recursive constrained functions must receive
         -- the same dictionary parameters as their enclosing definition.
         modify $ \state ->
@@ -5714,10 +6626,12 @@ inferITopExpr topExpr = case topExpr of
 
         -- Infer the expression type
         let owner = extractNameFromVar var
+            checkedExpr =
+              skolemizeNestedAnnotations annotationSkolems expr
         (exprTI, subst1) <-
           withRecursiveRhsScope
             [owner] (Set.singleton owner) (Just owner) $
-              inferIExpr expr
+              inferIExpr checkedExpr
         let exprType = tiExprType exprTI
 
         -- Unify inferred type with expected type using constraint-aware unification
@@ -5735,7 +6649,7 @@ inferITopExpr topExpr = case topExpr of
         -- type the annotation names, so unifying the Matcher parameters at
         -- the result position is sound; rigidity guards already-existing
         -- matcher values, not the literal being defined.
-        subst2 <- case rhsCore expr of
+        subst2 <- case rhsCore checkedExpr of
           IMatcherExpr _ ->
             unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
           _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
@@ -5752,6 +6666,11 @@ inferITopExpr topExpr = case topExpr of
         finalTypeChk <- applySubstWithConstraintsM finalSubst expectedType
         let Var defNameStr _ = var
         checkResidualConstraints defNameStr instConstraints finalTypeChk finalSubst exprCtx
+        checkAnnotationBoundary
+          baselineGlobalSubst env finalSubst
+          (typeSchemeUsesEgisonExtension existingScheme
+            || expressionUsesEgisonExtension expr)
+          exprCtx
 
         -- Apply final substitution to exprTI to resolve all type variables
         -- IMPORTANT: Use applySubstToTIExprM to adjust substitution based on constraints
@@ -5759,7 +6678,11 @@ inferITopExpr topExpr = case topExpr of
 
         -- Resolve constraints in exprTI' (Tensor t0 -> t0)
         classEnv <- getClassEnv
-        let exprTI'' = resolveConstraintsInTIExpr classEnv finalSubst exprTI'
+        let exprTI'' =
+              deskolemizeAnnotationTIExpr annotationSkolems
+                (resolveConstraintsInTIExpr classEnv finalSubst exprTI')
+            finalSubst' =
+              deskolemizeAnnotationSubst annotationSkolems finalSubst
         
         -- Reconstruct type scheme from exprTI'' to match actual type variables
         -- Use instantiated constraints and apply final substitution
@@ -5776,8 +6699,14 @@ inferITopExpr topExpr = case topExpr of
         -- Update the environment with the expanded scheme
         -- This is important so that call sites see the full constraints
         -- (including superclass-expanded ones) and pass all needed dictionaries
-        modify $ \s -> s { inferEnv = extendEnv var updatedScheme (inferEnv s) }
-        return (Just (TIDefine updatedScheme var exprTI''), finalSubst)
+        modify $ \s ->
+          s
+            { inferEnv =
+                extendEnv var updatedScheme
+                  (removeFromEnv var (inferEnv s))
+            }
+        deskolemizeAnnotationState annotationSkolems
+        return (Just (TIDefine updatedScheme var exprTI''), finalSubst')
       
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
@@ -5839,6 +6768,7 @@ inferITopExpr topExpr = case topExpr of
             -- Concrete constraints don't need to be generalized since the type is already determined
             isTypeVarConstraint c = any isTypeVarType' (constraintTypes c)
             isTypeVarType' (TVar _) = True
+            isTypeVarType' (TSkolem _) = True
             isTypeVarType' _        = False
             -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
             generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
@@ -5942,9 +6872,10 @@ inferITopExpr topExpr = case topExpr of
           Just existingScheme -> do
             -- With type signature: check type
             st <- get
+            baselineGlobalSubst <- gets inferGlobalSubst
             classEnvForSig <- getClassEnv
-            let (instCs0, expectedType, newCounter) =
-                  skolemizeCapabilities existingScheme (inferCounter st)
+            let (instCs0, expectedType, annotationSkolems, newCounter) =
+                  skolemizeAnnotation existingScheme (inferCounter st)
                 instCsMany = expandSuperclasses classEnvForSig instCs0
             modify $ \s -> s { inferCounter = newCounter }
 
@@ -5960,13 +6891,15 @@ inferITopExpr topExpr = case topExpr of
                       (Forall [] [] instCsMany expectedType)
                       (inferEnv state)
                 }
-            (exprTI, subst1) <- inferIExpr expr
+            let checkedExpr =
+                  skolemizeNestedAnnotations annotationSkolems expr
+            (exprTI, subst1) <- inferIExpr checkedExpr
             let exprType = tiExprType exprTI
             exprType' <- applySubstWithConstraintsM subst1 exprType
             expectedType' <- applySubstWithConstraintsM subst1 expectedType
             -- Matcher-rigidity exception for an annotated matcher literal,
             -- possibly lambda-wrapped (see the IDefine signature branch)
-            subst2 <- case rhsCore expr of
+            subst2 <- case rhsCore checkedExpr of
               IMatcherExpr _ ->
                 unifyMatcherDefType [] exprType' expectedType' emptyContext
               _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
@@ -5977,6 +6910,11 @@ inferITopExpr topExpr = case topExpr of
             finalTypeChk <- applySubstWithConstraintsM finalSubst expectedType
             let Var defNameStr _ = var
             checkResidualConstraints defNameStr instCsMany finalTypeChk finalSubst emptyContext
+            checkAnnotationBoundary
+              baselineGlobalSubst env finalSubst
+              (typeSchemeUsesEgisonExtension existingScheme
+                || expressionUsesEgisonExtension expr)
+              emptyContext
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             -- The monomorphic entry above is scoped to checking this body.
             -- Restore the declared polymorphic scheme for later definitions
@@ -5987,9 +6925,18 @@ inferITopExpr topExpr = case topExpr of
                   Forall declaredCapVars declaredTyVars
                     (expandSuperclasses classEnvForSig declaredConstraints)
                     declaredType
+                exprTI'' =
+                  deskolemizeAnnotationTIExpr annotationSkolems exprTI'
+                finalSubst' =
+                  deskolemizeAnnotationSubst annotationSkolems finalSubst
             modify $ \state ->
-              state { inferEnv = extendEnv var updatedScheme (inferEnv state) }
-            return ((var, exprTI'), finalSubst)
+              state
+                { inferEnv =
+                    extendEnv var updatedScheme
+                      (removeFromEnv var (inferEnv state))
+                }
+            deskolemizeAnnotationState annotationSkolems
+            return ((var, exprTI''), finalSubst')
           
           Nothing -> do
             -- Without type signature: infer and generalize
@@ -6014,6 +6961,7 @@ inferITopExpr topExpr = case topExpr of
                 -- Filter out constraints on concrete types (non-type-variables)
                 isTypeVarConstraint c = any isTypeVarT (constraintTypes c)
                 isTypeVarT (TVar _) = True
+                isTypeVarT (TSkolem _) = True
                 isTypeVarT _        = False
                 -- Deduplicate constraints (e.g., {Num a, Num a} -> {Num a})
                 generalizedConstraints = nub $ filter isTypeVarConstraint updatedConstraints
@@ -6034,6 +6982,11 @@ inferITopExpr topExpr = case topExpr of
             return ((var, exprTI''), finalSubst)
   
   IPatternFunctionDecl name tyVars params retType body -> do
+    warnTypePmCompatibility
+      ("pattern function `" ++ name ++
+       "` currently uses Egison's split target/structural signature path; " ++
+       "the direct DualScheme bridge is pending")
+      emptyContext
     -- Pattern function type checking (paper PATFUN-DEF):
     -- 1. Linearity side condition: each parameter occurs exactly once in the
     --    body, in declaration order
@@ -6042,6 +6995,29 @@ inferITopExpr topExpr = case topExpr of
     --    fresh structural index beta_i and capturing the body's structural index
     -- 4. Create type scheme with type parameters, and record the structural
     --    signature beta_1 -> ... -> beta_k -> tau_p_body for PAT-APP
+
+    let paramTypes = map snd params
+        funcType = foldr TFun retType paramTypes
+        declaredCapVars = Set.toList (freeCapVars funcType)
+        typeScheme = Forall declaredCapVars tyVars [] funcType
+    st <- get
+    baselineGlobalSubst <- gets inferGlobalSubst
+    outerEnv <- getEnv
+    let (_checkedConstraints, _checkedFuncType,
+          annotationSkolems, newCounter) =
+            skolemizeAnnotation typeScheme (inferCounter st)
+        checkedParams =
+          [ (paramName,
+              skolemizeAnnotationType annotationSkolems paramType)
+          | (paramName, paramType) <- params
+          ]
+        checkedRetType =
+          skolemizeAnnotationType annotationSkolems retType
+        checkedBody =
+          mapIPatternTypes
+            (skolemizeAnnotationType annotationSkolems)
+            body
+    modify $ \state -> state { inferCounter = newCounter }
 
     clearConstraints  -- Start fresh
     clearDeferredHoleChecks
@@ -6069,7 +7045,10 @@ inferITopExpr topExpr = case topExpr of
 
     -- Add parameters to environment for type checking the body
     -- Note: Parameter types don't need Pattern wrapper (design/pattern.md)
-    let paramBindings = map (\(pname, pty) -> (pname, Forall [] [] [] pty)) params
+    let paramBindings =
+          map
+            (\(pname, pty) -> (pname, Forall [] [] [] pty))
+            checkedParams
     withEnv paramBindings $
       withProducerDependencyBindings
         [(name, Set.empty) | name <- paramNames] $ do
@@ -6081,7 +7060,9 @@ inferITopExpr topExpr = case topExpr of
       oldParamTaups <- inferPatfunParamTaup <$> get
       oldTaupEqs <- inferPatfunTaupEqs <$> get
       modify $ \z -> z { inferPatfunParamTaup = paramTaupMap, inferPatfunTaupEqs = Just [] }
-      bodyResult <- (Right <$> inferIPattern body retType ctx) `catchError` (return . Left)
+      bodyResult <-
+        (Right <$> inferIPattern checkedBody checkedRetType ctx)
+          `catchError` (return . Left)
       taupEqs <- (fromMaybe [] . inferPatfunTaupEqs) <$> get
       modify $ \z -> z { inferPatfunParamTaup = oldParamTaups, inferPatfunTaupEqs = oldTaupEqs }
       (tiBody, _bodyBindings, subst, bodyTaup) <- either throwError return bodyResult
@@ -6094,6 +7075,10 @@ inferITopExpr topExpr = case topExpr of
       holeSubst <- flushDeferredHoleChecks subst
       let finalSubst = composeSubst holeSubst subst
       tiBody' <- applySubstToTIPatternM finalSubst tiBody
+      checkAnnotationBoundary
+        baselineGlobalSubst outerEnv finalSubst
+        (typeSchemeUsesEgisonExtension typeScheme)
+        ctx
 
       -- Note: Pattern variables that reference parameters (using ~param) will appear in bodyBindings
       -- but they are NOT conflicts - they are references to the parameters themselves.
@@ -6101,12 +7086,6 @@ inferITopExpr topExpr = case topExpr of
       -- Since the pattern body uses ~p1 and ~p2 (pattern variable references),
       -- not $p1 and $p2 (new bindings), we don't need to check for conflicts here.
       -- The existing semantics already handle this correctly during pattern matching.
-
-      -- Create type scheme with type parameters
-      -- Pattern function type: param1 -> param2 -> ... -> retType
-      let paramTypes = map snd params
-          funcType = foldr TFun retType paramTypes
-          typeScheme = Forall [] tyVars [] funcType
 
       -- Structural signature beta_1 -> ... -> beta_k -> tau_p_body.  The body's
       -- node-local structural solvers keep only each node's result type, so the
@@ -6124,7 +7103,16 @@ inferITopExpr topExpr = case topExpr of
                        return (composeSubst s' acc)) emptySubst taupEqs
             applySubstWithConstraintsM sEq structSig0)
           `catchError` \_ -> return structSig0
-      let structScheme = Forall [] (Set.toList (freeTyVars structSig)) [] structSig
+      let structSig' =
+            deskolemizeAnnotationType annotationSkolems structSig
+          structScheme =
+            Forall [] (Set.toList (freeTyVars structSig')) [] structSig'
+          tiBody'' =
+            deskolemizeAnnotationTIPattern annotationSkolems tiBody'
+          finalSubst' =
+            deskolemizeAnnotationSubst annotationSkolems finalSubst
+
+      deskolemizeAnnotationState annotationSkolems
 
       -- Add pattern function to inferPatternFuncEnv, inferEnv, and the
       -- structural-signature environment
@@ -6136,8 +7124,8 @@ inferITopExpr topExpr = case topExpr of
       }
 
       return
-        ( Just (TIPatternFunctionDecl name typeScheme params retType tiBody')
-        , finalSubst
+        ( Just (TIPatternFunctionDecl name typeScheme params retType tiBody'')
+        , finalSubst'
         )
   
   IDeclareSymbol names mType -> do

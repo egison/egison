@@ -32,8 +32,11 @@ module Language.Egison.Type.Types
   , freshTyVar
   , freshCapVar
   , freeTyVars
+  , freeTySkolems
   , freeCapVars
   , freeCapVarsCapability
+  , freeCapSkolems
+  , freeCapSkolemsCapability
   , mapCapability
   , mapTypeCapabilities
   , substCapVar
@@ -175,6 +178,8 @@ data Type
   | TChar                             -- ^ Char
   | TString                           -- ^ String
   | TVar TyVar                        -- ^ Type variable, e.g., a
+  | TSkolem TyVar                     -- ^ Rigid ordinary type variable used
+                                      --   only while checking an annotation
   | TTuple [Type]                     -- ^ Tuple type, e.g., (a, b). Unit type () is TTuple []
   | TCollection Type                  -- ^ Collection type, e.g., [a]
   | TInductive String [Type]          -- ^ Inductive data type with type arguments
@@ -269,6 +274,7 @@ freeTyVars TBool            = Set.empty
 freeTyVars TChar            = Set.empty
 freeTyVars TString          = Set.empty
 freeTyVars (TVar v)         = Set.singleton v
+freeTyVars (TSkolem _)      = Set.empty
 freeTyVars (TTuple ts)      = Set.unions (map freeTyVars ts)
 freeTyVars (TCollection t)  = freeTyVars t
 freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
@@ -286,6 +292,42 @@ freeTyVars TFactor          = Set.empty
 freeTyVars (TTerm t ss)      = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
 freeTyVars (TFrac t)         = freeTyVars t
 freeTyVars (TPoly t ss)     = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
+
+-- | Get rigid ordinary type skolems from a type.
+--
+-- Skolems are deliberately separate from 'freeTyVars': they are constants
+-- during annotation checking and must never enter an ordinary substitution
+-- or be generalized.  The checker uses this traversal for the no-escape
+-- boundary before it deskolemizes a successful typed tree.
+freeTySkolems :: Type -> Set TyVar
+freeTySkolems TInt               = Set.empty
+freeTySkolems TMathValue         = Set.empty
+freeTySkolems TPolyExpr          = Set.empty
+freeTySkolems TTermExpr          = Set.empty
+freeTySkolems TSymbolExpr        = Set.empty
+freeTySkolems TIndexExpr         = Set.empty
+freeTySkolems TFloat             = Set.empty
+freeTySkolems TBool              = Set.empty
+freeTySkolems TChar              = Set.empty
+freeTySkolems TString            = Set.empty
+freeTySkolems (TVar _)           = Set.empty
+freeTySkolems (TSkolem v)        = Set.singleton v
+freeTySkolems (TTuple ts)        = Set.unions (map freeTySkolems ts)
+freeTySkolems (TCollection t)    = freeTySkolems t
+freeTySkolems (TInductive _ ts)  = Set.unions (map freeTySkolems ts)
+freeTySkolems (TTensor t)        = freeTySkolems t
+freeTySkolems (THash k v)        = freeTySkolems k `Set.union` freeTySkolems v
+freeTySkolems (TMatcher _ t)     = freeTySkolems t
+freeTySkolems (TMatcherSlot _ t) = freeTySkolems t
+freeTySkolems (TFun t1 t2)       = freeTySkolems t1 `Set.union` freeTySkolems t2
+freeTySkolems (TIO t)            = freeTySkolems t
+freeTySkolems (TIORef t)         = freeTySkolems t
+freeTySkolems TPort              = Set.empty
+freeTySkolems TAny               = Set.empty
+freeTySkolems TFactor            = Set.empty
+freeTySkolems (TTerm t _)        = freeTySkolems t
+freeTySkolems (TFrac t)          = freeTySkolems t
+freeTySkolems (TPoly t _)        = freeTySkolems t
 
 -- | Free type variables in a SymbolSet (used by both Term and Poly).
 freeTyVarsSymbolSet :: SymbolSet -> Set TyVar
@@ -317,6 +359,7 @@ freeCapVars TBool              = Set.empty
 freeCapVars TChar              = Set.empty
 freeCapVars TString            = Set.empty
 freeCapVars (TVar _)           = Set.empty
+freeCapVars (TSkolem _)        = Set.empty
 freeCapVars (TTuple ts)        = Set.unions (map freeCapVars ts)
 freeCapVars (TCollection t)    = freeCapVars t
 freeCapVars (TInductive _ ts)  = Set.unions (map freeCapVars ts)
@@ -335,6 +378,49 @@ freeCapVars TFactor            = Set.empty
 freeCapVars (TTerm t _)        = freeCapVars t
 freeCapVars (TFrac t)          = freeCapVars t
 freeCapVars (TPoly t _)        = freeCapVars t
+
+-- | Get rigid capability skolems from a capability.
+freeCapSkolemsCapability :: Capability -> Set CapVar
+freeCapSkolemsCapability CapNone         = Set.empty
+freeCapSkolemsCapability (CapVar _)      = Set.empty
+freeCapSkolemsCapability (CapSkolem v)   = Set.singleton v
+freeCapSkolemsCapability (CapCon _ caps) =
+  Set.unions (map freeCapSkolemsCapability caps)
+freeCapSkolemsCapability (CapTuple caps) =
+  Set.unions (map freeCapSkolemsCapability caps)
+
+-- | Get rigid capability skolems from every matcher occurrence in a type.
+freeCapSkolems :: Type -> Set CapVar
+freeCapSkolems TInt               = Set.empty
+freeCapSkolems TMathValue         = Set.empty
+freeCapSkolems TPolyExpr          = Set.empty
+freeCapSkolems TTermExpr          = Set.empty
+freeCapSkolems TSymbolExpr        = Set.empty
+freeCapSkolems TIndexExpr         = Set.empty
+freeCapSkolems TFloat             = Set.empty
+freeCapSkolems TBool              = Set.empty
+freeCapSkolems TChar              = Set.empty
+freeCapSkolems TString            = Set.empty
+freeCapSkolems (TVar _)           = Set.empty
+freeCapSkolems (TSkolem _)        = Set.empty
+freeCapSkolems (TTuple ts)        = Set.unions (map freeCapSkolems ts)
+freeCapSkolems (TCollection t)    = freeCapSkolems t
+freeCapSkolems (TInductive _ ts)  = Set.unions (map freeCapSkolems ts)
+freeCapSkolems (TTensor t)        = freeCapSkolems t
+freeCapSkolems (THash k v)        = freeCapSkolems k `Set.union` freeCapSkolems v
+freeCapSkolems (TMatcher cap t) =
+  freeCapSkolemsCapability cap `Set.union` freeCapSkolems t
+freeCapSkolems (TMatcherSlot cap t) =
+  freeCapSkolemsCapability cap `Set.union` freeCapSkolems t
+freeCapSkolems (TFun t1 t2)       = freeCapSkolems t1 `Set.union` freeCapSkolems t2
+freeCapSkolems (TIO t)            = freeCapSkolems t
+freeCapSkolems (TIORef t)         = freeCapSkolems t
+freeCapSkolems TPort              = Set.empty
+freeCapSkolems TAny               = Set.empty
+freeCapSkolems TFactor            = Set.empty
+freeCapSkolems (TTerm t _)        = freeCapSkolems t
+freeCapSkolems (TFrac t)          = freeCapSkolems t
+freeCapSkolems (TPoly t _)        = freeCapSkolems t
 
 -- | Bottom-up transformation of a capability.
 mapCapability :: (Capability -> Capability) -> Capability -> Capability
@@ -510,6 +596,7 @@ typeToName TBool = "Bool"
 typeToName TChar = "Char"
 typeToName TString = "String"
 typeToName (TVar _) = ""  -- type variables omitted from dict names
+typeToName (TSkolem _) = ""  -- annotation skolems are abstract variables
 typeToName (TInductive name _) = name
 typeToName (TCollection t) = "Collection" ++ typeToName t
 typeToName (TTuple ts) = "Tuple" ++ concatMap typeToName ts
@@ -546,6 +633,7 @@ typeConstructorName TBool = "Bool"
 typeConstructorName TChar = "Char"
 typeConstructorName TString = "String"
 typeConstructorName (TVar _) = ""  -- Type variables are ignored
+typeConstructorName (TSkolem _) = ""  -- Annotation skolems are ignored
 typeConstructorName (TInductive name _) = name  -- Type arguments are ignored
 typeConstructorName (TCollection _) = "Collection"  -- Element type is ignored
 typeConstructorName (TTuple _) = "Tuple"
@@ -638,6 +726,10 @@ capabilitySkeleton :: (TyVar -> Capability) -> Type -> Maybe Capability
 capabilitySkeleton onVar = go
   where
     go (TVar v)         = Just (onVar v)
+    -- A target annotation is a consumer constraint, never producer evidence.
+    -- In particular its rigid ordinary skolem must not be converted into a
+    -- capability witness.
+    go (TSkolem _)      = Nothing
     -- Tuple components are structural roots in their own right.  Unlike a
     -- type-former argument, a closed component such as `Ordering` must retain
     -- its constructor head; otherwise `(less, less)` would incorrectly ask
@@ -675,6 +767,7 @@ typeExprToType TEFloat = TFloat
 typeExprToType TEBool = TBool
 typeExprToType TEChar = TChar
 typeExprToType TEString = TString
+typeExprToType (TEVar "Port") = TPort
 typeExprToType (TEVar name) = TVar (TyVar name)
 typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
 typeExprToType (TEList t) = TCollection (typeExprToType t)
@@ -688,6 +781,7 @@ typeExprToType (TEApp t1 ts) =
         ("TermExpr", [])   -> TTermExpr
         ("SymbolExpr", []) -> TSymbolExpr
         ("IndexExpr", [])  -> TIndexExpr
+        ("Port", [])       -> TPort
         _                  -> TInductive name (map typeExprToType ts)
     TInductive name existingTs -> TInductive name (existingTs ++ map typeExprToType ts)
     baseType -> baseType  -- Can't apply to non-inductive types
@@ -762,6 +856,7 @@ normalizeInductiveTypes (TInductive name []) = case name of
   "TermExpr"   -> TTermExpr
   "SymbolExpr" -> TSymbolExpr
   "IndexExpr"  -> TIndexExpr
+  "Port"       -> TPort
   "Factor"     -> TFactor  -- New CAS type
   _            -> TInductive name []
 -- Normalize Div to TFrac

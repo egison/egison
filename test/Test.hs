@@ -13,12 +13,22 @@ import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
 
 import           Language.Egison
-import           Language.Egison.IExpr          (Var (..))
+import           Language.Egison.IExpr          (IExpr (..), Var (..))
 import qualified Language.Egison.Type.Capability as Capability
 import           Language.Egison.Type.Env       (emptyPatternEnv,
+                                                  emptyClassEnv,
                                                   extendPatternEnv,
                                                   lookupEnvExact)
+import           Language.Egison.Type.Error     (TypeWarning (..),
+                                                  formatTypeWarning)
+import           Language.Egison.Type.Infer     (InferConfig (..),
+                                                  InferState (..),
+                                                  defaultInferConfig,
+                                                  inferIExpr,
+                                                  initialInferStateWithConfig,
+                                                  runInferWithWarnings)
 import           Language.Egison.Type.Subst     (applyCapSubstToType,
+                                                  applyCapSubst,
                                                   applyTypeSubst,
                                                   singletonCapSubst,
                                                   singletonSubst)
@@ -28,7 +38,9 @@ import           Language.Egison.Type.Types     (CapVar (..),
                                                   TypeScheme (..),
                                                   TyVar (..), Type (..),
                                                   mkTypeFormer)
-import           Language.Egison.Type.Unify     (matchOneWay, unifyCapability)
+import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
+                                                  matchCapability, matchOneWay,
+                                                  unify, unifyCapability)
 
 main :: IO ()
 main = do
@@ -39,11 +51,140 @@ main = do
   flip defaultMainWithArgs args . hUnitTestToTests . test $
     p2CapabilityTests
       ++ [ matcherOneWayTests
+         , typePmCompatibilityWarningTests
          , strictPipelineTests
+         , strictSelectedCoreTests
+         , annotationRigidityTests
          , failedInferAtomicityTests
          , producerCyclePersistenceTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
+
+typePmCompatibilityWarningTests :: Test
+typePmCompatibilityWarningTests =
+  TestLabel "type-pm compatibility warnings" $ TestCase $ do
+    let demoType = TInductive "NestedPPatDemo" []
+        constructorScheme =
+          Forall [] [] [] (TFun TInt (TFun demoType demoType))
+        patternEnv =
+          extendPatternEnv "join" constructorScheme $
+            extendPatternEnv "cons" constructorScheme emptyPatternEnv
+        nestedPrimitivePattern =
+          PPInductivePat "join"
+            [ PPPatVar
+            , PPInductivePat "cons"
+                [PPValuePat "val", PPPatVar]
+            ]
+        expression =
+          IMatcherExpr
+            [ ( nestedPrimitivePattern
+              , ITupleExpr
+                  [ IConstantExpr SomethingExpr
+                  , IConstantExpr SomethingExpr
+                  ]
+              , [(PDPatVar (Var "nestedTarget" []), ICollectionExpr [])]
+              )
+            , ( PPPatVar
+              , IConstantExpr SomethingExpr
+              , [ ( PDPatVar (Var "fallbackTarget" [])
+                  , ICollectionExpr [IVarExpr "fallbackTarget"]
+                  )
+                ]
+              )
+            ]
+        config enabled =
+          defaultInferConfig
+            { cfgTypePmCompatibilityWarnings = enabled }
+        state enabled =
+          (initialInferStateWithConfig (config enabled))
+            { inferPatternEnv = patternEnv }
+
+    (resultOff, warningsOff) <-
+      runInferWithWarnings
+        (inferIExpr expression)
+        (state False)
+    (resultOn, warningsOn) <-
+      runInferWithWarnings
+        (inferIExpr expression)
+        (state True)
+
+    case (resultOff, resultOn) of
+      (Right _, Right _) ->
+        assertEqual
+          "the reporting option must not change inference"
+          (show resultOff)
+          (show resultOn)
+      (Left errorOff, Left errorOn) ->
+        assertFailure
+          ("the accepted nested primitive-pattern matcher failed with " ++
+           "the option off/on: " ++ show errorOff ++ " / " ++ show errorOn)
+      _ ->
+        assertFailure
+          "the reporting option changed whether the nested primitive-pattern matcher was accepted"
+    assertEqual "the option is silent when disabled" [] warningsOff
+    case warningsOn of
+      [warning@(TypePmCompatibilityWarning detail _)] -> do
+        assertBool
+          "the warning identifies the nested primitive-pattern bridge"
+          ("nested structured primitive-pattern pattern `join $ (cons #$val $)`"
+            `isInfixOf` detail)
+        let rendered = formatTypeWarning warning
+        assertBool "the warning has the standard prefix"
+          ("Warning:" `isInfixOf` rendered)
+        assertBool "the warning explains that extended checking continues"
+          ("Type checking continues through Egison's extension path"
+            `isInfixOf` rendered)
+      other ->
+        assertFailure
+          ("expected exactly one type-pm compatibility warning, got " ++
+           show other)
+
+    let slotExpression =
+          IApplyExpr
+            (IVarExpr "slotConsumer")
+            [IVarExpr "opaqueMatcher"]
+        slotState enabled =
+          (initialInferStateWithConfig (config enabled))
+            { declaredSymbols = Map.fromList
+                [ ( "slotConsumer"
+                  , TFun (TMatcherSlot CapNone TInt) TInt
+                  )
+                , ("opaqueMatcher", TAny)
+                ]
+            }
+
+    (slotResultOff, slotWarningsOff) <-
+      runInferWithWarnings
+        (inferIExpr slotExpression)
+        (slotState False)
+    (slotResultOn, slotWarningsOn) <-
+      runInferWithWarnings
+        (inferIExpr slotExpression)
+        (slotState True)
+
+    assertEqual
+      "slot warning reporting must not change inference"
+      (show slotResultOff)
+      (show slotResultOn)
+    case slotResultOn of
+      Right _ -> return ()
+      Left err ->
+        assertFailure
+          ("the extended Any-to-slot path should remain accepted: " ++ show err)
+    assertEqual
+      "the Any-to-slot extension is silent when disabled"
+      []
+      slotWarningsOff
+    case slotWarningsOn of
+      [TypePmCompatibilityWarning detail _] ->
+        assertBool
+          "the Any-to-slot extension is reported at its explicit boundary"
+          ("explicit slot use `_ <= MatcherSlot none Integer`"
+            `isInfixOf` detail)
+      other ->
+        assertFailure
+          ("expected exactly one Any-to-slot compatibility warning, got " ++
+           show other)
 
 -- | Pure regressions for the two-sort P2 representation and evidence
 -- calculus.  Language-level acceptance/rejection cases live in
@@ -191,6 +332,217 @@ p2CapabilityTests =
           Right _ ->
             assertFailure
               "identical malformed capabilities bypassed the kind invariant"
+
+  , TestLabel "P2: capability matching binds only the consumer" .
+      TestCase $ do
+        let producerVariable = MkCapVar "producer"
+            consumerVariable = MkCapVar "consumer"
+            collection capability =
+              CapCon (mkTypeFormer "Collection" 1) [capability]
+            producer = collection (CapVar producerVariable)
+            consumer = collection (CapVar consumerVariable)
+        substitution <-
+          either (assertFailure . show) return
+            (matchCapability producer consumer)
+        assertEqual
+          "the consumer variable must be solved to the producer capability"
+          producer
+          (applyCapSubst substitution consumer)
+        assertEqual
+          "the producer capability must remain unchanged"
+          producer
+          (applyCapSubst substitution producer)
+
+  , TestLabel "P2: capability matching never strengthens a producer" .
+      TestCase $ do
+        let producer = CapVar (MkCapVar "producer")
+            consumer =
+              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+        case matchCapability producer consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "a consumer constructor bound the producer capability variable"
+
+  , TestLabel "P2: a shared capability variable is not consumer-owned" .
+      TestCase $ do
+        let shared = MkCapVar "shared"
+            producer =
+              CapCon (mkTypeFormer "Collection" 1) [CapVar shared]
+            consumer = CapVar shared
+        case matchCapability producer consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "a shared variable was rebound through its consumer occurrence"
+
+  , TestLabel "P2: target equality cannot strengthen the producer root" .
+      TestCase $ do
+        let producerVar = MkCapVar "producer"
+            consumerVar = MkCapVar "consumer"
+            listNone =
+              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            producer =
+              TMatcher
+                (CapVar producerVar)
+                (TMatcher (CapVar producerVar) TInt)
+            consumer =
+              TMatcherSlot
+                (CapVar consumerVar)
+                (TMatcher listNone TInt)
+        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "target unification strengthened the producer capability"
+
+  , TestLabel "P2: target capability bindings stay in consumer support" .
+      TestCase $ do
+        let targetVar = MkCapVar "target-only"
+            listNone =
+              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            producer =
+              TMatcher CapNone (TMatcher (CapVar targetVar) TInt)
+            consumer =
+              TMatcherSlot CapNone (TMatcher listNone TInt)
+        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "target unification introduced a capability binding outside the consumer"
+
+  , TestLabel "P2: target ordinary variables remain specializable" .
+      TestCase $ do
+        let targetVar = TyVar "target"
+            producer = TMatcher CapNone (TVar targetVar)
+            consumer = TMatcherSlot CapNone TInt
+        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
+          Left err ->
+            assertFailure
+              ("ordinary target specialization was rejected: " ++ show err)
+          Right _ ->
+            return ()
+
+  , TestLabel "TypePM: generic equality does not perform slot coercion" .
+      TestCase $ do
+        case unify
+          (TMatcher CapNone TInt)
+          (TMatcherSlot CapNone TInt) of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "generic equality accepted a producer-to-slot coercion"
+
+  , TestLabel "TypePM: tuple matcher coercion requires an explicit slot use" .
+      TestCase $ do
+        let tupleMatcher =
+              TTuple [TMatcher CapNone TInt, TMatcher CapNone TInt]
+            productMatcher =
+              TMatcher
+                (CapTuple [CapNone, CapNone])
+                (TTuple [TInt, TInt])
+        case unify tupleMatcher productMatcher of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "generic equality performed tuple-to-matcher coercion"
+
+  , TestLabel "TypePM: core tuple coercion does not synthesize untracked duals" .
+      TestCase $ do
+        let unknownProducer = TTuple [TVar (TyVar "unknownProducer")]
+            openConsumer =
+              TMatcherSlot
+                (CapVar (MkCapVar "openConsumerCap"))
+                (TVar (TyVar "openConsumerTarget"))
+        case alignAtSlotWithConstraints
+          emptyClassEnv [] unknownProducer openConsumer of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "core tuple coercion manufactured a dual outside InferState"
+
+  , TestLabel "TypePM: Any cannot silently invent a matcher slot head" .
+      TestCase $ do
+        let consumer = TMatcherSlot CapNone TInt
+        case alignAtSlotWithConstraints emptyClassEnv [] TAny consumer of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "core slot alignment accepted Any as matcher evidence"
+
+  , TestLabel "TypePM: tuple Any cannot silently invent a matcher slot head" .
+      TestCase $ do
+        let producers =
+              TTuple [TAny, TMatcher CapNone TInt]
+            consumer =
+              TMatcherSlot
+                (CapTuple [CapNone, CapNone])
+                (TTuple [TInt, TInt])
+        case alignAtSlotWithConstraints
+          emptyClassEnv [] producers consumer of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "core product-slot alignment accepted Any as matcher evidence"
+
+  , TestLabel "P2: product slot coercion retains one shared witness" .
+      TestCase $ do
+        let shared = MkCapVar "shared"
+            listNone =
+              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            producers =
+              TTuple
+                [ TMatcher (CapVar shared) TInt
+                , TMatcher listNone TInt
+                ]
+            consumer =
+              TMatcherSlot
+                (CapTuple [CapVar shared, CapVar shared])
+                (TTuple [TInt, TInt])
+        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "a later product component changed an earlier producer"
+
+  , TestLabel "P2: one-way type matching keeps shared matcher variables rigid" .
+      TestCase $ do
+        let shared = TyVar "shared"
+            slot = TTuple [TVar shared, TVar shared]
+            matcher = TTuple [TVar shared, TInt]
+        case matchOneWay slot matcher of
+          Nothing ->
+            return ()
+          Just _ ->
+            assertFailure
+              "a slot occurrence rebound a variable shared with the matcher"
+
+  , TestLabel "P2: one-way type matching shares one capability domain" .
+      TestCase $ do
+        let shared = MkCapVar "shared-capability"
+            listNone =
+              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            slot =
+              TTuple
+                [ TMatcher (CapVar shared) TInt
+                , TMatcher (CapVar shared) TInt
+                ]
+            matcher =
+              TTuple
+                [ TMatcher (CapVar shared) TInt
+                , TMatcher listNone TInt
+                ]
+        case matchOneWay slot matcher of
+          Nothing ->
+            return ()
+          Just _ ->
+            assertFailure
+              "a later component rebound a shared matcher capability"
 
   , TestLabel "P2 D4: recursive shape solver computes least evidence" . TestCase $ do
       let producer = ShapeSolver.ShapeProducerId 0
@@ -404,6 +756,94 @@ strictPipelineTests =
       Right _ ->
         assertFailure
           "strict mode accepted an unbound definition through untyped fallback"
+
+-- | The P2 surface regressions must type-check without relying on the
+-- permissive fallback.  The base library still contains five MathValue
+-- instances whose implementations normally arrive from the CAS layer.  Give
+-- those names inert, correctly typed test definitions, then load only the
+-- ordinary matcher/list/maybe surface needed by this regression.
+strictSelectedCoreTests :: Test
+strictSelectedCoreTests =
+  TestLabel "P2: strict selected-library and language regressions" . TestCase $ do
+    result <- fromEvalM
+      defaultOption
+        { optNoPrelude = True
+        , optTypeCheckStrict = True
+        }
+      $ do
+          env <- initialEnv
+          casBridgeStubs <- readTopExprs $ unlines
+            [ "def plusForMathValue (x : MathValue) (_ : MathValue)"
+                ++ " : MathValue := x"
+            , "def minusForMathValue (x : MathValue) (_ : MathValue)"
+                ++ " : MathValue := x"
+            , "def multForMathValue (x : MathValue) (_ : MathValue)"
+                ++ " : MathValue := x"
+            , "def divForMathValue (x : MathValue) (_ : MathValue)"
+                ++ " : MathValue := x"
+            , "def gcdForMathValue (x : MathValue) (_ : MathValue)"
+                ++ " : MathValue := x"
+            ]
+          let selectedCoreLibraries =
+                [ "lib/core/base.egi"
+                , "lib/core/order.egi"
+                , "lib/core/collection.egi"
+                , "lib/core/maybe.egi"
+                , "lib/core/number.egi"
+                , "lib/core/random.egi"
+                , "lib/core/assoc.egi"
+                , "lib/core/string.egi"
+                , "lib/core/io.egi"
+                ]
+          evalTopExprsNoPrint
+            env
+            (casBridgeStubs
+              ++ map Load selectedCoreLibraries
+              ++ [LoadFile "test/lib/core/p2-capability.egi"])
+    case result of
+      Left err ->
+        assertFailure
+          ("strict selected-library P2 regression failed: " ++ show err)
+      Right _ ->
+        return ()
+
+-- | Both sorts of binder in an explicit scheme are rigid for the duration of
+-- checking.  These reject cases are wired into the normal HUnit suite so they
+-- cannot silently regress behind the permissive command-line fallback used by
+-- the standalone type-error corpus.
+annotationRigidityTests :: Test
+annotationRigidityTests =
+  TestLabel "P2: annotation binders are rigid in both sorts" . TestList $
+    map rejects
+      [ ("test/type-error/83-p2-ordinary-annotation-rigidity.egi", "TSkolem")
+      , ("test/type-error/84-p2-nested-annotation-rigidity.egi", "TSkolem")
+      , ("test/type-error/85-p2-pattern-function-annotation-rigidity.egi", "TSkolem")
+      , ("test/type-error/86-p2-pattern-function-nested-annotation-rigidity.egi", "TSkolem")
+      , ("test/type-error/87-p2-capability-annotation-rigidity.egi", "Matcher $skc")
+      ]
+  where
+    rejects (file, expectedSkolem) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | "Type error:" `isInfixOf` show err
+            , expectedSkolem `isInfixOf` show err ->
+                return ()
+            | otherwise ->
+                assertFailure
+                  ("rigid annotation failed for an unexpected reason: "
+                    ++ show err)
+          Right _ ->
+            assertFailure
+              "an over-general ordinary annotation was accepted"
 
 -- | A rejected top-level item must not publish the temporary recursive
 -- placeholder that Infer installed while checking its RHS.

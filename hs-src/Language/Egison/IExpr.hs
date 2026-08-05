@@ -35,6 +35,8 @@ module Language.Egison.IExpr
   , tipType
   , stripType
   , stripTypeTopExpr
+  , mapIExprTypes
+  , mapIPatternTypes
   , mapTIExprChildren
   , Var (..)
   , stringToVar
@@ -225,6 +227,182 @@ extractNameFromVar (Var name _) = name
 
 makeIApply :: String -> [IExpr] -> IExpr
 makeIApply fn args = IApplyExpr (IVarExpr fn) args
+
+-- | Apply a transformation to every type annotation carried by an untyped
+-- internal expression.  Although most 'IExpr' nodes are type-free, source
+-- annotations survive desugaring as 'IReshape' metadata and runtime-dispatch
+-- nodes also carry candidate types.  The traversal includes expressions
+-- embedded in patterns, matcher clauses, indices, and loop ranges.
+mapIExprTypes :: (Type -> Type) -> IExpr -> IExpr
+mapIExprTypes transformType = goExpr
+  where
+    goExpr expression = case expression of
+      IConstantExpr constant ->
+        IConstantExpr constant
+      IVarExpr name ->
+        IVarExpr name
+      IIndexedExpr override base indices ->
+        IIndexedExpr override (goExpr base) (map (fmap goExpr) indices)
+      ISubrefsExpr flag left right ->
+        ISubrefsExpr flag (goExpr left) (goExpr right)
+      ISuprefsExpr flag left right ->
+        ISuprefsExpr flag (goExpr left) (goExpr right)
+      IUserrefsExpr flag left right ->
+        IUserrefsExpr flag (goExpr left) (goExpr right)
+      IInductiveDataExpr name arguments ->
+        IInductiveDataExpr name (map goExpr arguments)
+      ITupleExpr elements ->
+        ITupleExpr (map goExpr elements)
+      ICollectionExpr elements ->
+        ICollectionExpr (map goExpr elements)
+      IConsExpr headExpr tailExpr ->
+        IConsExpr (goExpr headExpr) (goExpr tailExpr)
+      IJoinExpr left right ->
+        IJoinExpr (goExpr left) (goExpr right)
+      IHashExpr pairs ->
+        IHashExpr
+          [ (goExpr key, goExpr value)
+          | (key, value) <- pairs
+          ]
+      IVectorExpr elements ->
+        IVectorExpr (map goExpr elements)
+      ILambdaExpr owner arguments body ->
+        ILambdaExpr owner arguments (goExpr body)
+      IMemoizedLambdaExpr arguments body ->
+        IMemoizedLambdaExpr arguments (goExpr body)
+      ICambdaExpr name body ->
+        ICambdaExpr name (goExpr body)
+      IIfExpr condition consequent alternative ->
+        IIfExpr
+          (goExpr condition)
+          (goExpr consequent)
+          (goExpr alternative)
+      ILetRecExpr bindings body ->
+        ILetRecExpr (map goBinding bindings) (goExpr body)
+      ILetExpr bindings body ->
+        ILetExpr (map goBinding bindings) (goExpr body)
+      IWithSymbolsExpr names body ->
+        IWithSymbolsExpr names (goExpr body)
+      IMatchExpr mode target matcher clauses ->
+        IMatchExpr mode
+          (goExpr target)
+          (goExpr matcher)
+          (map goClause clauses)
+      IMatchAllExpr mode target matcher clauses ->
+        IMatchAllExpr mode
+          (goExpr target)
+          (goExpr matcher)
+          (map goClause clauses)
+      IMatcherExpr definitions ->
+        IMatcherExpr
+          [ (patternPattern, goExpr matcher,
+              map goBinding primitiveClauses)
+          | (patternPattern, matcher, primitiveClauses) <- definitions
+          ]
+      IQuoteExpr body ->
+        IQuoteExpr (goExpr body)
+      IQuoteSymbolExpr body ->
+        IQuoteSymbolExpr (goExpr body)
+      IWedgeApplyExpr function arguments ->
+        IWedgeApplyExpr (goExpr function) (map goExpr arguments)
+      IDoExpr bindings body ->
+        IDoExpr (map goBinding bindings) (goExpr body)
+      ISeqExpr left right ->
+        ISeqExpr (goExpr left) (goExpr right)
+      IApplyExpr function arguments ->
+        IApplyExpr (goExpr function) (map goExpr arguments)
+      IGenerateTensorExpr function shape ->
+        IGenerateTensorExpr (goExpr function) (goExpr shape)
+      ITensorExpr shape elements ->
+        ITensorExpr (goExpr shape) (goExpr elements)
+      ITensorContractExpr tensor ->
+        ITensorContractExpr (goExpr tensor)
+      ITensorMapExpr function tensor ->
+        ITensorMapExpr (goExpr function) (goExpr tensor)
+      ITensorMap2Expr function left right ->
+        ITensorMap2Expr (goExpr function) (goExpr left) (goExpr right)
+      ITensorMap2WedgeExpr function left right ->
+        ITensorMap2WedgeExpr (goExpr function) (goExpr left) (goExpr right)
+      ITransposeExpr permutation tensor ->
+        ITransposeExpr (goExpr permutation) (goExpr tensor)
+      IFlipIndicesExpr tensor ->
+        IFlipIndicesExpr (goExpr tensor)
+      IFunctionExpr names ->
+        IFunctionExpr names
+      IPatternFuncExpr names pattern' ->
+        IPatternFuncExpr names (goPattern pattern')
+      IReshape annotation inner ->
+        IReshape (transformType annotation) (goExpr inner)
+      IRuntimeDispatch className methodName candidates arguments ->
+        IRuntimeDispatch className methodName
+          [ (transformType candidateType, dictionary)
+          | (candidateType, dictionary) <- candidates
+          ]
+          (map goExpr arguments)
+
+    goBinding (pattern', expression) =
+      (pattern', goExpr expression)
+
+    goClause (pattern', expression) =
+      (goPattern pattern', goExpr expression)
+
+    goPattern pattern' = case pattern' of
+      IWildCard ->
+        IWildCard
+      IPatVar name ->
+        IPatVar name
+      IValuePat expression ->
+        IValuePat (goExpr expression)
+      IPredPat expression ->
+        IPredPat (goExpr expression)
+      IIndexedPat body indices ->
+        IIndexedPat (goPattern body) (map goExpr indices)
+      ILetPat bindings body ->
+        ILetPat (map goBinding bindings) (goPattern body)
+      INotPat body ->
+        INotPat (goPattern body)
+      IAndPat left right ->
+        IAndPat (goPattern left) (goPattern right)
+      IOrPat left right ->
+        IOrPat (goPattern left) (goPattern right)
+      IForallPat left right ->
+        IForallPat (goPattern left) (goPattern right)
+      ITuplePat patterns ->
+        ITuplePat (map goPattern patterns)
+      IInductivePat name patterns ->
+        IInductivePat name (map goPattern patterns)
+      ILoopPat name range body endPattern ->
+        ILoopPat name (goRange range)
+          (goPattern body) (goPattern endPattern)
+      IContPat ->
+        IContPat
+      IPApplyPat function patterns ->
+        IPApplyPat (goExpr function) (map goPattern patterns)
+      IVarPat name ->
+        IVarPat name
+      IInductiveOrPApplyPat name patterns ->
+        IInductiveOrPApplyPat name (map goPattern patterns)
+      ISeqNilPat ->
+        ISeqNilPat
+      ISeqConsPat left right ->
+        ISeqConsPat (goPattern left) (goPattern right)
+      ILaterPatVar ->
+        ILaterPatVar
+      IDApplyPat body patterns ->
+        IDApplyPat (goPattern body) (map goPattern patterns)
+
+    goRange (ILoopRange start end pattern') =
+      ILoopRange (goExpr start) (goExpr end) (goPattern pattern')
+
+-- | Apply a type-metadata transformation to a pattern and to every expression
+-- embedded in it.  This is the pattern-root companion of 'mapIExprTypes'.
+mapIPatternTypes :: (Type -> Type) -> IPattern -> IPattern
+mapIPatternTypes transformType pattern' =
+  case mapIExprTypes transformType (IPatternFuncExpr [] pattern') of
+    IPatternFuncExpr _ transformed ->
+      transformed
+    _ ->
+      pattern'
 
 --
 -- Typed Internal Expressions

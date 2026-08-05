@@ -81,6 +81,11 @@ done
 | 80-p2-capability-builtin-collision | P2 frozen former signature | builtin と同じ canonical ID を持つ user inductive を `Capability kind error` で拒否 |
 | 81-p2-completed-alias-cycle | P2 D4 closed producer SCC | 完了済み alias-only cycle を Known evidence にせず拒否 |
 | 82-p2-any-cannot-witness-capability | P2 match-site fail-closed | `Any` を structured matcher capability の witness にせず拒否 |
+| 83-p2-ordinary-annotation-rigidity | P2 D3 annotation checking | `forall a. a -> a` の通常型 binder を rigid にし，定数を返す過剰一般注釈を拒否 |
+| 84-p2-nested-annotation-rigidity | P2 D3 nested annotation checking | top-level の rigid 通常型 binder を nested annotation でも共有し，特殊化を拒否 |
+| 85-p2-pattern-function-annotation-rigidity | P2 D3 pattern-function checking | pattern function の明示通常型 binder を rigid に検査する |
+| 86-p2-pattern-function-nested-annotation-rigidity | P2 D3 nested pattern annotation | pattern-function body の nested annotation でも同じ rigid binder を共有する |
+| 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `none` への特殊化を拒否 |
 
 ## ケース追加時の注意
 
@@ -92,5 +97,7 @@ done
 - 76--79 と 81 は `producer/path Shape equations` を含むことを確認し、別の型エラーで
   偶然 reject されていないことを確認する。
 - 82 は `Any cannot witness a structured matcher capability` を含むことを確認する。
+- 83--86 は `TSkolem`，87 は capability skolem の surface 表示 `Matcher $skc` を
+  含むことを確認し，別の型エラーで偶然 reject されていないことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。

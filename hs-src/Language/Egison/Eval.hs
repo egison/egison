@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, batchForwardProducerDependencies)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgTypePmCompatibilityWarnings, batchForwardProducerDependencies)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv, extendEnvMany, envToList, classEnvToList, lookupInstances, patternEnvToList, mergeClassEnv, extendPatternEnv)
 import           Language.Egison.Type.TypeClassExpand ()
 import           Language.Egison.Type.TypedDesugar (desugarTypedTopExprT_TensorMapOnly, desugarTypedTopExprT_TypeClassOnly)
@@ -405,7 +405,9 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
     Just iTopExpr -> do
       -- Phase 5-6: Type Inference
       let inferConfig = (if permissive then permissiveInferConfig else defaultInferConfig)
-                          { cfgMatcherConsistencyWarnings = optMatcherConsistencyWarnings opts }
+                          { cfgMatcherConsistencyWarnings = optMatcherConsistencyWarnings opts
+                          , cfgTypePmCompatibilityWarnings = optTypePmCompatibilityWarnings opts
+                          }
       currentPatternEnv' <- getPatternEnv
       currentPatternFuncEnv' <- getPatternFuncEnv
       currentPatternFuncStructEnv' <- getPatternFuncStructEnv

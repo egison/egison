@@ -1,0 +1,6 @@
+-- A pattern-function annotation is checked with rigid ordinary binders.
+-- The value pattern forces Integer, so this body cannot implement the
+-- declared forall a. Pattern a -> Pattern a contract.
+
+def pattern p2BogusPolymorphicPattern {a} (p : a) : a :=
+  ~p & #1

@@ -74,6 +74,9 @@ data TypeWarning
   | MatcherCoverageWarning Type [String] TypeErrorContext
     -- ^ A @matcher@ lacks a general clause for some pattern constructor(s) of its matched
     --   type (paper Coverage, Def 4.2(3)): the matched type, then the missing constructors.
+  | TypePmCompatibilityWarning String TypeErrorContext
+    -- ^ The extended Egison checker proceeds through a construct outside the
+    --   conservative type-pm compatibility profile.
   | ClassMethodShadowWarning String String TypeErrorContext
     -- ^ A top-level definition reuses a class method name (method name, class name).
     --   The definition replaces the dispatching binding, so the method stops
@@ -110,6 +113,9 @@ data TypeError
     -- ^ Could not infer a concrete type
   | TypeAnnotationMismatch Type Type TypeErrorContext
     -- ^ Inferred type doesn't match annotation
+  | AnnotationSkolemEscape TypeErrorContext
+    -- ^ An explicit annotation would change a metavariable owned by the
+    --   surrounding inference environment (including a skolem escape)
   | UnsupportedFeature String TypeErrorContext
     -- ^ Feature not yet implemented
   | MissingSignatureConstraint String [Constraint] TypeErrorContext
@@ -205,6 +211,11 @@ formatTypeError err = case err of
       "Type annotation mismatch:\n" ++
       "  Annotation: " ++ prettyType annotated ++ "\n" ++
       "  Inferred:   " ++ prettyType inferred
+
+  AnnotationSkolemEscape ctx ->
+    formatWithContext ctx $
+      "Type annotation is not locally polymorphic:\n" ++
+      "  The annotation would change a type or capability metavariable owned by the surrounding environment"
 
   UnsupportedFeature feature ctx ->
     formatWithContext ctx $
@@ -305,6 +316,11 @@ formatTypeWarning warn = case warn of
       " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
       "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
 
+  TypePmCompatibilityWarning detail ctx ->
+    formatWithContext ctx $
+      "Warning: Outside the conservative type-pm compatibility profile: " ++ detail ++
+      "\n  Type checking continues through Egison's extension path."
+
   ClassMethodShadowWarning name cls ctx ->
     formatWithContext ctx $
       "Warning: '" ++ name ++ "' is a method of class '" ++ cls ++ "'," ++
@@ -338,6 +354,7 @@ renameVarsForDisplay ty = mapVars ty
       Nothing -> v
     mapVars t = case t of
       TVar v             -> TVar (sub v)
+      TSkolem v          -> TSkolem v
       TTuple ts          -> TTuple (map mapVars ts)
       TCollection t1     -> TCollection (mapVars t1)
       TInductive n ts    -> TInductive n (map mapVars ts)
@@ -354,6 +371,7 @@ renameVarsForDisplay ty = mapVars ty
       _                  -> t
     collect t = case t of
       TVar v             -> [v]
+      TSkolem _          -> []
       TTuple ts          -> concatMap collect ts
       TCollection t1     -> collect t1
       TInductive _ ts    -> concatMap collect ts
@@ -382,6 +400,7 @@ prettyType TBool = "Bool"
 prettyType TChar = "Char"
 prettyType TString = "String"
 prettyType (TVar (TyVar v)) = v
+prettyType (TSkolem (TyVar v)) = v
 prettyType (TTuple ts) = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t) = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name

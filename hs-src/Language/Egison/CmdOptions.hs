@@ -43,18 +43,40 @@ data EgisonOpts = EgisonOpts {
     optDumpTyped        :: Bool,       -- ^ Dump typed AST after Phase 6 (type inference & check)
     optDumpTi           :: Bool,       -- ^ Dump typed AST after TensorMap insertion (before type class expansion)
     optDumpTc           :: Bool,       -- ^ Dump typed AST after type class expansion (Phase 7 complete)
-    optMatcherConsistencyWarnings :: Bool        -- ^ Emit matcher consistency warnings (paper Def 4.2: Coverage 4.2(3) + PP-Con 4.2(1a)); arm exhaustiveness (4.2(1c)) is an ordinary type error, not gated here
+    optMatcherConsistencyWarnings :: Bool,       -- ^ Emit matcher Coverage warnings (paper Def 4.2(3))
+    optTypePmCompatibilityWarnings :: Bool        -- ^ Warn when checking proceeds through an extension outside the conservative type-pm compatibility profile
     }
 
 defaultOption :: EgisonOpts
-defaultOption = EgisonOpts Nothing False Nothing Nothing [] [] [] Nothing Nothing Nothing False False False True False "> " Nothing True True False False False False False False False
---                                                                                                     ^^^^^ optNoPrelude
---                                                                                                                                      ^^^^ optTypeCheck is now True by default
---                                                                                                                                              ^^^^^ optDumpEnv
---                                                                                                                                                      ^^^^^ optDumpDesugared
---                                                                                                                                                              ^^^^^ optDumpTyped
---                                                                                                                                                                      ^^^^^ optDumpTi
---                                                                                                                                                                              ^^^^^ optDumpTc
+defaultOption = EgisonOpts
+  { optExecFile = Nothing
+  , optShowVersion = False
+  , optEvalString = Nothing
+  , optExecuteString = Nothing
+  , optFieldInfo = []
+  , optLoadLibs = []
+  , optLoadFiles = []
+  , optSubstituteString = Nothing
+  , optMapTsvInput = Nothing
+  , optFilterTsvInput = Nothing
+  , optTsvOutput = False
+  , optNoIO = False
+  , optNoPrelude = False
+  , optShowBanner = True
+  , optTestOnly = False
+  , optPrompt = "> "
+  , optMathValue = Nothing
+  , optMathNormalize = True
+  , optTypeCheck = True
+  , optTypeCheckStrict = False
+  , optDumpEnv = False
+  , optDumpDesugared = False
+  , optDumpTyped = False
+  , optDumpTi = False
+  , optDumpTc = False
+  , optMatcherConsistencyWarnings = False
+  , optTypePmCompatibilityWarnings = False
+  }
 
 cmdParser :: ParserInfo EgisonOpts
 cmdParser = info (helper <*> cmdArgParser)
@@ -160,7 +182,10 @@ cmdArgParser = EgisonOpts
                   <> help "Dump typed AST after type class expansion (Phase 7 complete)")
             <*> switch
                   (long "matcher-consistency-warnings"
-                  <> help "Emit matcher consistency warnings (paper Def 4.2): Coverage (4.2(3)) — a matcher lacking a general clause for some pattern constructor of its matched type; and PP-Con (4.2(1a)) — a bare-variable matcher `something` at a constructor-headed next-matcher hole. Arm exhaustiveness (4.2(1c)) is an ordinary type error, not gated by this flag")
+                  <> help "Emit matcher Coverage warnings (paper Def 4.2(3)): a matcher lacking a general clause for some pattern constructor of its matched type. PP-Con (4.2(1a)) and arm exhaustiveness (4.2(1c)) are ordinary type errors, not gated by this flag")
+            <*> switch
+                  (long "type-pm-compatibility-warnings"
+                  <> help "Warn when type checking proceeds through an Egison extension outside the conservative type-pm compatibility profile")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

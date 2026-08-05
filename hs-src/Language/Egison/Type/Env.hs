@@ -18,7 +18,8 @@ module Language.Egison.Type.Env
   , freeCapVarsInEnv
   , generalize
   , instantiate
-  , skolemizeCapabilities
+  , AnnotationSkolems(..)
+  , skolemizeAnnotation
   -- * Class environment
   , ClassEnv(..)
   , ClassInfo(..)
@@ -222,24 +223,56 @@ generalize env t =
 -- | Instantiate a type scheme with fresh variables of both sorts.
 -- Returns a tuple of (constraints, instantiated type, fresh variable counter)
 instantiate :: TypeScheme -> Int -> ([Constraint], Type, Int)
-instantiate = instantiateCapabilitiesWith CapVar "c"
+instantiate = instantiateWith CapVar "c" TVar "t"
 
--- | Instantiate quantified capability variables as rigid skolems while
--- ordinary type variables remain fresh and flexible.
+-- | Fresh rigid names introduced while checking an explicit type scheme.
 --
--- This is used when checking an explicit matcher annotation: the
--- implementation cannot manufacture capability evidence by binding the
--- annotation's quantified capability variable.
-skolemizeCapabilities :: TypeScheme -> Int -> ([Constraint], Type, Int)
-skolemizeCapabilities = instantiateCapabilitiesWith CapSkolem "skc"
+-- Each pair is @(fresh skolem, declared binder)@.  Successful checking uses
+-- this map to restore the declared binders in the typed tree before it leaves
+-- the annotation boundary.  The fresh prefixes start with @$@, which surface
+-- type and capability variable parsers cannot produce, and the shared
+-- inference counter prevents collisions between nested checks.
+data AnnotationSkolems = AnnotationSkolems
+  { annotationCapSkolems :: [(CapVar, CapVar)]
+  , annotationTySkolems  :: [(TyVar, TyVar)]
+  } deriving (Eq, Show)
 
-instantiateCapabilitiesWith
+-- | Instantiate every quantified variable of an explicit scheme as a rigid
+-- skolem.  Both sorts must be rigid: otherwise an implementation such as
+-- @\\_ -> 1@ could be accepted at the over-general annotation @a -> a@, or a
+-- matcher could manufacture structural capability by specializing @p@.
+skolemizeAnnotation
+  :: TypeScheme
+  -> Int
+  -> ([Constraint], Type, AnnotationSkolems, Int)
+skolemizeAnnotation scheme@(Forall capVars tyVars _ _) counter =
+  let (constraints, ty, finalCounter) =
+        instantiateWith CapSkolem "$skc" TSkolem "$skt" scheme counter
+      capFresh =
+        [ freshCapVar "$skc" (counter + index)
+        | index <- [0 .. length capVars - 1]
+        ]
+      typeCounter = counter + length capVars
+      tyFresh =
+        [ freshTyVar "$skt" (typeCounter + index)
+        | index <- [0 .. length tyVars - 1]
+        ]
+      skolems =
+        AnnotationSkolems
+          (zip capFresh capVars)
+          (zip tyFresh tyVars)
+  in (constraints, ty, skolems, finalCounter)
+
+instantiateWith
   :: (CapVar -> Capability)
+  -> String
+  -> (TyVar -> Type)
   -> String
   -> TypeScheme
   -> Int
   -> ([Constraint], Type, Int)
-instantiateCapabilitiesWith capNode capPrefix (Forall capVars tyVars cs t) counter =
+instantiateWith capNode capPrefix typeNode typePrefix
+                (Forall capVars tyVars cs t) counter =
   let freshCaps =
         zipWith
           (\v i -> (v, capNode (freshCapVar capPrefix (counter + i))))
@@ -248,7 +281,7 @@ instantiateCapabilitiesWith capNode capPrefix (Forall capVars tyVars cs t) count
       typeCounter = counter + length capVars
       freshTypes =
         zipWith
-          (\v i -> (v, TVar (freshTyVar "t" (typeCounter + i))))
+          (\v i -> (v, typeNode (freshTyVar typePrefix (typeCounter + i))))
           tyVars
           [0..]
       substType = substituteBoth freshCaps freshTypes t

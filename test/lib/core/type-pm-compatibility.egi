@@ -1,0 +1,18 @@
+-- Surface regression for the opt-in TypePM compatibility boundary.
+-- The nested primitive-pattern pattern is accepted by Egison and is reported
+-- only when --type-pm-compatibility-warnings is enabled.
+
+inductive TypePmNested :=
+  | TypePmJoin Integer TypePmNested
+  | TypePmCons Integer TypePmNested
+
+inductive pattern TypePmNested :=
+  | typePmJoin Integer TypePmNested
+  | typePmCons Integer TypePmNested
+
+def typePmNestedMatcher :=
+  matcher
+    | typePmJoin $ (typePmCons #$val $) as (something, something) with
+      | $tgt -> []
+    | $ as something with
+      | $tgt -> [tgt]

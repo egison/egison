@@ -12,7 +12,7 @@ def print {a} (x: a) : IO () :=
      write "\n"
      flush ()
 
-def printToPort {a, b} (port: a) (x: b) : IO () :=
+def printToPort {a} (port: Port) (x: a) : IO () :=
   do writeToPort port x
      writeToPort port "\n"
 
@@ -20,7 +20,7 @@ def display {a} (x: a) : IO () :=
   do write x
      flush ()
 
-def displayToPort {a, b} (port: a) (x: b) : IO () := do writeToPort port x
+def displayToPort {a} (port: Port) (x: a) : IO () := do writeToPort port x
 
 def eachLine (proc: String -> IO ()) : IO () :=
   do let eof := isEof ()
@@ -30,7 +30,7 @@ def eachLine (proc: String -> IO ()) : IO () :=
                proc line
                eachLine proc
 
-def eachLineFromPort {a} (port: a) (proc: String -> IO ()) : IO () :=
+def eachLineFromPort (port: Port) (proc: String -> IO ()) : IO () :=
   do let eof := isEofPort port
      if eof
        then return ()

@@ -16,6 +16,9 @@ module Language.Egison.Type.Unify
   , unifyStrictWithConstraints
   , unifyWithTopLevel
   , unifyWithConstraints
+  , alignAtSlotWithConstraints
+  , unifyExtendedWithTopLevel
+  , unifyExtendedWithConstraints
   , unifyMany
   , unifyCapability
   , matchCapability
@@ -23,16 +26,18 @@ module Language.Egison.Type.Unify
   , UnifyError(..)
   ) where
 
+import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 
-import           Language.Egison.Type.Subst  (Subst, applySubst, composeSubst,
+import           Language.Egison.Type.Subst  (Subst(..), applySubst, composeSubst,
                                               emptySubst, singletonSubst,
                                               singletonCapSubst, applyCapSubst,
                                               applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (Capability (..), CapVar (..),
                                               TypeFormer (..), TyVar (..), Type (..),
-                                              freeCapVarsCapability, freeTyVars,
+                                              freeCapVars, freeCapVarsCapability,
+                                              freeTyVars,
                                               normalizeInductiveTypes,
                                               Constraint(..), SymbolSet(..))
 import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, emptyClassEnv)
@@ -95,10 +100,48 @@ unifyWithTopLevel t1 t2 =
 unifyWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 unifyWithConstraints = unifyNormalized TensorConstraintAware
 
+-- | TypePM-style producer-to-consumer alignment at an explicit MatcherSlot
+-- use site.  Generic equality deliberately does not perform this coercion.
+-- The first operand is the inferred producer and the second is the expected
+-- consumer.  A raw tuple is accepted only in this role-aware entry point and
+-- is checked componentwise against a product slot.
+alignAtSlotWithConstraints
+  :: ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+alignAtSlotWithConstraints classEnv constraints inferred expected =
+  let inferred' =
+        normalizeInductiveTypes (normalizeTensorType inferred)
+      expected' =
+        normalizeInductiveTypes (normalizeTensorType expected)
+  in alignAtSlotG
+       TensorConstraintAware classEnv constraints inferred' expected'
+
+-- | Egison-extension fallback for top-level inference.  Unlike the core API,
+-- this retains the historical behavior of aligning matcher capabilities at
+-- every recursive type position.
+unifyExtendedWithTopLevel :: Type -> Type -> Either UnifyError Subst
+unifyExtendedWithTopLevel t1 t2 =
+  fmap fst $ unifyExtendedNormalized TensorTopLevel emptyClassEnv [] t1 t2
+
+-- | Egison-extension fallback for constraint-aware inference.  Callers should
+-- try 'unifyWithConstraints' first and use this only at an explicitly warned
+-- non-core boundary.
+unifyExtendedWithConstraints
+  :: ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+unifyExtendedWithConstraints =
+  unifyExtendedNormalized TensorConstraintAware
+
 -- | Unify a list of type pairs.
 unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
 unifyMany ts1 ts2 =
-  fmap fst $ unifyManyG TensorConstraintAware emptyClassEnv [] ts1 ts2
+  fmap fst $ unifyManyRootG TensorConstraintAware emptyClassEnv [] ts1 ts2
 
 --------------------------------------------------------------------------------
 -- Capability unification
@@ -142,27 +185,70 @@ unifyCapability cap1 cap2
           let s = singletonCapSubst v cap
           in go rest (composeSubst s acc)
 
-    wellFormedCapability capability =
-      case capability of
-        CapNone ->
-          True
-        CapVar _ ->
-          True
-        CapSkolem _ ->
-          True
-        CapTuple components ->
-          all wellFormedCapability components
-        CapCon former arguments ->
-          length arguments == typeFormerArity former
-            && all wellFormedCapability arguments
-
 -- | Producer-to-consumer capability matching.
 --
--- Flexible capability metavariables on either side are ordinary Algorithm-W
--- variables and may be solved.  Known producer heads, 'CapNone', and rigid
--- skolems can never be strengthened by the consumer.
+-- Only flexible variables belonging exclusively to the original consumer
+-- form the substitution domain.  Producer variables are rigid for this
+-- judgment, including a variable shared syntactically by producer and
+-- consumer.  The stable domain is captured before decomposition so a
+-- producer variable copied into a consumer position never becomes bindable
+-- later in the same match.
 matchCapability :: Capability -> Capability -> Either UnifyError Subst
-matchCapability = unifyCapability
+matchCapability producer0 consumer0
+  | not (wellFormedCapability producer0) =
+      Left (capabilityMismatch producer0 CapNone)
+  | not (wellFormedCapability consumer0) =
+      Left (capabilityMismatch consumer0 CapNone)
+  | otherwise =
+      go [(producer0, consumer0)] emptySubst
+  where
+    bindable =
+      freeCapVarsCapability consumer0
+        `Set.difference` freeCapVarsCapability producer0
+
+    go [] acc = Right acc
+    go ((producer, consumer0') : rest) acc =
+      let consumer = applyCapSubst acc consumer0'
+      in if producer == consumer
+           then go rest acc
+           else case (producer, consumer) of
+             (cap, CapVar variable)
+               | variable `Set.member` bindable ->
+                   bindConsumer variable cap rest acc
+             (CapCon producerFormer producerChildren,
+              CapCon consumerFormer consumerChildren)
+               | producerFormer == consumerFormer
+               , length producerChildren == length consumerChildren ->
+                   go (zip producerChildren consumerChildren ++ rest) acc
+             (CapTuple producerComponents, CapTuple consumerComponents)
+               | length producerComponents == length consumerComponents ->
+                   go (zip producerComponents consumerComponents ++ rest) acc
+             _ ->
+               Left (capabilityMismatch producer consumer)
+
+    bindConsumer variable capability rest acc
+      | CapVar variable == capability =
+          go rest acc
+      | variable `Set.member` freeCapVarsCapability capability =
+          Left (capabilityMismatch capability (CapVar variable))
+      | otherwise =
+          let substitution = singletonCapSubst variable capability
+          in go rest (composeSubst substitution acc)
+
+wellFormedCapability :: Capability -> Bool
+wellFormedCapability capability =
+  case capability of
+    CapNone ->
+      True
+    CapVar _ ->
+      True
+    CapSkolem _ ->
+      True
+    CapTuple components ->
+      all wellFormedCapability components
+    CapCon former arguments ->
+      length arguments == typeFormerArity former
+        && all wellFormedCapability arguments
 
 capabilityMismatch :: Capability -> Capability -> UnifyError
 capabilityMismatch left right =
@@ -176,20 +262,124 @@ capabilityMismatch left right =
 ok :: Either UnifyError (Subst, Bool)
 ok = Right (emptySubst, False)
 
--- | Normalize types and delegate to core unification.
+-- | Normalize types and align the two outermost types.  Capability variables
+-- are solved symmetrically only when both outer constructors are 'TMatcher'
+-- or both are 'TMatcherSlot'.  Once their target components are entered,
+-- matcher capability annotations are rigid ordinary-type data.
 unifyNormalized :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 unifyNormalized mode classEnv constraints t1 t2 =
   let t1' = normalizeInductiveTypes (normalizeTensorType t1)
       t2' = normalizeInductiveTypes (normalizeTensorType t2)
+  in alignRootG mode classEnv constraints t1' t2'
+
+-- | Normalize a type component below the outer alignment boundary.  This is
+-- the executable counterpart of the target-only MGU in TypePM: nested
+-- matcher/slot capabilities must already be equal and are never refined here.
+unifyNestedNormalized
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+unifyNestedNormalized mode classEnv constraints t1 t2 =
+  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
+      t2' = normalizeInductiveTypes (normalizeTensorType t2)
   in unifyG mode classEnv constraints t1' t2'
+
+-- | Normalize and use the Egison-extension solver.  Recursive calls re-enter
+-- this same entry point, intentionally restoring the pre-core behavior in
+-- which each nested matcher/slot node is an alignment boundary.
+unifyExtendedNormalized
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+unifyExtendedNormalized mode classEnv constraints t1 t2 =
+  let t1' = normalizeInductiveTypes (normalizeTensorType t1)
+      t2' = normalizeInductiveTypes (normalizeTensorType t2)
+  in unifyExtendedG mode classEnv constraints t1' t2'
+
+-- | Root equality corresponding to TypePM's @alignTypesCore@.  Slot-use
+-- coercion and product matcher conveniences live exclusively in
+-- 'alignAtSlotG' or the explicitly extended solver below.
+alignRootG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+alignRootG _ _ _ left@(TMatcher _ _) right@(TTuple _) =
+  Left (MatcherRigidity left right)
+alignRootG _ _ _ left@(TTuple _) right@(TMatcher _ _) =
+  Left (MatcherRigidity left right)
+alignRootG _ _ _ left@(TMatcherSlot _ _) right@(TTuple _) =
+  Left (MatcherRigidity left right)
+alignRootG _ _ _ left@(TTuple _) right@(TMatcherSlot _ _) =
+  Left (MatcherRigidity left right)
+alignRootG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
+  capSubst <- unifyCapability cap1 cap2
+  let cs' = map (applySubstConstraint capSubst) cs
+  (targetSubst, flag) <-
+    unifyNestedNormalized mode ce cs'
+      (applySubst capSubst target1)
+      (applySubst capSubst target2)
+  Right (composeSubst targetSubst capSubst, flag)
+alignRootG mode ce cs (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) = do
+  capSubst <- unifyCapability cap1 cap2
+  let cs' = map (applySubstConstraint capSubst) cs
+  (targetSubst, flag) <-
+    unifyNestedNormalized mode ce cs'
+      (applySubst capSubst target1)
+      (applySubst capSubst target2)
+  Right (composeSubst targetSubst capSubst, flag)
+alignRootG _ _ _ left@(TMatcher _ _) right@(TMatcherSlot _ _) =
+  Left (MatcherRigidity left right)
+alignRootG _ _ _ left@(TMatcherSlot _ _) right@(TMatcher _ _) =
+  Left (MatcherRigidity left right)
+alignRootG mode ce cs t1 t2 =
+  unifyG mode ce cs t1 t2
+
+-- | Role-aware counterpart of TypePM's @alignAtSlot@.  Only this boundary
+-- admits producer-to-slot coercion; all other pairs fall back to core root
+-- equality.  In particular, reversing Matcher and MatcherSlot is rejected.
+alignAtSlotG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+alignAtSlotG mode ce cs
+             (TMatcher producerCap producerTarget)
+             (TMatcherSlot consumerCap consumerTarget) =
+  coerceMatcherToSlot
+    mode ce cs producerCap producerTarget consumerCap consumerTarget
+-- 'Any' carries no evidence that its value is a matcher.  Letting the
+-- catch-all rule in 'unifyG' accept it here would silently manufacture the
+-- Matcher/MatcherSlot head (and therefore a capability witness).  Production
+-- Egison may retain that gradual behavior only through the warned extension
+-- solver used by Infer.
+alignAtSlotG _ _ _ inferred@TAny expected@(TMatcherSlot _ _) =
+  Left (MatcherRigidity inferred expected)
+alignAtSlotG TensorConstraintAware ce cs
+             (TTuple producers)
+             (TMatcherSlot consumerCap consumerTarget) =
+  coerceSlotTuple
+    TensorConstraintAware ce cs consumerCap consumerTarget producers
+alignAtSlotG mode ce cs inferred expected =
+  alignRootG mode ce cs inferred expected
 
 --------------------------------------------------------------------------------
 -- Generic Core Unification
 --------------------------------------------------------------------------------
 
--- | Core unification function parametrized by TensorHandling mode.
--- All public unification variants delegate to this single function, eliminating
--- the previous code duplication across three nearly-identical implementations.
+-- | Target-only core unification parametrized by TensorHandling mode.
+-- Recursive calls remain below the root alignment boundary, so capability
+-- annotations nested in ordinary type structure are compared rigidly.
 unifyG :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 
 -- Same types unify trivially
@@ -203,6 +393,8 @@ unifyG _ _ _ TFloat TFloat = ok
 unifyG _ _ _ TBool TBool = ok
 unifyG _ _ _ TChar TChar = ok
 unifyG _ _ _ TString TString = ok
+unifyG _ _ _ (TSkolem v1) (TSkolem v2)
+  | v1 == v2 = ok
 
 -- Special rule: TInt and TMathValue unify
 unifyG _ _ _ TInt TMathValue = ok
@@ -251,7 +443,7 @@ unifyG mode ce cs (TTuple ts1) (TTuple ts2)
 
 -- Collections
 unifyG mode ce cs (TCollection t1) (TCollection t2) =
-  unifyNormalized mode ce cs t1 t2
+  unifyNestedNormalized mode ce cs t1 t2
 
 -- Inductive types
 unifyG mode ce cs (TInductive n1 ts1) (TInductive n2 ts2)
@@ -260,69 +452,59 @@ unifyG mode ce cs (TInductive n1 ts1) (TInductive n2 ts2)
 
 -- Hash types (two components with substitution threading)
 unifyG mode ce cs (THash k1 v1) (THash k2 v2) = do
-  (s1, f1) <- unifyNormalized mode ce cs k1 k2
+  (s1, f1) <- unifyNestedNormalized mode ce cs k1 k2
   let cs' = map (applySubstConstraint s1) cs
-  (s2, f2) <- unifyNormalized mode ce cs' (applySubst s1 v1) (applySubst s1 v2)
+  (s2, f2) <-
+    unifyNestedNormalized mode ce cs'
+      (applySubst s1 v1)
+      (applySubst s1 v2)
   Right (composeSubst s2 s1, f1 || f2)
 
--- Matcher-Tuple special rule (ConstraintAware mode only)
-unifyG TensorConstraintAware ce cs (TMatcher cap target) (TTuple ts) =
-  unifyMatcherWithTupleG ce cs cap target ts
-unifyG TensorConstraintAware ce cs (TTuple ts) (TMatcher cap target) =
-  unifyMatcherWithTupleG ce cs cap target ts
-
--- COERCE-SLOT-TUPLE: a tuple of matchers filling a product MatcherSlot
--- (ConstraintAware mode only, reusing the Matcher/Tuple machinery).
-unifyG TensorConstraintAware ce cs (TMatcherSlot cap target) (TTuple tys) =
-  coerceSlotTuple TensorConstraintAware ce cs cap target tys
-unifyG TensorConstraintAware ce cs (TTuple tys) (TMatcherSlot cap target) =
-  coerceSlotTuple TensorConstraintAware ce cs cap target tys
-
--- Matcher producer equality is componentwise across the two sorts.
-unifyG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
-  capSubst <- unifyCapability cap1 cap2
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNormalized mode ce cs'
-      (applySubst capSubst target1)
-      (applySubst capSubst target2)
-  Right (composeSubst targetSubst capSubst, flag)
-
--- MatcherSlot consumer equality is likewise componentwise.
-unifyG mode ce cs (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) = do
-  capSubst <- unifyCapability cap1 cap2
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNormalized mode ce cs'
-      (applySubst capSubst target1)
-      (applySubst capSubst target2)
-  Right (composeSubst targetSubst capSubst, flag)
-
--- COERCE-MATCHER-TO-SLOT: a Matcher value filling a MatcherSlot consumer position
--- (bidirectional: the Matcher value may appear on either side of the unification).
--- Dual check (see 'coerceMatcherToSlot'): structural admissibility, checked one-way on the
--- intrinsic matcher type BEFORE the target unification, plus target unifiability.
-unifyG mode ce cs (TMatcher matcherCap matcherTarget)
-                     (TMatcherSlot slotCap slotTarget) =
-  coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget
-unifyG mode ce cs (TMatcherSlot slotCap slotTarget)
-                     (TMatcher matcherCap matcherTarget) =
-  coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget
+-- Nested matcher and slot annotations are rigid.  Symmetric outer capability
+-- equality is available through 'alignRootG'; producer-to-slot coercion is
+-- available only through the role-aware 'alignAtSlotG'.
+unifyG mode ce cs left@(TMatcher cap1 target1)
+                          right@(TMatcher cap2 target2)
+  | cap1 == cap2 =
+      unifyNestedNormalized mode ce cs target1 target2
+  | otherwise =
+      Left (MatcherRigidity left right)
+unifyG mode ce cs left@(TMatcherSlot cap1 target1)
+                          right@(TMatcherSlot cap2 target2)
+  | cap1 == cap2 =
+      unifyNestedNormalized mode ce cs target1 target2
+  | otherwise =
+      Left (MatcherRigidity left right)
+unifyG _ _ _ left@(TMatcher _ _) right@(TMatcherSlot _ _) =
+  Left (MatcherRigidity left right)
+unifyG _ _ _ left@(TMatcherSlot _ _) right@(TMatcher _ _) =
+  Left (MatcherRigidity left right)
+unifyG TensorConstraintAware _ _ left@(TMatcher _ _) right@(TTuple _) =
+  Left (MatcherRigidity left right)
+unifyG TensorConstraintAware _ _ left@(TTuple _) right@(TMatcher _ _) =
+  Left (MatcherRigidity left right)
+unifyG TensorConstraintAware _ _ left@(TMatcherSlot _ _) right@(TTuple _) =
+  Left (MatcherRigidity left right)
+unifyG TensorConstraintAware _ _ left@(TTuple _) right@(TMatcherSlot _ _) =
+  Left (MatcherRigidity left right)
 
 -- Function types (two components with substitution threading)
 unifyG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
-  (s1, f1) <- unifyNormalized mode ce cs a1 a2
+  (s1, f1) <- unifyNestedNormalized mode ce cs a1 a2
   let cs' = map (applySubstConstraint s1) cs
-  (s2, f2) <- unifyNormalized mode ce cs' (applySubst s1 r1) (applySubst s1 r2)
+  (s2, f2) <-
+    unifyNestedNormalized mode ce cs'
+      (applySubst s1 r1)
+      (applySubst s1 r2)
   Right (composeSubst s2 s1, f1 || f2)
 
 -- IO types
 unifyG mode ce cs (TIO t1) (TIO t2) =
-  unifyNormalized mode ce cs t1 t2
+  unifyNestedNormalized mode ce cs t1 t2
 
 -- IORef types
 unifyG mode ce cs (TIORef t1) (TIORef t2) =
-  unifyNormalized mode ce cs t1 t2
+  unifyNestedNormalized mode ce cs t1 t2
 
 -- Port type
 unifyG _ _ _ TPort TPort = ok
@@ -331,17 +513,17 @@ unifyG _ _ _ TPort TPort = ok
 unifyG _ _ _ TFactor TFactor = ok
 
 unifyG mode ce cs (TTerm t1 ss1) (TTerm t2 ss2) = do
-  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  (s1, f1) <- unifyNestedNormalized mode ce cs t1 t2
   case unifySymbolSets ss1 ss2 of
     Just _  -> Right (s1, f1)
     Nothing -> Left $ TypeMismatch (TTerm t1 ss1) (TTerm t2 ss2)
 
 unifyG mode ce cs (TFrac t1) (TFrac t2) =
-  unifyNormalized mode ce cs t1 t2
+  unifyNestedNormalized mode ce cs t1 t2
 
 unifyG mode ce cs (TPoly t1 ss1) (TPoly t2 ss2) = do
   -- First unify the coefficient types
-  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  (s1, f1) <- unifyNestedNormalized mode ce cs t1 t2
   -- Then unify the symbol sets
   case unifySymbolSets ss1 ss2 of
     Just _  -> Right (s1, f1)
@@ -349,14 +531,14 @@ unifyG mode ce cs (TPoly t1 ss1) (TPoly t2 ss2) = do
 
 -- Tensor types: both Tensor — same for all modes
 unifyG mode ce cs (TTensor t1) (TTensor t2) =
-  unifyNormalized mode ce cs t1 t2
+  unifyNestedNormalized mode ce cs t1 t2
 
 -- Tensor vs non-Tensor: TopLevel allows unwrapping
 unifyG TensorTopLevel _ _ (TTensor t1) t2 = do
-  (s, _) <- unifyNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  (s, _) <- unifyNestedNormalized TensorTopLevel emptyClassEnv [] t1 t2
   Right (s, True)
 unifyG TensorTopLevel _ _ t1 (TTensor t2) = do
-  (s, _) <- unifyNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  (s, _) <- unifyNestedNormalized TensorTopLevel emptyClassEnv [] t1 t2
   Right (s, True)
 
 -- Tensor vs non-Tensor: ConstraintAware uses constraint-aware logic
@@ -375,18 +557,206 @@ unifyG _ _ _ _ TAny = ok
 unifyG _ _ _ t1 t2 = Left $ TypeMismatch t1 t2
 
 --------------------------------------------------------------------------------
+-- Egison-extension recursive alignment
+--------------------------------------------------------------------------------
+
+-- | Historical Egison unification used every recursively visited type node as
+-- a matcher-alignment boundary.  This solver is deliberately separate from
+-- 'unifyG': inference may fall back to it after reporting that a term is
+-- outside the mechanized core, while the core APIs retain rigid annotations.
+unifyExtendedG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+
+-- Preserve the core solver's variable precedence over structural rules.
+unifyExtendedG mode ce cs (TVar v) t =
+  unifyVarG mode ce cs v t
+unifyExtendedG mode ce cs t (TVar v) =
+  unifyVarG mode ce cs v t
+
+unifyExtendedG mode ce cs (TTuple ts1) (TTuple ts2)
+  | length ts1 == length ts2 =
+      unifyManyExtendedG mode ce cs ts1 ts2
+  | otherwise =
+      Left $ TypeMismatch (TTuple ts1) (TTuple ts2)
+
+unifyExtendedG mode ce cs (TCollection t1) (TCollection t2) =
+  unifyExtendedNormalized mode ce cs t1 t2
+
+unifyExtendedG mode ce cs (TInductive n1 ts1) (TInductive n2 ts2)
+  | n1 == n2 && length ts1 == length ts2 =
+      unifyManyExtendedG mode ce cs ts1 ts2
+  | otherwise =
+      Left $ TypeMismatch (TInductive n1 ts1) (TInductive n2 ts2)
+
+unifyExtendedG mode ce cs (THash k1 v1) (THash k2 v2) = do
+  (s1, f1) <- unifyExtendedNormalized mode ce cs k1 k2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <-
+    unifyExtendedNormalized mode ce cs'
+      (applySubst s1 v1)
+      (applySubst s1 v2)
+  Right (composeSubst s2 s1, f1 || f2)
+
+unifyExtendedG TensorConstraintAware ce cs
+                 (TMatcher cap target) (TTuple ts) =
+  unifyMatcherWithTupleExtendedG ce cs cap target ts
+unifyExtendedG TensorConstraintAware ce cs
+                 (TTuple ts) (TMatcher cap target) =
+  unifyMatcherWithTupleExtendedG ce cs cap target ts
+
+unifyExtendedG TensorConstraintAware ce cs
+                 (TMatcherSlot cap target) (TTuple tys) =
+  coerceSlotTupleExtended TensorConstraintAware ce cs cap target tys
+unifyExtendedG TensorConstraintAware ce cs
+                 (TTuple tys) (TMatcherSlot cap target) =
+  coerceSlotTupleExtended TensorConstraintAware ce cs cap target tys
+
+unifyExtendedG mode ce cs
+                 (TMatcher cap1 target1) (TMatcher cap2 target2) = do
+  capSubst <- unifyCapability cap1 cap2
+  let cs' = map (applySubstConstraint capSubst) cs
+  (targetSubst, flag) <-
+    unifyExtendedNormalized mode ce cs'
+      (applySubst capSubst target1)
+      (applySubst capSubst target2)
+  Right (composeSubst targetSubst capSubst, flag)
+
+unifyExtendedG mode ce cs
+                 (TMatcherSlot cap1 target1)
+                 (TMatcherSlot cap2 target2) = do
+  capSubst <- unifyCapability cap1 cap2
+  let cs' = map (applySubstConstraint capSubst) cs
+  (targetSubst, flag) <-
+    unifyExtendedNormalized mode ce cs'
+      (applySubst capSubst target1)
+      (applySubst capSubst target2)
+  Right (composeSubst targetSubst capSubst, flag)
+
+unifyExtendedG mode ce cs
+                 (TMatcher matcherCap matcherTarget)
+                 (TMatcherSlot slotCap slotTarget) =
+  coerceMatcherToSlotExtended
+    mode ce cs matcherCap matcherTarget slotCap slotTarget
+unifyExtendedG mode ce cs
+                 (TMatcherSlot slotCap slotTarget)
+                 (TMatcher matcherCap matcherTarget) =
+  coerceMatcherToSlotExtended
+    mode ce cs matcherCap matcherTarget slotCap slotTarget
+
+unifyExtendedG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
+  (s1, f1) <- unifyExtendedNormalized mode ce cs a1 a2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <-
+    unifyExtendedNormalized mode ce cs'
+      (applySubst s1 r1)
+      (applySubst s1 r2)
+  Right (composeSubst s2 s1, f1 || f2)
+
+unifyExtendedG mode ce cs (TIO t1) (TIO t2) =
+  unifyExtendedNormalized mode ce cs t1 t2
+unifyExtendedG mode ce cs (TIORef t1) (TIORef t2) =
+  unifyExtendedNormalized mode ce cs t1 t2
+
+unifyExtendedG mode ce cs (TTerm t1 ss1) (TTerm t2 ss2) = do
+  (s1, f1) <- unifyExtendedNormalized mode ce cs t1 t2
+  case unifySymbolSets ss1 ss2 of
+    Just _  -> Right (s1, f1)
+    Nothing -> Left $ TypeMismatch (TTerm t1 ss1) (TTerm t2 ss2)
+
+unifyExtendedG mode ce cs (TFrac t1) (TFrac t2) =
+  unifyExtendedNormalized mode ce cs t1 t2
+
+unifyExtendedG mode ce cs (TPoly t1 ss1) (TPoly t2 ss2) = do
+  (s1, f1) <- unifyExtendedNormalized mode ce cs t1 t2
+  case unifySymbolSets ss1 ss2 of
+    Just _  -> Right (s1, f1)
+    Nothing -> Left $ TypeMismatch (TPoly t1 ss1) (TPoly t2 ss2)
+
+unifyExtendedG mode ce cs (TTensor t1) (TTensor t2) =
+  unifyExtendedNormalized mode ce cs t1 t2
+
+unifyExtendedG TensorTopLevel _ _ (TTensor t1) t2 = do
+  (s, _) <-
+    unifyExtendedNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  Right (s, True)
+unifyExtendedG TensorTopLevel _ _ t1 (TTensor t2) = do
+  (s, _) <-
+    unifyExtendedNormalized TensorTopLevel emptyClassEnv [] t1 t2
+  Right (s, True)
+
+unifyExtendedG TensorConstraintAware ce cs (TTensor t1) t2 =
+  unifyTensorWithConstraintsExtended ce cs t1 t2
+unifyExtendedG TensorConstraintAware ce cs t1 (TTensor t2) =
+  unifyTensorWithConstraintsExtended ce cs t2 t1
+
+-- Base types, CAS widening, skolems, Any, and ordinary mismatches are shared
+-- with the core solver because none of them recursively aligns capabilities.
+unifyExtendedG mode ce cs t1 t2 =
+  unifyG mode ce cs t1 t2
+
+--------------------------------------------------------------------------------
 -- Generic Unify-Many
 --------------------------------------------------------------------------------
 
--- | Unify multiple type pairs generically.
+-- | Public list alignment: each list element is an outer constraint boundary.
+unifyManyRootG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> [Type]
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+unifyManyRootG _ _ _ [] [] = ok
+unifyManyRootG mode ce cs (t1:ts1) (t2:ts2) = do
+  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <-
+    unifyManyRootG mode ce cs'
+      (map (applySubst s1) ts1)
+      (map (applySubst s1) ts2)
+  Right (composeSubst s2 s1, f1 || f2)
+unifyManyRootG _ _ _ _ _ =
+  Left $ TypeMismatch (TTuple []) (TTuple [])
+
+-- | Unify child lists below an ordinary type constructor.  Matcher
+-- capabilities in each child are therefore rigid.
 unifyManyG :: TensorHandling -> ClassEnv -> [Constraint] -> [Type] -> [Type] -> Either UnifyError (Subst, Bool)
 unifyManyG _ _ _ [] [] = ok
 unifyManyG mode ce cs (t1:ts1) (t2:ts2) = do
-  (s1, f1) <- unifyNormalized mode ce cs t1 t2
+  (s1, f1) <- unifyNestedNormalized mode ce cs t1 t2
   let cs' = map (applySubstConstraint s1) cs
-  (s2, f2) <- unifyManyG mode ce cs' (map (applySubst s1) ts1) (map (applySubst s1) ts2)
+  (s2, f2) <-
+    unifyManyG mode ce cs'
+      (map (applySubst s1) ts1)
+      (map (applySubst s1) ts2)
   Right (composeSubst s2 s1, f1 || f2)
 unifyManyG _ _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
+
+-- | Extension-mode child-list unification.  Each child recursively regains
+-- the historical matcher-alignment behavior.
+unifyManyExtendedG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> [Type]
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+unifyManyExtendedG _ _ _ [] [] = ok
+unifyManyExtendedG mode ce cs (t1:ts1) (t2:ts2) = do
+  (s1, f1) <- unifyExtendedNormalized mode ce cs t1 t2
+  let cs' = map (applySubstConstraint s1) cs
+  (s2, f2) <-
+    unifyManyExtendedG mode ce cs'
+      (map (applySubst s1) ts1)
+      (map (applySubst s1) ts2)
+  Right (composeSubst s2 s1, f1 || f2)
+unifyManyExtendedG _ _ _ _ _ =
+  Left $ TypeMismatch (TTuple []) (TTuple [])
 
 --------------------------------------------------------------------------------
 -- Variable Unification (mode-specific dispatch)
@@ -463,7 +833,26 @@ unifyTensorWithConstraints classEnv constraints elemType otherType =
     TVar v ->
       unifyVarConstraintAware classEnv constraints v (TTensor elemType)
     _ -> do
-      (s, _) <- unifyNormalized TensorConstraintAware classEnv constraints elemType otherType
+      (s, _) <-
+        unifyNestedNormalized
+          TensorConstraintAware classEnv constraints elemType otherType
+      Right (s, True)
+
+-- | Constraint-aware Tensor recursion for extension fallback.
+unifyTensorWithConstraintsExtended
+  :: ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+unifyTensorWithConstraintsExtended classEnv constraints elemType otherType =
+  case otherType of
+    TVar v ->
+      unifyVarConstraintAware classEnv constraints v (TTensor elemType)
+    _ -> do
+      (s, _) <-
+        unifyExtendedNormalized
+          TensorConstraintAware classEnv constraints elemType otherType
       Right (s, True)
 
 -- | Check if there's an instance for Constraint (Tensor elemType).
@@ -476,39 +865,37 @@ hasInstanceForTensorType classEnv elemType (Constraint className _) =
                      Left _  -> False
          ) instances
 
---------------------------------------------------------------------------------
--- Matcher-Tuple Unification (ConstraintAware mode only)
---------------------------------------------------------------------------------
-
--- | Unify a product matcher with a raw tuple of matcher expressions.
-unifyMatcherWithTupleG
+-- | Extension-mode variant whose synthesized product matcher is aligned with
+-- recursively extensible targets.
+unifyMatcherWithTupleExtendedG
   :: ClassEnv
   -> [Constraint]
   -> Capability
   -> Type
   -> [Type]
   -> Either UnifyError (Subst, Bool)
-unifyMatcherWithTupleG classEnv constraints cap target ts = do
-  (parts, s1, flag1) <- unifyEachAsMatcher classEnv constraints ts emptySubst
+unifyMatcherWithTupleExtendedG classEnv constraints cap target ts = do
+  (parts, s1, flag1) <-
+    unifyEachAsMatcherExtended classEnv constraints ts emptySubst
   let tupleCap = CapTuple (map fst parts)
       tupleTarget = TTuple (map snd parts)
       constraints' = map (applySubstConstraint s1) constraints
   (s2, flag2) <-
-    unifyNormalized TensorConstraintAware classEnv constraints'
+    unifyExtendedNormalized TensorConstraintAware classEnv constraints'
       (applySubst s1 (TMatcher cap target))
       (applySubst s1 (TMatcher tupleCap tupleTarget))
   Right (composeSubst s2 s1, flag1 || flag2)
 
 -- | Treat each element of a raw tuple as a matcher and extract its capability
 -- and target, threading both substitutions.
-unifyEachAsMatcher
+unifyEachAsMatcherExtended
   :: ClassEnv
   -> [Constraint]
   -> [Type]
   -> Subst
   -> Either UnifyError ([(Capability, Type)], Subst, Bool)
-unifyEachAsMatcher _ _ [] s = Right ([], s, False)
-unifyEachAsMatcher env cons (t:rest) s = do
+unifyEachAsMatcherExtended _ _ [] s = Right ([], s, False)
+unifyEachAsMatcherExtended env cons (t:rest) s = do
   let t' = applySubst s t
       cons' = map (applySubstConstraint s) cons
   (part, s1, flag1) <- case t' of
@@ -530,11 +917,51 @@ unifyEachAsMatcher env cons (t:rest) s = do
 
   let s2 = composeSubst s1 s
       cons'' = map (applySubstConstraint s2) cons
-  (restParts, s3, flag2) <- unifyEachAsMatcher env cons'' rest s2
+  (restParts, s3, flag2) <-
+    unifyEachAsMatcherExtended env cons'' rest s2
   let (cap, target) = part
   Right ((applyCapSubst s3 cap, applySubst s3 target) : restParts,
          s3,
          flag1 || flag2)
+
+-- | Core tuple coercion accepts only components whose complete matcher/slot
+-- dual is already known.  Manufacturing fresh variables from a 'TyVar' by
+-- string concatenation would bypass InferState's allocation/protection trace;
+-- that historical behavior is confined to the warned extended solver above.
+unifyEachKnownMatcher
+  :: ClassEnv
+  -> [Constraint]
+  -> [Type]
+  -> Subst
+  -> Either UnifyError ([(Capability, Type)], Subst, Bool)
+unifyEachKnownMatcher _ _ [] substitution =
+  Right ([], substitution, False)
+unifyEachKnownMatcher env constraints (ty : rest) substitution = do
+  let resolved = applySubst substitution ty
+      resolvedConstraints =
+        map (applySubstConstraint substitution) constraints
+  part <- case resolved of
+    TMatcher capability target -> Right (capability, target)
+    TMatcherSlot capability target -> Right (capability, target)
+    _ -> Left (MatcherRigidity resolved (TMatcher CapNone TAny))
+  (restParts, finalSubstitution, flag) <-
+    unifyEachKnownMatcher
+      env resolvedConstraints rest substitution
+  let (capability, target) = part
+  Right
+    ( ( applyCapSubst finalSubstitution capability
+      , applySubst finalSubstitution target
+      ) : restParts
+    , finalSubstitution
+    , flag
+    )
+
+type TuplePartsUnifier =
+  ClassEnv
+  -> [Constraint]
+  -> [Type]
+  -> Subst
+  -> Either UnifyError ([(Capability, Type)], Subst, Bool)
 
 getTyVarName :: TyVar -> String
 getTyVarName (TyVar name) = name
@@ -542,6 +969,14 @@ getTyVarName (TyVar name) = name
 --------------------------------------------------------------------------------
 -- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)
 --------------------------------------------------------------------------------
+
+type RecursiveUnifier =
+  TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Type
+  -> Type
+  -> Either UnifyError (Subst, Bool)
 
 -- | Coerce a matcher producer into a complete consumer slot.  Capability
 -- matching is solved first in the capability sort; target equality is then
@@ -555,14 +990,82 @@ coerceMatcherToSlot
   -> Capability
   -> Type
   -> Either UnifyError (Subst, Bool)
-coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget = do
+coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget =
+  coerceMatcherToSlotWithin
+    (freeCapVarsCapability slotCap)
+    mode ce cs matcherCap matcherTarget slotCap slotTarget
+
+-- | Explicit extension fallback: keep one-way capability matching at the
+-- outer slot, but recursively use extension alignment for the target.  The
+-- complete consumer type owns the permitted capability-substitution domain;
+-- capability variables already present in the producer remain rigid.
+coerceMatcherToSlotExtended
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> Capability
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+coerceMatcherToSlotExtended
+    mode ce cs matcherCap matcherTarget slotCap slotTarget =
+  coerceMatcherToSlotWithinUsing
+    unifyExtendedNormalized
+    (freeCapVars (TMatcherSlot slotCap slotTarget)
+      `Set.difference`
+     freeCapVars (TMatcher matcherCap matcherTarget))
+    mode ce cs matcherCap matcherTarget slotCap slotTarget
+
+-- | Scalar matcher-to-slot coercion under the stable capability-variable
+-- domain of the enclosing consumer.  For a scalar coercion this is just the
+-- slot root's free variables; product coercion passes the whole raw product
+-- domain to every component so all components share one witness.
+coerceMatcherToSlotWithin
+  :: Set.Set CapVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> Capability
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+coerceMatcherToSlotWithin =
+  coerceMatcherToSlotWithinUsing unifyNestedNormalized
+
+coerceMatcherToSlotWithinUsing
+  :: RecursiveUnifier
+  -> Set.Set CapVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> Capability
+  -> Type
+  -> Either UnifyError (Subst, Bool)
+coerceMatcherToSlotWithinUsing targetUnifier allowedSupport
+                             mode ce cs
+                             matcherCap matcherTarget slotCap slotTarget = do
   capSubst <- matchCapability matcherCap slotCap
   let cs' = map (applySubstConstraint capSubst) cs
   (targetSubst, flag) <-
-    unifyNormalized mode ce cs'
+    targetUnifier mode ce cs'
       (applySubst capSubst matcherTarget)
       (applySubst capSubst slotTarget)
-  Right (composeSubst targetSubst capSubst, flag)
+  let combined = composeSubst targetSubst capSubst
+      producerStable =
+        applyCapSubst combined matcherCap == matcherCap
+      supportWithinConsumer =
+        Map.keysSet (unCapSubst combined)
+          `Set.isSubsetOf` allowedSupport
+  if producerStable && supportWithinConsumer
+    then Right (combined, flag)
+    else Left
+      (MatcherRigidity
+        (TMatcher matcherCap matcherTarget)
+        (TMatcherSlot slotCap slotTarget))
 
 -- | COERCE-SLOT-TUPLE: a tuple of matchers @(m1, ..., mk)@ filling a product slot
 -- @MatcherSlot tp tt@ (structural index @tp@ = τ_p, target index @tt@ = τ_t).
@@ -582,21 +1085,83 @@ coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget = do
 coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint]
                 -> Capability -> Type -> [Type]
                 -> Either UnifyError (Subst, Bool)
-coerceSlotTuple mode ce cs cap target tys
+coerceSlotTuple mode ce cs cap target tys =
+  coerceSlotTupleWithin
+    (freeCapVarsCapability cap)
+    mode ce cs cap target tys
+
+-- | Product-slot coercion for the warned Egison-extension fallback.  Recursive
+-- extension alignment may solve capability variables in the consumer target,
+-- so the stable support is the complete consumer type minus the raw producer.
+coerceSlotTupleExtended
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+coerceSlotTupleExtended mode ce cs cap target tys =
+  coerceSlotTupleWithinUsing
+    unifyExtendedNormalized
+    unifyExtendedNormalized
+    unifyEachAsMatcherExtended
+    (freeCapVars (TMatcherSlot cap target)
+      `Set.difference`
+     freeCapVars (TTuple tys))
+    mode ce cs cap target tys
+
+-- | Product slot coercion using one capability witness and one stable support
+-- set for the complete raw consumer.  The aggregate post-check is essential:
+-- a substitution learned by a later component must not retroactively change
+-- an earlier component's producer capability.
+coerceSlotTupleWithin
+  :: Set.Set CapVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+coerceSlotTupleWithin =
+  coerceSlotTupleWithinUsing
+    unifyNestedNormalized unifyNormalized unifyEachKnownMatcher
+
+coerceSlotTupleWithinUsing
+  :: RecursiveUnifier
+  -> RecursiveUnifier
+  -> TuplePartsUnifier
+  -> Set.Set CapVar
+  -> TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+coerceSlotTupleWithinUsing targetUnifier boundaryUnifier tuplePartsUnifier
+                           allowedSupport mode ce cs cap target tys
   | CapTuple caps <- cap, TTuple targets <- target
-  , length caps == length tys, length targets == length tys =
-      goComponents (zip3 tys caps targets) emptySubst False
+  , length caps == length tys, length targets == length tys = do
+      result@(finalSubst, _) <-
+        goComponents (zip3 tys caps targets) emptySubst False
+      validateAggregate finalSubst
+      Right result
   | otherwise = do
-      (parts, s1, flag1) <- unifyEachAsMatcher ce cs tys emptySubst
+      (parts, s1, flag1) <- tuplePartsUnifier ce cs tys emptySubst
       let matcherCap = CapTuple (map fst parts)
           matcherTarget = TTuple (map snd parts)
           cs' = map (applySubstConstraint s1) cs
-      (s2, flag2) <- coerceMatcherToSlot mode ce cs'
+      (s2, flag2) <-
+        coerceMatcherToSlotWithinUsing targetUnifier allowedSupport mode ce cs'
                        (applyCapSubst s1 matcherCap)
                        (applySubst s1 matcherTarget)
                        (applyCapSubst s1 cap)
                        (applySubst s1 target)
-      Right (composeSubst s2 s1, flag1 || flag2)
+      let finalSubst = composeSubst s2 s1
+      validateAggregate finalSubst
+      Right (finalSubst, flag1 || flag2)
   where
     goComponents [] acc anyFlag = Right (acc, anyFlag)
     goComponents ((ty, expectedCap, expectedTarget) : rest) acc anyFlag = do
@@ -606,13 +1171,89 @@ coerceSlotTuple mode ce cs cap target tys
           target' = applySubst acc expectedTarget
       (s', f') <- case ty' of
         TMatcher matcherCap matcherTarget ->
-          coerceMatcherToSlot mode ce cs'
+          coerceMatcherToSlotWithinUsing targetUnifier allowedSupport mode ce cs'
             matcherCap matcherTarget cap' target'
         TTuple nested ->
-          coerceSlotTuple mode ce cs' cap' target' nested
+          coerceSlotTupleWithinUsing
+            targetUnifier boundaryUnifier tuplePartsUnifier
+            allowedSupport mode ce cs' cap' target' nested
+        -- As at the scalar slot boundary, a raw Any component is not core
+        -- evidence for a matcher head.  The extension-mode tuple solver keeps
+        -- the historical gradual acceptance and is selected only after Infer
+        -- reports a compatibility warning.
+        TAny ->
+          Left
+            (MatcherRigidity
+              TAny
+              (TMatcherSlot cap' target'))
         _ ->
-          unifyNormalized mode ce cs' ty' (TMatcherSlot cap' target')
+          boundaryUnifier mode ce cs' ty' (TMatcherSlot cap' target')
       goComponents rest (composeSubst s' acc) (anyFlag || f')
+
+    rawPairs = collectRawPairs tys cap
+    rawProducerRoots = concatMap collectRawProducers tys
+    rawOuterPair =
+      case mapM extractRawProducer tys of
+        Just producers ->
+          Just (CapTuple producers, cap)
+        Nothing ->
+          Nothing
+
+    collectRawPairs :: [Type] -> Capability -> [(Capability, Capability)]
+    collectRawPairs types (CapTuple capabilities)
+      | length types == length capabilities =
+          concat
+            (zipWith collectRawPair types capabilities)
+    collectRawPairs _ _ = []
+
+    collectRawPair :: Type -> Capability -> [(Capability, Capability)]
+    collectRawPair (TMatcher producer _) consumer =
+      [(producer, consumer)]
+    collectRawPair (TTuple components) consumer =
+      collectRawPairs components consumer
+    collectRawPair _ _ =
+      []
+
+    collectRawProducers :: Type -> [Capability]
+    collectRawProducers (TMatcher producer _) =
+      [producer]
+    collectRawProducers (TTuple components) =
+      concatMap collectRawProducers components
+    collectRawProducers _ =
+      []
+
+    extractRawProducer :: Type -> Maybe Capability
+    extractRawProducer (TMatcher producer _) =
+      Just producer
+    extractRawProducer (TTuple components) =
+      CapTuple <$> mapM extractRawProducer components
+    extractRawProducer _ =
+      Nothing
+
+    validateAggregate :: Subst -> Either UnifyError ()
+    validateAggregate finalSubst =
+      let supportOK =
+            Map.keysSet (unCapSubst finalSubst)
+              `Set.isSubsetOf` allowedSupport
+          producersStable =
+            all
+              (\producer ->
+                applyCapSubst finalSubst producer == producer)
+              rawProducerRoots
+          pairOK (producer, consumer) =
+            applyCapSubst finalSubst producer == producer
+              && applyCapSubst finalSubst consumer == producer
+          outerOK =
+            maybe True pairOK rawOuterPair
+      in if supportOK
+            && producersStable
+            && all pairOK rawPairs
+            && outerOK
+           then Right ()
+           else Left
+             (MatcherRigidity
+               (TTuple tys)
+               (TMatcherSlot cap target))
 
 -- | One-way matching: is there a substitution over @slot@'s type variables making
 -- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
@@ -621,7 +1262,9 @@ coerceSlotTuple mode ce cs cap target tys
 -- slot variables are matched consistently (resolved via the accumulated substitution).
 matchOneWay :: Type -> Type -> Maybe Subst
 matchOneWay slot0 matcher0 =
-  matchOneWayWithDomain (freeTyVars slot0) slot0 matcher0
+  matchOneWayWithDomain
+    (freeTyVars slot0 `Set.difference` freeTyVars matcher0)
+    slot0 matcher0
 
 -- | One-way matching with an explicit, stable binding domain.  The domain is
 -- captured from the original structural slot and must be preserved across a
@@ -632,7 +1275,17 @@ matchOneWayWithDomain :: Set.Set TyVar -> Type -> Type -> Maybe Subst
 matchOneWayWithDomain bindable slot0 matcher0 =
   go [(slot0, matcher0)] emptySubst
   where
-    go [] acc = Just acc
+    bindableCapabilities =
+      freeCapVars slot0 `Set.difference` freeCapVars matcher0
+
+    go [] acc
+      | applySubst acc matcher0 == matcher0
+      , Map.keysSet (unSubst acc) `Set.isSubsetOf` bindable
+      , Map.keysSet (unCapSubst acc)
+          `Set.isSubsetOf` bindableCapabilities =
+          Just acc
+      | otherwise =
+          Nothing
     go ((s, t) : rest) acc =
       case applySubst acc s of
         TVar v
@@ -656,11 +1309,11 @@ matchOneWayWithDomain bindable slot0 matcher0 =
     matchStruct (THash k1 v1) (THash k2 v2) rest acc = go ((k1, k2) : (v1, v2) : rest) acc
     matchStruct (TFun a1 r1) (TFun a2 r2) rest acc = go ((a1, a2) : (r1, r2) : rest) acc
     matchStruct (TMatcher cap1 target1) (TMatcher cap2 target2) rest acc =
-      case matchCapability cap1 cap2 of
+      case matchCapability cap2 cap1 of
         Right capS -> go ((target1, target2) : rest) (composeSubst capS acc)
         Left _     -> Nothing
     matchStruct (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) rest acc =
-      case matchCapability cap1 cap2 of
+      case matchCapability cap2 cap1 of
         Right capS -> go ((target1, target2) : rest) (composeSubst capS acc)
         Left _     -> Nothing
     matchStruct (TIO a) (TIO b) rest acc = go ((a, b) : rest) acc

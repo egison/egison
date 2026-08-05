@@ -1,5 +1,19 @@
 -- P2 capability/target separation: positive language-level regressions.
 
+def p2RigidIdentity {a} (x : a) : a := x
+
+assertEqual
+  "P2: a valid rigid ordinary annotation is accepted"
+  (p2RigidIdentity [1, 2])
+  [1, 2]
+
+def p2RigidEqual {Eq a} (x : a) (y : a) : Bool := x == y
+
+assertEqual
+  "P2: a constrained rigid annotation retains dictionary passing"
+  (p2RigidEqual [1, 2] [1, 2])
+  True
+
 def catchAllMatcher {a} : Matcher none a :=
   matcher
     | $ as something with

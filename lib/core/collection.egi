@@ -268,9 +268,9 @@ def foldl {a, b} (fn : b -> a -> b) (init : b) (ls : [a]) : b :=
       let z := fn init x
        in seq z (foldl fn z xs)
 
-def foldl1 {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
+def foldl1 {a} (fn : a -> a -> a) (ls : [a]) : a := foldl fn (head ls) (tail ls)
 
-def reduce {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
+def reduce {a} (fn : a -> a -> a) (ls : [a]) : a := foldl fn (head ls) (tail ls)
 
 def scanl {a, b} (fn: b -> a -> b) (init: b) (ls: [a]) : [b] :=
   init :: (match ls as list something with

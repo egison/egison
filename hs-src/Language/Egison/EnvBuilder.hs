@@ -892,7 +892,8 @@ resolveCasTypeAliases priorAliases = go (0 :: Int)
 
 -- | Rewrite bare declared-inductive-type names that 'typeExprToType' produced
 -- as type variables (e.g. the target index in @Matcher p Nat@) into the
--- concrete @TInductive@.  Without this, an explicit signature
+-- concrete @TInductive@.  This applies both to explicit definitions and to
+-- class method declarations.  Without it, an explicit signature
 -- @nat : Matcher p Nat@ is generalized to @forall a. Matcher p a@, so a
 -- recursive matcher's self-reference instantiates to a fresh target type and
 -- fails the MatcherSlot capability/target check.
@@ -939,7 +940,8 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         superNames = map extractConstraintName superClasses
 
         -- Build method list with types
-        methodsWithTypes = map (extractMethodWithType aliasEnv) methods
+        methodsWithTypes =
+          map (extractMethodWithType declaredTypes aliasEnv) methods
 
         -- Create ClassInfo
         -- Note: Use qualified name to avoid ambiguity with ClassDecl.classMethods
@@ -953,7 +955,11 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         classEnv' = addClass className classInfo classEnv
 
         -- Register each class method to type environment
-        typeEnv' = foldl (registerClassMethod aliasEnv tyVars className) typeEnv methods
+        typeEnv' =
+          foldl
+            (registerClassMethod declaredTypes aliasEnv tyVars className)
+            typeEnv
+            methods
 
     return result { ebrClassEnv = classEnv', ebrTypeEnv = typeEnv' }
 
@@ -1202,10 +1208,23 @@ registerConstructor aliasEnv typeName typeParams resultType (typeEnv, ctorEnv)
 -- The constraint carries ALL class type parameters (multi-param-friendly).
 -- For `class Coerce a b where coerce (x: a) : b`, the method is registered
 -- with `forall a b. Coerce a b => a -> b`.
-registerClassMethod :: HashMap.HashMap String Type -> [TyVar] -> String -> TypeEnv -> ClassMethod -> TypeEnv
-registerClassMethod aliasEnv tyVars className typeEnv (ClassMethod methName params retType _defaultImpl) =
+registerClassMethod
+  :: Set.Set String
+  -> HashMap.HashMap String Type
+  -> [TyVar]
+  -> String
+  -> TypeEnv
+  -> ClassMethod
+  -> TypeEnv
+registerClassMethod declaredTypes aliasEnv tyVars className typeEnv
+                    (ClassMethod methName params retType _defaultImpl) =
   let paramTypes = map (typedParamToType aliasEnv) params
-      methodType = foldr TFun (Types.expandTypeAliases aliasEnv (typeExprToType retType)) paramTypes
+      methodType =
+        concretizeDeclaredTypes declaredTypes $
+          foldr
+            TFun
+            (Types.expandTypeAliases aliasEnv (typeExprToType retType))
+            paramTypes
       -- Constraint with all class type params (single-param classes still
       -- produce a singleton list).
       constraint = Types.Constraint className (map TVar tyVars)
@@ -1287,10 +1306,19 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
     substituteTypeVar = Types.substTyVar
 
 -- | Extract method name and type from ClassMethod
-extractMethodWithType :: HashMap.HashMap String Type -> ClassMethod -> (String, Type)
-extractMethodWithType aliasEnv (ClassMethod name params retType _) =
+extractMethodWithType
+  :: Set.Set String
+  -> HashMap.HashMap String Type
+  -> ClassMethod
+  -> (String, Type)
+extractMethodWithType declaredTypes aliasEnv (ClassMethod name params retType _) =
   let paramTypes = map (typedParamToType aliasEnv) params
-      methodType = foldr TFun (Types.expandTypeAliases aliasEnv (typeExprToType retType)) paramTypes
+      methodType =
+        concretizeDeclaredTypes declaredTypes $
+          foldr
+            TFun
+            (Types.expandTypeAliases aliasEnv (typeExprToType retType))
+            paramTypes
   in (name, methodType)
 
 -- | Extract class name from ConstraintExpr
