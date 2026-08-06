@@ -44,7 +44,7 @@ import           Language.Egison.Type.Types (Capability (..), TyVar,
 
 -- | Partial structural-capability evidence.
 --
--- 'CapKnown' is intended for capability leaves ('CapNone', 'CapVar', and
+-- 'CapKnown' is intended for capability leaves ('CapAny', 'CapVar', and
 -- 'CapSkolem').  'evidenceFromCapability' and the public operations also
 -- accept a structured capability in 'CapKnown' and expand it to the canonical
 -- evidence-tree representation.
@@ -123,7 +123,7 @@ observabilityLookup =
 
 -- | Embed a complete capability into the partial evidence domain.
 evidenceFromCapability :: Capability -> CapEvidence
-evidenceFromCapability CapNone         = CapKnown CapNone
+evidenceFromCapability CapAny         = CapKnown CapAny
 evidenceFromCapability cap@(CapVar _)  = CapKnown cap
 evidenceFromCapability cap@(CapSkolem _) = CapKnown cap
 evidenceFromCapability (CapCon former capabilities) =
@@ -137,7 +137,7 @@ evidenceFromCapability (CapTuple capabilities) =
 -- capability variables merge only when their 'CapVar' identities are equal.
 -- Structured evidence merges componentwise only under the same canonical
 -- former (including arity).  This operation never unifies variables and never
--- weakens structured evidence to 'CapNone'.
+-- weakens structured evidence to 'CapAny'.
 mergeCapEvidence :: CapEvidence -> CapEvidence -> Either String CapEvidence
 mergeCapEvidence evidence1 evidence2 =
   merge (canonicalEvidence evidence1) (canonicalEvidence evidence2)
@@ -257,10 +257,10 @@ projectConstructorEvidence observability fieldTypes resultType childEvidence
 -- | Finalize an evidence tree to a capability.
 --
 -- Every unseen observable position is rejected.  Every unobservable former
--- parameter is canonicalized to 'CapNone', even if malformed input supplied
+-- parameter is canonicalized to 'CapAny', even if malformed input supplied
 -- stronger evidence there.  Products expose all of their components.
 -- 'CapUnseen' at the root is an error: a caller that observed no structured
--- root evidence must choose the catch-all capability 'CapNone' before calling
+-- root evidence must choose the catch-all capability 'CapAny' before calling
 -- this function.
 finalizeCapEvidence
   :: ObservabilityLookup
@@ -287,7 +287,7 @@ finalizeCapEvidence observability =
                    (path ++ ", " ++ describeFormer former
                          ++ " parameter " ++ show index)
                    child
-            else Right CapNone)
+            else Right CapAny)
         (zip mask children)
       Right (CapCon former finalized)
 
@@ -310,7 +310,7 @@ capTargetOK assumptions = go Set.empty
       | otherwise =
           let seen' = Set.insert (capability, target) seen
           in case capability of
-            CapNone ->
+            CapAny ->
               True
             CapVar _ ->
               False
@@ -712,7 +712,7 @@ buildResultRoot observability resultVariables assignments resultType =
               if isObservable
                 then buildResultSlot
                        observability resultVariables assignments argument
-                else Right (CapKnown CapNone))
+                else Right (CapKnown CapAny))
             mask
             arguments
           Right (CapConEvidence former children)
@@ -726,7 +726,7 @@ buildResultSlot
 buildResultSlot observability resultVariables assignments slotType = do
   variables <- reachableVariables observability resultVariables slotType
   if Set.null variables
-    then Right (CapKnown CapNone)
+    then Right (CapKnown CapAny)
     else if not (any (`Map.member` assignments) (Set.toList variables))
       then Right CapUnseen
       else buildResultTemplate
@@ -741,13 +741,13 @@ buildResultTemplate
 buildResultTemplate observability resultVariables assignments resultType = do
   variables <- reachableVariables observability resultVariables resultType
   if Set.null variables
-    then Right (CapKnown CapNone)
+    then Right (CapKnown CapAny)
     else case resultType of
       TVar variable
         | variable `Set.member` resultVariables ->
             Right (Map.findWithDefault CapUnseen variable assignments)
         | otherwise ->
-            Right (CapKnown CapNone)
+            Right (CapKnown CapAny)
       TTuple componentTypes ->
         CapTupleEvidence
           <$> mapM (buildResultTemplate
@@ -756,7 +756,7 @@ buildResultTemplate observability resultVariables assignments resultType = do
       _ ->
         case typeFormerOf resultType of
           Nothing ->
-            Right (CapKnown CapNone)
+            Right (CapKnown CapAny)
           Just (former, arguments) -> do
             maybeMask <- validatedMask
               ("result slot " ++ show resultType)
@@ -765,7 +765,7 @@ buildResultTemplate observability resultVariables assignments resultType = do
               (length arguments)
             case maybeMask of
               Nothing ->
-                Right (CapKnown CapNone)
+                Right (CapKnown CapAny)
               Just mask ->
                 CapConEvidence former
                   <$> zipWithM
@@ -774,7 +774,7 @@ buildResultTemplate observability resultVariables assignments resultType = do
                             then buildResultTemplate
                                    observability resultVariables assignments
                                    argument
-                            else Right (CapKnown CapNone))
+                            else Right (CapKnown CapAny))
                         mask
                         arguments
 

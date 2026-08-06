@@ -1,5 +1,5 @@
--- A no-capability matcher value cannot be bound at a structured matcher
+-- A ground-Any matcher value cannot be bound at a structured matcher
 -- type.  This cast would let cons patterns reach
 -- `something`, which cannot decompose them (well-typed but stuck).
 
-def m2 : Matcher [none] [Integer] := something
+def m2 : Matcher [Any] [Integer] := something

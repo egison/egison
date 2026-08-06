@@ -506,7 +506,7 @@ extractNameFromVarWithIndices (VarWithIndices name _) = name
 -- capability.  'CECon' contains a canonicalizable type-former spelling and
 -- its capability arguments; aliases are not part of the capability language.
 data CapabilityExpr
-  = CENone                              -- ^ No constructor capability
+  = CEAny                              -- ^ Ground capability; a consumer literal is a wildcard
   | CEVar String                        -- ^ Capability variable, e.g., p
   | CECon String [CapabilityExpr]       -- ^ Type-former capability, e.g., List p
   | CEList CapabilityExpr              -- ^ List syntax, e.g., [p]

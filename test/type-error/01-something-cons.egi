@@ -1,9 +1,9 @@
 --
 -- Match-site dual check, direct supply (paper Appendix B, Case 2).
--- `something : Matcher none b` cannot fill the cons pattern's slot
--- `MatcherSlot [p] [Integer]`: `none` does not provide list capability.
+-- `something : Matcher Any b` cannot fill the cons pattern's slot
+-- `MatcherSlot [p] [Integer]`: `Any` does not provide list capability.
 --
--- Expected: Type error (Matcher none b vs MatcherSlot [p] [Integer])
+-- Expected: Type error (Matcher Any b vs MatcherSlot [p] [Integer])
 --
 
 def t := matchAll [1, 2, 3] as something with $x :: $xs -> (x, xs)

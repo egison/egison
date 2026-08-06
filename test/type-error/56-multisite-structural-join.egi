@@ -5,7 +5,7 @@
 -- not erase it.  Supplying `something` at the application then fails the
 -- capability half of COERCE-MATCHER-TO-SLOT.
 --
--- Expected: Type error at `g something` (`none` against a list head)
+-- Expected: Type error at `g something` (`Any` against a list head)
 --
 
 def g m :=

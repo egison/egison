@@ -2,9 +2,9 @@
 -- Nested constructor sub-pattern (paper Appendix B, "Nested constructor
 -- sub-patterns").  The element position of the cons is pinned to Tile by
 -- `num`, so the element requires Tile capability; `multiset something`
--- provides only `[none]`.
+-- provides only `[Any]`.
 --
--- Expected: Type error (`[none]` vs the required `[Tile]` capability)
+-- Expected: Type error (`[Any]` vs the required `[Tile]` capability)
 --
 
 inductive Tile := Num Integer | Hnr Integer

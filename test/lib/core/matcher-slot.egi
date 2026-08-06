@@ -6,7 +6,7 @@ def keep {a} (x : a) : a := x
 inductive Box a := Box (Maybe [a])
 inductive pattern Box a := box (Maybe [a])
 
-def boxDirect {a} : Matcher (Box none) (Box a) :=
+def boxDirect {a} : Matcher (Box Any) (Box a) :=
   matcher
     | box $ as maybe (list something) with
       | Box $x -> [x]
@@ -14,7 +14,7 @@ def boxDirect {a} : Matcher (Box none) (Box a) :=
     | $ as something with
       | $tgt -> [tgt]
 
-def boxApplication {a} : Matcher (Box none) (Box a) :=
+def boxApplication {a} : Matcher (Box Any) (Box a) :=
   matcher
     | box $ as keep (maybe (list something)) with
       | Box $x -> [x]
@@ -22,7 +22,7 @@ def boxApplication {a} : Matcher (Box none) (Box a) :=
     | $ as something with
       | $tgt -> [tgt]
 
-def boxLambda {a} : Matcher (Box none) (Box a) :=
+def boxLambda {a} : Matcher (Box Any) (Box a) :=
   matcher
     | box $ as (\m -> m) (maybe (list something)) with
       | Box $x -> [x]
@@ -61,9 +61,9 @@ assertEqual "next matcher: one-hole product matcher"
 inductive SameBox a := SameBox (a, a)
 inductive pattern SameBox a := sameBox (a, a)
 
--- The lambda duplicates one no-capability matcher.  Both tuple leaves
--- therefore contribute the same canonical `none` evidence.
-def sameBoxMatcher {a} : Matcher (SameBox none) (SameBox a) :=
+-- The lambda duplicates one ground-Any matcher.  Both tuple leaves
+-- therefore contribute the same canonical `Any` evidence.
+def sameBoxMatcher {a} : Matcher (SameBox Any) (SameBox a) :=
   matcher
     | sameBox $ as (\m -> (m, m)) something with
       | SameBox $p -> [p]
@@ -93,9 +93,9 @@ assertEqual "next matcher: zero-hole empty tuple"
 
 -- Lookup supplies an already complete MatcherSlot, exercising the existing
 -- slot branch rather than the fresh-variable-to-slot commitment.
-def integerSlot : MatcherSlot none Integer := integer
+def integerSlot : MatcherSlot Any Integer := integer
 
-def headSlot : Matcher [none] [Integer] :=
+def headSlot : Matcher [Any] [Integer] :=
   matcher
     | $ :: _ as integerSlot with
       | $x :: _ -> [x]
@@ -106,3 +106,16 @@ def headSlot : Matcher [none] [Integer] :=
 assertEqual "next matcher: complete existing slot"
   (matchAll [1, 2] as headSlot with $x :: _ -> x)
   [1]
+
+-- Literal consumer Any is a wildcard only at the explicit MatcherSlot
+-- boundary, including when it occurs below a fixed capability head.
+def acceptAnyListSlot (m : MatcherSlot Any [Integer]) : Bool := True
+def acceptNestedAnySlot (m : MatcherSlot [Any] [[Integer]]) : Bool := True
+
+assertEqual "slot coercion: literal consumer Any"
+  (acceptAnyListSlot (list integer))
+  True
+
+assertEqual "slot coercion: nested literal consumer Any"
+  (acceptNestedAnySlot (list (list integer)))
+  True

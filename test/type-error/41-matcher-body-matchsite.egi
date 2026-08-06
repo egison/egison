@@ -5,7 +5,7 @@
 -- Expected: Type error (integer vs a cons-headed slot in the inner match)
 --
 
-def badInner : Matcher none [Integer] :=
+def badInner : Matcher Any [Integer] :=
   matcher
     | $ as something with
       | $tgt ->

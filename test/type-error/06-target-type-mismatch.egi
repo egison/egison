@@ -1,6 +1,6 @@
 --
 -- Matcher vs target-expression type mismatch (T-MATCHALL's target side).
--- `multiset integer : Matcher [none] [Integer]` cannot consume the target
+-- `multiset integer : Matcher [Any] [Integer]` cannot consume the target
 -- `5 : Integer`.
 --
 -- Expected: Type error ([Integer] vs Integer)

@@ -6,12 +6,12 @@ inductive ClosedFieldBox := ClosedFieldBox [Integer]
 inductive pattern ClosedFieldBox := closedFieldBox [Integer]
 
 -- A matcher may consume a list while exposing no list-pattern capability.
-def closedFieldTargetOnly : Matcher none [Integer] :=
+def closedFieldTargetOnly : Matcher Any [Integer] :=
   matcher
     | $ as something with
       | $tgt -> [tgt]
 
-assertEqual "closed field: none capability with a list target is valid"
+assertEqual "closed field: Any capability with a list target is valid"
   (matchAll [1, 2] as closedFieldTargetOnly with _ -> True)
   [True]
 

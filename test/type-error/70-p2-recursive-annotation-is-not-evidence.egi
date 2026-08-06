@@ -10,7 +10,7 @@ inductive pattern P2Tree a :=
   | p2Node (P2Tree a)
 
 def p2SeedlessTree {a}
-  : Matcher (P2Tree none) (P2Tree a) :=
+  : Matcher (P2Tree Any) (P2Tree a) :=
   matcher
     | p2Node $ as p2SeedlessTree with
       | P2Node $tree -> [tree]

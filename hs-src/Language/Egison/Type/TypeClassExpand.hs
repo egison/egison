@@ -1286,7 +1286,7 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
 
 -- | Apply dictionaries to expressions with concrete type constraints
 -- This is used for top-level definitions such as:
--- def integer : Matcher none Integer := eq
+-- def integer : Matcher Any Integer := eq
 -- where the right-hand side (eq) has concrete type constraints {Eq Integer}
 applyConcreteConstraintDictionaries :: TIExpr -> EvalM TIExpr
 applyConcreteConstraintDictionaries expr = do

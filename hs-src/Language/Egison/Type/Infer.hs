@@ -840,9 +840,15 @@ instantiateDualSchemeInState scheme = do
 
 -- | Generalize one complete list of pattern-argument/result duals relative to
 -- the frozen constructor/function signatures and current expression context.
--- Capability and ordinary variables are quantified independently.  Explicit
--- annotation binders are lexical: they remain generalizable even when an
--- unrelated ambient scheme happens to use the same printed variable name.
+-- Capability and ordinary variables are quantified independently.  A
+-- non-ambient capability variable with exactly one occurrence in the complete
+-- argument/result payload carries no correlation, so it is canonicalized to
+-- the ground capability 'CapAny'.  A literal 'CapAny' is a wildcard only in
+-- producer-to-consumer matching.  Variables with two or more
+-- occurrences remain quantified and preserve their sharing.  Explicit
+-- annotation binders are lexical: they remain eligible for this canonical
+-- generalization even when an unrelated ambient scheme happens to use the
+-- same printed variable name.
 generalizeDualSchemeInState
   :: [CapVar] -> [TyVar] -> [Dual] -> Dual -> Infer DualScheme
 generalizeDualSchemeInState declaredCapabilities declaredTargets arguments result = do
@@ -862,17 +868,92 @@ generalizeDualSchemeInState declaredCapabilities declaredTargets arguments resul
           `Set.union` patternTypeEnvFreeTypes (inferPatternEnv state)
           `Set.union` patternTypeEnvFreeTypes (inferPatternFuncDeclEnv state)
           `Set.union` patternFunctionEnvFreeTypes (inferPatternFuncEnv state)
+      generalizableCaps =
+        payloadCaps `Set.difference` (ambientCaps `Set.difference` lexicalCaps)
+      capabilityOccurrences :: Map.Map CapVar Int
+      capabilityOccurrences =
+        Map.unionsWith (+) (map dualCapabilityOccurrences payload)
+      singletonCaps =
+        Set.filter
+          (\variable ->
+            Map.findWithDefault 0 variable capabilityOccurrences == 1)
+          generalizableCaps
+      singletonDefault =
+        Subst Map.empty
+          (Map.fromList
+            [ (variable, CapAny)
+            | variable <- Set.toList singletonCaps
+            ])
+      arguments' = map (applySubstDual singletonDefault) arguments
+      result' = applySubstDual singletonDefault result
   return DualScheme
     { dualCapBinders =
-        Set.toList
-          (payloadCaps `Set.difference` (ambientCaps `Set.difference` lexicalCaps))
+        Set.toList (generalizableCaps `Set.difference` singletonCaps)
     , dualTyBinders =
         Set.toList
           (payloadTypes `Set.difference` (ambientTypes `Set.difference` lexicalTypes))
-    , dualArgs = arguments
-    , dualResult = result
+    , dualArgs = arguments'
+    , dualResult = result'
     }
   where
+    dualCapabilityOccurrences (Dual capability target) =
+      Map.unionWith (+)
+        (capabilityOccurrencesInCapability capability)
+        (capabilityOccurrencesInType target)
+
+    capabilityOccurrencesInCapability capability =
+      case capability of
+        CapAny ->
+          Map.empty
+        CapVar variable ->
+          Map.singleton variable 1
+        CapSkolem _ ->
+          Map.empty
+        CapCon _ children ->
+          Map.unionsWith (+)
+            (map capabilityOccurrencesInCapability children)
+        CapTuple components ->
+          Map.unionsWith (+)
+            (map capabilityOccurrencesInCapability components)
+
+    capabilityOccurrencesInType ty =
+      case ty of
+        TTuple components ->
+          combineTypes components
+        TCollection element ->
+          capabilityOccurrencesInType element
+        TInductive _ arguments' ->
+          combineTypes arguments'
+        TTensor element ->
+          capabilityOccurrencesInType element
+        THash key value ->
+          combineTypes [key, value]
+        TMatcher capability target ->
+          Map.unionWith (+)
+            (capabilityOccurrencesInCapability capability)
+            (capabilityOccurrencesInType target)
+        TMatcherSlot capability target ->
+          Map.unionWith (+)
+            (capabilityOccurrencesInCapability capability)
+            (capabilityOccurrencesInType target)
+        TFun argument result' ->
+          combineTypes [argument, result']
+        TIO value ->
+          capabilityOccurrencesInType value
+        TIORef value ->
+          capabilityOccurrencesInType value
+        TTerm coefficient _ ->
+          capabilityOccurrencesInType coefficient
+        TFrac coefficient ->
+          capabilityOccurrencesInType coefficient
+        TPoly coefficient _ ->
+          capabilityOccurrencesInType coefficient
+        _ ->
+          Map.empty
+      where
+        combineTypes =
+          Map.unionsWith (+) . map capabilityOccurrencesInType
+
     patternTypeEnvFreeCaps environment =
       Set.unions
         [ schemeFreeCaps scheme
@@ -1080,10 +1161,12 @@ checkResidualConstraints defName sigConstraints finalType finalSubst ctx = do
                  [] -> case tys of
                    (TTensor el : restT) -> reduceC (d - 1) (Constraint cls (el : restT))
                    _ -> [c]
-      matchTypesOneWay ps ts = foldM step emptySubst (zip ps ts)
-        where step acc (p, t) = do
-                s <- TU.matchOneWay (applySubst acc p) t
-                return (composeSubst s acc)
+      -- Match the complete multi-parameter head in one product judgment.
+      -- Folding pairwise after applying the accumulated substitution to the
+      -- next consumer erased whether a nested capability Any was literal or
+      -- came from an earlier variable binding.
+      matchTypesOneWay ps ts =
+        TU.matchOneWay (TTuple ps) (TTuple ts)
 
       residual' = concatMap (reduceC 5 . applySubstConstraint finalSubst) residual
       missing = nub [ c | c <- residual', hasVar c, mentionsSig c, not (entailed c) ]
@@ -2158,10 +2241,10 @@ inferConstant c = case c of
   BoolExpr _    -> return TBool
   IntegerExpr _ -> return TInt
   FloatExpr _   -> return TFloat
-  -- something : Matcher none a
+  -- something : Matcher Any a
   SomethingExpr -> do
     elemType <- freshVar "a"
-    return (TMatcher CapNone elemType)
+    return (TMatcher CapAny elemType)
   -- undefined has a fresh type variable (bottom-like, can be any type)
   UndefinedExpr -> freshVar "undefined"
 
@@ -2852,14 +2935,14 @@ inferIExprWithContext expr ctx = case expr of
             return ()
       [] ->
         throwError $ TE.TypeMismatch
-          (TMatcher CapNone (TVar (TyVar "a")))
-          (TMatcher CapNone (TVar (TyVar "a")))
+          (TMatcher CapAny (TVar (TyVar "a")))
+          (TMatcher CapAny (TVar (TyVar "a")))
           "a `matcher` must end with exactly one catch-all clause `$ as <matcher> with $tgt -> ...`"
           exprCtx
       _ ->
         throwError $ TE.TypeMismatch
-          (TMatcher CapNone (TVar (TyVar "a")))
-          (TMatcher CapNone (TVar (TyVar "a")))
+          (TMatcher CapAny (TVar (TyVar "a")))
+          (TMatcher CapAny (TVar (TyVar "a")))
           "the unique catch-all must be the final matcher clause and have exactly one variable arm `with $tgt -> ...`"
           exprCtx
     -- Compatibility diagnostics describe an extension path the production
@@ -3184,7 +3267,7 @@ inferIExprWithContext expr ctx = case expr of
             merged <- either shapeError return
                         (Cap.mergeCapEvidences clauseEvidence)
             case merged of
-              Cap.CapUnseen -> return (CapNone, False)
+              Cap.CapUnseen -> return (CapAny, False)
               evidence -> do
                 capability <- either shapeError return
                   (Cap.finalizeCapEvidence observability evidence)
@@ -3369,7 +3452,7 @@ inferIExprWithContext expr ctx = case expr of
                     ctx
                 -- Shape HCSlot consumers with the complete PP-Con field
                 -- skeleton before result projection.  Otherwise a mixed
-                -- field can make projection fix its closed branches to none
+                -- field can make projection fix its closed branches to Any
                 -- before validation has installed their required heads.
                 alignedValidation <-
                   if certifiedFieldValidation
@@ -3606,7 +3689,7 @@ inferIExprWithContext expr ctx = case expr of
                                       if isObservable
                                         then fieldValidationCapabilityTemplate
                                                observable argument
-                                        else return CapNone)
+                                        else return CapAny)
                                     mask arguments
                       _ ->
                         freshCapability "fieldValidationCap"
@@ -3724,7 +3807,7 @@ inferIExprWithContext expr ctx = case expr of
                                         (\isObservable argument ->
                                           if isObservable
                                             then projectionComponentTemplate argument
-                                            else return CapNone)
+                                            else return CapAny)
                                         mask arguments
                           _ ->
                             freshCapability "projectionCap"
@@ -3737,7 +3820,7 @@ inferIExprWithContext expr ctx = case expr of
                     (Cap.projectionRelevantVariables
                        observable resultVariables componentType)
                 if Set.null relevant
-                  then return CapNone
+                  then return CapAny
                   else projectionCapabilityTemplate componentType
 
               projectionError detail =
@@ -4446,7 +4529,7 @@ inferIExprWithContext expr ctx = case expr of
           ) ([], emptySubst) elemTypes
         -- The tuple as a whole becomes Matcher (a1, a2, ...)
         let tupleInnerType = TTuple finalInnerTypes
-        return (TMatcher CapNone tupleInnerType, tupleInnerType, s_elems)
+        return (TMatcher CapAny tupleInnerType, tupleInnerType, s_elems)
       -- A MatcherSlot (committed parameter, or a stdlib slot-typed matcher): the matched inner
       -- type is its target component.
       TMatcherSlot cap tt -> return (TMatcher cap tt, tt, emptySubst)
@@ -4455,7 +4538,7 @@ inferIExprWithContext expr ctx = case expr of
         matchedTy <- freshVar "matched"
         s' <- bindMatcherInner exprCtx appliedMatcherType matchedTy
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
-        return (TMatcher CapNone finalMatchedTy, finalMatchedTy, s')
+        return (TMatcher CapAny finalMatchedTy, finalMatchedTy, s')
 
     let s123 = composeSubst s3 sAdm
     targetType' <- applySubstWithConstraintsM s123 targetType
@@ -4523,7 +4606,7 @@ inferIExprWithContext expr ctx = case expr of
           ) ([], emptySubst) elemTypes
         -- The tuple as a whole becomes Matcher (a1, a2, ...)
         let tupleInnerType = TTuple finalInnerTypes
-        return (TMatcher CapNone tupleInnerType, tupleInnerType, s_elems)
+        return (TMatcher CapAny tupleInnerType, tupleInnerType, s_elems)
       -- A MatcherSlot (committed parameter, or a stdlib slot-typed matcher): the matched inner
       -- type is its target component.
       TMatcherSlot cap tt -> return (TMatcher cap tt, tt, emptySubst)
@@ -4532,7 +4615,7 @@ inferIExprWithContext expr ctx = case expr of
         matchedTy <- freshVar "matched"
         s' <- bindMatcherInner exprCtx appliedMatcherType matchedTy
         finalMatchedTy <- applySubstWithConstraintsM s' matchedTy
-        return (TMatcher CapNone finalMatchedTy, finalMatchedTy, s')
+        return (TMatcher CapAny finalMatchedTy, finalMatchedTy, s')
 
     let s123 = composeSubst s3 sAdm
     targetType' <- applySubstWithConstraintsM s123 targetType
@@ -5401,7 +5484,7 @@ capabilityFromCtor ctx argumentTypes resultType children
 -- rather than κ (capability) means a value pattern `#e` — matched by structural equality @≡@,
 -- which every matcher supports — imposes only a target-type constraint.  So `multiset eq with #1`
 -- and `something with #1` are admissible, while a *constructor* pattern still demands a
--- structurally-capable matcher (`something` / a bare `Matcher none a` at
+-- structurally-capable matcher (`something` / a bare `Matcher Any a` at
 -- `$x :: $xs` is still rejected).
 checkMatcherAdmissibility :: TypeErrorContext -> Type -> Type -> [IMatchClause] -> Subst -> Infer Subst
 checkMatcherAdmissibility ctx matcherTy targetTy clauses s0 = foldM step s0 clauses
@@ -5463,7 +5546,7 @@ rejectAnyMatcherCapabilityBypass ctx matcherType requiredCapability =
   where
     capabilityRequiresProducerEvidence capability =
       case capability of
-        CapNone       -> False
+        CapAny       -> False
         CapVar _      -> False
         CapSkolem _   -> True
         CapCon _ _    -> True

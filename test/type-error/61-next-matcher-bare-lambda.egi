@@ -1,12 +1,12 @@
 -- R12 component checking must not skip lambda applications.  This expression
--- has the same complete inferred type `Matcher none a` as mPoly itself.
+-- has the same complete inferred type `Matcher Any a` as mPoly itself.
 --
--- Expected: Type error (`none` capability at a list-headed hole)
+-- Expected: Type error (`Any` capability at a list-headed hole)
 
 inductive Box := Box [Integer]
 inductive pattern Box := box [Integer]
 
-def mPoly {a} : Matcher none a :=
+def mPoly {a} : Matcher Any a :=
   matcher
     | $ as something with
       | $tgt -> [tgt]

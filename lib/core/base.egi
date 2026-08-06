@@ -34,7 +34,7 @@ instance {Eq a} Eq (Tensor a) where
   (==) t1 t2 := t1 = t2
   (/=) t1 t2 := not (t1 == t2)
 
-def eq {Eq a} : Matcher none a :=
+def eq {Eq a} : Matcher Any a :=
   matcher
     | #$val as () with
       | $tgt -> if val == tgt then [()] else []
@@ -43,33 +43,33 @@ def eq {Eq a} : Matcher none a :=
 
 -- The primitive matchers are eq's body inlined at each concrete type.
 -- Equality and catch-all clauses do not expose constructor structure, so
--- these matchers all have capability `none`, independently of their target
+-- these matchers all have capability `Any`, independently of their target
 -- types.
 -- The #$val arm uses the built-in equality `=` (same convention as
 -- sortedList's #$val arm); for the base types it coincides with ==.
 
-def bool : Matcher none Bool :=
+def bool : Matcher Any Bool :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as something with
       | $tgt -> [tgt]
 
-def char : Matcher none Char :=
+def char : Matcher Any Char :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as something with
       | $tgt -> [tgt]
 
-def integer : Matcher none Integer :=
+def integer : Matcher Any Integer :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []
     | $ as something with
       | $tgt -> [tgt]
 
-def float : Matcher none Float :=
+def float : Matcher Any Float :=
   matcher
     | #$val as () with
       | $tgt -> if val = tgt then [()] else []

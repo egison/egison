@@ -48,24 +48,24 @@ done
 | 40-matcher-next-structural | Def 4.2(1a) / PP-Con(B の `weird`) | 構築子頭 hole への `something` |
 | 41-matcher-body-matchsite | 本体内 match-site 検査 | matcher 本体内の `integer` × cons |
 | 42-tuple-pattern-arity | PAT-TUPLE | タプルパターンの arity 不一致 |
-| 50-matcher-collection-hetero | capability equality | `[something, list integer]`(`none` と `[none]` の異種 capability) |
-| 51-matcher-cast-structured | capability preservation | `def m2 : Matcher [none] [Integer] := something`(capability 強化の拒否) |
+| 50-matcher-collection-hetero | capability equality | `[something, list integer]`(`Any` と `[Any]` の異種 capability) |
+| 51-matcher-cast-structured | capability preservation | `def m2 : Matcher [Any] [Integer] := something`(capability 強化の拒否) |
 | 52-missing-signature-constraint | シグネチャ完全性(残存制約検査) | 本体が `<=`({Ord a})を要求するのにシグネチャに無い |
-| 53-matcher-alias-specialize | capability preservation | `def myint : Matcher Integer Integer := eq`(`none` からの capability 強化を拒否) |
+| 53-matcher-alias-specialize | capability preservation | `def myint : Matcher Integer Integer := eq`(`Any` からの capability 強化を拒否) |
 | 54-something-structured-hole | PP-Con 遅延判定 | 結果注釈を capability evidence に使わず，list tail hole への `something` を拒否 |
 | 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
 | 56-multisite-structural-join | 同(capability 要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
 | 57-next-matcher-nontuple | T-MATCHER / R12 成分境界 | 2 hole に積を返す非 tuple application |
 | 58-next-matcher-slot-structural | Algorithm W Step 3a / R12 | target は一致するが capability が不一致の既存 slot |
-| 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の `none` matcher を構造 hole へ渡す |
-| 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ `none` capability を構造 hole へ渡す |
-| 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ `none` capability を構造 hole へ渡す |
+| 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の `Any` matcher を構造 hole へ渡す |
+| 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ `Any` capability を構造 hole へ渡す |
+| 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ `Any` capability を構造 hole へ渡す |
 | 62-next-matcher-nested-rename | capability rename / R12 | `Maybe [p]` の入れ子骨格を欠く matcher |
 | 63-next-matcher-zero-hole | T-MATCHER / R12 成分境界 | 0 hole に `()` 以外の next matcher |
 | 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
 | 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | capability は一致するが target 添字が不一致の既存 slot |
-| 66-next-matcher-repeated-slot | exact merge / R12 | 同一 target の反復 slot に `Choice` と `none` が届く不一致 |
-| 67-p2-target-specialization-cons | P2 capability/target separation | target を list へ特殊化した `none` matcher で cons を拒否 |
+| 66-next-matcher-repeated-slot | exact merge / R12 | 同一 target の反復 slot に `Choice` と `Any` が届く不一致 |
+| 67-p2-target-specialization-cons | P2 capability/target separation | target を list へ特殊化した `Any` matcher で cons を拒否 |
 | 68-p2-unseen-observable-parameter | P2 D1 finalization | `None` 型の節だけでは observable parameter を確定できない |
 | 69-p2-exact-clause-mismatch | P2 D1 exact merge | 同じ result slot へ異なる clause capability が届く |
 | 70-p2-recursive-annotation-is-not-evidence | P2 D4 | 再帰需要と結果注釈だけで Shape evidence を生成しない |
@@ -85,7 +85,7 @@ done
 | 84-p2-nested-annotation-rigidity | P2 D3 nested annotation checking | top-level の rigid 通常型 binder を nested annotation でも共有し，特殊化を拒否 |
 | 85-p2-pattern-function-annotation-rigidity | P2 D3 pattern-function checking | pattern function の明示通常型 binder を rigid に検査する |
 | 86-p2-pattern-function-nested-annotation-rigidity | P2 D3 nested pattern annotation | pattern-function body の nested annotation でも同じ rigid binder を共有する |
-| 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `none` への特殊化を拒否 |
+| 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `Any` への特殊化を拒否 |
 | 88-patfun-param-target | PATFUN-DEF / PAT-EMBED target | `~parameter` が宣言された `Integer` target を保持し，結果の `Bool` へ再型付けされることを拒否 |
 | 89-patfun-exact-arity | PAT-APP exact arity | target-only の関数型統一では受理できる pattern function の過少適用を拒否 |
 | 90-closed-field-slot-application | PP-Con / Matcher Consistency (1a) | closed list field が推論した `MatcherSlot` へ `something` を渡す適用を拒否 |

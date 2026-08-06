@@ -1,9 +1,9 @@
 -- Deferred hole admissibility (paper PP-Con, Def 4.2(1a)): the tail hole of
 -- the cons clause requires list capability at its tail hole, where
--- `something` supplies `none`.  The result annotation does not create
+-- `something` supplies `Any`.  The result annotation does not create
 -- capability evidence.
 
-def bad : Matcher [none] [Integer] :=
+def bad : Matcher [Any] [Integer] :=
   matcher
     | $ :: $ as (something, something) with
       | $x :: $xs -> [(x, xs)]

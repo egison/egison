@@ -1016,7 +1016,7 @@ capabilityExprWithApp = do
 
 capabilityAtom :: Parser CapabilityExpr
 capabilityAtom =
-      CENone <$ reserved "none"
+      CEAny <$ reserved "Any"
   <|> CEList <$> brackets capabilityExprWithApp
   <|> try parenCapabilityOrTuple
   <|> CEVar <$> typeVarIdent

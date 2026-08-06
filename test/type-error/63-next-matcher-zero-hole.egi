@@ -4,7 +4,7 @@
 --
 -- Expected: Type error (zero holes require ())
 
-def bad : Matcher [none] [Integer] :=
+def bad : Matcher [Any] [Integer] :=
   matcher
     | [] as something with
       | [] -> [()]

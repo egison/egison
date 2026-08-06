@@ -11,7 +11,7 @@ inductive pattern P2ForwardTree a :=
   | p2ForwardNode (P2ForwardTree a)
 
 def p2ForwardLeft {a}
-  : Matcher (P2ForwardTree none) (P2ForwardTree a) :=
+  : Matcher (P2ForwardTree Any) (P2ForwardTree a) :=
   matcher
     | p2ForwardLeaf $ as something with
       | P2ForwardLeaf $value -> [value]
@@ -23,7 +23,7 @@ def p2ForwardLeft {a}
       | $tgt -> [tgt]
 
 def p2ForwardRight {a}
-  : Matcher (P2ForwardTree none) (P2ForwardTree a) :=
+  : Matcher (P2ForwardTree Any) (P2ForwardTree a) :=
   matcher
     | p2ForwardLeaf $ as something with
       | P2ForwardLeaf $value -> [value]

@@ -1,6 +1,6 @@
 # Egison Core Boundary
 
-> **Status (2026-08-05).** This document defines the integration boundary
+> **Status (2026-08-06).** This document defines the integration boundary
 > between Egison's production type checker and the executable two-sorted core
 > mechanized in `type-pm-mech`. It is an implementation contract, not a claim
 > that the complete Egison language has been translated to, or proved sound by,
@@ -59,7 +59,7 @@ constraint solving, and zonking.
 
 Here, “synchronized” refers to this capability/target and matcher-slot
 fragment. The Haskell ordinary-type solver also contains production rules for
-CAS representations, tensors, type classes, `Any`, and other Egison features.
+CAS representations, tensors, type classes, ordinary gradual `TAny`, and other Egison features.
 A successful call to that whole production solver is therefore not, by
 itself, evidence of a TypePM derivation. The mechanized executable checker
 remains the Lean implementation; the Haskell integration records known
@@ -73,12 +73,12 @@ solver state, but by their respective solvers. A successful root result must
 therefore satisfy both of the following:
 
 1. the capability is justified by constructor or tuple evidence, an actual
-   producer/slot assumption, or the unconstraining `none` case; and
+   producer/slot assumption, or the ground `Any` case; and
 2. the ordinary target is the target obtained by applying the same final
    substitution to the shared matcher target.
 
 Target specialization alone is never evidence for a structured capability.
-`Any`, a target annotation, a match-site demand, or a recursive result
+Ordinary gradual `TAny`, a target annotation, a match-site demand, or a recursive result
 annotation must not invent a capability head.
 
 ### 2.2 Nested rigid core solver
@@ -92,7 +92,7 @@ ordinary-type unification for a capability component.
 
 The core solver fails closed. If a nested constraint cannot be handled by its
 rigid two-sorted rules, the synchronized path fails rather than weakening the
-constraint to `Any`, `none`, or a fresh unconstrained slot. Production may then
+constraint to ordinary `TAny`, capability `Any`, or a fresh unconstrained slot. Production may then
 use an explicitly identified Egison fallback, but that crossing is a
 compatibility-warning event.
 
@@ -109,6 +109,18 @@ variables owned only by the consumer. Producer variables, and variables shared
 by producer and consumer, remain rigid even if they later occur in a consumer
 position during recursive decomposition. Repeated consumer variables must be
 solved consistently, and the occurs check remains active.
+
+Capability `Any` is a ground constructor, not an unsolved metavariable. Its
+wildcard behavior is limited to a literal `Any` node in the original consumer
+shape of this one-way judgment. Producer `Any` is rigid, as is every `Any` in
+symmetric capability unification and exact evidence merging. If a consumer
+variable is first bound to producer `Any`, a later occurrence of that variable
+must compare strictly with the saved `Any`; applying the substitution must not
+turn it into a new wildcard. Thus matching `Prod[Any, K]` against the consumer
+`Prod[kappa, kappa]` fails unless `K` is also `Any`. The original-node
+provenance and shared binding environment are retained across product-slot
+aggregation, nested `Matcher`/`MatcherSlot` types, and multi-parameter
+one-way matching.
 
 The capability check runs first. Its substitution is applied to constraints
 and both targets before the ordinary target equality is solved. The resulting
@@ -139,7 +151,7 @@ constructor projection transports only evidence that reaches a variable in the
 constructor result. The certified actual-clause path additionally checks every
 non-unseen hole producer against the declared field's capability-visible
 skeleton, including nested observable heads. Thus a value of type
-`Matcher none [Integer]` is valid, but it cannot fill the hole of a general
+`Matcher Any [Integer]` is valid, but it cannot fill the hole of a general
 `box $` clause whose declared field is `[Integer]`. Wildcard and captured-value
 refinements contribute unseen evidence and impose no next-matcher obligation.
 
@@ -316,6 +328,16 @@ binders. Both binder lists are set-like: definition-side generalization
 constructs duplicate-free lists, and instantiation rejects a malformed scheme
 with duplicate binders, matching the mechanized input invariant.
 
+Definition-side generalization counts each flexible capability variable across
+all argument/result duals, including matcher capabilities nested in their
+ordinary targets. A non-ambient variable occurring exactly once carries no
+correlation and is canonicalized to ground `Any`. A variable occurring two or
+more times remains quantified so its argument/argument or argument/result
+sharing is preserved. Ambient variables remain free. Local pattern variables,
+wildcards, and value/predicate leaves still receive fresh capabilities during
+inference; only the completed `DualScheme` crosses this canonicalization
+boundary.
+
 A finalized named application instantiates both binder lists in one freshening
 step and applies the same paired substitution to every argument and the result.
 It then checks the result target, each argument target, and each argument
@@ -386,10 +408,10 @@ production solver. This includes:
 
 - symmetric capability unification where one-way matching was required;
 - adding a protected producer variable to a consumer substitution domain;
-- using a raw `Any` value, including a raw tuple component, as evidence for a
-  `MatcherSlot` head;
-- replacing a failed nested matcher constraint with `Any`, `none`, or a fresh
-  unconstrained variable;
+- using a raw ordinary `TAny` value, including a raw tuple component, as
+  evidence for a `MatcherSlot` head;
+- replacing a failed nested matcher constraint with ordinary `TAny`, capability
+  `Any`, or a fresh unconstrained variable;
 - deriving ownership from a final zonked type because the allocation ledger is
   unavailable; and
 - changing an enclosing ordinary-type or capability metavariable at an

@@ -2,7 +2,7 @@
 -- patterns.  A nested matcher literal must therefore flush its deferred R12
 -- next-matcher checks before the declaration is recorded.
 --
--- Expected: Type error (`none` capability at the Box hole)
+-- Expected: Type error (`Any` capability at the Box hole)
 
 inductive Box := Box [Integer]
 inductive pattern Box := box [Integer]

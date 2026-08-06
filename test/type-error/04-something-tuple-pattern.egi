@@ -1,7 +1,7 @@
 --
--- Tuple pattern at a no-capability matcher (paper Lemma "MS Progress",
+-- Tuple pattern at a ground-Any matcher (paper Lemma "MS Progress",
 -- tuple case).  The tuple pattern requires product capability, so
--- `something : Matcher none b` fails the capability check.
+-- `something : Matcher Any b` fails the capability check.
 --
 -- Expected: Type error (something vs a product-headed slot)
 --

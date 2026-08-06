@@ -5,7 +5,7 @@
 -- runtime counterpart would route a cons sub-pattern to something and
 -- get stuck.
 --
--- Expected: Type error (`none` at the list-capable tail hole)
+-- Expected: Type error (`Any` at the list-capable tail hole)
 --
 
 def weird {a} (m: MatcherSlot p a) : Matcher [p] [a] :=

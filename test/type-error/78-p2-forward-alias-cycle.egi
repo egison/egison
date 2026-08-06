@@ -12,11 +12,11 @@ inductive pattern P2ForwardAliasTree a :=
   | p2ForwardAliasNode (P2ForwardAliasTree a)
 
 def p2ForwardAlias {a}
-  : Matcher (P2ForwardAliasTree none) (P2ForwardAliasTree a) :=
+  : Matcher (P2ForwardAliasTree Any) (P2ForwardAliasTree a) :=
   p2ForwardCycle
 
 def p2ForwardCycle {a}
-  : Matcher (P2ForwardAliasTree none) (P2ForwardAliasTree a) :=
+  : Matcher (P2ForwardAliasTree Any) (P2ForwardAliasTree a) :=
   matcher
     | p2ForwardAliasLeaf $ as something with
       | P2ForwardAliasLeaf $value -> [value]

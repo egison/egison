@@ -153,9 +153,9 @@ unifyMany ts1 ts2 =
 unifyCapability :: Capability -> Capability -> Either UnifyError Subst
 unifyCapability cap1 cap2
   | not (wellFormedCapability cap1) =
-      Left (capabilityMismatch cap1 CapNone)
+      Left (capabilityMismatch cap1 CapAny)
   | not (wellFormedCapability cap2) =
-      Left (capabilityMismatch cap2 CapNone)
+      Left (capabilityMismatch cap2 CapAny)
   | otherwise =
       go [(cap1, cap2)] emptySubst
   where
@@ -192,37 +192,66 @@ unifyCapability cap1 cap2
 -- judgment, including a variable shared syntactically by producer and
 -- consumer.  The stable domain is captured before decomposition so a
 -- producer variable copied into a consumer position never becomes bindable
--- later in the same match.
+-- later in the same match.  A literal consumer 'CapAny' is a wildcard, but a
+-- consumer variable previously bound to 'CapAny' is not: later occurrences
+-- of that variable must agree strictly with the saved ground capability.
 matchCapability :: Capability -> Capability -> Either UnifyError Subst
-matchCapability producer0 consumer0
-  | not (wellFormedCapability producer0) =
-      Left (capabilityMismatch producer0 CapNone)
-  | not (wellFormedCapability consumer0) =
-      Left (capabilityMismatch consumer0 CapNone)
-  | otherwise =
-      go [(producer0, consumer0)] emptySubst
-  where
-    bindable =
-      freeCapVarsCapability consumer0
-        `Set.difference` freeCapVarsCapability producer0
+matchCapability producer0 consumer0 =
+  matchCapabilityWithDomain
+      True
+      (freeCapVarsCapability consumer0
+        `Set.difference` freeCapVarsCapability producer0)
+      producer0
+      consumer0
+      emptySubst
 
+-- | Continue producer-to-consumer capability matching with one stable
+-- consumer-owned domain and an existing paired substitution.  The Boolean
+-- records whether literal 'CapAny' nodes come from the original consumer
+-- shape.  It is false for a type obtained by expanding an earlier consumer
+-- variable binding, because an @Any@ stored in that binding is a rigid value,
+-- not a fresh wildcard occurrence.
+matchCapabilityWithDomain
+  :: Bool
+  -> Set.Set CapVar
+  -> Capability
+  -> Capability
+  -> Subst
+  -> Either UnifyError Subst
+matchCapabilityWithDomain literalAnyIsWildcard bindable producer0 consumer0 initialSubst
+  | not (wellFormedCapability producer0) =
+      Left (capabilityMismatch producer0 CapAny)
+  | not (wellFormedCapability consumer0) =
+      Left (capabilityMismatch consumer0 CapAny)
+  | otherwise =
+      go [(producer0, consumer0)] initialSubst
+  where
     go [] acc = Right acc
-    go ((producer, consumer0') : rest) acc =
-      let consumer = applyCapSubst acc consumer0'
+    go ((producer, originalConsumer) : rest) acc =
+      let consumer = applyCapSubst acc originalConsumer
       in if producer == consumer
            then go rest acc
-           else case (producer, consumer) of
+           else case (producer, originalConsumer) of
+             -- Only a literal Any in the declared consumer shape is a
+             -- wildcard.  Inspecting the original node here is essential:
+             -- applying the accumulated substitution first would make a
+             -- repeated variable bound to Any indistinguishable from this
+             -- literal case.
+             (_, CapAny)
+               | literalAnyIsWildcard ->
+                   go rest acc
              (cap, CapVar variable)
-               | variable `Set.member` bindable ->
+               | variable `Set.member` bindable
+               , Map.notMember variable (unCapSubst acc) ->
                    bindConsumer variable cap rest acc
              (CapCon producerFormer producerChildren,
-              CapCon consumerFormer consumerChildren)
+              CapCon consumerFormer originalChildren)
                | producerFormer == consumerFormer
-               , length producerChildren == length consumerChildren ->
-                   go (zip producerChildren consumerChildren ++ rest) acc
-             (CapTuple producerComponents, CapTuple consumerComponents)
-               | length producerComponents == length consumerComponents ->
-                   go (zip producerComponents consumerComponents ++ rest) acc
+               , length producerChildren == length originalChildren ->
+                   go (zip producerChildren originalChildren ++ rest) acc
+             (CapTuple producerComponents, CapTuple originalComponents)
+               | length producerComponents == length originalComponents ->
+                   go (zip producerComponents originalComponents ++ rest) acc
              _ ->
                Left (capabilityMismatch producer consumer)
 
@@ -238,7 +267,7 @@ matchCapability producer0 consumer0
 wellFormedCapability :: Capability -> Bool
 wellFormedCapability capability =
   case capability of
-    CapNone ->
+    CapAny ->
       True
     CapVar _ ->
       True
@@ -913,7 +942,7 @@ unifyEachAsMatcherExtended env cons (t:rest) s = do
       case applySubst s' (TMatcher cap innerTy) of
         TMatcher cap' target' -> Right ((cap', target'), s', flag)
         _ -> Left $ TypeMismatch (TMatcher cap innerTy) t'
-    _ -> Left $ TypeMismatch (TMatcher CapNone TAny) t'
+    _ -> Left $ TypeMismatch (TMatcher CapAny TAny) t'
 
   let s2 = composeSubst s1 s
       cons'' = map (applySubstConstraint s2) cons
@@ -943,7 +972,7 @@ unifyEachKnownMatcher env constraints (ty : rest) substitution = do
   part <- case resolved of
     TMatcher capability target -> Right (capability, target)
     TMatcherSlot capability target -> Right (capability, target)
-    _ -> Left (MatcherRigidity resolved (TMatcher CapNone TAny))
+    _ -> Left (MatcherRigidity resolved (TMatcher CapAny TAny))
   (restParts, finalSubstitution, flag) <-
     unifyEachKnownMatcher
       env resolvedConstraints rest substitution
@@ -1240,9 +1269,9 @@ coerceSlotTupleWithinUsing targetUnifier boundaryUnifier tuplePartsUnifier
               (\producer ->
                 applyCapSubst finalSubst producer == producer)
               rawProducerRoots
-          pairOK (producer, consumer) =
+          pairOK (producer, originalConsumer) =
             applyCapSubst finalSubst producer == producer
-              && applyCapSubst finalSubst consumer == producer
+              && consumerSatisfied producer originalConsumer
           outerOK =
             maybe True pairOK rawOuterPair
       in if supportOK
@@ -1254,6 +1283,42 @@ coerceSlotTupleWithinUsing targetUnifier boundaryUnifier tuplePartsUnifier
              (MatcherRigidity
                (TTuple tys)
                (TMatcherSlot cap target))
+      where
+        -- Recheck the complete product under the final shared bindings without
+        -- erasing consumer provenance.  Literal Any nodes in the raw consumer
+        -- remain wildcards.  A consumer variable whose saved image happens to
+        -- be Any takes the CapVar branch and is therefore compared strictly.
+        consumerSatisfied producer originalConsumer =
+          case originalConsumer of
+            CapAny ->
+              True
+            CapVar _ ->
+              applyCapSubst finalSubst originalConsumer == producer
+            CapSkolem _ ->
+              originalConsumer == producer
+            CapCon consumerFormer consumerChildren ->
+              case producer of
+                CapCon producerFormer producerChildren
+                  | producerFormer == consumerFormer
+                  , length producerChildren == length consumerChildren ->
+                      and
+                        (zipWith
+                          consumerSatisfied
+                          producerChildren
+                          consumerChildren)
+                _ ->
+                  False
+            CapTuple consumerComponents ->
+              case producer of
+                CapTuple producerComponents
+                  | length producerComponents == length consumerComponents ->
+                      and
+                        (zipWith
+                          consumerSatisfied
+                          producerComponents
+                          consumerComponents)
+                _ ->
+                  False
 
 -- | One-way matching: is there a substitution over @slot@'s type variables making
 -- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
@@ -1264,20 +1329,25 @@ matchOneWay :: Type -> Type -> Maybe Subst
 matchOneWay slot0 matcher0 =
   matchOneWayWithDomain
     (freeTyVars slot0 `Set.difference` freeTyVars matcher0)
+    (freeCapVars slot0 `Set.difference` freeCapVars matcher0)
     slot0 matcher0
 
 -- | One-way matching with an explicit, stable binding domain.  The domain is
 -- captured from the original structural slot and must be preserved across a
 -- recursively decomposed product coercion.  Variables introduced by the
 -- matcher side therefore remain rigid even if an earlier equality substitutes
--- one of them into a later slot position.
-matchOneWayWithDomain :: Set.Set TyVar -> Type -> Type -> Maybe Subst
-matchOneWayWithDomain bindable slot0 matcher0 =
-  go [(slot0, matcher0)] emptySubst
+-- one of them into a later slot position.  Worklist entries retain the raw
+-- consumer node plus a provenance bit; expanding a saved type-variable image
+-- clears that bit so capability Any inside the image is checked strictly.
+matchOneWayWithDomain
+  :: Set.Set TyVar
+  -> Set.Set CapVar
+  -> Type
+  -> Type
+  -> Maybe Subst
+matchOneWayWithDomain bindable bindableCapabilities slot0 matcher0 =
+  go [(True, slot0, matcher0)] emptySubst
   where
-    bindableCapabilities =
-      freeCapVars slot0 `Set.difference` freeCapVars matcher0
-
     go [] acc
       | applySubst acc matcher0 == matcher0
       , Map.keysSet (unSubst acc) `Set.isSubsetOf` bindable
@@ -1286,39 +1356,95 @@ matchOneWayWithDomain bindable slot0 matcher0 =
           Just acc
       | otherwise =
           Nothing
-    go ((s, t) : rest) acc =
-      case applySubst acc s of
-        TVar v
-          | v `Set.member` bindable
-          , TVar v == t ->
-              go rest acc
-          | v `Set.member` bindable
-          , v `Set.member` freeTyVars t ->
-              Nothing
-          | v `Set.member` bindable ->
-              go rest (composeSubst (singletonSubst v t) acc)
+    go ((fromOriginalConsumer, slot, matcher) : rest) acc =
+      case slot of
+        TVar variable
+          | variable `Set.member` bindable ->
+              case Map.lookup variable (unSubst acc) of
+                Just _ ->
+                  -- A repeated type variable reuses its saved image rigidly.
+                  -- In particular, a nested capability Any inside that image
+                  -- did not occur literally at this consumer position.
+                  matchStruct
+                    False
+                    (applySubst acc (TVar variable))
+                    matcher
+                    rest
+                    acc
+                Nothing
+                  | TVar variable == matcher ->
+                      go rest acc
+                  | variable `Set.member` freeTyVars matcher ->
+                      Nothing
+                  | otherwise ->
+                      go rest
+                        (composeSubst
+                          (singletonSubst variable matcher)
+                          acc)
           | otherwise ->
-              matchStruct (TVar v) t rest acc
-        s'     -> matchStruct s' t rest acc
-    matchStruct (TCollection a) (TCollection b) rest acc = go ((a, b) : rest) acc
-    matchStruct (TTuple as) (TTuple bs) rest acc
-      | length as == length bs = go (zip as bs ++ rest) acc
-    matchStruct (TInductive n as) (TInductive m bs) rest acc
-      | n == m && length as == length bs = go (zip as bs ++ rest) acc
-    matchStruct (TTensor a) (TTensor b) rest acc = go ((a, b) : rest) acc
-    matchStruct (THash k1 v1) (THash k2 v2) rest acc = go ((k1, k2) : (v1, v2) : rest) acc
-    matchStruct (TFun a1 r1) (TFun a2 r2) rest acc = go ((a1, a2) : (r1, r2) : rest) acc
-    matchStruct (TMatcher cap1 target1) (TMatcher cap2 target2) rest acc =
-      case matchCapability cap2 cap1 of
-        Right capS -> go ((target1, target2) : rest) (composeSubst capS acc)
-        Left _     -> Nothing
-    matchStruct (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) rest acc =
-      case matchCapability cap2 cap1 of
-        Right capS -> go ((target1, target2) : rest) (composeSubst capS acc)
-        Left _     -> Nothing
-    matchStruct (TIO a) (TIO b) rest acc = go ((a, b) : rest) acc
-    matchStruct (TIORef a) (TIORef b) rest acc = go ((a, b) : rest) acc
-    matchStruct a b rest acc
+              matchStruct
+                fromOriginalConsumer
+                (TVar variable)
+                matcher
+                rest
+                acc
+        _ ->
+          matchStruct fromOriginalConsumer slot matcher rest acc
+
+    descend provenance pairs rest acc =
+      go
+        ([ (provenance, consumer, producer)
+         | (consumer, producer) <- pairs
+         ] ++ rest)
+        acc
+
+    matchStruct provenance (TCollection a) (TCollection b) rest acc =
+      descend provenance [(a, b)] rest acc
+    matchStruct provenance (TTuple as) (TTuple bs) rest acc
+      | length as == length bs =
+          descend provenance (zip as bs) rest acc
+    matchStruct provenance (TInductive n as) (TInductive m bs) rest acc
+      | n == m && length as == length bs =
+          descend provenance (zip as bs) rest acc
+    matchStruct provenance (TTensor a) (TTensor b) rest acc =
+      descend provenance [(a, b)] rest acc
+    matchStruct provenance (THash k1 v1) (THash k2 v2) rest acc =
+      descend provenance [(k1, k2), (v1, v2)] rest acc
+    matchStruct provenance (TFun a1 r1) (TFun a2 r2) rest acc =
+      descend provenance [(a1, a2), (r1, r2)] rest acc
+    matchStruct provenance
+                (TMatcher consumerCap consumerTarget)
+                (TMatcher producerCap producerTarget)
+                rest acc =
+      case matchCapabilityWithDomain
+             provenance
+             bindableCapabilities
+             producerCap
+             consumerCap
+             acc of
+        Right acc' ->
+          descend provenance [(consumerTarget, producerTarget)] rest acc'
+        Left _ ->
+          Nothing
+    matchStruct provenance
+                (TMatcherSlot consumerCap consumerTarget)
+                (TMatcherSlot producerCap producerTarget)
+                rest acc =
+      case matchCapabilityWithDomain
+             provenance
+             bindableCapabilities
+             producerCap
+             consumerCap
+             acc of
+        Right acc' ->
+          descend provenance [(consumerTarget, producerTarget)] rest acc'
+        Left _ ->
+          Nothing
+    matchStruct provenance (TIO a) (TIO b) rest acc =
+      descend provenance [(a, b)] rest acc
+    matchStruct provenance (TIORef a) (TIORef b) rest acc =
+      descend provenance [(a, b)] rest acc
+    matchStruct _ a b rest acc
       | a == b          = go rest acc   -- base types match exactly
       | groundEquiv a b = go rest acc   -- CAS ground equivalence (Integer ~ MathValue ~ Factor/Term/Frac/Poly)
       | otherwise       = Nothing

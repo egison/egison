@@ -1,5 +1,5 @@
 -- Target specialization is allowed, but an annotation cannot strengthen a
--- producer's capability.  `eq` has type `{Eq a} => Matcher none a`;
+-- producer's capability.  `eq` has type `{Eq a} => Matcher Any a`;
 -- claiming Integer constructor capability would change what patterns may
 -- safely be routed to it.
 

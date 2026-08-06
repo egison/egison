@@ -519,8 +519,8 @@ capabilityToSolved
   -> Either ShapeSolveError SolvedShape
 capabilityToSolved capability =
   case capability of
-    CapNone ->
-      Right (SolvedKnown CapNone)
+    CapAny ->
+      Right (SolvedKnown CapAny)
     cap@(CapVar _) ->
       Right (SolvedKnown cap)
     cap@(CapSkolem _) ->

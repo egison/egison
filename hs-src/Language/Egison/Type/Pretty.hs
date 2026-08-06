@@ -75,7 +75,7 @@ prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbol
 -- | Pretty print a matcher capability. Applications use the same
 -- type-former notation as source annotations.
 prettyCapability :: Capability -> String
-prettyCapability CapNone = "none"
+prettyCapability CapAny = "Any"
 prettyCapability (CapVar (MkCapVar v)) = v
 prettyCapability (CapSkolem (MkCapVar v)) = v
 prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name
@@ -219,7 +219,7 @@ prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettyS
 
 -- | Pretty print a source-level matcher capability.
 prettyCapabilityExpr :: CapabilityExpr -> String
-prettyCapabilityExpr CENone = "none"
+prettyCapabilityExpr CEAny = "Any"
 prettyCapabilityExpr (CEVar v) = v
 prettyCapabilityExpr (CECon name []) = name
 prettyCapabilityExpr (CECon name args) =

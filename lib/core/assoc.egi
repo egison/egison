@@ -20,7 +20,7 @@ def fromAssoc {a} (xs: [(a, Integer)]) : [a] :=
 -- Assoc Multiset
 --
 
-def assocMultiset {a} (m: MatcherSlot p a) : Matcher [(p, none)] [(a, Integer)] :=
+def assocMultiset {a} (m: MatcherSlot p a) : Matcher [(p, Any)] [(a, Integer)] :=
   matcher
     | [] as () with
       | [] -> [()]

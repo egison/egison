@@ -14,21 +14,21 @@ assertEqual
   (p2RigidEqual [1, 2] [1, 2])
   True
 
-def catchAllMatcher {a} : Matcher none a :=
+def catchAllMatcher {a} : Matcher Any a :=
   matcher
     | $ as something with
       | $tgt -> [tgt]
 
-def matcherFor {a} (_ : a) : Matcher none a := catchAllMatcher
+def matcherFor {a} (_ : a) : Matcher Any a := catchAllMatcher
 
 assertEqual
-  "P2: target specialization preserves none capability"
+  "P2: target specialization preserves Any capability"
   (matchAll [1, 2] as catchAllMatcher with
     | $xs -> xs)
   [[1, 2]]
 
 assertEqual
-  "P2: function result preserves none capability"
+  "P2: function result preserves Any capability"
   (matchAll [1, 2] as matcherFor [1, 2] with
     | $xs -> xs)
   [[1, 2]]

@@ -280,7 +280,7 @@ outsideEgisonCoreWarningTests =
               { cfgOutsideEgisonCoreWarnings = enabled })
             { declaredSymbols = Map.fromList
                 [ ( "slotConsumer"
-                  , TFun (TMatcherSlot CapNone TInt) TInt
+                  , TFun (TMatcherSlot CapAny TInt) TInt
                   )
                 , ("opaqueMatcher", TAny)
                 ]
@@ -312,7 +312,7 @@ outsideEgisonCoreWarningTests =
       [OutsideEgisonCoreWarning detail _] ->
         assertBool
           "the Any-to-slot extension is reported at its explicit boundary"
-          ("explicit slot use `_ <= MatcherSlot none Integer`"
+          ("explicit slot use `_ <= MatcherSlot Any Integer`"
             `isInfixOf` detail)
       other ->
         assertFailure
@@ -397,6 +397,136 @@ patternFunctionDualSchemeTests =
           Left err ->
             assertFailure
                   ("the correlated pattern-function definition failed: " ++ show err)
+
+    , TestLabel "unshared inferred capability defaults to Any" . TestCase $ do
+        let declaration =
+              IPatternFunctionDecl
+                "wildcardPattern"
+                []
+                []
+                TInt
+                IWildCard
+        (result, warnings, finalState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr declaration)
+            (initialInferStateWithConfig defaultInferConfig)
+        assertEqual "canonicalization emits no warning" [] warnings
+        case result of
+          Left err ->
+            assertFailure
+              ("the wildcard pattern function failed: " ++ show err)
+          Right _ ->
+            assertEqual
+              "a capability occurring only in the result is ground Any"
+              (Just (DualScheme [] [] [] (Dual CapAny TInt)))
+              (lookupPatternFunctionEnv
+                "wildcardPattern" (inferPatternFuncEnv finalState))
+
+    , TestLabel "append patterns default their independent leaf to Any" .
+        TestCase $ do
+        let element = TyVar "a"
+            collectionFormer = mkTypeFormer "Collection" 1
+            collection ty = TCollection ty
+            collectionCapability capability =
+              CapCon collectionFormer [capability]
+            consScheme =
+              Forall [] [element] []
+                (TFun (TVar element)
+                  (TFun (collection (TVar element))
+                    (collection (TVar element))))
+            joinScheme =
+              Forall [] [element] []
+                (TFun (collection (TVar element))
+                  (TFun (collection (TVar element))
+                    (collection (TVar element))))
+            patternEnvironment =
+              extendPatternEnv "::" consScheme
+                (extendPatternEnv "++" joinScheme emptyPatternEnv)
+            appendLeaf =
+              IInductiveOrPApplyPat "++"
+                [ IWildCard
+                , IInductiveOrPApplyPat "::" [IPatVar "x", IWildCard]
+                ]
+            nestedAppendLeaf =
+              IInductiveOrPApplyPat "++"
+                [ IWildCard
+                , IInductiveOrPApplyPat "::"
+                    [ appendLeaf
+                    , IWildCard
+                    ]
+                ]
+            initialState =
+              (initialInferStateWithConfig defaultInferConfig)
+                { inferPatternEnv = patternEnvironment }
+            check name target body expectedCapability = do
+              let declaration =
+                    IPatternFunctionDecl name [element] [] target body
+              (result, warnings, finalState) <-
+                runInferWithWarningsAndState
+                  (inferITopExpr declaration)
+                  initialState
+              assertEqual (name ++ " emits no warning") [] warnings
+              case result of
+                Left err ->
+                  assertFailure
+                    (name ++ " failed inference: " ++ show err)
+                Right _ ->
+                  assertEqual
+                    (name ++ " has the canonical Any capability")
+                    (Just
+                      (DualScheme
+                        []
+                        [element]
+                        []
+                        (Dual expectedCapability target)))
+                    (lookupPatternFunctionEnv
+                      name (inferPatternFuncEnv finalState))
+
+        check
+          "appendLeafPattern"
+          (collection (TVar element))
+          appendLeaf
+          (collectionCapability CapAny)
+        check
+          "nestedAppendLeafPattern"
+          (collection (collection (TVar element)))
+          nestedAppendLeaf
+          (collectionCapability (collectionCapability CapAny))
+
+    , TestLabel "a singleton ambient capability remains free" . TestCase $ do
+        let ambient = MkCapVar "ambient-capability"
+            sourceName = "ambientPattern"
+            aliasName = "ambientPatternAlias"
+            sourceScheme =
+              DualScheme [] [] [] (Dual (CapVar ambient) TInt)
+            declaration =
+              IPatternFunctionDecl
+                aliasName
+                []
+                []
+                TInt
+                (IInductiveOrPApplyPat sourceName [])
+            initialState =
+              (initialInferStateWithConfig defaultInferConfig)
+                { inferPatternFuncEnv =
+                    extendPatternFunctionEnv
+                      sourceName sourceScheme emptyPatternFunctionEnv
+                }
+        (result, warnings, finalState) <-
+          runInferWithWarningsAndState
+            (inferITopExpr declaration)
+            initialState
+        assertEqual "ambient preservation emits no warning" [] warnings
+        case result of
+          Left err ->
+            assertFailure
+              ("the ambient-capability alias failed: " ++ show err)
+          Right _ ->
+            assertEqual
+              "a once-used ambient capability is neither defaulted nor quantified"
+              (Just sourceScheme)
+              (lookupPatternFunctionEnv
+                aliasName (inferPatternFuncEnv finalState))
 
     , TestLabel "definition distinguishes recursion from a shadowed head" . TestCase $ do
         let declaration =
@@ -802,8 +932,8 @@ patternFunctionDualSchemeTests =
                 DualScheme
                   []
                   [typeVariable]
-                  [Dual CapNone (TVar typeVariable)]
-                  (Dual CapNone (TVar typeVariable))
+                  [Dual CapAny (TVar typeVariable)]
+                  (Dual CapAny (TVar typeVariable))
               namedApplication functionName =
                 IMatchExpr
                   BFSMode
@@ -849,7 +979,7 @@ patternFunctionDualSchemeTests =
                   ]
               shadowedName = "shadowedPatternFunction"
               shadowedScheme =
-                DualScheme [] [] [] (Dual CapNone TInt)
+                DualScheme [] [] [] (Dual CapAny TInt)
               shadowedApplication =
                 ILetExpr
                   [ ( PDPatVar (Var shadowedName [])
@@ -1107,14 +1237,14 @@ p2CapabilityTests =
                   (TInductive "Maybe" [TInt])))
           substituted =
             applyCapSubstToType
-              (singletonCapSubst capabilityVariable CapNone)
+              (singletonCapSubst capabilityVariable CapAny)
               original
       assertEqual
         "capability substitution must traverse the complete ordinary type"
         (TCollection
           (TFun TInt
             (TMatcher
-              (CapCon (mkTypeFormer "Maybe" 1) [CapNone])
+              (CapCon (mkTypeFormer "Maybe" 1) [CapAny])
               (TInductive "Maybe" [TInt]))))
         substituted
 
@@ -1195,10 +1325,10 @@ p2CapabilityTests =
             resultType = TInductive "ClosedFieldBox" []
             listEvidence =
               Capability.CapConEvidence collectionFormer
-                [Capability.CapKnown CapNone]
+                [Capability.CapKnown CapAny]
             nestedListEvidence =
               Capability.CapConEvidence collectionFormer [listEvidence]
-            noCapability = Capability.CapKnown CapNone
+            anyCapability = Capability.CapKnown CapAny
             flexibleCapability =
               Capability.CapKnown
                 (CapVar (MkCapVar "closedFieldProducer"))
@@ -1224,11 +1354,11 @@ p2CapabilityTests =
             assertFailure
               "an outer-only list producer filled a nested list field"
         case Capability.validateFieldEvidence
-               observable fieldType noCapability of
+               observable fieldType anyCapability of
           Left _ -> return ()
           Right _ ->
             assertFailure
-              "a none-capability producer filled a closed list-headed field"
+              "an Any-capability producer filled a closed list-headed field"
         case Capability.validateFieldEvidence
                observable fieldType flexibleCapability of
           Left _ -> return ()
@@ -1239,7 +1369,7 @@ p2CapabilityTests =
           "closed field evidence is not projected into a nullary result"
           (Right (Capability.CapConEvidence boxFormer []))
           (Capability.projectConstructorEvidence
-            observable [fieldType] resultType [noCapability])
+            observable [fieldType] resultType [anyCapability])
 
   , TestLabel "P2: CapTargetOK is canonical and context-relative" . TestCase $ do
       let p = CapVar (MkCapVar "p")
@@ -1296,11 +1426,48 @@ p2CapabilityTests =
           producer
           (applyCapSubst substitution producer)
 
+  , TestLabel "P2: literal consumer Any is a one-way wildcard" .
+      TestCase $ do
+        let producer =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+        case matchCapability producer CapAny of
+          Left err ->
+            assertFailure
+              ("literal consumer Any rejected a producer: " ++ show err)
+          Right substitution ->
+            assertEqual
+              "a ground wildcard introduces no producer substitution"
+              producer
+              (applyCapSubst substitution producer)
+
+  , TestLabel "P2: symmetric unification keeps Any rigid" .
+      TestCase $ do
+        let structured =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+        case unifyCapability CapAny structured of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "symmetric equality treated ground Any as a wildcard"
+
+  , TestLabel "P2: a variable bound to Any is strict on reuse" .
+      TestCase $ do
+        let shared = MkCapVar "shared-consumer"
+            structured =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+            producer = CapTuple [CapAny, structured]
+            consumer = CapTuple [CapVar shared, CapVar shared]
+        case matchCapability producer consumer of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "a repeated consumer variable forgot its first Any binding"
+
   , TestLabel "P2: capability matching never strengthens a producer" .
       TestCase $ do
         let producer = CapVar (MkCapVar "producer")
             consumer =
-              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
         case matchCapability producer consumer of
           Left _ ->
             return ()
@@ -1325,8 +1492,8 @@ p2CapabilityTests =
       TestCase $ do
         let producerVar = MkCapVar "producer"
             consumerVar = MkCapVar "consumer"
-            listNone =
-              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
             producer =
               TMatcher
                 (CapVar producerVar)
@@ -1334,7 +1501,7 @@ p2CapabilityTests =
             consumer =
               TMatcherSlot
                 (CapVar consumerVar)
-                (TMatcher listNone TInt)
+                (TMatcher listAny TInt)
         case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
           Left _ ->
             return ()
@@ -1345,12 +1512,12 @@ p2CapabilityTests =
   , TestLabel "P2: target capability bindings stay in consumer support" .
       TestCase $ do
         let targetVar = MkCapVar "target-only"
-            listNone =
-              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
             producer =
-              TMatcher CapNone (TMatcher (CapVar targetVar) TInt)
+              TMatcher CapAny (TMatcher (CapVar targetVar) TInt)
             consumer =
-              TMatcherSlot CapNone (TMatcher listNone TInt)
+              TMatcherSlot CapAny (TMatcher listAny TInt)
         case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
           Left _ ->
             return ()
@@ -1361,8 +1528,8 @@ p2CapabilityTests =
   , TestLabel "P2: target ordinary variables remain specializable" .
       TestCase $ do
         let targetVar = TyVar "target"
-            producer = TMatcher CapNone (TVar targetVar)
-            consumer = TMatcherSlot CapNone TInt
+            producer = TMatcher CapAny (TVar targetVar)
+            consumer = TMatcherSlot CapAny TInt
         case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
           Left err ->
             assertFailure
@@ -1373,8 +1540,8 @@ p2CapabilityTests =
   , TestLabel "TypePM: generic equality does not perform slot coercion" .
       TestCase $ do
         case unify
-          (TMatcher CapNone TInt)
-          (TMatcherSlot CapNone TInt) of
+          (TMatcher CapAny TInt)
+          (TMatcherSlot CapAny TInt) of
           Left _ -> return ()
           Right _ ->
             assertFailure
@@ -1383,10 +1550,10 @@ p2CapabilityTests =
   , TestLabel "TypePM: tuple matcher coercion requires an explicit slot use" .
       TestCase $ do
         let tupleMatcher =
-              TTuple [TMatcher CapNone TInt, TMatcher CapNone TInt]
+              TTuple [TMatcher CapAny TInt, TMatcher CapAny TInt]
             productMatcher =
               TMatcher
-                (CapTuple [CapNone, CapNone])
+                (CapTuple [CapAny, CapAny])
                 (TTuple [TInt, TInt])
         case unify tupleMatcher productMatcher of
           Left _ -> return ()
@@ -1410,7 +1577,7 @@ p2CapabilityTests =
 
   , TestLabel "TypePM: Any cannot silently invent a matcher slot head" .
       TestCase $ do
-        let consumer = TMatcherSlot CapNone TInt
+        let consumer = TMatcherSlot CapAny TInt
         case alignAtSlotWithConstraints emptyClassEnv [] TAny consumer of
           Left _ -> return ()
           Right _ ->
@@ -1420,10 +1587,10 @@ p2CapabilityTests =
   , TestLabel "TypePM: tuple Any cannot silently invent a matcher slot head" .
       TestCase $ do
         let producers =
-              TTuple [TAny, TMatcher CapNone TInt]
+              TTuple [TAny, TMatcher CapAny TInt]
             consumer =
               TMatcherSlot
-                (CapTuple [CapNone, CapNone])
+                (CapTuple [CapAny, CapAny])
                 (TTuple [TInt, TInt])
         case alignAtSlotWithConstraints
           emptyClassEnv [] producers consumer of
@@ -1432,15 +1599,57 @@ p2CapabilityTests =
             assertFailure
               "core product-slot alignment accepted Any as matcher evidence"
 
+  , TestLabel "P2: product slot preserves literal Any wildcards" .
+      TestCase $ do
+        let listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+            producers =
+              TTuple
+                [ TMatcher listAny TInt
+                , TMatcher listAny TInt
+                ]
+            consumer =
+              TMatcherSlot
+                (CapTuple [CapAny, CapAny])
+                (TTuple [TInt, TInt])
+        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
+          Left err ->
+            assertFailure
+              ("literal product Any rejected structured producers: " ++
+               show err)
+          Right _ ->
+            return ()
+
+  , TestLabel "P2: product slot keeps an Any binding strict" .
+      TestCase $ do
+        let shared = MkCapVar "product-consumer"
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+            producers =
+              TTuple
+                [ TMatcher CapAny TInt
+                , TMatcher listAny TInt
+                ]
+            consumer =
+              TMatcherSlot
+                (CapTuple [CapVar shared, CapVar shared])
+                (TTuple [TInt, TInt])
+        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
+          Left _ ->
+            return ()
+          Right _ ->
+            assertFailure
+              "product validation treated a saved Any as a literal wildcard"
+
   , TestLabel "P2: product slot coercion retains one shared witness" .
       TestCase $ do
         let shared = MkCapVar "shared"
-            listNone =
-              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
             producers =
               TTuple
                 [ TMatcher (CapVar shared) TInt
-                , TMatcher listNone TInt
+                , TMatcher listAny TInt
                 ]
             consumer =
               TMatcherSlot
@@ -1468,8 +1677,8 @@ p2CapabilityTests =
   , TestLabel "P2: one-way type matching shares one capability domain" .
       TestCase $ do
         let shared = MkCapVar "shared-capability"
-            listNone =
-              CapCon (mkTypeFormer "Collection" 1) [CapNone]
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
             slot =
               TTuple
                 [ TMatcher (CapVar shared) TInt
@@ -1478,7 +1687,7 @@ p2CapabilityTests =
             matcher =
               TTuple
                 [ TMatcher (CapVar shared) TInt
-                , TMatcher listNone TInt
+                , TMatcher listAny TInt
                 ]
         case matchOneWay slot matcher of
           Nothing ->
@@ -1486,6 +1695,49 @@ p2CapabilityTests =
           Just _ ->
             assertFailure
               "a later component rebound a shared matcher capability"
+
+  , TestLabel "P2: one-way type matching preserves Any provenance" .
+      TestCase $ do
+        let shared = MkCapVar "consumer-only-capability"
+            listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+            slot =
+              TTuple
+                [ TMatcher (CapVar shared) TInt
+                , TMatcher (CapVar shared) TInt
+                ]
+            matcher =
+              TTuple
+                [ TMatcher CapAny TInt
+                , TMatcher listAny TInt
+                ]
+        case matchOneWay slot matcher of
+          Nothing ->
+            return ()
+          Just _ ->
+            assertFailure
+              "a substituted Any became a wildcard at the second component"
+
+  , TestLabel "P2: one-way type matching keeps literal Any wild" .
+      TestCase $ do
+        let listAny =
+              CapCon (mkTypeFormer "Collection" 1) [CapAny]
+            slot =
+              TTuple
+                [ TMatcher CapAny TInt
+                , TMatcher CapAny TInt
+                ]
+            matcher =
+              TTuple
+                [ TMatcher listAny TInt
+                , TMatcher listAny TInt
+                ]
+        case matchOneWay slot matcher of
+          Nothing ->
+            assertFailure
+              "literal Any provenance was lost during tuple decomposition"
+          Just _ ->
+            return ()
 
   , TestLabel "P2 D4: recursive shape solver computes least evidence" . TestCase $ do
       let producer = ShapeSolver.ShapeProducerId 0
@@ -1845,7 +2097,7 @@ closedFieldTypeErrorTests =
                    ++ show err)
           Right _ ->
             assertFailure
-              ("a none-capability next matcher filled a closed list field: "
+              ("an Any-capability next matcher filled a closed list field: "
                ++ file)
 
 -- | Both sorts of binder in an explicit scheme are rigid for the duration of
@@ -1943,21 +2195,21 @@ producerCyclePersistenceTests =
             , "inductive pattern P2CrossBatchTree a :="
             , "  | p2CrossBatchLeaf a"
             , "  | p2CrossBatchNode (P2CrossBatchTree a)"
-            , "def p2CrossBatchOpaque {a} : Matcher none a :="
+            , "def p2CrossBatchOpaque {a} : Matcher Any a :="
             , "  matcher"
             , "    | $ as p2CrossBatchOpaque with"
             , "      | $tgt -> [tgt]"
             , "def p2CrossBatchLeft {a}"
-            , "  : Matcher (P2CrossBatchTree none) (P2CrossBatchTree a) :="
+            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
             , "  p2CrossBatchRight"
             , "def p2CrossBatchRight {a}"
-            , "  : Matcher (P2CrossBatchTree none) (P2CrossBatchTree a) :="
+            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
             , "  p2CrossBatchLeft"
             ]
           env1 <- evalTopExprsNoPrint env0 declarations
           consumer <- readTopExprs $ unlines
             [ "def p2CrossBatchUse {a}"
-            , "  : Matcher (P2CrossBatchTree none) (P2CrossBatchTree a) :="
+            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
             , "  matcher"
             , "    | p2CrossBatchLeaf $ as p2CrossBatchOpaque with"
             , "      | P2CrossBatchLeaf $value -> [value]"

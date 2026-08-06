@@ -112,11 +112,15 @@ data TypeFormer = TypeFormer
 
 -- | Structural capability carried by a matcher.
 --
+-- 'CapAny' is a ground capability.  It is rigid under symmetric capability
+-- equality, but a literal 'CapAny' in a consumer position is the one-way
+-- catch-all accepted by matcher-to-slot checking.
+--
 -- Flexible variables and rigid skolems are separate constructors so an
 -- annotation can be checked without its quantified capability being seeded
 -- by the implementation being checked.
 data Capability
-  = CapNone
+  = CapAny
   | CapVar CapVar
   | CapSkolem CapVar
   | CapCon TypeFormer [Capability]
@@ -413,7 +417,7 @@ freeTyVarsSymbolSet (SymbolSetVar v)    = Set.singleton v
 -- Rigid skolems are constants, not free variables, and are therefore
 -- deliberately excluded.
 freeCapVarsCapability :: Capability -> Set CapVar
-freeCapVarsCapability CapNone         = Set.empty
+freeCapVarsCapability CapAny         = Set.empty
 freeCapVarsCapability (CapVar v)      = Set.singleton v
 freeCapVarsCapability (CapSkolem _)   = Set.empty
 freeCapVarsCapability (CapCon _ caps) = Set.unions (map freeCapVarsCapability caps)
@@ -454,7 +458,7 @@ freeCapVars (TPoly t _)        = freeCapVars t
 
 -- | Get rigid capability skolems from a capability.
 freeCapSkolemsCapability :: Capability -> Set CapVar
-freeCapSkolemsCapability CapNone         = Set.empty
+freeCapSkolemsCapability CapAny         = Set.empty
 freeCapSkolemsCapability (CapVar _)      = Set.empty
 freeCapSkolemsCapability (CapSkolem v)   = Set.singleton v
 freeCapSkolemsCapability (CapCon _ caps) =
@@ -806,7 +810,7 @@ capabilitySkeleton onVar = go
     -- Tuple components are structural roots in their own right.  Unlike a
     -- type-former argument, a closed component such as `Ordering` must retain
     -- its constructor head; otherwise `(less, less)` would incorrectly ask
-    -- for `(none, none)`.
+    -- for `(Any, Any)`.
     go (TTuple ts)      = CapTuple <$> mapM go ts
     go TFactor          = Nothing
     go TTerm {}         = Nothing
@@ -822,7 +826,7 @@ capabilitySkeleton onVar = go
 -- former names before this conversion.  Surface aliases are intentionally not
 -- accepted here; 'mkTypeFormer' only erases the fixed core synonyms.
 capExprToCapability :: CapabilityExpr -> Capability
-capExprToCapability CENone = CapNone
+capExprToCapability CEAny = CapAny
 capExprToCapability (CEVar name) = CapVar (MkCapVar name)
 capExprToCapability (CECon name args) =
   let caps = map capExprToCapability args

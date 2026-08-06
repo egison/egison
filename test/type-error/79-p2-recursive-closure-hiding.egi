@@ -11,7 +11,7 @@ inductive pattern P2ClosureTree a :=
   | p2ClosureNode (P2ClosureTree a)
 
 def p2ClosureHidden {a}
-  : Matcher (P2ClosureTree none) (P2ClosureTree a) :=
+  : Matcher (P2ClosureTree Any) (P2ClosureTree a) :=
   let produce ignored := p2ClosureHidden
   in matcher
     | p2ClosureLeaf $ as something with

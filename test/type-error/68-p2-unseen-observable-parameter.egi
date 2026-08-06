@@ -9,7 +9,7 @@ inductive pattern P2Maybe a :=
   | p2None
   | p2Some a
 
-def p2NoneOnly {a} : Matcher (P2Maybe none) (P2Maybe a) :=
+def p2NoneOnly {a} : Matcher (P2Maybe Any) (P2Maybe a) :=
   matcher
     | p2None as () with
       | P2None -> [()]

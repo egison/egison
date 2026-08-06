@@ -3,9 +3,9 @@
 -- Appendix B, "Propagation through pattern functions").  Supplying
 -- `num $n` for pair's first parameter drives Tile into the element
 -- position of the recorded scheme, so the application requires `[Tile]`
--- capability and `multiset something` supplies only `[none]`.
+-- capability and `multiset something` supplies only `[Any]`.
 --
--- Expected: Type error (`[none]` vs the required `[Tile]` capability)
+-- Expected: Type error (`[Any]` vs the required `[Tile]` capability)
 --
 
 inductive Tile := Num Integer | Hnr Integer

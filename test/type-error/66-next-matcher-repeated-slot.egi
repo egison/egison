@@ -1,7 +1,7 @@
 -- The single hole has target (a, a), so signature-directed projection
 -- assigns both tuple leaves to the same capability parameter.  The two
 -- producers have the same target type but disagree exactly on capability:
--- Choice versus none.  Only `unseen`, not `none`, is neutral during evidence
+-- Choice versus Any.  Only `unseen`, not `Any`, is neutral during evidence
 -- merge, so the repeated assignment must be rejected.
 inductive Same a := Same (a, a)
 inductive pattern Same a := same (a, a)
@@ -14,7 +14,7 @@ def choice : Matcher Choice Choice :=
     | c1
     | c2
 
-def opaqueChoice : Matcher none Choice :=
+def opaqueChoice : Matcher Any Choice :=
   matcher
     | $ as something with
       | $tgt -> [tgt]

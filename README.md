@@ -105,9 +105,11 @@ We can write a program to solve the travelling salesman problem in a single patt
 Matcher types have two indices: `Matcher capability target` (and,
 for matcher-consuming parameters, `MatcherSlot capability target`).
 The capability describes the pattern-constructor structure that the matcher
-can safely consume, independently of its ordinary target type. `none` means
-that no constructor capability is promised. A structured capability uses a
-canonical declared type former with its exact arity, such as `[p]` or
+can safely consume, independently of its ordinary target type. The ground
+capability `Any` promises no constructor shape. A literal consumer `Any` is a
+wildcard only for the one-way `Matcher`-to-`MatcherSlot` check; producer `Any`
+and symmetric capability equality remain rigid. A structured capability uses
+a canonical declared type former with its exact arity, such as `[p]` or
 `Maybe p`; transparent surface type aliases may still be used in the target
 index, but not as capability heads.
 The implemented guarantees and the current full-D4/D5-CAS boundaries are
@@ -115,8 +117,8 @@ documented in [design/p2-matcher-capability.md](design/p2-matcher-capability.md)
 
 ```hs
 def station : Matcher String String := string
-def price : Matcher none Integer := integer
-def graph : Matcher [(String, [(String, none)])] [(String, [(String, Integer)])] :=
+def price : Matcher Any Integer := integer
+def graph : Matcher [(String, [(String, Any)])] [(String, [(String, Integer)])] :=
   multiset (station, multiset (station, price))
 
 def graphData : [(String, [(String, Integer)])] :=

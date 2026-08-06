@@ -1,6 +1,6 @@
 # P2 matcher capability 実装契約
 
-> **状態（2026-07-31）**
+> **状態（2026-08-06）**
 > 本文書は、Egison 本体に実装した P2 の契約と、その保証範囲を記録する。
 > 形式設計の正本は
 > [type-pm-mech の P2 設計文書](../../type-pm-mech/problem/matcher-capability-instantiation.md)
@@ -41,12 +41,13 @@ TMatcherSlot Capability Type
   一添字表記への互換糖衣は設けない。
 - capability 変数と通常型変数は別 namespace、別 sort である。
 - 通常型側の特殊化は capability を強化しない。例えば
-  `Matcher none a` の `a` が `[Integer]` に特殊化されても、結果は
-  `Matcher none [Integer]` であり、`Matcher [none] [Integer]` にはならない。
-- match site では、通常値の gradual escape hatch である `Any` を structured
-  capability の witness として使用しない。constructor capability、rigid skolem、
-  またはそれらを含む tuple が要求される場合は型エラーとし、`none` と flexible
-  capability variable の unconstraining な要求だけを許す。
+  `Matcher Any a` の `a` が `[Integer]` に特殊化されても、結果は
+  `Matcher Any [Integer]` であり、`Matcher [Any] [Integer]` にはならない。
+- capability sort の `Any` と、通常型側の gradual escape hatch `TAny` は別物である。
+  match site では通常型 `TAny` を structured capability の witness として使用しない。
+  constructor capability、rigid skolem、またはそれらを含む tuple が要求される場合は
+  型エラーとし、literal consumer capability `Any` と flexible capability variable の
+  unconstraining な要求だけを許す。
 - match-site pattern から capability skeleton を導出できない場合も、fresh な
   unconstraining slot へ弱めず型エラーにする。
 
@@ -73,6 +74,24 @@ producer-to-slot coercion と ordinary type の `matchOneWay` 内の nested matc
 `coerceMatcherToSlot` は capability の片方向代入を先に求め、その代入を constraints
 と両 target 型へ適用してから通常型を unify し、二つの代入を順序どおり compose
 する。
+
+capability `Any` は ground constructor であり、変数や「未解決」を表さない。その
+wildcard 性は片方向判定の **元の consumer 構文に literal `Any` がある位置だけ**に
+限定する。従って次を満たす。
+
+- `matchCapability κ_p Any` は、well-formed な任意の producer `κ_p` を受理する。
+- producer 側の `Any` は structured consumer を満たさない。
+- 対称な `unifyCapability` と evidence の exact merge では `Any` は rigid であり、
+  `Any` と一致するのは `Any` だけである。
+- consumer 変数 `κ` を producer `Any` へ解いた後の `κ` の再出現は、保存済みの
+  `Any` と strict に一致しなければならない。代入後に現れた `Any` を literal wildcard
+  とみなしてはならない。例えば `Prod[κ, κ]` を `Prod[Any, K]` で満たす判定は、
+  `K = Any` でない限り失敗する。
+
+実装は worklist に元の consumer node を保持し、wildcard 判定にはその node を、
+既束縛変数の一致判定には累積代入後の capability を使用する。この provenance と
+共有 binding environment は product-slot の aggregate 検証、通常型内の nested
+`Matcher`／`MatcherSlot`、multi-parameter の片方向照合でも維持する。
 
 ### 2.2 capability name／kind elaboration
 
@@ -112,7 +131,7 @@ evidence とする。pattern-function 環境、結果型注釈、match-site か�
 
 constructor 頭または tuple 頭の clause は evidence を供給する。これは general
 clause だけでなく refinement clause も合成対象であり、同じ exact merge 規則に
-従う。一方、最上位の bare hole、wildcard、value pattern などは `none` の evidence
+従う。一方、最上位の bare hole、wildcard、value pattern などは `Any` の evidence
 ではなく `Unseen` である。
 
 この区別により、結果注釈や再帰的な自己需要だけで構造 capability を捏造できない。
@@ -123,12 +142,12 @@ clause だけでなく refinement clause も合成対象であり、同じ exact
 宣言された pattern constructor 群について最小不動点で計算する。
 
 - observable な位置が最終的に `Unseen` のままなら型エラーにする。
-- unobservable、すなわち phantom な位置だけは `none` に確定してよい。
-- function、effect、matcher、`Any`、未宣言型、CAS view は観測の barrier とする。
+- unobservable、すなわち phantom な位置だけは ground capability `Any` に確定してよい。
+- function、effect、matcher、通常型 `TAny`、未宣言型、CAS view は観測の barrier とする。
 
 例えば、`Maybe a` に `Nothing` 相当の、`a` を確定しない clause しかない場合でも、
 別の pattern constructor の field から `a` が observable なら、その `a` を
-`none` で埋めず型エラーにする。
+`Any` で埋めず型エラーにする。
 
 ### 3.3 複数 clause の合成
 
@@ -151,7 +170,7 @@ ShapeCap は別の判断であり、次のように扱う。
 
 - ある型の pattern constructor が一つでも genuine evidence として使われれば、
   Coverage が partial でも、その構造 capability を保持できる。
-- constructor をすべて列挙していないことを理由に capability を `none` にしない。
+- constructor をすべて列挙していないことを理由に capability を `Any` にしない。
 - Coverage warning の有無を ShapeCap evidence に加えない。
 - catch-all clause の順序や data arm の整合性など、既存の hard error は warning
   へ弱めない。
@@ -177,6 +196,16 @@ capability を持てる。この近似は意図した設計判断である。
 - 検査に成功した typed tree、constraints、substitution は declared binder へ
   deskolemize してから annotation boundary の外へ返す。従って dictionary
   elaboration、後続の `IDefineMany` 要素、保存される scheme に skolem は残らない。
+- pattern function の `DualScheme` を一般化するときは、周囲の環境に自由でない
+  capability 変数の出現数を、全 argument/result dual の capability と target 内に
+  入れ子になった matcher capability を含めて数える。ちょうど一回だけ現れる変数は
+  相関を表さないため `Any` へ canonicalize し、二回以上現れる変数だけを量化して
+  argument 間・argument/result 間の共有を保存する。ambient な変数は従来どおり自由な
+  まま残す。
+- pattern variable、wildcard、value/predicate pattern の局所推論では引き続き fresh
+  capability variable を割り当てる。`Any` への canonicalization は完成した
+  `DualScheme` の definition-side generalization 境界でだけ行い、推論途中の異なる
+  leaf を同一視しない。
 
 したがって、通常型の Algorithm W と同じ「制約を集め、代入を解き、環境に自由でない
 変数を一般化する」という骨格を共有しつつ、両 sort の代入が混線しない。適用結果の
@@ -209,7 +238,7 @@ pattern function の constraint syntax も未実装境界である。
 文脈相対の判定である。現在の core 判定は次の契約に固定する。
 
 - actual matcher／slot から得た capability-target の仮定対は受理する。
-- `none` は任意の target に対して受理する。
+- ground capability `Any` は任意の target に対して受理する。
 - capability 変数または skolem は、それだけでは無条件に受理しない。
 - tuple と constructor capability は、canonical な type former と arity が一致する
   ときだけ、子位置を再帰的に検査する。
@@ -326,7 +355,7 @@ certification と呼ばず、次の理由から Egison 全体の certification �
 - D5-CAS は legacy compatibility boundary に留まる。
 - 永続化する producer summary は name-level の fail-closed metadata であり、
   capability evidence や形式的 certificate ではない。また legacy bypass を修復しない。
-- `Any` の structured-duty 拒否は gradual typing の抜け道を一つ閉じるが、
+- 通常型 `TAny` の structured-duty 拒否は gradual typing の抜け道を一つ閉じるが、
   certified execution mode を与えるものではない。
 - default の core library 読込みには legacy CAS 利用箇所が含まれる。
 - default の permissive evaluator は型エラーを表示した後に untyped evaluation へ
@@ -348,7 +377,7 @@ certification と呼ばず、次の理由から Egison 全体の certification �
 | annotation skolem の no-escape／deskolemize | `hs-src/Language/Egison/Type/Infer.hs` |
 | capability name／kind elaboration | `hs-src/Language/Egison/EnvBuilder.hs` |
 | D1 evidence、observability、exact merge、D5-core | `hs-src/Language/Egison/Type/Capability.hs` |
-| matcher 推論、Coverage warning、scoped provenance、direct-self、`Any` guard、legacy 境界 | `hs-src/Language/Egison/Type/Infer.hs` |
+| matcher 推論、Coverage warning、scoped provenance、direct-self、通常型 `TAny` guard、legacy 境界 | `hs-src/Language/Egison/Type/Infer.hs` |
 | load-unit 間 producer summary、成功時だけの state 永続化 | `hs-src/Language/Egison/Type/Infer.hs` (`batchForwardProducerDependencies`), `hs-src/Language/Egison/Eval.hs`, `hs-src/Language/Egison/EvalState.hs` |
 | 未統合の D4 純粋 solver | `hs-src/Language/Egison/Type/ShapeSolver.hs` |
 | legacy CAS を利用する標準 matcher | `lib/math/expression.egi` |
@@ -364,8 +393,9 @@ cabal test test
 ```
 
 `test/Test.hs` の `p2CapabilityTests` は、通常型／capability の別代入、nested
-capability 代入、producer-stable な片方向 capability matching、shared-variable
-拒否、evidence の exact identity、observability の最小不動点、
+capability 代入、producer-stable な片方向 capability matching、literal consumer
+`Any` の wildcard、対称単一化での `Any` の rigidity、`Any` へ束縛された反復 consumer
+変数の strict な再利用、shared-variable 拒否、evidence の exact identity、observability の最小不動点、
 projection、文脈相対 `CapTargetOK`、純粋 `ShapeSolver` の SCC・exact mismatch・
 expansive cycle、malformed capability arity の内部拒否を検査する。さらに pipeline
 回帰は、strict mode の評価前停止、失敗した inference state の非永続化、および
@@ -374,8 +404,11 @@ CAS bridge 名だけを inert stub で与えて選択した core 9 ライブラ�
 `p2-capability.egi` を strict mode で読み込む回帰、および過剰一般な通常型 annotation
 を `TSkolem` 不一致、過剰一般な capability annotation を capability skolem
 （診断上は `$skc`）との不一致として strict mode で拒否する回帰も含む。
+`patternFunctionDualSchemeTests` は、一回だけ現れる非 ambient capability variable が
+`Any` へ確定し、一回だけ現れる ambient variable は自由なまま残り、二回以上現れる
+variable は量化された共有として残ることを検査する。
 この選択ライブラリ回帰は `MathValue` stub、
-type class、`Any`、既存の CAS／Tensor 寛容単一化を含むため、formal non-CAS core を
+type class、通常型 `TAny`、既存の CAS／Tensor 寛容単一化を含むため、formal non-CAS core を
 隔離した試験ではない。
 
 同じ test suite は `test/lib/**/*.egi` を自動発見するため、
@@ -427,7 +460,7 @@ P2 固有の reject ケースは次のとおりである。
 - `80-p2-capability-builtin-collision.egi`：builtin と同じ canonical former を持つ
   user inductive を拒否する。
 - `81-p2-completed-alias-cycle.egi`：完了済み alias-only SCC を evidence にしない。
-- `82-p2-any-cannot-witness-capability.egi`：`Any` で structured match-site
+- `82-p2-any-cannot-witness-capability.egi`：通常型 `TAny` で structured match-site
   capability を満たさない。
 - `83-p2-ordinary-annotation-rigidity.egi`：通常型 binder を本体から特殊化して
   `forall a. a -> a` を捏造する過剰一般 annotation を拒否する。

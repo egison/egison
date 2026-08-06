@@ -455,7 +455,7 @@ prettyType (TFrac t) = "Frac " ++ prettyType t
 prettyType (TPoly t ss) = "Poly " ++ prettyType t ++ " " ++ prettySymbolSet ss
 
 prettyCapability :: Capability -> String
-prettyCapability CapNone = "none"
+prettyCapability CapAny = "Any"
 prettyCapability (CapVar (MkCapVar v)) = v
 prettyCapability (CapSkolem (MkCapVar v)) = v
 prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name

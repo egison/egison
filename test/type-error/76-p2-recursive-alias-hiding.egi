@@ -11,7 +11,7 @@ inductive pattern P2AliasTree a :=
   | p2AliasNode (P2AliasTree a)
 
 def p2AliasHidden {a}
-  : Matcher (P2AliasTree none) (P2AliasTree a) :=
+  : Matcher (P2AliasTree Any) (P2AliasTree a) :=
   let hidden := p2AliasHidden
   in matcher
     | p2AliasLeaf $ as something with

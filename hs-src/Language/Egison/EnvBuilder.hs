@@ -737,7 +737,7 @@ validateCapabilityExpr
   -> EvalM ()
 validateCapabilityExpr arities aliases context capabilityExpr =
   case capabilityExpr of
-    CENone ->
+    CEAny ->
       return ()
     CEVar _ ->
       return ()

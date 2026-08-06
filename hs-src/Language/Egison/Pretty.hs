@@ -307,7 +307,7 @@ instance Pretty TypeExpr where
     pretty "Poly" <+> prettyTypeExprAtomDoc t <+> prettySymbolSetExprDoc symbols
 
 instance Pretty CapabilityExpr where
-  pretty CENone = pretty "none"
+  pretty CEAny = pretty "Any"
   pretty (CEVar v) = pretty v
   pretty (CECon name []) = pretty name
   pretty (CECon name args) =
@@ -1034,7 +1034,7 @@ prettyTypeDoc (Types.TTerm t ss) = pretty "Term" <+> prettyTypeDoc t <+> prettyS
 prettyTypeDoc (Types.TPoly t ss) = pretty "Poly" <+> prettyTypeDoc t <+> prettySymbolSetDoc ss
 
 prettyCapabilityDoc :: Types.Capability -> Doc ann
-prettyCapabilityDoc Types.CapNone = pretty "none"
+prettyCapabilityDoc Types.CapAny = pretty "Any"
 prettyCapabilityDoc (Types.CapVar (Types.MkCapVar v)) = pretty v
 prettyCapabilityDoc (Types.CapSkolem (Types.MkCapVar v)) = pretty v
 prettyCapabilityDoc (Types.CapCon (Types.TypeFormer (Types.TypeFormerId name) _) []) =

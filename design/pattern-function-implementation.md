@@ -30,6 +30,9 @@ def pattern shuntsu {a} (pat1 : a) (pat2 : [a]) : [a] :=
 - 引数注釈と結果注釈は target 型を記述する。`Pattern a` のような wrapper は追加しない。
 - capability は本体のパターン推論から得る。
 
+この契約は pattern-function 宣言の target-only 注釈に限ったものであり、他の surface
+型注釈に既に存在する `Pattern a`（`TEPattern`）の構文・表示・解釈は変更しない。
+
 ## 内部表現
 
 構文解析・脱糖・型推論後の宣言は次の形を取る。
@@ -73,6 +76,23 @@ data DualScheme = DualScheme
 instantiation は重複 binder を malformed scheme として拒否する。通常の definition-side
 generalization は `Set` から binder list を構成するため，この不変量を満たす。
 
+definition-side generalization では，全 argument/result dual の capability component と、
+target 内に入れ子になった matcher capability の出現を一括して数える。周囲の環境に自由でない
+capability variable がちょうど一回だけ現れる場合、その variable は相関を表さないため ground
+`Any` へ canonicalize する。二回以上現れる variable は binder として残し、引数間および
+引数・結果間の共有を保存する。ambient variable は一般化も `Any` 化もせず自由なまま残す。
+pattern variable や wildcard 自体の推論では従来どおり fresh capability を割り当てるため、
+この canonicalization が本体推論中の別々の leaf を同一視することはない。
+形式仕様の `Pattern capability target` 表記では、この規則により代表例は次の型を持つ。
+
+```text
+_ ++ $x :: _                 : forall a. Pattern [Any] [a]
+_ ++ (_ ++ $x :: _) :: _     : forall a. Pattern [[Any]] [[a]]
+```
+
+最初の `Any` は独立 leaf の canonical な要求であり、`Prod [κ, κ]` のように同じ変数が
+複数回現れて表す相関はこの defaulting では失われない。
+
 ## 型環境
 
 パターンコンストラクタ，パターン関数 header，検査済みパターン関数を別の環境に置く。
@@ -115,8 +135,10 @@ load unit 内に同名宣言が複数ある場合は，静的環境と runtime b
    本体中の `IVarPat` は対応するパラメータの capability と target を同時に参照する。
 5. 本体の最終 capability と結果 target を結果 `Dual` にする。
 6. 最終 substitution を引数 dual と結果 dual の双方へ適用し，注釈 skolem を戻す。
-7. capability 変数と通常型変数をそれぞれ周囲の環境に対して一般化し，一つの
-   `DualScheme` を作る。
+7. capability 変数と通常型変数をそれぞれ周囲の環境に対して一般化する。このとき、
+   非 ambient capability 変数のうち全 argument/result payload に一回だけ現れるものを
+   `Any` へ canonicalize し、二回以上現れるものだけを共有 binder として一つの
+   `DualScheme` に残す。
 8. canonical scheme を `PatternFunctionEnv` に保存する。
 9. 式側で必要な通常関数型は `dualSchemeTargetScheme` で canonical scheme から射影し，
    header 環境と通常の `TypeEnv` を更新する。
@@ -217,6 +239,11 @@ data EgisonValue
 ## 検証観点
 
 - 定義後の `PatternFunctionEnv` が引数・結果の全 dual を保持する。
+- 一回だけ現れる非 ambient capability variable は ground `Any` になり、binder を残さない。
+- 一回だけ現れる ambient capability variable は `Any` 化も量化もされず、自由なまま残る。
+- 二回以上現れる capability variable は量化され、argument 間・argument/result 間の
+  相関を維持する。
+- 局所 pattern variable／wildcard は一般化境界までは別々の fresh capability を持つ。
 - 多相な named application ごとに capability と target の両 binder が fresh になる。
 - capability/target の重複 binder を instantiation 境界で拒否する。
 - 同一 application 内では，全引数と結果が同じ instantiation を共有する。

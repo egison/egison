@@ -71,7 +71,7 @@ def nAdic (n: Integer) (x: Integer) : [Integer] :=
 --
 -- Integers
 --
-def mod (m: Integer) : Matcher none Integer :=
+def mod (m: Integer) : Matcher Any Integer :=
   matcher
     | #$n as () with
       | $tgt -> if i.modulo tgt m = i.modulo n m then [()] else []

@@ -251,7 +251,7 @@ builtinTypes = concat
     -- Matchers (only primitive matchers defined in Haskell)
     -- Note: integer, bool, char, string, float, list, multiset, set, sortedList, unorderedPair, eq are defined in lib/
     matcherTypes =
-      [ ("something", forallA $ TMatcher CapNone (TVar a))
+      [ ("something", forallA $ TMatcher CapAny (TVar a))
       ]
 
     -- String functions (from Primitives.String.hs)

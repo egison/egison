@@ -1,7 +1,7 @@
 -- P2: specializing a catch-all matcher's target to a collection must not
 -- create collection constructor capability.
 
-def p2CatchAll {a} : Matcher none a :=
+def p2CatchAll {a} : Matcher Any a :=
   matcher
     | $ as something with
       | $tgt -> [tgt]
