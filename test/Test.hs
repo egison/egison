@@ -76,6 +76,7 @@ main = do
          , strictPipelineTests
          , strictSelectedCoreTests
          , annotationRigidityTests
+         , capabilityOriginTests
          , failedInferAtomicityTests
          , producerCyclePersistenceTests
          ]
@@ -2137,6 +2138,100 @@ annotationRigidityTests =
           Right _ ->
             assertFailure
               "an over-general ordinary annotation was accepted"
+
+-- | Executable counterparts of the three capability-origin boundaries in
+-- type-pm-mech: exported producers cannot gain structure, constructor-local
+-- binders can, and two frozen variables may be alpha-renamed.
+capabilityOriginTests :: Test
+capabilityOriginTests =
+  TestLabel "TypePM: capability-origin ledger" . TestList $
+    [ TestLabel "producer strengthening is rejected" . TestCase $ do
+        result <- runSource producerStrengtheningSource
+        case result of
+          Left err
+            | "capability-origin violation" `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("producer strengthening failed for an unexpected reason: " ++
+                   show err)
+          Right _ ->
+            assertFailure "a rename-only producer acquired list capability"
+
+    , TestLabel "constructor-local specialization is accepted" . TestCase $ do
+        result <- runSource constructorLocalSource
+        case result of
+          Right _ -> do
+            exportedResult <- runSource constructorExportSource
+            case exportedResult of
+              Left err
+                | "capability-origin violation" `isInfixOf` show err ->
+                    return ()
+                | otherwise ->
+                    assertFailure
+                      ("exported constructor capability failed for an " ++
+                       "unexpected reason: " ++ show err)
+              Right _ ->
+                assertFailure
+                  "an exported constructor capability remained structural"
+          Left err ->
+            assertFailure
+              ("constructor-local capability specialization was rejected: " ++
+               show err)
+
+    , TestLabel "frozen-variable rename is accepted" . TestCase $ do
+        result <- runSource safeRenameSource
+        case result of
+          Right _ -> return ()
+          Left err ->
+            assertFailure
+              ("safe rename between frozen capability variables was rejected: " ++
+               show err)
+    ]
+  where
+    runSource source = fromEvalM
+      defaultOption
+        { optNoPrelude = True
+        , optTypeCheckStrict = True
+        }
+      $ do
+          env <- initialEnv
+          expressions <- readTopExprs source
+          evalTopExprsNoPrint env expressions
+
+    producerStrengtheningSource = unlines
+      [ "def passMatcher {a}"
+      , "  (m : Matcher p a)"
+      , "  : Matcher p a := m"
+      , ""
+      , "def requireListFunction"
+      , "  (f : Matcher [Any] Integer -> Matcher [Any] Integer)"
+      , "  : Integer := 0"
+      , ""
+      , "def result := requireListFunction passMatcher"
+      ]
+
+    constructorLocalSource = unlines
+      [ "inductive Packed := Pack (Matcher p Integer)"
+      , ""
+      , "def packed := Pack something"
+      ]
+
+    constructorExportSource = unlines
+      [ "inductive Packed := Pack (Matcher p Integer)"
+      , ""
+      , "def packer := Pack"
+      , "def packed := packer something"
+      ]
+
+    safeRenameSource = unlines
+      [ "def passMatcher {a}"
+      , "  (m : Matcher p a)"
+      , "  : Matcher p a := m"
+      , ""
+      , "def sameType {a} (x : a) (y : a) : a := x"
+      , ""
+      , "def result := sameType passMatcher passMatcher"
+      ]
 
 -- | A rejected top-level item must not publish the temporary recursive
 -- placeholder that Infer installed while checking its RHS.

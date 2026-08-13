@@ -10,6 +10,7 @@ the built-in type environment.
 module Language.Egison.Type.Check
   ( -- * Built-in environment
     builtinEnv
+  , builtinNames
   ) where
 
 import           Language.Egison.IExpr      (stringToVar)
@@ -19,6 +20,10 @@ import           Language.Egison.Type.Types
 -- | Built-in type environment with primitive functions
 builtinEnv :: TypeEnv
 builtinEnv = extendEnvMany (map (\(name, scheme) -> (stringToVar name, scheme)) builtinTypes) emptyEnv
+
+-- | Names whose schemes come from the runtime primitive signature table.
+builtinNames :: [String]
+builtinNames = map fst builtinTypes
 
 -- | Types for built-in functions
 -- Only functions defined in Primitives.hs are included here.

@@ -72,6 +72,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                               mapTIExprChildren)
 import           Language.Egison.Pretty     (prettyStr)
 import qualified Language.Egison.Type.Capability as Cap
+import           Language.Egison.Type.Check      (builtinEnv, builtinNames)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
@@ -186,14 +187,13 @@ data InferState = InferState
                                           -- ^ Flexible capability variables allocated by this
                                           --   inference run.  Source variables and annotation
                                           --   skolems are deliberately absent.
-  , inferProtectedCaps :: Set.Set CapVar   -- ^ Inference-owned producer variables that every
-                                          --   later capability substitution must fix.  Fresh
-                                          --   scheme images are protected immediately; variables
-                                          --   retained by a completed matcher are protected at
-                                          --   matcher finalization.
-  , inferReportedProtectedCaps :: Set.Set CapVar
-                                          -- ^ Protected variables whose first strengthening has
-                                          --   already been reported at the extension boundary.
+  , inferCapabilityOrigins :: CapabilityOriginLedger
+                                          -- ^ Runtime capability-origin ledger.  Missing variables
+                                          --   are rigid; entries distinguish exported producer
+                                          --   renaming from constructor-local structural solving.
+  , inferProtectedCaps :: Set.Set CapVar   -- ^ Compatibility index of frozen producer variables.
+                                          --   The origin ledger is authoritative: these variables
+                                          --   may be safely renamed but not structurally expanded.
   , inferCoreSolverFallbackReported :: Bool
                                           -- ^ Avoid repeating the same outside-core warning
                                           --   for every nested/capability equation in one
@@ -211,6 +211,11 @@ data InferState = InferState
                                           --   in this set is a FORWARD reference (were it defined
                                           --   earlier it would be in the environment), so the warning
                                           --   can say how to fix it instead of "unbound".
+  , inferDataConstructorNames :: Set.Set String
+                                          -- ^ Value-level constructors currently registered by
+                                          --   Eval.  Surface constructor applications desugar to
+                                          --   ordinary variable applications, so this provenance
+                                          --   selects structural scheme instantiation.
   , inferMatcherShapes :: Map.Map String [PrimitivePatPattern]
                                           -- ^ Clause pp shapes of top-level matcher definitions
                                           --   (name |-> pps of its (lambda-wrapped) matcher literal),
@@ -336,11 +341,12 @@ initialInferStateWithConfig cfg = InferState
   , inferDeferredHoleChecks = []
   , inferGlobalSubst = emptySubst
   , inferAllocatedCapVars = Set.empty
+  , inferCapabilityOrigins = Map.empty
   , inferProtectedCaps = Set.empty
-  , inferReportedProtectedCaps = Set.empty
   , inferCoreSolverFallbackReported = False
   , inferCasSubtypeEdges = []
   , inferBatchDefNames = Set.empty
+  , inferDataConstructorNames = Set.empty
   , inferMatcherShapes = Map.empty
   , inferRecursiveBinders = Set.empty
   , inferProducerDependencies = Map.empty
@@ -765,6 +771,9 @@ freshCapability prefix = do
     { inferCounter = n + 1
     , inferAllocatedCapVars =
         Set.insert variable (inferAllocatedCapVars st)
+    , inferCapabilityOrigins =
+        Map.insert variable StructuralFlexible
+          (inferCapabilityOrigins st)
     }
   return (CapVar variable)
 
@@ -774,29 +783,128 @@ freshCapability prefix = do
 -- from a scheme may be copied into a consumer, but later inference must never
 -- strengthen the producer image itself.
 instantiateSchemeInState :: TypeScheme -> Infer ([Constraint], Type)
-instantiateSchemeInState scheme@(Forall capBinders _ _ _) = do
+instantiateSchemeInState scheme = do
+  (_, constraints, ty) <-
+    instantiateSchemeWithOrigin RenameOnly scheme
+  return (constraints, ty)
+
+-- | Instantiate a constructor or primitive scheme with locally structural
+-- capability binders.  The caller freezes only the leaves that survive in
+-- the exported result after its argument constraints have been solved.
+instantiateCtorSchemeInState
+  :: TypeScheme
+  -> Infer (Set.Set CapVar, [Constraint], Type)
+instantiateCtorSchemeInState =
+  instantiateSchemeWithOrigin StructuralFlexible
+
+-- | Instantiate only capability binders used by explicit matcher-consumer
+-- slots as locally structural.  Egison exposes MatcherSlot in ordinary
+-- library combinators (for example @list@ and @maybe@), so their direct
+-- applications are the production counterpart of a local consumer demand.
+-- Other binders in the same scheme remain rename-only.
+instantiateConsumerSchemeInState
+  :: TypeScheme
+  -> Infer (Set.Set CapVar, [Constraint], Type)
+instantiateConsumerSchemeInState scheme@(Forall _ _ _ ty) =
+  instantiateSchemeWithOrigins
+    (\binder ->
+      if binder `Set.member` matcherSlotCapabilityBinders ty
+        then StructuralFlexible
+        else RenameOnly)
+    scheme
+
+instantiateSchemeWithOrigin
+  :: CapOrigin
+  -> TypeScheme
+  -> Infer (Set.Set CapVar, [Constraint], Type)
+instantiateSchemeWithOrigin origin =
+  instantiateSchemeWithOrigins (const origin)
+
+instantiateSchemeWithOrigins
+  :: (CapVar -> CapOrigin)
+  -> TypeScheme
+  -> Infer (Set.Set CapVar, [Constraint], Type)
+instantiateSchemeWithOrigins originOfBinder
+    scheme@(Forall capBinders _ _ _) = do
   st <- get
   let counter = inferCounter st
       (constraints, ty, nextCounter) = instantiate scheme counter
-      capImages = Set.fromList
-        [ freshCapVar "c" (counter + index)
-        | index <- [0 .. length capBinders - 1]
+      binderImages =
+        [ (binder, freshCapVar "c" (counter + index))
+        | (binder, index) <- zip capBinders [0 ..]
         ]
+      capImages = Set.fromList (map snd binderImages)
+      structuralImages = Set.fromList
+        [ image
+        | (binder, image) <- binderImages
+        , originOfBinder binder == StructuralFlexible
+        ]
+      protectedImages = capImages `Set.difference` structuralImages
   put st
     { inferCounter = nextCounter
     , inferAllocatedCapVars =
         inferAllocatedCapVars st `Set.union` capImages
     , inferProtectedCaps =
-        inferProtectedCaps st `Set.union` capImages
+        inferProtectedCaps st `Set.union` protectedImages
+    , inferCapabilityOrigins =
+        foldr
+          (\(binder, image) ->
+            Map.insert image (originOfBinder binder))
+          (inferCapabilityOrigins st)
+          binderImages
     }
-  return (constraints, ty)
+  return (structuralImages, constraints, ty)
+
+-- | Capability binders that occur in a MatcherSlot capability anywhere in a
+-- type.  Nested slots are included; ordinary Matcher capabilities are not.
+matcherSlotCapabilityBinders :: Type -> Set.Set CapVar
+matcherSlotCapabilityBinders ty =
+  case ty of
+    TTuple types -> Set.unions (map matcherSlotCapabilityBinders types)
+    TCollection element -> matcherSlotCapabilityBinders element
+    TInductive _ arguments ->
+      Set.unions (map matcherSlotCapabilityBinders arguments)
+    TTensor element -> matcherSlotCapabilityBinders element
+    THash key value ->
+      matcherSlotCapabilityBinders key `Set.union`
+        matcherSlotCapabilityBinders value
+    TMatcher _ target -> matcherSlotCapabilityBinders target
+    TMatcherSlot capability target ->
+      freeCapVarsCapability capability `Set.union`
+        matcherSlotCapabilityBinders target
+    TFun domain codomain ->
+      matcherSlotCapabilityBinders domain `Set.union`
+        matcherSlotCapabilityBinders codomain
+    TIO value -> matcherSlotCapabilityBinders value
+    TIORef value -> matcherSlotCapabilityBinders value
+    TTerm coefficient _ -> matcherSlotCapabilityBinders coefficient
+    TFrac coefficient -> matcherSlotCapabilityBinders coefficient
+    TPoly coefficient _ -> matcherSlotCapabilityBinders coefficient
+    _ -> Set.empty
 
 -- | Instantiate all capability and target binders of a pattern-function
 -- scheme in one freshening step.  The same paired substitution is applied to
 -- every argument and the result.  Fresh capability images are immediately
 -- allocated and protected, matching TypePM's @instantiateDualInState@.
 instantiateDualSchemeInState :: DualScheme -> Infer ([Dual], Dual)
-instantiateDualSchemeInState scheme = do
+instantiateDualSchemeInState =
+  instantiateDualSchemeWithOrigin RenameOnly
+
+-- | A named pattern-function application creates pattern demands inside the
+-- current match cut.  Its dual binders are therefore local consumer metas,
+-- like constructor-local pattern templates, rather than exported producer
+-- instances.
+instantiateDualSchemeForPatternApplication
+  :: DualScheme
+  -> Infer ([Dual], Dual)
+instantiateDualSchemeForPatternApplication =
+  instantiateDualSchemeWithOrigin StructuralFlexible
+
+instantiateDualSchemeWithOrigin
+  :: CapOrigin
+  -> DualScheme
+  -> Infer ([Dual], Dual)
+instantiateDualSchemeWithOrigin origin scheme = do
   let duplicateCapabilities = duplicates (dualCapBinders scheme)
       duplicateTargets = duplicates (dualTyBinders scheme)
   unless (null duplicateCapabilities && null duplicateTargets) $
@@ -818,7 +926,14 @@ instantiateDualSchemeInState scheme = do
           ]
   modify $ \state -> state
     { inferProtectedCaps =
-        inferProtectedCaps state `Set.union` capabilityImages
+        if origin == RenameOnly
+          then inferProtectedCaps state `Set.union` capabilityImages
+          else inferProtectedCaps state
+    , inferCapabilityOrigins =
+        Set.foldr
+          (\variable -> Map.insert variable origin)
+          (inferCapabilityOrigins state)
+          capabilityImages
     }
   return
     ( map (applySubstDual substitution) (dualArgs scheme)
@@ -997,23 +1112,54 @@ generalizeDualSchemeInState declaredCapabilities declaredTargets arguments resul
 -- matcher producer.  Temporary hole and consumer variables that do not occur
 -- in the final capability are intentionally left unprotected.
 protectMatcherCapability :: Capability -> TypeErrorContext -> Infer ()
-protectMatcherCapability capability ctx = do
+protectMatcherCapability capability _ctx = do
   st <- get
-  let owned =
-        freeCapVarsCapability capability
-          `Set.intersection` inferAllocatedCapVars st
-      alreadyStrengthened =
-        [ variable
-        | variable <- Set.toList owned
-        , applyCapSubst (inferGlobalSubst st) (CapVar variable)
-            /= CapVar variable
-        ]
-  reportProtectedCapabilityStrengthening
-    "producer capability variable(s) were strengthened before matcher finalization"
-    (Set.fromList alreadyStrengthened)
-    ctx
+  let prevailing = inferGlobalSubst st
+      owned =
+        Set.filter
+          (\variable ->
+            capabilityOriginOf (inferCapabilityOrigins st) variable ==
+              StructuralFlexible)
+          (freeCapVarsCapability (applyCapSubst prevailing capability)
+            `Set.intersection` inferAllocatedCapVars st)
   modify $ \state -> state
-    { inferProtectedCaps = inferProtectedCaps state `Set.union` owned }
+    { inferProtectedCaps = inferProtectedCaps state `Set.union` owned
+    , inferCapabilityOrigins =
+        Set.foldr
+          (\variable -> Map.insert variable RenameOnly)
+          (inferCapabilityOrigins state)
+          owned
+    }
+
+-- | Freeze exactly the still-structural leaves in the prevailing images of a
+-- completed constructor/primitive instance that remain visible in its result.
+-- Dead local roots (for example @Pack something@ returning plain @Packed@)
+-- deliberately remain unexported and need no protection.
+freezeCapabilityExport :: Set.Set CapVar -> Type -> Infer ()
+freezeCapabilityExport capImages exportedType = do
+  state <- get
+  let prevailing = inferGlobalSubst state
+      exportedVariables = freeCapVars (applySubst prevailing exportedType)
+      imageLeaves =
+        Set.unions
+          [ freeCapVarsCapability
+              (applyCapSubst prevailing (CapVar variable))
+          | variable <- Set.toList capImages
+          ]
+      leaves =
+        Set.filter
+          (\variable ->
+            capabilityOriginOf (inferCapabilityOrigins state) variable ==
+              StructuralFlexible)
+          (imageLeaves `Set.intersection` exportedVariables)
+  modify $ \current -> current
+    { inferProtectedCaps = inferProtectedCaps current `Set.union` leaves
+    , inferCapabilityOrigins =
+        Set.foldr
+          (\variable -> Map.insert variable RenameOnly)
+          (inferCapabilityOrigins current)
+          leaves
+    }
 
 -- | Record one transition from the protected type-pm solver to Egison's
 -- extension solver.  The protected ledger remains intact, so subsequent
@@ -1027,28 +1173,6 @@ reportTypePmSolverFallback detail ctx = do
       (detail ++ "; using Egison's extended capability solver")
       ctx
   modify $ \state -> state { inferCoreSolverFallbackReported = True }
-
--- | Report each protected producer variable at its first observed
--- strengthening.  This keeps repeated zonking quiet without hiding an
--- independent producer violation later in the same inference run.
-reportProtectedCapabilityStrengthening
-  :: String
-  -> Set.Set CapVar
-  -> TypeErrorContext
-  -> Infer ()
-reportProtectedCapabilityStrengthening detail variables ctx = do
-  state <- get
-  let freshViolations =
-        variables `Set.difference` inferReportedProtectedCaps state
-  unless (Set.null freshViolations) $
-    warnOutsideEgisonCore
-      (detail ++ ": " ++ intercalate ", "
-        [name | MkCapVar name <- Set.toList freshViolations] ++
-       "; using Egison's extended capability solver")
-      ctx
-  modify $ \current -> current
-    { inferReportedProtectedCaps =
-        inferReportedProtectedCaps current `Set.union` freshViolations }
 
 -- | Get the current type environment
 getEnv :: Infer TypeEnv
@@ -2022,23 +2146,48 @@ zonkPair t1 t2 = do
   return (t1', t2')
 
 -- | Merge a committed unifier into the global zonk substitution.
-recordGlobalSubst :: Subst -> Infer ()
-recordGlobalSubst substitution = do
+recordGlobalSubst :: TypeErrorContext -> Subst -> Infer ()
+recordGlobalSubst ctx substitution = do
   st <- get
   let nextGlobal = composeSubst substitution (inferGlobalSubst st)
-      strengthened =
-        Set.filter
-          (\variable ->
-            applyCapSubst nextGlobal (CapVar variable) /= CapVar variable)
-          (inferProtectedCaps st)
-  reportProtectedCapabilityStrengthening
-    "a later constraint strengthens protected producer capability variable(s)"
-    strengthened
-    emptyContext
+      ledger = inferCapabilityOrigins st
+      violations =
+        [ (variable, image, origin)
+        | variable <- Map.keys (unCapSubst nextGlobal)
+        , let image = applyCapSubst nextGlobal (CapVar variable)
+        , let origin = capabilityOriginOf ledger variable
+        , not (admissibleCapabilityImage ledger variable origin image)
+        ]
+  unless (null violations) $
+    throwError $
+      MatcherCapabilityError
+        ("capability-origin violation: " ++ intercalate ", "
+          [ name ++ " (" ++ show origin ++ ") := " ++
+              TP.prettyCapability image
+          | (MkCapVar name, image, origin) <- violations
+          ])
+        ctx
   modify $ \state -> state
     { inferGlobalSubst = nextGlobal }
 
--- | Run the synchronized rigid solver first.  Egison's full language retains
+admissibleCapabilityImage
+  :: CapabilityOriginLedger
+  -> CapVar
+  -> CapOrigin
+  -> Capability
+  -> Bool
+admissibleCapabilityImage ledger variable origin image =
+  case origin of
+    Rigid -> image == CapVar variable
+    RenameOnly ->
+      case image of
+        CapVar target ->
+          capabilityOriginOf ledger target /= StructuralFlexible
+        CapSkolem _ -> True
+        _ -> False
+    StructuralFlexible -> True
+
+-- | Run the synchronized origin-aware solver first.  Egison's full language retains
 -- its historical nested-matcher solver as an explicit extension path; only a
 -- successful fallback is reported, and the reporting flag never changes the
 -- chosen substitution.
@@ -2049,8 +2198,9 @@ solveWithCompatibility
   -> Type
   -> TypeErrorContext
   -> Infer (Subst, Bool)
-solveWithCompatibility classEnv constraints left right ctx =
-  case TU.unifyWithConstraints classEnv constraints left right of
+solveWithCompatibility classEnv constraints left right ctx = do
+  ledger <- gets inferCapabilityOrigins
+  case TU.unifyWithOriginsAndConstraints ledger classEnv constraints left right of
     Right result -> commit result
     Left (TU.MatcherRigidity _ _) ->
       case TU.unifyExtendedWithConstraints
@@ -2075,7 +2225,7 @@ solveWithCompatibility classEnv constraints left right ctx =
     Left err -> throwUnifyError ctx err
   where
     commit result@(substitution, _) = do
-      recordGlobalSubst substitution
+      recordGlobalSubst ctx substitution
       return result
 
 -- | Role-aware counterpart of 'solveWithCompatibility' for an explicit
@@ -2089,9 +2239,20 @@ solveAtSlotWithCompatibility
   -> Type
   -> TypeErrorContext
   -> Infer (Subst, Bool)
-solveAtSlotWithCompatibility classEnv constraints inferred expected ctx =
-  case TU.alignAtSlotWithConstraints
-         classEnv constraints inferred expected of
+solveAtSlotWithCompatibility classEnv constraints inferred expected ctx = do
+  ledger <- gets inferCapabilityOrigins
+  let coreResult =
+        case inferred of
+          -- Slot-to-slot is paired equality, not producer coercion.  Use the
+          -- origin-oriented solver so a local structural demand is renamed
+          -- toward an already frozen slot rather than the reverse.
+          TMatcherSlot _ _ ->
+            TU.unifyWithOriginsAndConstraints
+              ledger classEnv constraints inferred expected
+          _ ->
+            TU.alignAtSlotWithConstraints
+              classEnv constraints inferred expected
+  case coreResult of
     Right result -> commit result
     Left (TU.MatcherRigidity _ _) ->
       case TU.unifyExtendedWithConstraints
@@ -2115,7 +2276,7 @@ solveAtSlotWithCompatibility classEnv constraints inferred expected ctx =
     Left err -> throwUnifyError ctx err
   where
     commit result@(substitution, _) = do
-      recordGlobalSubst substitution
+      recordGlobalSubst ctx substitution
       return result
 
 unifyTypesAtSlotWithContext
@@ -2193,6 +2354,13 @@ throwUnifyError ctx err =
       throwError (UnificationError left right ctx)
     TU.MatcherRigidity left right ->
       throwError (TE.TypeMismatch left right matcherRigidityMsg ctx)
+    TU.CapabilityOriginViolation (MkCapVar variable) origin image ->
+      throwError $
+        MatcherCapabilityError
+          ("capability-origin violation: " ++ variable ++
+           " (" ++ show origin ++ ")" ++
+           " cannot be specialized to " ++ TP.prettyCapability image)
+          ctx
 
 -- | Unify two types with context, allowing Tensor a to unify with a
 -- This is used only for top-level definitions with type annotations
@@ -2200,8 +2368,9 @@ throwUnifyError ctx err =
 unifyTypesWithTopLevel :: Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithTopLevel t1 t2 ctx = do
   (t1', t2') <- zonkPair t1 t2
-  case TU.unifyWithTopLevel t1' t2' of
-    Right s  -> recordGlobalSubst s >> return s
+  ledger <- gets inferCapabilityOrigins
+  case TU.unifyWithOriginsTopLevel ledger t1' t2' of
+    Right s  -> recordGlobalSubst ctx s >> return s
     Left (TU.MatcherRigidity _ _) ->
       case TU.unifyExtendedWithTopLevel t1' t2' of
         Right substitution -> do
@@ -2210,7 +2379,7 @@ unifyTypesWithTopLevel t1 t2 ctx = do
              TP.prettyType t1' ++ " ~ " ++ TP.prettyType t2' ++
              "` requires Egison's permissive capability alignment")
             ctx
-          recordGlobalSubst substitution
+          recordGlobalSubst ctx substitution
           return substitution
         Left err -> throwUnifyError ctx err
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
@@ -2630,9 +2799,25 @@ inferIExprWithContext expr ctx = case expr of
         let scheme = Forall [] [] [] TAny
         return (TIExpr scheme (TIVarExpr name), emptySubst)
       else do
-        (ty, constraints) <- lookupVarWithConstraints name
-        let scheme = Forall [] [] constraints ty
-        return (TIExpr scheme (TIVarExpr name), emptySubst)
+        constructorNames <- gets inferDataConstructorNames
+        env <- getEnv
+        let currentScheme = lookupEnvExact (stringToVar name) env
+            builtinScheme = lookupEnvExact (stringToVar name) builtinEnv
+            isStructuralScheme =
+              name `Set.member` constructorNames ||
+                (name `elem` builtinNames && currentScheme == builtinScheme)
+        case currentScheme of
+          Just sourceScheme | isStructuralScheme -> do
+            (capImages, constraints, ty) <-
+              instantiateCtorSchemeInState sourceScheme
+            addConstraints constraints
+            freezeCapabilityExport capImages ty
+            return
+              (TIExpr (Forall [] [] constraints ty) (TIVarExpr name), emptySubst)
+          _ -> do
+            (ty, constraints) <- lookupVarWithConstraints name
+            let scheme = Forall [] [] constraints ty
+            return (TIExpr scheme (TIVarExpr name), emptySubst)
   
   -- Tuples
   ITupleExpr elems -> do
@@ -2815,9 +3000,58 @@ inferIExprWithContext expr ctx = case expr of
   -- Function Application
   IApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    let funcType = tiExprType funcTI
-    inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    constructorNames <- gets inferDataConstructorNames
+    case func of
+      IVarExpr name
+        | name `Set.member` constructorNames -> do
+            env <- getEnv
+            case lookupEnvExact (stringToVar name) env of
+              Just scheme -> inferStructuralApplication name scheme exprCtx
+              Nothing -> inferOrdinaryApplication exprCtx
+        | name `elem` builtinNames -> do
+            env <- getEnv
+            case (lookupEnvExact (stringToVar name) env,
+                  lookupEnvExact (stringToVar name) builtinEnv) of
+              (Just scheme, Just builtinScheme)
+                | scheme == builtinScheme ->
+                    inferStructuralApplication name scheme exprCtx
+              _ -> inferOrdinaryApplication exprCtx
+        | otherwise -> do
+            env <- getEnv
+            case lookupEnvExact (stringToVar name) env of
+              Just scheme@(Forall _ _ _ schemeTy)
+                | not (Set.null
+                    (matcherSlotCapabilityBinders schemeTy)) ->
+                    inferConsumerApplication name scheme exprCtx
+              _ -> inferOrdinaryApplication exprCtx
+      _ -> inferOrdinaryApplication exprCtx
+    where
+      inferOrdinaryApplication exprCtx = do
+        (funcTI, s1) <- inferIExprWithContext func exprCtx
+        let funcType = tiExprType funcTI
+        inferIApplicationWithContext funcTI funcType args s1 exprCtx
+
+      inferStructuralApplication name scheme exprCtx = do
+        (capImages, constraints, functionType) <-
+          instantiateCtorSchemeInState scheme
+        inferApplicationWithFreeze name capImages constraints functionType exprCtx
+
+      inferConsumerApplication name scheme exprCtx = do
+        (capImages, constraints, functionType) <-
+          instantiateConsumerSchemeInState scheme
+        inferApplicationWithFreeze name capImages constraints functionType exprCtx
+
+      inferApplicationWithFreeze name capImages constraints functionType exprCtx = do
+        addConstraints constraints
+        let functionTI =
+              TIExpr
+                (Forall [] [] constraints functionType)
+                (TIVarExpr name)
+        result@(typedResult, _) <-
+          inferIApplicationWithContext
+            functionTI functionType args emptySubst exprCtx
+        freezeCapabilityExport capImages (tiExprType typedResult)
+        return result
 
   -- Wedge apply expression (exterior product)
   IWedgeApplyExpr func args -> do
@@ -2894,10 +3128,15 @@ inferIExprWithContext expr ctx = case expr of
     env <- getEnv
     case lookupEnv (stringToVar name) env of
       Just scheme -> do
-        -- Instantiate the type scheme
-        (_constraints, constructorType) <- instantiateSchemeInState scheme
+        -- Constructor binders remain structural while their fields are
+        -- checked, then only capability leaves visible in the result escape.
+        (capImages, _constraints, constructorType) <-
+          instantiateCtorSchemeInState scheme
         -- Treat constructor as a function application
-        inferIApplication name constructorType args emptySubst
+        result@(typedConstructor, _) <-
+          inferIApplication name constructorType args emptySubst
+        freezeCapabilityExport capImages (tiExprType typedConstructor)
+        return result
       Nothing -> do
         -- Constructor not found in environment
         let exprCtx = withExpr (prettyStr expr) ctx
@@ -5021,12 +5260,31 @@ patternDualType :: IPattern -> TypeErrorContext -> Infer (Capability, Type)
 patternDualType pat ctx = do
   warnPatternCompatibility ctx pat
   snapshot <- saveConstraintState
-  restoreInferStateAfter (restoreConstraintState snapshot) $ do
-    tv <- freshVar "taut"
-    (_, _, st, capability) <- inferIPattern pat tv ctx
-    taut <- applySubstWithConstraintsM st tv
-    capability' <- applyCapabilityM st capability
-    return (capability', taut)
+  (capability, target, generatedCapabilities) <-
+    restoreInferStateAfter (restoreConstraintState snapshot) $ do
+      tv <- freshVar "taut"
+      (_, _, st, capability) <- inferIPattern pat tv ctx
+      taut <- applySubstWithConstraintsM st tv
+      capability' <- applyCapabilityM st capability
+      allocated <- gets inferAllocatedCapVars
+      return
+        ( capability'
+        , taut
+        , allocated `Set.difference` snapshotAllocatedCapVars snapshot
+        )
+  -- The probe is otherwise side-effect free, but its returned demand metas
+  -- remain live.  Re-register precisely those fresh capability variables as
+  -- structural consumer variables after restoring the surrounding state.
+  modify $ \state -> state
+    { inferAllocatedCapVars =
+        inferAllocatedCapVars state `Set.union` generatedCapabilities
+    , inferCapabilityOrigins =
+        Set.foldr
+          (\variable -> Map.insert variable StructuralFlexible)
+          (inferCapabilityOrigins state)
+          generatedCapabilities
+    }
+  return (capability, target)
 
 -- | Snapshot of state that speculative structural inference must not leak.
 -- Compatibility diagnostics are included: a failed probe is not an actual
@@ -5039,8 +5297,8 @@ data ConstraintStateSnapshot = ConstraintStateSnapshot
   , snapshotCoreSolverFallbackReported :: Bool
   , snapshotDeferredHoleChecks :: [DeferredHoleCheck]
   , snapshotAllocatedCapVars :: Set.Set CapVar
+  , snapshotCapabilityOrigins :: CapabilityOriginLedger
   , snapshotProtectedCaps :: Set.Set CapVar
-  , snapshotReportedProtectedCaps :: Set.Set CapVar
   }
 
 saveConstraintState :: Infer ConstraintStateSnapshot
@@ -5054,8 +5312,8 @@ saveConstraintState = do
         inferCoreSolverFallbackReported state
     , snapshotDeferredHoleChecks = inferDeferredHoleChecks state
     , snapshotAllocatedCapVars = inferAllocatedCapVars state
+    , snapshotCapabilityOrigins = inferCapabilityOrigins state
     , snapshotProtectedCaps = inferProtectedCaps state
-    , snapshotReportedProtectedCaps = inferReportedProtectedCaps state
     }
 
 restoreConstraintState :: ConstraintStateSnapshot -> Infer ()
@@ -5068,8 +5326,8 @@ restoreConstraintState snapshot =
         snapshotCoreSolverFallbackReported snapshot
     , inferDeferredHoleChecks = snapshotDeferredHoleChecks snapshot
     , inferAllocatedCapVars = snapshotAllocatedCapVars snapshot
+    , inferCapabilityOrigins = snapshotCapabilityOrigins snapshot
     , inferProtectedCaps = snapshotProtectedCaps snapshot
-    , inferReportedProtectedCaps = snapshotReportedProtectedCaps snapshot
     }
 
 -- | Align two pattern capabilities in the capability solver and publish the
@@ -5080,10 +5338,11 @@ alignPatternCapabilities
 alignPatternCapabilities ctx left right = do
   left' <- applyCapabilityM emptySubst left
   right' <- applyCapabilityM emptySubst right
-  case TU.unifyCapability left' right' of
+  ledger <- gets inferCapabilityOrigins
+  case TU.unifyCapabilityWithOrigins ledger left' right' of
     Left err -> throwUnifyError ctx err
     Right substitution -> do
-      recordGlobalSubst substitution
+      recordGlobalSubst ctx substitution
       return substitution
 
 -- | Capability of an and/or/forall/loop/seq-cons pattern: both children
@@ -6275,7 +6534,7 @@ inferNamedPatternFunctionApplication
     -- Instantiate the complete scheme once so capability and target images
     -- remain correlated across every argument and the result.
     (expectedArguments, resultDual) <-
-      instantiateDualSchemeInState scheme
+      instantiateDualSchemeForPatternApplication scheme
     let expectedArity = length expectedArguments
         actualArity = length argPats
         functionType =

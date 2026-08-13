@@ -1,6 +1,6 @@
 # Egison Core Boundary
 
-> **Status (2026-08-06).** This document defines the integration boundary
+> **Status (2026-08-13).** This document defines the integration boundary
 > between Egison's production type checker and the executable two-sorted core
 > mechanized in `type-pm-mech`. It is an implementation contract, not a claim
 > that the complete Egison language has been translated to, or proved sound by,
@@ -81,20 +81,49 @@ Target specialization alone is never evidence for a structured capability.
 Ordinary gradual `TAny`, a target annotation, a match-site demand, or a recursive result
 annotation must not invent a capability head.
 
-### 2.2 Nested rigid core solver
+### 2.2 Capability-origin ledger and nested core solver
 
 Nested `Matcher` and `MatcherSlot` occurrences are solved by the same
-two-sorted rules as root occurrences. In particular, producer capability
-variables remain rigid while the surrounding ordinary type is unified. The
-nested solver must recurse through products, functions, collections, data
-constructors, and embedded matcher types without switching to symmetric
-ordinary-type unification for a capability component.
+two-sorted rules as root occurrences. `InferState` records every capability
+variable as `Rigid`, `RenameOnly`, or `StructuralFlexible`. Unlisted ambient
+variables are rigid. A generic scheme instance is rename-only: it may be
+alpha-renamed to another non-structural variable, but it must not acquire a
+constructor such as `Collection`. Fresh consumer and constructor-local
+variables are structural until their scope is complete.
+
+Constructor and primitive schemes use a dedicated structural instantiation
+path. After the application constraints have been solved, only structural
+capability leaves that remain visible in the exported type are frozen to
+rename-only. A constructor capability consumed entirely inside an application
+therefore stays locally flexible, while a partially applied or bare
+constructor cannot export structural flexibility.
+
+Egison also exposes consumer positions as `MatcherSlot` arguments of ordinary
+library combinators such as `list` and `maybe`. On a syntactically direct
+application, only scheme binders occurring in such slots receive the same
+local structural treatment; all other binders remain rename-only, and the
+surviving result leaves are frozen. Taking the function as a value does not
+use this path. Likewise, a named pattern-function application allocates its
+dual binders as local structural pattern demands for that match cut, while
+ordinary standalone dual-scheme instantiation remains rename-only. These are
+production representations of consumer-demand allocation, not permission to
+strengthen an exported producer.
+
+The nested paired-type solver must recurse through products, functions,
+collections, data constructors, tensors, and embedded matcher types while
+consulting the same origin ledger for every capability component. Tensor
+application retains Egison's traversal rule; the capability-origin check does
+not change that evaluation-order extension.
 
 The core solver fails closed. If a nested constraint cannot be handled by its
-rigid two-sorted rules, the synchronized path fails rather than weakening the
+origin-aware two-sorted rules, the synchronized path fails rather than weakening the
 constraint to ordinary `TAny`, capability `Any`, or a fresh unconstrained slot. Production may then
 use an explicitly identified Egison fallback, but that crossing is a
 compatibility-warning event.
+
+An origin violation is never such a warning event. Any substitution that
+strengthens a rigid or rename-only variable is rejected as a type error before
+it can be committed to the global substitution.
 
 ### 2.3 One-way `Matcher` to `MatcherSlot` coercion
 

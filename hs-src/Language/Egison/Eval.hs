@@ -449,6 +449,7 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
       currentCasEdges <- getCasSubtypeEdges
       currentMatcherShapes <- getMatcherShapeEnv
       currentProducerDependencies <- getProducerDependencyEnv
+      currentConstructorEnv <- getConstructorEnv
       let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncDeclEnv']
           enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
           externalProducerDependencies =
@@ -466,6 +467,8 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
             inferPatternFuncEnv = currentPatternFuncEnv',
             inferCasSubtypeEdges = currentCasEdges,
             inferBatchDefNames = batchDefNames,
+            inferDataConstructorNames =
+              Set.fromList (HashMap.keys currentConstructorEnv),
             inferProducerDependencies =
               Map.union
                 completedProducerDependencies
