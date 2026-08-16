@@ -85,15 +85,14 @@ shouldInsertTensorMap classEnv constraints argType paramType =
   in isParamScalar && isArgTensor
 
 
--- | Unlift a function type that was lifted for Tensor arguments
--- Tensor a -> Tensor b -> Tensor c  becomes  a -> b -> c
-unliftFunctionType :: Type -> Type
-unliftFunctionType (TFun (TTensor paramType) restType) =
-  TFun paramType (unliftFunctionType restType)
-unliftFunctionType (TFun paramType restType) =
-  TFun paramType (unliftFunctionType restType)
-unliftFunctionType (TTensor returnType) = returnType
-unliftFunctionType ty = ty
+-- NOTE: the former unliftFunctionType helper stripped every Tensor head in
+-- the function type before recursing over the remaining arguments.  At the
+-- positions actually being mapped the parameter is already scalar (that is
+-- the insertion condition), so the stripping was a no-op there; its only
+-- real effects were harmful: a genuine Tensor parameter at a later position
+-- was rewritten to its element type, which made the recursion insert a bogus
+-- tensorMap over an argument the function consumes whole.  The insertion now
+-- keeps the function's instantiated type unchanged.
 
 -- | Get the parameter type at the specified index from a function type
 -- Example: (a -> b -> c) at index 0 → Just a, at index 1 → Just b
@@ -305,20 +304,31 @@ shouldUseTensorMap2Fallback classEnv constraints ty =
       isTensorLiftableScalarType classEnv constraints param2
     _ -> False
 
--- | Compatibility wrapper for binary scalar callbacks.
-wrapWithTensorMap2Fallback :: TIExpr -> TIExpr
-wrapWithTensorMap2Fallback funcExpr =
+-- | Compatibility wrapper for binary scalar callbacks.  The wrapper term is
+-- always inserted unchanged: besides accommodating tensors that may flow in
+-- at run time, its saturated application also shields class-method values
+-- from unsupported partial application.  Only the recorded types follow the
+-- call site (see fallbackLiftDecisions); annotating a rigidly scalar
+-- position with its scalar type is semantically accurate because tensorMap2
+-- is the identity on scalars.
+wrapWithTensorMap2Fallback :: Maybe Type -> TIExpr -> TIExpr
+wrapWithTensorMap2Fallback expectedArgType funcExpr =
   case tiExprType funcExpr of
     TFun param1 (TFun param2 result) ->
-      let varName1 = "tmap2_arg1"
+      let (lift1, lift2, liftResult) = fallbackLiftDecisions expectedArgType
+          outer1 = if lift1 then TTensor param1 else param1
+          outer2 = if lift2 then TTensor param2 else param2
+          innerType = if liftResult
+                        then normalizeTensorType (TTensor result)
+                        else result
+          varName1 = "tmap2_arg1"
           varName2 = "tmap2_arg2"
           var1 = Var varName1 []
           var2 = Var varName2 []
-          var1TI = mkVarTIExpr varName1 (TTensor param1)
-          var2TI = mkVarTIExpr varName2 (TTensor param2)
-          innerType = normalizeTensorType (TTensor result)
+          var1TI = mkVarTIExpr varName1 outer1
+          var2TI = mkVarTIExpr varName2 outer2
           innerExpr = TIExpr (Forall [] [] [] innerType) (TITensorMap2Expr funcExpr var1TI var2TI)
-          lambdaType = TFun (TTensor param1) (TFun (TTensor param2) innerType)
+          lambdaType = TFun outer1 (TFun outer2 innerType)
           lambdaScheme = Forall [] [] [] lambdaType
       in TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerExpr)
     _ -> funcExpr
@@ -414,15 +424,41 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param
        (Forall [] [] [] mappedType)
        (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
 
+-- | Per-component annotation decisions for the binary fallback wrapper.
+-- A component of the expected callback type that can still stand for a
+-- tensor (a type variable, possibly a rigid skolem from an annotation, or
+-- an explicit tensor) keeps the tensor-lifted annotation; a rigidly scalar
+-- component keeps its scalar annotation instead, because tensorMap2 is the
+-- identity on scalars and the tensor-lifted annotation would otherwise
+-- place a Tensor-typed term where a scalar type is expected.  Class
+-- constraints are deliberately not consulted: the fallback exists exactly
+-- for element types whose constraints forbid a direct tensor
+-- instantiation, and discharges them pointwise inside the wrapper.
+fallbackLiftDecisions :: Maybe Type -> (Bool, Bool, Bool)
+fallbackLiftDecisions Nothing = (True, True, True)
+fallbackLiftDecisions (Just expected) =
+  case collectFunctionType expected of
+    ([param1, param2], result) ->
+      (componentAdmits param1, componentAdmits param2, componentAdmits result)
+    _ -> (True, True, True)
+  where
+    componentAdmits ty = case ty of
+      TVar _ -> True
+      TSkolem _ -> True
+      TTensor _ -> True
+      _ -> False
+
 -- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
 -- Type-directed callback lifting is tried first; the binary fallback preserves
--- older reduction behavior when no tensor seed is visible in the expected type.
-tensorMap2FallbackIfNeeded :: ClassEnv -> [Constraint] -> TIExpr -> Maybe TIExpr
-tensorMap2FallbackIfNeeded classEnv constraints tiExpr =
+-- older reduction behavior when no tensor seed is visible in the expected
+-- type.  The wrapper term is always the same; only its type annotations
+-- follow the expected callback type.
+tensorMap2FallbackIfNeeded :: ClassEnv -> [Constraint] -> Maybe Type -> TIExpr -> Maybe TIExpr
+tensorMap2FallbackIfNeeded classEnv constraints expectedArgType tiExpr =
   case tiExprNode tiExpr of
     TIApplyExpr {} -> Nothing
     _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr) ->
-          Just (wrapWithTensorMap2Fallback tiExpr)
+          Just (wrapWithTensorMap2Fallback expectedArgType tiExpr)
       | otherwise -> Nothing
 
 wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Type -> Int -> Maybe Type -> TIExpr -> TIExpr
@@ -433,7 +469,7 @@ wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expecte
           Just expectedType ->
             wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType argIndex expectedType tiExpr
           Nothing -> Nothing
-      mBinaryFallback = tensorMap2FallbackIfNeeded classEnv constraints tiExpr
+      mBinaryFallback = tensorMap2FallbackIfNeeded classEnv constraints expectedArgType tiExpr
   in if isAlreadyWrappedWithTensorMap node
        then tiExpr
        else
@@ -691,14 +727,12 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
               _ -> False
 
         case (isScalarFunction, args') of
-          (True, [arg1, arg2]) -> do
-            -- Insert tensorMap2Wedge for binary scalar functions
-            let -- Preserve the function's original scheme with its constraints
-                (Forall capVars tvs funcConstraints _) = tiScheme func'
-                -- Unlift the function type to get the scalar version
-                unliftedFuncType = unliftFunctionType funcType
-                unliftedFunc = TIExpr (Forall capVars tvs funcConstraints unliftedFuncType) (tiExprNode func')
-            return $ TITensorMap2WedgeExpr unliftedFunc arg1 arg2
+          (True, [arg1, arg2]) ->
+            -- Insert tensorMap2Wedge for binary scalar functions.  The
+            -- function keeps its instantiated type unchanged: both checked
+            -- parameters are already non-Tensor, and the result must keep
+            -- its true type.
+            return $ TITensorMap2WedgeExpr func' arg1 arg2
           _ ->
             -- Keep WedgeApply for tensor functions or non-binary functions
             return $ TIWedgeApplyExpr func' args'
@@ -796,21 +830,18 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                       varTIExpr1 = TIExpr varScheme1 (TIVarExpr varName1)
                       varTIExpr2 = TIExpr varScheme2 (TIVarExpr varName2)
 
-                      -- Unlift the function type for use inside tensorMap
-                      -- IMPORTANT: Use the instantiated type from currentFunc, not the polymorphic currentType
-                      -- This ensures we use the unified type variable (e.g., t0) instead of fresh variables (e.g., a)
+                      -- Use the instantiated type from currentFunc unchanged: the two
+                      -- mapped parameters are already scalar (that is why they are
+                      -- mapped), and later parameters and the result must keep their
+                      -- true types so that the remaining-argument decisions read
+                      -- them correctly.
                       instantiatedFuncType = tiExprType currentFunc
-                      unliftedFuncType = unliftFunctionType instantiatedFuncType
-                      funcScheme = tiScheme currentFunc
-                      (Forall capVars tvs funcConstraints _) = funcScheme
-                      unliftedFuncScheme = Forall capVars tvs funcConstraints unliftedFuncType
-                      unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
 
                       -- Build inner expression with both variables applied
-                      innerType2 = applyOneArgType (applyOneArgType unliftedFuncType)
+                      innerType2 = applyOneArgType (applyOneArgType instantiatedFuncType)
                       -- After applying both arguments, this is a fully-applied result - no constraints needed
                       innerFuncScheme = Forall [] [] [] innerType2
-                      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr1, varTIExpr2])
+                      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr1, varTIExpr2])
 
                   -- Process remaining arguments after consuming two
                   innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType2 restArgs' restArgTypes'
@@ -868,25 +899,23 @@ insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType 
       varScheme = Forall [] [] [] elemType
       varTIExpr = TIExpr varScheme (TIVarExpr varName)
 
-      -- Unlift the function type for use inside tensorMap
-      -- IMPORTANT: Use the instantiated type from currentFunc, not the polymorphic currentType
-      -- This ensures we use the unified type variable (e.g., t0) instead of fresh variables (e.g., a)
+      -- Use the instantiated type from currentFunc unchanged: the mapped
+      -- parameter is already scalar (that is why it is mapped), and later
+      -- parameters and the result must keep their true types so that the
+      -- remaining-argument decisions read them correctly.
       instantiatedFuncType = tiExprType currentFunc
-      unliftedFuncType = unliftFunctionType instantiatedFuncType
       funcScheme = tiScheme currentFunc
-      (Forall capVars tvs funcConstraints _) = funcScheme
-      unliftedFuncScheme = Forall capVars tvs funcConstraints unliftedFuncType
-      unliftedFunc = TIExpr unliftedFuncScheme (tiExprNode currentFunc)
+      (Forall _capVars _tvs funcConstraints _) = funcScheme
 
       -- Build inner expression (recursive call)
-      innerType = applyOneArgType unliftedFuncType
+      innerType = applyOneArgType instantiatedFuncType
       -- Only keep constraints if this is a partial application (function type)
       -- If it's a fully-applied value, no constraints needed
       innerConstraints = case innerType of
                            TFun _ _ -> funcConstraints  -- Partial application
                            _ -> []  -- Fully applied: no constraints
       innerFuncScheme = Forall [] [] innerConstraints innerType
-      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr unliftedFunc [varTIExpr])
+      innerFuncTI = TIExpr innerFuncScheme (TIApplyExpr currentFunc [varTIExpr])
 
   -- Process remaining arguments
   innerNode <- wrapWithTensorMapRecursive classEnv constraints innerFuncTI innerType restArgs restArgTypes
