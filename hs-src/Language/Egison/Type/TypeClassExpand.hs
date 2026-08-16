@@ -668,6 +668,12 @@ expandTypeClassMethodsT tiExpr = do
           scheme' = case expandedNode of
             TIApplyExpr _ _    | shouldClear -> let Forall capVars vs _ ty = scheme in Forall capVars vs [] ty
             TIIndexedExpr {}   | shouldClear -> let Forall capVars vs _ ty = scheme in Forall capVars vs [] ty
+            -- TILambdaExpr: concrete-instance eta expansion of a bare method
+            -- reference (the dictionary is already baked into the lambda
+            -- body).  Without this clear, applyConcreteConstraintDictionaries
+            -- would apply the dictionary once more, and the dictionary hash
+            -- would be consumed as the first value argument at runtime.
+            TILambdaExpr {}    | shouldClear -> let Forall capVars vs _ ty = scheme in Forall capVars vs [] ty
             _                                -> scheme
       return $ TIExpr scheme' expandedNode
 
