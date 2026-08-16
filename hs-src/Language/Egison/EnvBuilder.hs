@@ -1261,9 +1261,7 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
             (m:_) -> case lookup (instanceMethodName m) (Types.classMethods classInfo) of
               Nothing -> TAny
               Just methodType ->
-                let tyVar = Types.classParam classInfo
-                    substitutedType = substituteTypeVar tyVar instType methodType
-                in substitutedType
+                substituteClassParams classInfo instTypeList methodType
 
           dictType = THash TString dictValueType
           freeVars = Set.toList (freeTyVars dictType)
@@ -1276,14 +1274,13 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
     instanceMethodName (InstanceMethod name _ _) = name
 
     registerInstanceMethod :: String -> Type -> [Type] -> [Constraint] -> Types.ClassInfo -> InstanceMethod -> TypeEnv -> TypeEnv
-    registerInstanceMethod clsName instTy instTyList constraints classInfo (InstanceMethod methName _params _body) env =
+    registerInstanceMethod clsName _instTy instTyList constraints classInfo (InstanceMethod methName _params _body) env =
       -- Find the method in the class definition
       case lookup methName (Types.classMethods classInfo) of
         Nothing -> env  -- Method not in class definition, skip
         Just methodType ->
-          -- Substitute type variable with instance type (use first type for the method body type)
-          let tyVar = Types.classParam classInfo
-              substitutedType = substituteTypeVar tyVar instTy methodType
+          -- Substitute ALL class type parameters with the instance types
+          let substitutedType = substituteClassParams classInfo instTyList methodType
 
               -- Generate method name from ALL instance types (matching Desugar)
               -- e.g., "embedMathValueMathValueEmbed" for instance Embed MathValue MathValue
@@ -1301,9 +1298,17 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
           in
             extendEnv (stringToVar generatedMethodName) typeScheme env
     
-    -- Substitute type variable with concrete type in a type expression
-    substituteTypeVar :: TyVar -> Type -> Type -> Type
-    substituteTypeVar = Types.substTyVar
+    -- Substitute every class type parameter simultaneously with the
+    -- corresponding instance type.  Must be single-pass: an instance type
+    -- may contain a type variable whose name collides with a later class
+    -- parameter, which sequential substTyVar passes would capture.  A zip
+    -- arity mismatch leaves the unmatched parameters quantified.
+    substituteClassParams :: Types.ClassInfo -> [Type] -> Type -> Type
+    substituteClassParams classInfo instTys =
+      let pairs = zip (Types.classParams classInfo) instTys
+          replace t@(TVar v) = maybe t id (lookup v pairs)
+          replace t          = t
+      in Types.mapType replace
 
 -- | Extract method name and type from ClassMethod
 extractMethodWithType
