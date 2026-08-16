@@ -448,16 +448,45 @@ fallbackLiftDecisions (Just expected) =
       TTensor _ -> True
       _ -> False
 
+-- | The fallback wrapper is worthwhile only when some component of the
+-- expected callback type can still carry a tensor at run time: a type
+-- variable (possibly a rigid skolem from an annotation), an explicit
+-- tensor, or a CAS scalar type, whose positions may receive tensors under
+-- the pervasive rank-0 reading.  When every component is a rigidly
+-- non-CAS scalar (e.g. Integer), no tensor can flow through the callback,
+-- the wrapper would be the runtime identity, and the bare callback is
+-- passed unchanged instead.  (Bare class-method values are safe to pass
+-- since the eta-expansion in type class expansion clears their discharged
+-- constraints.)
+fallbackWrapWorthwhile :: Maybe Type -> Bool
+fallbackWrapWorthwhile Nothing = True
+fallbackWrapWorthwhile (Just expected) =
+  case collectFunctionType expected of
+    ([param1, param2], result) -> any mayCarryTensor [param1, param2, result]
+    _ -> True
+  where
+    mayCarryTensor ty = case ty of
+      TVar _ -> True
+      TSkolem _ -> True
+      TTensor _ -> True
+      TMathValue -> True
+      TFrac _ -> True
+      TPoly _ _ -> True
+      TTerm _ _ -> True
+      _ -> False
+
 -- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
 -- Type-directed callback lifting is tried first; the binary fallback preserves
 -- older reduction behavior when no tensor seed is visible in the expected
--- type.  The wrapper term is always the same; only its type annotations
--- follow the expected callback type.
+-- type, provided the expected type can carry tensors at all.  The wrapper
+-- term is uniform; only its type annotations follow the expected callback
+-- type.
 tensorMap2FallbackIfNeeded :: ClassEnv -> [Constraint] -> Maybe Type -> TIExpr -> Maybe TIExpr
 tensorMap2FallbackIfNeeded classEnv constraints expectedArgType tiExpr =
   case tiExprNode tiExpr of
     TIApplyExpr {} -> Nothing
-    _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr) ->
+    _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr)
+      , fallbackWrapWorthwhile expectedArgType ->
           Just (wrapWithTensorMap2Fallback expectedArgType tiExpr)
       | otherwise -> Nothing
 
