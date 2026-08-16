@@ -744,9 +744,8 @@ dumpEnvironment typeEnv classEnv ctorEnv patternCtorEnv patternEnv = do
     if null classBindings
       then putStrLn "  (none)"
       else forM_ classBindings $ \(className, classInfo) -> do
-        let paramName = case Types.classParam classInfo of
-              Types.TyVar name -> name
-        putStrLn $ "  class " ++ className ++ " " ++ paramName ++ " where"
+        let paramNames = unwords [ name | Types.TyVar name <- Types.classParams classInfo ]
+        putStrLn $ "  class " ++ className ++ " " ++ paramNames ++ " where"
         forM_ (Types.classMethods classInfo) $ \(methName, methType) ->
           putStrLn $ "    " ++ methName ++ " : " ++ prettyType methType
     putStrLn ""

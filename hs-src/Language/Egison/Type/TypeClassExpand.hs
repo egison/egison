@@ -51,7 +51,7 @@ import           Language.Egison.Type.Env  (ClassEnv(..), ClassInfo(..), Instanc
                                              lookupInstances, lookupClass, lookupEnv)
 import           Language.Egison.Type.Types (Type(..), TyVar(..), TypeScheme(..), Constraint(..), constraintType, typeToName,
                                             sanitizeMethodName, freeTyVars, freeCapVars,
-                                            instType, classParam, mapType)
+                                            instType, mapType)
 import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
                                                   findMostSpecificInstanceForTypes)
 
@@ -522,11 +522,11 @@ expandTypeClassMethodsT tiExpr = do
                         Just (Forall _ _ _ dictType) -> return dictType
                         Nothing -> return $ THash TString TAny  -- Fallback
                       -- Get method type from ClassEnv instead of dictHashType
-                      let methodType = getMethodTypeFromClass classEnv' className methodKey tyArg
+                      let methodType = getMethodTypeFromClass classEnv' className methodKey tyArgs
                           methodConstraint = Constraint className tyArgs
                           methodScheme =
                             Forall (Set.toList $ freeCapVars methodType)
-                                   (Set.toList $ freeTyVars tyArg)
+                                   (Set.toList $ Set.unions $ map freeTyVars tyArgs)
                                    [methodConstraint]
                                    methodType
                           dictExpr = TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictParamName)
@@ -562,11 +562,11 @@ expandTypeClassMethodsT tiExpr = do
                             Nothing -> return $ THash TString TAny  -- Fallback
 
                           -- Get method type from ClassEnv instead of dictHashType
-                          let methodType = getMethodTypeFromClass classEnv' className methodKey tyArg
+                          let methodType = getMethodTypeFromClass classEnv' className methodKey tyArgs
                               methodConstraint = Constraint className tyArgs
                               methodScheme =
                                 Forall (Set.toList $ freeCapVars methodType)
-                                       (Set.toList $ freeTyVars tyArg)
+                                       (Set.toList $ Set.unions $ map freeTyVars tyArgs)
                                        [methodConstraint]
                                        methodType
 
@@ -582,7 +582,11 @@ expandTypeClassMethodsT tiExpr = do
                                     TFun _ resultType -> TFun dictHashType resultType
                                     _ -> TFun (THash TString TAny) dictHashType
                                   dictFuncExpr = TIExpr (Forall [] [] [] dictFuncType) (TIVarExpr dictName)
-                              dictArgs <- mapM (resolveDictionaryArg classEnv') (instContext inst)
+                                  -- Bind the instance context to the call's types
+                                  -- (all head positions) before resolving.
+                                  substitutedContext =
+                                    substituteInstanceConstraints (instTypes inst) tyArgs (instContext inst)
+                              dictArgs <- mapM (resolveDictionaryArg classEnv') substitutedContext
                               return $ TIExpr (Forall [] [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
 
                           let indexExpr = TIExpr (Forall [] [] [] TString)
@@ -619,16 +623,22 @@ expandTypeClassMethodsT tiExpr = do
                         else if hasOnlyConcreteConstraints
                         then do
                           -- Concrete types: resolve dict args using de-expanded original
-                          -- constraints with concrete type substituted
-                          let concreteType = case exprConstraints of
-                                (c : _) -> constraintType c
-                                []      -> TAny
-                              -- For TVar constraints (single-param), substitute the concrete type.
-                              -- Multi-param constraints with all concrete types pass through unchanged.
-                              resolveType c = case constraintTypes c of
-                                [TVar _] -> Constraint (constraintClass c) [concreteType]
-                                _        -> c
-                          dictArgs <- mapM (resolveDictionaryArg classEnv') (map resolveType minOrigCs)
+                          -- constraints with the call's concrete types substituted.
+                          -- Pair the definition's root constraints with the use
+                          -- site's root constraints positionally (both lists
+                          -- descend from the same declared constraint list, and
+                          -- deExpandConstraints is an order-preserving filter),
+                          -- binding EVERY parameter position so multi-param
+                          -- constraints such as {Coerce a b} resolve fully.
+                          let minExprCs = deExpandConstraints classEnv' exprConstraints
+                              pairSubsts (dc, ec)
+                                | constraintClass dc == constraintClass ec =
+                                    concatMap (uncurry extractTypeSubstitutions)
+                                              (zip (constraintTypes dc) (constraintTypes ec))
+                                | otherwise = []
+                              substs = concatMap pairSubsts (zip minOrigCs minExprCs)
+                              resolvedCs = map (applySubstsToConstraint substs) minOrigCs
+                          dictArgs <- mapM (resolveDictionaryArg classEnv') resolvedCs
                           -- Clear constraints on the inner var ref to prevent
                           -- applyConcreteConstraintDictionaries from adding dicts again
                           let Forall capVars vs _ ty = scheme
@@ -822,7 +832,7 @@ expandTypeClassMethodsT tiExpr = do
               let dictParamName = "dict_" ++ constraintClass
                   dictExpr = TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictParamName)
                   chainedDict = buildSuperclassChain dictExpr path
-                  methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
+                  methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualTypes
                   methodScheme = Forall [] [] [] methodType
                   indexExpr = TIExpr (Forall [] [] [] TString)
                                     (TIConstantExpr (StringExpr (pack methodKey)))
@@ -860,14 +870,14 @@ expandTypeClassMethodsT tiExpr = do
                   Just inst -> do
                     let instTypeName = concatMap typeToName (instTypes inst)
                         dictName = lowerFirst ownerClass ++ instTypeName
-                        methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualType
+                        methodType = getMethodTypeFromClass classEnv' ownerClass methodKey actualTypes
                         methodScheme = Forall [] [] [] methodType
                     dictExprBase <- if null (instContext inst)
                       then return $ TIExpr (Forall [] [] [] dictHashType) (TIVarExpr dictName)
                       else do
                         let dictFuncType = TFun (THash TString TAny) dictHashType
                             dictFuncExpr = TIExpr (Forall [] [] [] dictFuncType) (TIVarExpr dictName)
-                            substitutedConstraints = substituteInstanceConstraints (instType inst) actualType (instContext inst)
+                            substitutedConstraints = substituteInstanceConstraints (instTypes inst) actualTypes (instContext inst)
                         dictArgs <- mapM (resolveDictionaryArg classEnv') substitutedConstraints
                         return $ TIExpr (Forall [] [] [] dictHashType) (TIApplyExpr dictFuncExpr dictArgs)
                     let indexExpr = TIExpr (Forall [] [] [] TString)
@@ -877,13 +887,16 @@ expandTypeClassMethodsT tiExpr = do
                     return $ Just $ TIApplyExpr dictAccess expandedArgs
                   Nothing -> return Nothing
     
-    -- Substitute type variables in instance constraints based on actual type
+    -- Substitute type variables in instance constraints based on actual types.
     -- e.g., for instance {Eq a} Eq [a] matched with [[Integer]]
-    -- instType = [a], actualType = [[Integer]]
+    -- instTys = [[a]], actualTys = [[[Integer]]]
     -- Extract: a -> [Integer], then apply to constraints {Eq a} -> {Eq [Integer]}
-    substituteInstanceConstraints :: Type -> Type -> [Constraint] -> [Constraint]
-    substituteInstanceConstraints instType actualType constraints =
-      let substs = extractTypeSubstitutions instType actualType
+    -- Every head position contributes bindings: a multi-param instance such as
+    -- `instance {Eq b} MyPick Integer b` binds its context from the SECOND
+    -- position, so matching only the principal type would leave `Eq b` open.
+    substituteInstanceConstraints :: [Type] -> [Type] -> [Constraint] -> [Constraint]
+    substituteInstanceConstraints instTys actualTys constraints =
+      let substs = concatMap (uncurry extractTypeSubstitutions) (zip instTys actualTys)
       in map (applySubstsToConstraint substs) constraints
 
     -- Resolve a constraint to a dictionary argument (with depth limit to prevent infinite recursion)
@@ -929,11 +942,12 @@ expandTypeClassMethodsT tiExpr = do
 
                   -- Substitute type variables in constraints with actual types
                   -- e.g., for instance {Eq a} Eq [a] matched with [[Integer]]
-                  -- instType inst = [a], tyArg = [[Integer]]
+                  -- instTypes inst = [[a]], tyArgs = [[[Integer]]]
                   -- Extract: a -> [Integer]
                   -- Apply to constraints: {Eq a} -> {Eq [Integer]}
-                  let substs = extractTypeSubstitutions (instType inst) tyArg
-                      substitutedConstraints = map (applySubstsToConstraint substs) (instContext inst)
+                  -- All head positions contribute bindings (multi-param).
+                  let substitutedConstraints =
+                        substituteInstanceConstraints (instTypes inst) tyArgs (instContext inst)
 
                   -- Recursively resolve each constraint with reduced depth
                   dictArgs <- mapM (resolveDictionaryArgWithDepth classEnv (depth - 1)) substitutedConstraints
@@ -1005,17 +1019,21 @@ buildSuperclassChain dictExpr (step:rest) =
 -- This retrieves the method type from the class definition and substitutes type variables
 -- Note: methodKey is the sanitized name (e.g., "plus"), but classMethods uses original names (e.g., "+")
 -- We need to try both the sanitized and original names
-getMethodTypeFromClass :: ClassEnv -> String -> String -> Type -> Type
-getMethodTypeFromClass classEnv className methodKey constraintType =
+getMethodTypeFromClass :: ClassEnv -> String -> String -> [Type] -> Type
+getMethodTypeFromClass classEnv className methodKey constraintTys =
   case lookupClass className classEnv of
     Just classInfo ->
       -- Try to find the method by sanitized name first, then try unsanitizing
       case lookup methodKey (classMethods classInfo) `mplus` lookupUnsanitized methodKey (classMethods classInfo) of
         Just classMethodType ->
-          -- Substitute class type parameter with actual constraint type
+          -- Substitute every class type parameter with the corresponding
+          -- constraint type (positionally; zip truncates when the owner
+          -- class declares fewer parameters than the constraint carries,
+          -- e.g. a single-param superclass reached from a multi-param
+          -- constraint keeps today's principal-type behavior).
           -- e.g., class Num a has plus : a -> a -> a
           --       constraint Num t0 → plus : t0 -> t0 -> t0
-          applySubstsToType [(classParam classInfo, constraintType)] classMethodType
+          applySubstsToType (zip (classParams classInfo) constraintTys) classMethodType
         Nothing -> TAny  -- Method not found in class
     Nothing -> TAny  -- Class not found
   where
@@ -1183,8 +1201,7 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
       TIVarExpr methodName -> do
         case findConstraintForMethodWithPath env methodName cs of
           Just (constraint, ownerClass, path) -> do
-            let tyArg = constraintType constraint
-                dictParam = constraintToDictParam constraint
+            let dictParam = constraintToDictParam constraint
                 arity = getMethodArity exprType
                 paramTypes = getParamTypes exprType
                 paramNames = ["etaVar" ++ show i | i <- [1..arity]]
@@ -1192,7 +1209,7 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
                 paramExprs = zipWith (\n t -> TIExpr (Forall [] [] [] t) (TIVarExpr n)) paramNames paramTypes
                 dictExpr = TIExpr (Forall [] [] [] (THash TString TAny)) (TIVarExpr dictParam)
                 chainedDict = buildSuperclassChain dictExpr path
-                methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) tyArg
+                methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) (constraintTypes constraint)
                 methodScheme = Forall [] [] [] methodType
                 indexExpr = TIExpr (Forall [] [] [] TString)
                                   (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))
@@ -1213,10 +1230,9 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
             case findConstraintForMethodWithPath env methodName cs of
               Just (constraint, ownerClass, path) -> do
                 let dictParam = constraintToDictParam constraint
-                    tyArg = constraintType constraint
                     dictExpr = TIExpr (Forall [] [] [] (THash TString TAny)) (TIVarExpr dictParam)
                     chainedDict = buildSuperclassChain dictExpr path
-                    methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) tyArg
+                    methodType = getMethodTypeFromClass env ownerClass (sanitizeMethodName methodName) (constraintTypes constraint)
                     methodScheme = Forall [] [] [] methodType
                     indexExpr = TIExpr (Forall [] [] [] TString)
                                       (TIConstantExpr (StringExpr (pack (sanitizeMethodName methodName))))

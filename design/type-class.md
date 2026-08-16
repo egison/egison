@@ -83,6 +83,27 @@ instance {Eq a} Eq (Tensor a) where
 def sum {Num a} (xs: [a]) : a := foldl (+) 0 xs
 ```
 
+**多パラメータクラス**（2026-08-16 に登録・ディスパッチを全パラメータ対応化）:
+```egison
+class Coerce a b where
+  coerce (x: a) : b
+
+-- インスタンス head の任意位置の変数を context が参照できる
+instance {Eq b} MyPick Integer b where
+  myPick x y z := y == z
+
+-- シグネチャの制約も多パラメータ可（パーサ対応済み）
+def usePick {MyPick a b} (x: a) (y: b) (z: b) : Bool := myPick x y z
+```
+インスタンスメソッドの型登録（`EnvBuilder.registerInstanceMethods`）、
+ディスパッチ展開（`TypeClassExpand`: メソッド型の取得・インスタンス context の
+置換・制約付き変数への辞書引数解決）はいずれも全クラスパラメータを
+位置対応で同時置換する。既知の制限: スーパークラスへの継承経路
+（`classSupers` は名前のみ保持）はパラメータ対応を記録しないため、
+多パラメータクラス間の extends はパラメータ位置が一致する場合のみ正しい。
+MathValue 実行時ディスパッチ（runtime-type-dispatch.md）は従来どおり
+第1パラメータ（principal type）基準。
+
 **メソッドなしクラス定義**:
 ```egison
 class Ring a extends AddGroup a where

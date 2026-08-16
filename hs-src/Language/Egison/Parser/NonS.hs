@@ -746,11 +746,11 @@ typeConstraints = braces $ (catMaybes <$> (typeConstraintOrVar `sepBy1` symbol "
   where
     typeConstraintOrVar = (Just <$> try typeConstraint) <|> (try typeVar >> return Nothing)
     
-    -- Format: {Eq a} - className typeVar
+    -- Format: {Eq a} - className typeVar, or multi-param {Coerce a b}
     typeConstraint = do
       className <- upperId
-      typeVar <- typeVarIdent
-      return $ ConstraintExpr className [TEVar typeVar]
+      typeVars <- some typeVarIdent
+      return $ ConstraintExpr className (map TEVar typeVars)
     
     -- Type variable without constraint (ignored)
     typeVar = typeVarIdent
