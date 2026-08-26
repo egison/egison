@@ -1,0 +1,31 @@
+def recursiveMultiset m :=
+  matcher
+    | $ :: $ as (m, recursiveMultiset m) with
+      | $tgt ->
+        matchAll tgt as list m with
+          | $hs ++ $x :: $ts -> (x, hs ++ ts)
+    | $ as something with
+      | $tgt -> [tgt]
+
+def recursiveIntegerList :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as (integer, recursiveIntegerList) with
+      | $tgt ->
+        match tgt as list integer with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual "unannotated recursive matcher constructor"
+  (matchAll [1, 2, 1] as recursiveMultiset integer with
+    | $x :: $xs -> (x, xs))
+  [(1, [2, 1]), (2, [1, 1]), (1, [1, 2])]
+
+assertEqual "zero-argument recursive matcher"
+  (matchAll [1, 2] as recursiveIntegerList with
+    | $x :: $xs -> (x, xs))
+  [(1, [2])]

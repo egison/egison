@@ -136,8 +136,8 @@ unifyWithOriginsTopLevel ledger left right =
 -- | TypePM-style producer-to-consumer alignment at an explicit MatcherSlot
 -- use site.  Generic equality deliberately does not perform this coercion.
 -- The first operand is the inferred producer and the second is the expected
--- consumer.  A raw tuple is accepted only in this role-aware entry point and
--- is checked componentwise against a product slot.
+-- consumer.  Source-tuple checking is syntax-directed in Infer and therefore
+-- does not appear in this raw-type API.
 alignAtSlotWithConstraints
   :: ClassEnv
   -> [Constraint]
@@ -514,11 +514,6 @@ alignAtSlotG mode ce cs
 -- solver used by Infer.
 alignAtSlotG _ _ _ inferred@TAny expected@(TMatcherSlot _ _) =
   Left (MatcherRigidity inferred expected)
-alignAtSlotG TensorConstraintAware ce cs
-             (TTuple producers)
-             (TMatcherSlot consumerCap consumerTarget) =
-  coerceSlotTuple
-    TensorConstraintAware ce cs consumerCap consumerTarget producers
 alignAtSlotG mode ce cs inferred expected =
   alignRootG mode ce cs inferred expected
 
@@ -1279,34 +1274,6 @@ unifyEachAsMatcherExtended env cons (t:rest) s = do
 -- dual is already known.  Manufacturing fresh variables from a 'TyVar' by
 -- string concatenation would bypass InferState's allocation/protection trace;
 -- that historical behavior is confined to the warned extended solver above.
-unifyEachKnownMatcher
-  :: ClassEnv
-  -> [Constraint]
-  -> [Type]
-  -> Subst
-  -> Either UnifyError ([(Capability, Type)], Subst, Bool)
-unifyEachKnownMatcher _ _ [] substitution =
-  Right ([], substitution, False)
-unifyEachKnownMatcher env constraints (ty : rest) substitution = do
-  let resolved = applySubst substitution ty
-      resolvedConstraints =
-        map (applySubstConstraint substitution) constraints
-  part <- case resolved of
-    TMatcher capability target -> Right (capability, target)
-    TMatcherSlot capability target -> Right (capability, target)
-    _ -> Left (MatcherRigidity resolved (TMatcher CapAny TAny))
-  (restParts, finalSubstitution, flag) <-
-    unifyEachKnownMatcher
-      env resolvedConstraints rest substitution
-  let (capability, target) = part
-  Right
-    ( ( applyCapSubst finalSubstitution capability
-      , applySubst finalSubstitution target
-      ) : restParts
-    , finalSubstitution
-    , flag
-    )
-
 type TuplePartsUnifier =
   ClassEnv
   -> [Constraint]
@@ -1433,14 +1400,6 @@ coerceMatcherToSlotWithinUsing targetUnifier allowedSupport
 -- single product @Matcher@ and apply the standard COERCE-MATCHER-TO-SLOT dual check.  This is
 -- what lets a matcher constructor whose element parameter is a slot (e.g.
 -- @list (m : MatcherSlot a a)@) still accept a tuple matcher such as @(m, integer)@.
-coerceSlotTuple :: TensorHandling -> ClassEnv -> [Constraint]
-                -> Capability -> Type -> [Type]
-                -> Either UnifyError (Subst, Bool)
-coerceSlotTuple mode ce cs cap target tys =
-  coerceSlotTupleWithin
-    (freeCapVarsCapability cap)
-    mode ce cs cap target tys
-
 -- | Product-slot coercion for the warned Egison-extension fallback.  Recursive
 -- extension alignment may solve capability variables in the consumer target,
 -- so the stable support is the complete consumer type minus the raw producer.
@@ -1466,19 +1425,6 @@ coerceSlotTupleExtended mode ce cs cap target tys =
 -- set for the complete raw consumer.  The aggregate post-check is essential:
 -- a substitution learned by a later component must not retroactively change
 -- an earlier component's producer capability.
-coerceSlotTupleWithin
-  :: Set.Set CapVar
-  -> TensorHandling
-  -> ClassEnv
-  -> [Constraint]
-  -> Capability
-  -> Type
-  -> [Type]
-  -> Either UnifyError (Subst, Bool)
-coerceSlotTupleWithin =
-  coerceSlotTupleWithinUsing
-    unifyNestedNormalized unifyNormalized unifyEachKnownMatcher
-
 coerceSlotTupleWithinUsing
   :: RecursiveUnifier
   -> RecursiveUnifier

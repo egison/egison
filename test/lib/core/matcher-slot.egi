@@ -58,23 +58,6 @@ assertEqual "next matcher: one-hole product matcher"
   (matchAll (PairBox (1, 2)) as pairBoxMatcher with pairBox ($x, $y) -> (x, y))
   [(1, 2)]
 
-inductive SameBox a := SameBox (a, a)
-inductive pattern SameBox a := sameBox (a, a)
-
--- The lambda duplicates one ground-Any matcher.  Both tuple leaves
--- therefore contribute the same canonical `Any` evidence.
-def sameBoxMatcher {a} : Matcher (SameBox Any) (SameBox a) :=
-  matcher
-    | sameBox $ as (\m -> (m, m)) something with
-      | SameBox $p -> [p]
-      | _ -> []
-    | $ as something with
-      | $tgt -> [tgt]
-
-assertEqual "next matcher: shared variable in product capability"
-  (matchAll (SameBox (1, 2)) as sameBoxMatcher with sameBox ($x, $y) -> (x, y))
-  [(1, 2)]
-
 inductive UnitBox := UnitBox
 inductive pattern UnitBox := unitBox
 
@@ -91,17 +74,18 @@ assertEqual "next matcher: zero-hole empty tuple"
   (matchAll UnitBox as unitBoxMatcher with unitBox -> True)
   [True]
 
--- Lookup supplies an already complete MatcherSlot, exercising the existing
--- slot branch rather than the fresh-variable-to-slot commitment.
-def integerSlot : MatcherSlot Any Integer := integer
-
-def headSlot : Matcher [Any] [Integer] :=
+-- A function parameter supplies an already complete MatcherSlot.  Slot may
+-- occur only in parameter positions, so it is not exposed as a returned
+-- top-level value.
+def headSlotWith integerSlot :=
   matcher
     | $ :: _ as integerSlot with
       | $x :: _ -> [x]
       | _ -> []
     | $ as something with
       | $tgt -> [tgt]
+
+def headSlot : Matcher [Any] [Integer] := headSlotWith integer
 
 assertEqual "next matcher: complete existing slot"
   (matchAll [1, 2] as headSlot with $x :: _ -> x)

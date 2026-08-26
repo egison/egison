@@ -41,7 +41,8 @@ import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..)
                                              freeCapVars, freeTyVars,
                                              sanitizeMethodName, typeExprToType,
                                              capitalizeFirst, lowerFirst)
-import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst)
+import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst,
+                                              makeResultScheme)
 import qualified Data.Set as Set
 
 -- | Result of environment building phase
@@ -1028,10 +1029,17 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         -- Generalize free type variables in the type signature
         -- This handles type parameters like {a, b, c} in def compose {a, b, c} ...
         freeVars = Set.toList (freeTyVars funType)
-        typeScheme = Types.Forall (Set.toList (freeCapVars funType))
-                                  freeVars constraints funType
-        
-        typeEnv = ebrTypeEnv result
+        rawTypeScheme = Types.Forall (Set.toList (freeCapVars funType))
+                                     freeVars constraints funType
+
+    typeScheme <-
+      case makeResultScheme rawTypeScheme of
+        Just scheme -> return scheme
+        Nothing -> throwError $ Default $
+          "def " ++ name ++
+          ": a matcher slot may occur only in a function parameter type"
+
+    let typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv var typeScheme typeEnv
 
     -- Restriction on open atom sets in the declared signature: a nested
@@ -1072,8 +1080,9 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         
         -- Quantify over type parameters
         tyVars = map TyVar typeParams
-        typeScheme = Types.Forall (Set.toList (freeCapVars patternFuncType))
-                                  tyVars [] patternFuncType
+        typeScheme =
+          Types.Forall (Set.toList (freeCapVars patternFuncType))
+                       tyVars [] patternFuncType
         
         patternEnv = ebrPatternTypeEnv result
         patternEnv' = extendPatternEnv name typeScheme patternEnv
@@ -1188,8 +1197,9 @@ registerConstructor aliasEnv typeName typeParams resultType (typeEnv, ctorEnv)
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme = Types.Forall (Set.toList (freeCapVars constructorType))
-                                tyVars [] constructorType
+      typeScheme = normalizePublicScheme $
+        Types.Forall (Set.toList (freeCapVars constructorType))
+                     tyVars [] constructorType
       
       -- Add to type environment
       typeEnv' = extendEnv (stringToVar ctorName) typeScheme typeEnv
@@ -1228,8 +1238,9 @@ registerClassMethod declaredTypes aliasEnv tyVars className typeEnv
       -- Constraint with all class type params (single-param classes still
       -- produce a singleton list).
       constraint = Types.Constraint className (map TVar tyVars)
-      typeScheme = Types.Forall (Set.toList (freeCapVars methodType))
-                                tyVars [constraint] methodType
+      typeScheme = normalizePublicScheme $
+        Types.Forall (Set.toList (freeCapVars methodType))
+                     tyVars [constraint] methodType
   in
     extendEnv (stringToVar methName) typeScheme typeEnv
 
@@ -1265,8 +1276,9 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
           dictType = THash TString dictValueType
           freeVars = Set.toList (freeTyVars dictType)
-          dictScheme = Types.Forall (Set.toList (freeCapVars dictType))
-                                    freeVars instConstraints dictType
+          dictScheme = normalizePublicScheme $
+            Types.Forall (Set.toList (freeCapVars dictType))
+                         freeVars instConstraints dictType
       in
         extendEnv (stringToVar dictName) dictScheme typeEnv'
   where
@@ -1293,8 +1305,9 @@ registerInstanceMethods className instType instTypeList instConstraints methods 
 
               -- Create type scheme with constraints from the instance context
               -- e.g., {Eq a} [a] -> [a] -> Bool for instance {Eq a} Eq [a]
-              typeScheme = Types.Forall (Set.toList (freeCapVars substitutedType))
-                                        freeVars constraints substitutedType
+              typeScheme = normalizePublicScheme $
+                Types.Forall (Set.toList (freeCapVars substitutedType))
+                             freeVars constraints substitutedType
           in
             extendEnv (stringToVar generatedMethodName) typeScheme env
     
@@ -1351,13 +1364,24 @@ registerPatternConstructor aliasEnv _typeName typeParams resultType patternCtorE
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme = Types.Forall (Set.toList (freeCapVars patternCtorType))
-                                tyVars [] patternCtorType
+      typeScheme =
+        Types.Forall (Set.toList (freeCapVars patternCtorType))
+                     tyVars [] patternCtorType
       
       -- Add to pattern constructor environment (same format as PatternTypeEnv)
       patternCtorEnv' = extendPatternEnv ctorName typeScheme patternCtorEnv
   
   return patternCtorEnv'
+
+-- | Internal declarations are constructed from result types, so failure here
+-- indicates a malformed declaration that will be diagnosed at its explicit
+-- source boundary.  Normalize their quantified A/R flags before exposing the
+-- scheme to expression inference.
+normalizePublicScheme :: TypeScheme -> TypeScheme
+normalizePublicScheme scheme =
+  case makeResultScheme scheme of
+    Just normalized -> normalized
+    Nothing         -> scheme
 
 -- | Convert TypedParam to Type (cas-type aliases expanded)
 typedParamToType :: HashMap.HashMap String Type -> TypedParam -> Type

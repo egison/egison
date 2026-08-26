@@ -342,6 +342,27 @@ isAlreadyWrappedWithTensorMap (TILambdaExpr _ _ body) =
     _ -> False
 isAlreadyWrappedWithTensorMap _ = False
 
+-- | Recognize the eta-expanded form produced for a wedge-operator section,
+-- such as @(!+)@: @\x y -> ! (+) x y@.  When that section is immediately
+-- applied to tensors, preserving this marker lets the outer application use
+-- the wedge product rather than an elementwise tensorMap2.
+etaReducedWedgeFunction :: TIExpr -> Maybe TIExpr
+etaReducedWedgeFunction expression =
+  case tiExprNode expression of
+    TILambdaExpr _ [first, second] body ->
+      case tiExprNode body of
+        TIWedgeApplyExpr function [firstArg, secondArg]
+          | isParameter first firstArg && isParameter second secondArg ->
+              Just function
+        _ -> Nothing
+    _ -> Nothing
+  where
+    isParameter (Var name []) argument =
+      case tiExprNode argument of
+        TIVarExpr argumentName -> argumentName == name
+        _ -> False
+    isParameter _ _ = False
+
 --------------------------------------------------------------------------------
 -- * TensorMap Insertion Implementation
 --------------------------------------------------------------------------------
@@ -534,37 +555,44 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
       
       -- Function application: check if tensorMap is needed
       TIApplyExpr func args -> do
-        -- First, recursively process function and arguments
-        func' <- insertTensorMapsWithConstraints env cs func
-        args' <- mapM (insertTensorMapsWithConstraints env cs) args
+        case (etaReducedWedgeFunction func, tiExprType tiExpr, args) of
+          (Just wedgeFunction, TTensor _, [firstArg, secondArg]) -> do
+            function' <- insertTensorMapsWithConstraints env cs wedgeFunction
+            firstArg' <- insertTensorMapsWithConstraints env cs firstArg
+            secondArg' <- insertTensorMapsWithConstraints env cs secondArg
+            return $ TITensorMap2WedgeExpr function' firstArg' secondArg'
+          _ -> do
+            -- First, recursively process function and arguments
+            func' <- insertTensorMapsWithConstraints env cs func
+            args' <- mapM (insertTensorMapsWithConstraints env cs) args
 
-        -- Apply simplified approach: wrap binary function arguments with tensorMap2
-        -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped because (+) is a binary function that takes two scalar arguments
-        -- and `map f xs` where f is a unary scalar function that may receive tensor elements.
-        -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
-        -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
-        let (Forall _ _ funcConstraints _) = tiScheme func'
-            baseConstraints = cs ++ funcConstraints
-            -- For each argument, merge base constraints with the argument's own constraints
-            funcType = tiExprType func'
-            wrapArg (index, arg) =
-              let (Forall _ _ argConstraints _) = tiScheme arg
-                  argAllConstraints = nub (baseConstraints ++ argConstraints)
-                  expectedArgType = getParamType funcType index
-              in wrapFunctionArgumentIfNeeded env argAllConstraints funcType index expectedArgType arg
-            args'' = map wrapArg (zip [0..] args')
+            -- Apply simplified approach: wrap binary function arguments with tensorMap2
+            -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped because (+) is a binary function that takes two scalar arguments
+            -- and `map f xs` where f is a unary scalar function that may receive tensor elements.
+            -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
+            -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
+            let (Forall _ _ funcConstraints _) = tiScheme func'
+                baseConstraints = cs ++ funcConstraints
+                -- For each argument, merge base constraints with the argument's own constraints
+                funcType = tiExprType func'
+                wrapArg (index, arg) =
+                  let (Forall _ _ argConstraints _) = tiScheme arg
+                      argAllConstraints = nub (baseConstraints ++ argConstraints)
+                      expectedArgType = getParamType funcType index
+                  in wrapFunctionArgumentIfNeeded env argAllConstraints funcType index expectedArgType arg
+                args'' = map wrapArg (zip [0..] args')
 
-        -- Use the INFERRED function type (after type inference)
-        -- This ensures we use concrete types like Integer instead of type variables like a
-        -- For example, (+) has inferred type {Num Integer} Integer -> Integer -> Integer
-        -- instead of the polymorphic type {Num a} a -> a -> a
-        let argTypes = map tiExprType args''
+            -- Use the INFERRED function type (after type inference)
+            -- This ensures we use concrete types like Integer instead of type variables like a
+            -- For example, (+) has inferred type {Num Integer} Integer -> Integer -> Integer
+            -- instead of the polymorphic type {Num a} a -> a -> a
+            let argTypes = map tiExprType args''
 
-        -- Normal processing: check if tensorMap is needed based on parameter types
-        result <- wrapWithTensorMapIfNeeded env baseConstraints func' funcType args'' argTypes
-        case result of
-          Just wrappedNode -> return wrappedNode
-          Nothing -> return $ TIApplyExpr func' args''
+            -- Normal processing: check if tensorMap is needed based on parameter types
+            result <- wrapWithTensorMapIfNeeded env baseConstraints func' funcType args'' argTypes
+            case result of
+              Just wrappedNode -> return wrappedNode
+              Nothing -> return $ TIApplyExpr func' args''
       
       -- Collections
       TITupleExpr exprs -> do
@@ -755,13 +783,16 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
                 isNonTensorType param1 && isNonTensorType param2
               _ -> False
 
-        case (isScalarFunction, args') of
-          (True, [arg1, arg2]) ->
-            -- Insert tensorMap2Wedge for binary scalar functions.  The
-            -- function keeps its instantiated type unchanged: both checked
-            -- parameters are already non-Tensor, and the result must keep
-            -- its true type.
+        case (isScalarFunction, tiExprType tiExpr, args') of
+          (True, TTensor _, [arg1, arg2]) ->
+            -- A direct wedge application has a tensor result and therefore
+            -- needs tensorMap2Wedge.  A wedge section may instead sit inside
+            -- an outer tensorMap introduced for its enclosing application;
+            -- there its arguments and result are scalar components, so a
+            -- second tensorMap2Wedge would be both redundant and invalid.
             return $ TITensorMap2WedgeExpr func' arg1 arg2
+          (True, _, scalarArgs) ->
+            return $ TIApplyExpr func' scalarArgs
           _ ->
             -- Keep WedgeApply for tensor functions or non-binary functions
             return $ TIWedgeApplyExpr func' args'

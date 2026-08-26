@@ -20,6 +20,7 @@ module Language.Egison.Type.Env
   , instantiate
   , AnnotationSkolems(..)
   , skolemizeAnnotation
+  , skolemizePatternAnnotation
   -- * Class environment
   , ClassEnv(..)
   , ClassInfo(..)
@@ -63,6 +64,7 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              freeTyVars, freshCapVar,
                                              freshTyVarLike,
                                              substCapVarInType, substTyVar)
+import           Language.Egison.Type.Subst (makeResultScheme)
 
 -- | Type environment: uses same data structure as evaluation environment
 -- Maps base variable names to all bindings with that name
@@ -254,17 +256,33 @@ data AnnotationSkolems = AnnotationSkolems
   , annotationTySkolems  :: [(TyVar, TyVar)]
   } deriving (Eq, Show)
 
--- | Instantiate every quantified variable of an explicit scheme as a rigid
--- skolem.  Both sorts must be rigid: otherwise an implementation such as
--- @\\_ -> 1@ could be accepted at the over-general annotation @a -> a@, or a
--- matcher could manufacture structural capability by specializing @p@.
+-- | Instantiate every quantified capability of an explicit scheme as a rigid
+-- skolem.  Type binders use protected fresh A/R variables: inference may
+-- strengthen an A binder to R, but the annotation boundary later rejects any
+-- other image.  Thus source annotations may omit inferred A/R flags without
+-- permitting ordinary type specialization.
 skolemizeAnnotation
   :: TypeScheme
   -> Int
   -> ([Constraint], Type, AnnotationSkolems, Int)
-skolemizeAnnotation scheme@(Forall capVars tyVars _ _) counter =
+skolemizeAnnotation = skolemizeAnnotationWith True
+
+-- | Pattern targets are inputs to matching rather than returned values, so
+-- their quantified variables retain the source A/R classes.
+skolemizePatternAnnotation
+  :: TypeScheme
+  -> Int
+  -> ([Constraint], Type, AnnotationSkolems, Int)
+skolemizePatternAnnotation = skolemizeAnnotationWith False
+
+skolemizeAnnotationWith
+  :: Bool
+  -> TypeScheme
+  -> Int
+  -> ([Constraint], Type, AnnotationSkolems, Int)
+skolemizeAnnotationWith requireResult sourceScheme counter =
   let (constraints, ty, finalCounter) =
-        instantiateWith CapSkolem "$skc" TSkolem "$skt" scheme counter
+        instantiateWith CapSkolem "$skc" TVar "$skt" scheme counter
       capFresh =
         [ freshCapVar "$skc" (counter + index)
         | index <- [0 .. length capVars - 1]
@@ -281,6 +299,13 @@ skolemizeAnnotation scheme@(Forall capVars tyVars _ _) counter =
           (zip capFresh capVars)
           (zip tyFresh tyVars)
   in (constraints, ty, skolems, finalCounter)
+  where
+    scheme@(Forall capVars tyVars _ _) =
+      if requireResult
+        then case makeResultScheme sourceScheme of
+          Just normalized -> normalized
+          Nothing         -> sourceScheme
+        else sourceScheme
 
 instantiateWith
   :: (CapVar -> Capability)

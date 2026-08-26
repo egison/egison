@@ -18,7 +18,8 @@ import           Test.HUnit
 import           Language.Egison
 import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
                                                   ITopExpr (..),
-                                                  TITopExpr (..), Var (..))
+                                                  TITopExpr (..),
+                                                  Var (..), tiExprType)
 import qualified Language.Egison.Type.Capability as Capability
 import qualified Language.Egison.Type.Env       as TypeEnv
 import           Language.Egison.Type.Env       (emptyEnv,
@@ -37,6 +38,7 @@ import           Language.Egison.Type.Infer     (InferConfig (..),
                                                   defaultInferConfig,
                                                   inferIExpr,
                                                   inferITopExpr,
+                                                  initialInferState,
                                                   initialInferStateWithConfig,
                                                   instantiateDualSchemeInState,
                                                   runInferWithWarnings,
@@ -54,9 +56,10 @@ import           Language.Egison.Type.Types     (CapVar (..),
                                                   Capability (..),
                                                   Dual (..), DualScheme (..),
                                                   TypeScheme (..),
-                                                  TyVar (..), Type (..),
+                                                  TyClass (..), TyVar (..), Type (..),
                                                   dualSchemeTargetScheme,
-                                                  mkTypeFormer)
+                                                  mkTypeFormer, tyVarClass,
+                                                  tyVarName)
 import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
                                                   matchCapability, matchOneWay,
                                                   unify, unifyCapability)
@@ -71,6 +74,7 @@ main = do
     p2CapabilityTests
       ++ [ matcherOneWayTests
          , arClassTests
+         , arInferenceTests
          , cliWarningFlagParsingTests
          , primitivePatternWarningTests
          , outsideEgisonCoreWarningTests
@@ -1604,7 +1608,7 @@ p2CapabilityTests =
             assertFailure
               "core product-slot alignment accepted Any as matcher evidence"
 
-  , TestLabel "P2: product slot preserves literal Any wildcards" .
+  , TestLabel "TypePM: raw product does not receive tuple-slot checking" .
       TestCase $ do
         let listAny =
               CapCon (mkTypeFormer "Collection" 1) [CapAny]
@@ -1618,12 +1622,10 @@ p2CapabilityTests =
                 (CapTuple [CapAny, CapAny])
                 (TTuple [TInt, TInt])
         case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
-          Left err ->
-            assertFailure
-              ("literal product Any rejected structured producers: " ++
-               show err)
+          Left _ -> return ()
           Right _ ->
-            return ()
+            assertFailure
+              "raw product alignment bypassed the source-tuple checking boundary"
 
   , TestLabel "P2: product slot keeps an Any binding strict" .
       TestCase $ do
@@ -1979,6 +1981,163 @@ arClassTests =
             assertFailure ("unexpected result classification: " ++ show result)
     ]
 
+arInferenceTests :: Test
+arInferenceTests =
+  TestLabel "A/R expression inference" . TestList $
+    [ TestLabel "identity lambda strengthens its shared variable" . TestCase $ do
+        result <- inferExpression $
+          ILambdaExpr Nothing [Var "x" []] (IVarExpr "x")
+        case result of
+          Right (typed, substitution) ->
+            case applySubst substitution (tiExprType typed) of
+              TFun (TVar domain) (TVar codomain) -> do
+                assertEqual "shared variable identity"
+                  (tyVarName domain) (tyVarName codomain)
+                assertEqual "domain class" ResultClass (tyVarClass domain)
+                assertEqual "codomain class" ResultClass (tyVarClass codomain)
+              ty -> assertFailure ("unexpected identity type: " ++ show ty)
+          Left err -> assertFailure ("identity inference failed: " ++ show err)
+    , TestLabel "unused lambda parameter remains A" . TestCase $ do
+        result <- inferExpression $
+          ILambdaExpr Nothing [Var "x" []]
+            (IConstantExpr (IntegerExpr 1))
+        case result of
+          Right (typed, substitution) ->
+            case applySubst substitution (tiExprType typed) of
+              TFun (TVar domain) TInt ->
+                assertEqual "domain class" ArgumentClass (tyVarClass domain)
+              ty -> assertFailure ("unexpected constant-function type: " ++ show ty)
+          Left err -> assertFailure ("constant-function inference failed: " ++ show err)
+    , TestLabel "R variable becomes a matcher at a slot use" . TestCase $ do
+        let ordering = CapCon (mkTypeFormer "Ordering" 0) []
+            state =
+              initialInferState
+                { declaredSymbols = Map.fromList
+                    [ ( "slotConsumer"
+                      , TFun (TMatcherSlot ordering TInt) TInt
+                      )
+                    , ("recursiveMatcher", TVar (ResultTyVar "self"))
+                    ]
+                }
+            expression =
+              IApplyExpr (IVarExpr "slotConsumer")
+                [IVarExpr "recursiveMatcher"]
+        (result, _) <- runInferWithWarnings (inferIExpr expression) state
+        case result of
+          Right (_, substitution) ->
+            assertEqual
+              "R variable is refined to the demanded matcher"
+              (TMatcher ordering TInt)
+              (applySubst substitution (TVar (ResultTyVar "self")))
+          Left err -> assertFailure ("R-to-matcher checking failed: " ++ show err)
+    , TestLabel "source tuple receives component slot checking" . TestCase $ do
+        let state =
+              initialInferState
+                { declaredSymbols = Map.singleton
+                    "pairConsumer"
+                    (TFun
+                      (TMatcherSlot
+                        (CapTuple [CapAny, CapAny])
+                        (TTuple [TInt, TBool]))
+                      TInt)
+                }
+            expression =
+              IApplyExpr (IVarExpr "pairConsumer")
+                [ ITupleExpr
+                    [ IConstantExpr SomethingExpr
+                    , IConstantExpr SomethingExpr
+                    ]
+                ]
+        (result, _) <- runInferWithWarnings (inferIExpr expression) state
+        case result of
+          Right _ -> return ()
+          Left err -> assertFailure ("source tuple checking failed: " ++ show err)
+    , TestLabel "raw tuple value receives no tuple-to-slot conversion" . TestCase $ do
+        let state =
+              initialInferState
+                { declaredSymbols = Map.fromList
+                    [ ( "pairConsumer"
+                      , TFun
+                          (TMatcherSlot
+                            (CapTuple [CapAny, CapAny])
+                            (TTuple [TInt, TBool]))
+                          TInt
+                      )
+                    , ( "storedPair"
+                      , TTuple
+                          [ TMatcher CapAny TInt
+                          , TMatcher CapAny TBool
+                          ]
+                      )
+                    ]
+                }
+            expression =
+              IApplyExpr (IVarExpr "pairConsumer") [IVarExpr "storedPair"]
+        (result, _) <- runInferWithWarnings (inferIExpr expression) state
+        case result of
+          Left _ -> return ()
+          Right _ -> assertFailure "a non-source tuple was converted to a slot"
+    , TestLabel "application arguments close in source order" . TestCase $ do
+        let consumerFunction =
+              TFun (TMatcherSlot CapAny TInt) TInt
+            state =
+              initialInferState
+                { declaredSymbols =
+                    Map.singleton
+                      "use"
+                      (TFun consumerFunction TInt)
+                }
+            applyUse =
+              IApplyExpr (IVarExpr "use") [IVarExpr "f"]
+            applyF =
+              IApplyExpr (IVarExpr "f")
+                [IConstantExpr SomethingExpr]
+            useFirst =
+              ILambdaExpr Nothing [Var "f" []]
+                (ITupleExpr [applyUse, applyF])
+            applicationFirst =
+              ILambdaExpr Nothing [Var "f" []]
+                (ITupleExpr [applyF, applyUse])
+        (accepted, _) <-
+          runInferWithWarnings (inferIExpr useFirst) state
+        case accepted of
+          Right _ -> return ()
+          Left err ->
+            assertFailure ("use-first application failed: " ++ show err)
+        (rejected, _) <-
+          runInferWithWarnings (inferIExpr applicationFirst) state
+        case rejected of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure
+              "a later argument changed an earlier checking conversion"
+    , TestLabel "recursive data root is rejected" . TestCase $ do
+        let definition =
+              IDefine
+                (Var "cycle" [])
+                (ICollectionExpr [IVarExpr "cycle"])
+        (result, _) <-
+          runInferWithWarnings (inferITopExpr definition) initialInferState
+        case result of
+          Left UnsupportedFeature{} -> return ()
+          Left err -> assertFailure ("unexpected recursion error: " ++ show err)
+          Right _ -> assertFailure "a recursive collection root was accepted"
+    , TestLabel "recursive lambda root is accepted" . TestCase $ do
+        let definition =
+              IDefine
+                (Var "loop" [])
+                (ILambdaExpr Nothing [Var "x" []]
+                  (IApplyExpr (IVarExpr "loop") [IVarExpr "x"]))
+        (result, _) <-
+          runInferWithWarnings (inferITopExpr definition) initialInferState
+        case result of
+          Right _ -> return ()
+          Left err -> assertFailure ("recursive lambda failed: " ++ show err)
+    ]
+  where
+    inferExpression expression =
+      fst <$> runInferWithWarnings (inferIExpr expression) initialInferState
+
 -- | Strict type checking must not silently feed an ill-typed definition to
 -- the untyped evaluator.  Permissive mode retains that fallback for gradual
 -- adoption, but the strict boundary is required for meaningful P2 checking.
@@ -2163,10 +2322,10 @@ annotationRigidityTests :: Test
 annotationRigidityTests =
   TestLabel "P2: annotation binders are rigid in both sorts" . TestList $
     map rejects
-      [ ("test/type-error/83-p2-ordinary-annotation-rigidity.egi", "TSkolem")
-      , ("test/type-error/84-p2-nested-annotation-rigidity.egi", "TSkolem")
-      , ("test/type-error/85-p2-pattern-function-annotation-rigidity.egi", "TSkolem")
-      , ("test/type-error/86-p2-pattern-function-nested-annotation-rigidity.egi", "TSkolem")
+      [ ("test/type-error/83-p2-ordinary-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/84-p2-nested-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/85-p2-pattern-function-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/86-p2-pattern-function-nested-annotation-rigidity.egi", "only retain its identity")
       , ("test/type-error/87-p2-capability-annotation-rigidity.egi", "Matcher $skc")
       ]
   where

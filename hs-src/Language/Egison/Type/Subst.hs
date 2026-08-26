@@ -15,6 +15,7 @@ module Language.Egison.Type.Subst
   , strengtheningSubst
   , makeType
   , makeResult
+  , makeResultScheme
   , composeSubst
   , applySubst
   , applyTypeSubst
@@ -32,6 +33,7 @@ module Language.Egison.Type.Subst
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
+import           Data.List                  (nub)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
@@ -99,6 +101,23 @@ makeResult substitution ty = do
   let strengthening = strengtheningSubst demands
       substitution' = composeSubst strengthening substitution
   pure (substitution', applySubst strengthening normalized)
+
+-- | Normalize a public type scheme so its body is result-admissible.  A
+-- quantified A binder demanded by the result becomes the corresponding R
+-- binder everywhere, including constraints.
+makeResultScheme :: TypeScheme -> Maybe TypeScheme
+makeResultScheme (Forall capVariables typeVariables constraints ty) = do
+  (strengthening, resultType) <- makeResult emptySubst ty
+  let strengthenBinder variable =
+        case applySubst strengthening (TVar variable) of
+          TVar variable' -> variable'
+          _ -> variable
+  pure $
+    Forall
+      capVariables
+      (nub (map strengthenBinder typeVariables))
+      (map (applySubstConstraint strengthening) constraints)
+      resultType
 
 -- | Compose two substitutions (s2 after s1)
 -- (s2 `composeSubst` s1) x = s2 (s1 x)

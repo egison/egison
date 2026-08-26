@@ -7,25 +7,26 @@
 --
 -- Natural Numbers
 --
-def nats : [Integer] :=
-  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-   11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-   21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
-   31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
-   41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
-   51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
-   61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
-   71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
-   81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
-   91, 92, 93, 94, 95, 96, 97, 98, 99, 100] ++
-    map (+ 100) nats
+def natsFrom (n : Integer) : [Integer] :=
+  n :: natsFrom (n + 1)
+
+def nats : [Integer] := natsFrom 1
 
 def nats0 : [Integer] := 0 :: nats
 
-def odds : [Integer] := 1 :: map (+ 2) odds
-def evens : [Integer] := 2 :: map (+ 2) evens
+def oddsFrom (n : Integer) : [Integer] :=
+  n :: oddsFrom (n + 2)
 
-def fibs : [Integer] := [1, 1] ++ map2 (+) fibs (tail fibs)
+def evensFrom (n : Integer) : [Integer] :=
+  n :: evensFrom (n + 2)
+
+def odds : [Integer] := oddsFrom 1
+def evens : [Integer] := evensFrom 2
+
+def fibsFrom (m : Integer) (n : Integer) : [Integer] :=
+  m :: fibsFrom n (m + n)
+
+def fibs : [Integer] := fibsFrom 1 1
 
 def isPrime (n: Integer) : Bool :=
   if n < 2 then False else n = findFactor n

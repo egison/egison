@@ -11,19 +11,17 @@ inductive pattern Assignment :=
 
 def literal := integer
 
-def stage := integer
-
-def taggedLiteral := (literal, stage)
+def stageMatcher := integer
 
 def assignment : Matcher Assignment Assignment :=
   matcher
-    | deduced $ $ as (taggedLiteral, multiset taggedLiteral) with
+    | deduced $ $ as ((literal, stageMatcher), multiset (literal, stageMatcher)) with
       | Deduced $e $es -> [(e, es)]
       | _ -> []
-    | guessed $ as (taggedLiteral) with
+    | guessed $ as ((literal, stageMatcher)) with
       | Guessed $e -> [e]
       | _ -> []
-    | whichever $ as (taggedLiteral) with
+    | whichever $ as ((literal, stageMatcher)) with
       | Deduced $e _ -> [e]
       | Guessed $e -> [e]
       | _ -> []
@@ -117,7 +115,7 @@ def unitPropagate'' (stage: Integer) (cnf: [([Integer], [Integer])]) (trail: [As
     | _ -> (cnf, trail)
 
 def learn (stage: Integer) (cl: [(Integer, Integer)]) (trail: [Assignment]) : (Integer, [Integer]) :=
-  matchDFS (trail, cl) as (list assignment, multiset taggedLiteral) with
+  matchDFS (trail, cl) as (list assignment, multiset (literal, stageMatcher)) with
     -- not more than 2 literals from the current stage
     | (_, !((_, #stage) :: (_, #stage) :: _)) ->
       (minimum (map snd cl), map fst cl)
