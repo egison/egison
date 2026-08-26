@@ -60,7 +60,8 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              DualScheme,
                                              Constraint(..), ClassInfo(..),
                                              InstanceInfo(..), freeCapVars,
-                                             freeTyVars, freshCapVar, freshTyVar,
+                                             freeTyVars, freshCapVar,
+                                             freshTyVarLike,
                                              substCapVarInType, substTyVar)
 
 -- | Type environment: uses same data structure as evaluation environment
@@ -270,9 +271,11 @@ skolemizeAnnotation scheme@(Forall capVars tyVars _ _) counter =
         ]
       typeCounter = counter + length capVars
       tyFresh =
-        [ freshTyVar "$skt" (typeCounter + index)
-        | index <- [0 .. length tyVars - 1]
-        ]
+        zipWith
+          (\binder index ->
+            freshTyVarLike binder "$skt" (typeCounter + index))
+          tyVars
+          [0 ..]
       skolems =
         AnnotationSkolems
           (zip capFresh capVars)
@@ -297,7 +300,8 @@ instantiateWith capNode capPrefix typeNode typePrefix
       typeCounter = counter + length capVars
       freshTypes =
         zipWith
-          (\v i -> (v, typeNode (freshTyVar typePrefix (typeCounter + i))))
+          (\v i ->
+            (v, typeNode (freshTyVarLike v typePrefix (typeCounter + i))))
           tyVars
           [0..]
       substType = substituteBoth freshCaps freshTypes t

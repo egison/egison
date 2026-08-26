@@ -735,7 +735,7 @@ instance Pretty ITopExpr where
     in pretty "def" <+> pretty "pattern" <+> pretty name <+> tyVarsDoc <+> paramsDoc <+> 
        pretty ":" <+> retTypeDoc <+> indentBlock (pretty ":=") [pretty body]
     where
-      prettyTyVar (Types.TyVar v) = pretty v
+      prettyTyVar = pretty . Types.tyVarName
       prettyParam (pname, pty) = pretty "(" <> pretty pname <+> pretty ":" <+> prettyTypeDoc pty <> pretty ")"
 
 -- Pretty print for TIExpr and TITopExpr
@@ -999,7 +999,8 @@ prettyTypeDoc Types.TBool = pretty "Bool"
 prettyTypeDoc Types.TChar = pretty "Char"
 prettyTypeDoc Types.TString = pretty "String"
 prettyTypeDoc (Types.TTuple []) = pretty "()"
-prettyTypeDoc (Types.TVar (Types.TyVar v)) = pretty v
+prettyTypeDoc (Types.TVar v) = pretty (Types.tyVarName v)
+prettyTypeDoc (Types.TSkolem v) = pretty (Types.tyVarName v)
 prettyTypeDoc (Types.TFun t1 t2) = prettyTypeArg t1 <+> pretty "->" <+> prettyTypeDoc t2
   where
     prettyTypeArg t@(Types.TFun _ _) = parens (prettyTypeDoc t)
@@ -1070,7 +1071,8 @@ prettySymbolSetDoc :: Types.SymbolSet -> Doc ann
 prettySymbolSetDoc (Types.SymbolSetClosed atoms) =
   brackets (hsep (punctuate comma (map (pretty . Types.prettyTypeAtomValue) atoms)))
 prettySymbolSetDoc Types.SymbolSetOpen = pretty "[..]"
-prettySymbolSetDoc (Types.SymbolSetVar (Types.TyVar v)) = pretty ("[" ++ v ++ "..]")
+prettySymbolSetDoc (Types.SymbolSetVar v) =
+  pretty ("[" ++ Types.tyVarName v ++ "..]")
 
 class Complex a where
   isAtom :: a -> Bool

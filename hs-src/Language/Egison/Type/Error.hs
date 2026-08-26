@@ -27,7 +27,8 @@ import           Language.Egison.Type.Index (IndexSpec)
 import           Language.Egison.Type.Types (CapVar (..), Capability (..), TensorShape (..),
                                              TyVar (..), Type (..), TypeFormer (..),
                                              TypeFormerId (..), SymbolSet(..), prettyTypeAtomValue,
-                                             Constraint (..), constraintClass, constraintTypes)
+                                             Constraint (..), constraintClass, constraintTypes,
+                                             TyClass(..), tyVarClass, tyVarName)
 
 -- | Source location information
 data SourceLocation = SourceLocation
@@ -172,10 +173,10 @@ formatTypeError err = case err of
       "  Expected: " ++ prettyType t1 ++ " (" ++ show t1 ++ ")\n" ++
       "  Actual:   " ++ prettyType t2 ++ " (" ++ show t2 ++ ")"
 
-  OccursCheckError (TyVar v) t ctx ->
+  OccursCheckError variable t ctx ->
     formatWithContext ctx $
       "Infinite type detected:\n" ++
-      "  Type variable '" ++ v ++ "' occurs in " ++ prettyType t
+      "  Type variable '" ++ tyVarName variable ++ "' occurs in " ++ prettyType t
 
   UnboundVariable name ctx ->
     formatWithContext ctx $
@@ -213,9 +214,10 @@ formatTypeError err = case err of
     formatWithContext ctx $
       "Expected a tensor type, but got: " ++ prettyType t
 
-  AmbiguousType (TyVar v) ctx ->
+  AmbiguousType variable ctx ->
     formatWithContext ctx $
-      "Ambiguous type: cannot infer a concrete type for '" ++ v ++ "'"
+      "Ambiguous type: cannot infer a concrete type for '" ++
+      tyVarName variable ++ "'"
 
   TypeAnnotationMismatch annotated inferred ctx ->
     formatWithContext ctx $
@@ -379,8 +381,16 @@ displayType = prettyType . renameVarsForDisplay
 renameVarsForDisplay :: Type -> Type
 renameVarsForDisplay ty = mapVars ty
   where
-    mapping = zip (nub (collect ty))
-                  ([TyVar [c] | c <- ['a'..'z']] ++ [TyVar ('a' : show i) | i <- [1 :: Int ..]])
+    mapping =
+      zipWith rename
+        (nub (collect ty))
+        ([ [c] | c <- ['a'..'z']] ++ ['a' : show i | i <- [1 :: Int ..]])
+    rename variable name =
+      ( variable
+      , case tyVarClass variable of
+          ArgumentClass -> TyVar name
+          ResultClass   -> ResultTyVar name
+      )
     sub v = case lookup v mapping of
       Just v' -> v'
       Nothing -> v
@@ -431,8 +441,8 @@ prettyType TFloat = "Float"
 prettyType TBool = "Bool"
 prettyType TChar = "Char"
 prettyType TString = "String"
-prettyType (TVar (TyVar v)) = v
-prettyType (TSkolem (TyVar v)) = v
+prettyType (TVar v) = tyVarName v
+prettyType (TSkolem v) = tyVarName v
 prettyType (TTuple ts) = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t) = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name
@@ -474,7 +484,7 @@ prettyCapabilityAtom capability = prettyCapability capability
 prettySymbolSet :: SymbolSet -> String
 prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
 prettySymbolSet SymbolSetOpen = "[..]"
-prettySymbolSet (SymbolSetVar (TyVar v)) = v
+prettySymbolSet (SymbolSetVar v) = tyVarName v
 
 -- | Pretty print a tensor shape
 prettyShape :: TensorShape -> String

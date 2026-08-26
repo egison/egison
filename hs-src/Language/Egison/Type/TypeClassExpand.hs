@@ -513,7 +513,7 @@ expandTypeClassMethodsT tiExpr = do
 
                   -- Determine dictionary name based on type
                   case tyArg of
-                    TVar (TyVar _v) -> do
+                    TVar _ -> do
                       -- Type variable: use dictionary parameter name (without type parameter)
                       typeEnv <- getTypeEnv
                       let dictParamName = "dict_" ++ className
@@ -911,7 +911,7 @@ expandTypeClassMethodsT tiExpr = do
     resolveDictionaryArgWithDepth classEnv depth constraint@(Constraint className tyArgs) = do
       let tyArg = constraintType constraint  -- principal (first) type
       case tyArg of
-        TVar (TyVar _v) -> do
+        TVar _ -> do
           -- Type variable: use dictionary parameter name (without type parameter)
           -- e.g., for {Eq a}, return dict_Eq
           let dictParamName = "dict_" ++ className

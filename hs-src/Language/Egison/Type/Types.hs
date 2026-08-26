@@ -26,6 +26,15 @@ module Language.Egison.Type.Types
   , Dual(..)
   , DualScheme(..)
   , TyVar(..)
+  , TyClass(..)
+  , tyVarClass
+  , tyVarName
+  , asResultTyVar
+  , freshTyVarLike
+  , typeDemands
+  , resultDemands
+  , typeOK
+  , resultOK
   , TensorShape(..)
   , ShapeDimType(..)
   , Constraint(..)
@@ -89,10 +98,34 @@ import           Language.Egison.AST        (CapabilityExpr(..), TypeExpr(..),
                                              SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Index ()
 
--- | Type variable
-newtype TyVar = TyVar String
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype Hashable
+-- | The admissible images of an ordinary type variable.  Result variables
+-- are more constrained: a value returned by a function may not contain a
+-- matcher slot, except in a parameter position of a returned function.
+data TyClass
+  = ArgumentClass
+  | ResultClass
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
+-- | Type variable.  The two constructors are flags on one variable syntax,
+-- not separate type languages.  The string is the variable identity, so
+-- @TyVar "a"@ and @ResultTyVar "a"@ are the argument/result forms of the
+-- same inference name.
+data TyVar
+  = TyVar String
+  | ResultTyVar String
+  deriving (Eq, Ord, Show, Generic, Hashable)
+
+tyVarClass :: TyVar -> TyClass
+tyVarClass (TyVar _)       = ArgumentClass
+tyVarClass (ResultTyVar _) = ResultClass
+
+tyVarName :: TyVar -> String
+tyVarName (TyVar name)       = name
+tyVarName (ResultTyVar name) = name
+
+-- | Strengthen a variable while preserving its identity.
+asResultTyVar :: TyVar -> TyVar
+asResultTyVar = ResultTyVar . tyVarName
 
 -- | Capability variable.  Its constructor is intentionally distinct from
 -- the flexible 'CapVar' node of 'Capability'.
@@ -355,6 +388,81 @@ instType ii = case instTypes ii of
 -- | Generate a fresh type variable with a given prefix
 freshTyVar :: String -> Int -> TyVar
 freshTyVar prefix n = TyVar (prefix ++ show n)
+
+-- | Generate a fresh variable with the same A/R class as a quantified
+-- binder.  Scheme instantiation must preserve the binder's class.
+freshTyVarLike :: TyVar -> String -> Int -> TyVar
+freshTyVarLike binder prefix n =
+  case tyVarClass binder of
+    ArgumentClass -> TyVar name
+    ResultClass   -> ResultTyVar name
+  where
+    name = prefix ++ show n
+
+-- | Collect the argument-class variables that must be strengthened for a
+-- type to be valid in an ordinary position.  Failure means that a matcher
+-- slot occurs in the result of a nested function.
+typeDemands :: Type -> Maybe [TyVar]
+typeDemands ty = case ty of
+  TVar _ -> Just []
+  TSkolem _ -> Just []
+  TTuple items -> demandsMany typeDemands items
+  TCollection item -> typeDemands item
+  TInductive _ items -> demandsMany typeDemands items
+  TTensor item -> typeDemands item
+  THash key value -> appendDemands (typeDemands key) (typeDemands value)
+  TMatcher _ target -> typeDemands target
+  TMatcherSlot _ target -> typeDemands target
+  TFun domain codomain ->
+    appendDemands (typeDemands domain) (resultDemands codomain)
+  TIO item -> typeDemands item
+  TIORef item -> typeDemands item
+  TTerm coefficient _ -> typeDemands coefficient
+  TFrac coefficient -> typeDemands coefficient
+  TPoly coefficient _ -> typeDemands coefficient
+  _ -> Just []
+
+-- | Collect the strengthening required for a type to be valid in a result
+-- position.  A slot at such a position is inconsistent.
+resultDemands :: Type -> Maybe [TyVar]
+resultDemands ty = case ty of
+  TVar variable ->
+    case tyVarClass variable of
+      ArgumentClass -> Just [variable]
+      ResultClass   -> Just []
+  TSkolem variable ->
+    case tyVarClass variable of
+      ArgumentClass -> Nothing
+      ResultClass   -> Just []
+  TTuple items -> demandsMany resultDemands items
+  TCollection item -> resultDemands item
+  TInductive _ items -> demandsMany resultDemands items
+  TTensor item -> resultDemands item
+  THash key value -> appendDemands (resultDemands key) (resultDemands value)
+  TMatcher _ target -> resultDemands target
+  TMatcherSlot _ _ -> Nothing
+  TFun domain codomain ->
+    appendDemands (typeDemands domain) (resultDemands codomain)
+  TIO item -> resultDemands item
+  TIORef item -> resultDemands item
+  TTerm coefficient _ -> resultDemands coefficient
+  TFrac coefficient -> resultDemands coefficient
+  TPoly coefficient _ -> resultDemands coefficient
+  _ -> Just []
+
+appendDemands :: Maybe [TyVar] -> Maybe [TyVar] -> Maybe [TyVar]
+appendDemands first second = (++) <$> first <*> second
+
+demandsMany :: (Type -> Maybe [TyVar]) -> [Type] -> Maybe [TyVar]
+demandsMany demand = fmap concat . mapM demand
+
+typeOK :: Type -> Bool
+typeOK = maybe False (const True) . typeDemands
+
+resultOK :: Type -> Bool
+resultOK ty = case resultDemands ty of
+  Just [] -> True
+  _       -> False
 
 -- | Generate a fresh capability variable with a given prefix.
 freshCapVar :: String -> Int -> CapVar
@@ -714,7 +822,7 @@ symbolSetToName (SymbolSetClosed syms) =
   where
     sanitize = map (\c -> if c == ' ' || c == '(' || c == ')' then '_' else c)
 symbolSetToName SymbolSetOpen = "_Open"
-symbolSetToName (SymbolSetVar (TyVar v)) = "_" ++ v
+symbolSetToName (SymbolSetVar v) = "_" ++ tyVarName v
 
 -- | Get the type constructor name only, without type parameters
 -- Used for generating instance dictionary names (e.g., "eqCollection" not "eqCollectiona")
@@ -872,7 +980,9 @@ typeExprToType (TETuple ts) = TTuple (map typeExprToType ts)
 typeExprToType (TEList t) = TCollection (typeExprToType t)
 typeExprToType (TEApp t1 ts) = 
   case typeExprToType t1 of
-    TVar (TyVar name) -> 
+    TVar variable ->
+      let name = tyVarName variable
+      in
       -- Special case: convert inductive type names to primitive types
       case (name, ts) of
         ("MathValue", [])   -> TMathValue
@@ -929,7 +1039,7 @@ expandTypeAliases aliases ty
   | HashMap.null aliases = ty
   | otherwise = go ty
   where
-    go t@(TVar (TyVar n))  = HashMap.lookupDefault t n aliases
+    go t@(TVar variable)    = HashMap.lookupDefault t (tyVarName variable) aliases
     go t@(TInductive n []) = HashMap.lookupDefault t n aliases
     go (TInductive n ts)   = TInductive n (map go ts)
     go (TTuple ts)         = TTuple (map go ts)

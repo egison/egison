@@ -12,6 +12,9 @@ module Language.Egison.Type.Subst
   , emptySubst
   , singletonSubst
   , singletonCapSubst
+  , strengtheningSubst
+  , makeType
+  , makeResult
   , composeSubst
   , applySubst
   , applyTypeSubst
@@ -32,11 +35,13 @@ import qualified Data.Set                   as Set
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
-import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
+import           Language.Egison.Type.Types (Capability (..), CapVar, TyClass (..), TyVar,
                                              Type (..), TypeScheme (..),
                                              Dual (..),
                                              Constraint (..), SymbolSet (..),
-                                             mapTypeCapabilities)
+                                             asResultTyVar, mapTypeCapabilities,
+                                             resultDemands, tyVarClass,
+                                             typeDemands)
 
 -- | A pair of independent substitutions, one for each sort.
 --
@@ -61,6 +66,39 @@ singletonSubst v t = Subst (Map.singleton v t) Map.empty
 -- | Create a substitution with a single flexible capability binding.
 singletonCapSubst :: CapVar -> Capability -> Subst
 singletonCapSubst v cap = Subst Map.empty (Map.singleton v cap)
+
+-- | Strengthen argument-class variables to result-class variables while
+-- preserving their textual identities.  Duplicate demands are harmless.
+strengtheningSubst :: [TyVar] -> Subst
+strengtheningSubst variables =
+  Subst
+    (Map.fromList
+      [ (variable, TVar (asResultTyVar variable))
+      | variable <- variables
+      , tyVarClass variable == ArgumentClass
+      ])
+    Map.empty
+
+-- | Refine a type until it is admissible in an ordinary type position.
+-- The returned substitution records every A-to-R strengthening required by
+-- nested result positions.
+makeType :: Subst -> Type -> Maybe (Subst, Type)
+makeType substitution ty = do
+  let normalized = applySubst substitution ty
+  demands <- typeDemands normalized
+  let strengthening = strengtheningSubst demands
+      substitution' = composeSubst strengthening substitution
+  pure (substitution', applySubst strengthening normalized)
+
+-- | Refine a type until it is admissible in a result position.
+-- A matcher slot in such a position makes the request inconsistent.
+makeResult :: Subst -> Type -> Maybe (Subst, Type)
+makeResult substitution ty = do
+  let normalized = applySubst substitution ty
+  demands <- resultDemands normalized
+  let strengthening = strengtheningSubst demands
+      substitution' = composeSubst strengthening substitution
+  pure (substitution', applySubst strengthening normalized)
 
 -- | Compose two substitutions (s2 after s1)
 -- (s2 `composeSubst` s1) x = s2 (s1 x)

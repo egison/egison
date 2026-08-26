@@ -34,15 +34,18 @@ import qualified Data.Set                    as Set
 
 import           Language.Egison.Type.Subst  (Subst(..), applySubst, composeSubst,
                                               emptySubst, singletonSubst,
+                                              strengtheningSubst,
                                               singletonCapSubst, applyCapSubst,
                                               applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (Capability (..), CapVar (..),
                                               CapOrigin (..), CapabilityOriginLedger,
-                                              TypeFormer (..), TyVar (..), Type (..),
+                                              TypeFormer (..), TyClass (..),
+                                              TyVar (..), Type (..),
                                               capabilityOriginOf,
                                               freeCapVars, freeCapVarsCapability,
-                                              freeTyVars,
+                                              freeTyVars, resultDemands,
+                                              tyVarClass, tyVarName, typeDemands,
                                               normalizeInductiveTypes,
                                               Constraint(..), SymbolSet(..))
 import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, emptyClassEnv)
@@ -1094,10 +1097,7 @@ unifyVarG TensorConstraintAware ce cs v t =
 
 -- | Simple variable unification (no constraint or Tensor logic).
 unifyVarSimple :: TyVar -> Type -> Either UnifyError Subst
-unifyVarSimple v t
-  | TVar v == t = Right emptySubst
-  | v `Set.member` freeTyVars t = Left $ OccursCheck v t
-  | otherwise = Right $ singletonSubst v t
+unifyVarSimple = occursCheckAndBind
 
 -- | Strict variable unification with constraints.
 -- Tensor a does NOT unify with a unless all constraints are satisfied by Tensor.
@@ -1129,19 +1129,29 @@ unifyVarConstraintAware classEnv constraints v t
                 else
                   -- Some constraint lacks Tensor instance, bind to element type instead.
                   -- This allows tensorMap to handle the Tensor -> scalar conversion.
-                  if TVar v == elemType
-                  then Right (emptySubst, True)
-                  else if v `Set.member` freeTyVars elemType
-                       then Left $ OccursCheck v elemType
-                       else Right (singletonSubst v elemType, True)
+                  fmap (\substitution -> (substitution, True)) $
+                    occursCheckAndBind v elemType
       _ ->
         fmap (\s -> (s, False)) $ occursCheckAndBind v t
 
 -- | Occurs check and variable binding (shared helper).
 occursCheckAndBind :: TyVar -> Type -> Either UnifyError Subst
-occursCheckAndBind v t
-  | v `Set.member` freeTyVars t = Left $ OccursCheck v t
-  | otherwise = Right $ singletonSubst v t
+occursCheckAndBind variable ty = do
+  demands <-
+    case tyVarClass variable of
+      ArgumentClass ->
+        maybe (Left $ TypeMismatch (TVar variable) ty) Right
+          (typeDemands ty)
+      ResultClass ->
+        maybe (Left $ TypeMismatch (TVar variable) ty) Right
+          (resultDemands ty)
+  let strengthening = strengtheningSubst demands
+      ty' = applySubst strengthening ty
+  if TVar variable == ty'
+    then Right strengthening
+    else if variable `Set.member` freeTyVars ty'
+      then Left $ OccursCheck variable ty'
+      else Right $ composeSubst (singletonSubst variable ty') strengthening
 
 --------------------------------------------------------------------------------
 -- Tensor-Specific Helpers (ConstraintAware mode only)
@@ -1242,7 +1252,10 @@ unifyEachAsMatcherExtended env cons (t:rest) s = do
     -- tuple like @(m, list m)@) retains both of its components.
     TMatcherSlot cap target -> Right ((cap, target), emptySubst, False)
     TVar v -> do
-      let innerVar = TyVar (getTyVarName v ++ "'")
+      let innerVar =
+            case tyVarClass v of
+              ArgumentClass -> TyVar (getTyVarName v ++ "'")
+              ResultClass   -> ResultTyVar (getTyVarName v ++ "'")
           innerTy = TVar innerVar
           cap = CapVar (MkCapVar (getTyVarName v ++ "'cap"))
       (s', flag) <-
@@ -1302,7 +1315,7 @@ type TuplePartsUnifier =
   -> Either UnifyError ([(Capability, Type)], Subst, Bool)
 
 getTyVarName :: TyVar -> String
-getTyVarName (TyVar name) = name
+getTyVarName = tyVarName
 
 --------------------------------------------------------------------------------
 -- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)

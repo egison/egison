@@ -43,7 +43,10 @@ import           Language.Egison.Type.Infer     (InferConfig (..),
                                                   runInferWithWarningsAndState)
 import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   applyCapSubst,
+                                                  applySubst,
                                                   applyTypeSubst,
+                                                  emptySubst,
+                                                  makeResult,
                                                   singletonCapSubst,
                                                   singletonSubst)
 import qualified Language.Egison.Type.ShapeSolver as ShapeSolver
@@ -67,6 +70,7 @@ main = do
   flip defaultMainWithArgs args . hUnitTestToTests . test $
     p2CapabilityTests
       ++ [ matcherOneWayTests
+         , arClassTests
          , cliWarningFlagParsingTests
          , primitivePatternWarningTests
          , outsideEgisonCoreWarningTests
@@ -1924,6 +1928,56 @@ matcherOneWayTests =
       Nothing ->
         assertFailure
           "a consistently repeated rigid matcher variable should be accepted"
+
+-- | A variables may denote slots, whereas R variables are restricted to
+-- result-admissible types.  Equal textual names make strengthening observable
+-- without introducing a separate role environment.
+arClassTests :: Test
+arClassTests =
+  TestLabel "A/R type-variable classes" . TestList $
+    [ TestLabel "A variable accepts a matcher slot" . TestCase $ do
+        case unify
+          (TVar (TyVar "a"))
+          (TMatcherSlot CapAny TInt) of
+          Right _ -> return ()
+          Left err ->
+            assertFailure ("A variable rejected a matcher slot: " ++ show err)
+    , TestLabel "R variable rejects a matcher slot" . TestCase $ do
+        case unify
+          (TVar (ResultTyVar "r"))
+          (TMatcherSlot CapAny TInt) of
+          Left _ -> return ()
+          Right _ ->
+            assertFailure "R variable accepted a matcher slot"
+    , TestLabel "A/R equality strengthens the A occurrence" . TestCase $ do
+        let argument = TyVar "shared"
+            result = ResultTyVar "shared"
+        case unify (TVar argument) (TVar result) of
+          Left err ->
+            assertFailure ("A/R variables did not unify: " ++ show err)
+          Right substitution ->
+            assertEqual
+              "the A occurrence is represented by its R form"
+              (TVar result)
+              (applySubst substitution (TVar argument))
+    , TestLabel "makeResult strengthens shared identity schemes" . TestCase $ do
+        let variable = TyVar "identity"
+            identityType = TFun (TVar variable) (TVar variable)
+            strengthened =
+              TFun
+                (TVar (ResultTyVar "identity"))
+                (TVar (ResultTyVar "identity"))
+        case makeResult emptySubst identityType of
+          Nothing -> assertFailure "identity type was not result-admissible"
+          Just (_, ty) -> assertEqual "identity role" strengthened ty
+    , TestLabel "slot is allowed only below a function argument" . TestCase $ do
+        let valid = TFun (TMatcherSlot CapAny TInt) TBool
+            invalid = TFun TInt (TMatcherSlot CapAny TInt)
+        case (makeResult emptySubst valid, makeResult emptySubst invalid) of
+          (Just _, Nothing) -> return ()
+          result ->
+            assertFailure ("unexpected result classification: " ++ show result)
+    ]
 
 -- | Strict type checking must not silently feed an ill-typed definition to
 -- the untyped evaluator.  Permissive mode retains that fallback for gradual

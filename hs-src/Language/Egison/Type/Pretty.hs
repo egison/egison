@@ -25,9 +25,10 @@ import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
 import           Language.Egison.Type.Types (CapVar (..), Capability (..), Dual (..),
                                              DualScheme (..), ShapeDimType (..),
-                                             TensorShape (..), TyVar (..), Type (..),
+                                             TensorShape (..), Type (..),
                                              TypeFormer (..), TypeFormerId (..),
-                                             TypeScheme (..), SymbolSet(..), prettyTypeAtomValue)
+                                             TypeScheme (..), SymbolSet(..), prettyTypeAtomValue,
+                                             tyVarName)
 
 -- | Pretty print a Type
 prettyType :: Type -> String
@@ -42,8 +43,8 @@ prettyType TBool            = "Bool"
 prettyType TChar            = "Char"
 prettyType TString          = "String"
 prettyType (TTuple [])      = "()"
-prettyType (TVar (TyVar v)) = v
-prettyType (TSkolem (TyVar v)) = v
+prettyType (TVar v)         = tyVarName v
+prettyType (TSkolem v)      = tyVarName v
 prettyType (TTuple ts)      = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t)  = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name
@@ -99,7 +100,7 @@ prettyDualScheme scheme =
   where
     binders =
       [ name | MkCapVar name <- dualCapBinders scheme ] ++
-      [ name | TyVar name <- dualTyBinders scheme ]
+      map tyVarName (dualTyBinders scheme)
     quantifiers =
       if null binders then "" else "∀" ++ unwords binders ++ ". "
 
@@ -112,7 +113,7 @@ prettyCapabilityAtom capability = prettyCapability capability
 prettySymbolSet :: SymbolSet -> String
 prettySymbolSet (SymbolSetClosed syms) = "[" ++ intercalate ", " (map prettyTypeAtomValue syms) ++ "]"
 prettySymbolSet SymbolSetOpen          = "[..]"
-prettySymbolSet (SymbolSetVar (TyVar v)) = v
+prettySymbolSet (SymbolSetVar v) = tyVarName v
 
 -- | Pretty print an atomic type (with parentheses if needed)
 prettyTypeAtom :: Type -> String
@@ -145,7 +146,6 @@ prettyTypeScheme (Forall capVars typeVars [] t) =
   "∀" ++ unwords (map capVarName capVars ++ map tyVarName typeVars) ++ ". " ++ prettyType t
   where
     capVarName (MkCapVar v) = v
-    tyVarName (TyVar v) = v
 prettyTypeScheme (Forall _capVars _typeVars cs t) =
   prettyConstraintsAlt cs ++ " " ++ prettyType t
 
