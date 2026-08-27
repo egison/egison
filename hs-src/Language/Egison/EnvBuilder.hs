@@ -20,7 +20,7 @@ module Language.Egison.EnvBuilder
   , EnvBuildResult(..)
   ) where
 
-import           Control.Monad              (foldM, when)
+import           Control.Monad              (foldM, unless, when)
 import           Control.Monad.Except       (throwError)
 import           Control.Monad.IO.Class     (liftIO)
 import           Data.Char                  (isUpper)
@@ -29,13 +29,14 @@ import           System.IO                  (hPutStrLn, stderr)
 
 import           Language.Egison.AST
 import           Language.Egison.Data       (EvalM, EgisonError(..))
-import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getCasTypeAliasEnv, getCasSubtypeEdges), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
+import           Language.Egison.EvalState  (MonadEval(getConstructorEnv, getPatternEnv, getCasTypeAliasEnv, getCasSubtypeEdges), ConstructorInfo(..), ConstructorEnv, PatternConstructorEnv)
 import           Language.Egison.Type.Pretty (prettyType)
 import qualified Language.Egison.Type.Subtype as Subtype
 import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
-                                             extendEnv, extendPatternEnv, addClass, addInstance, lookupClass)
+                                             extendEnv, extendPatternEnv, addClass, addInstance, lookupClass,
+                                             patternEnvToList)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
                                              freeCapVars, freeTyVars,
@@ -90,9 +91,14 @@ buildEnvironments exprs = do
   -- in file A must still keep that type concrete in its signature (see concretizeDeclaredTypes);
   -- B's TopExpr list alone would not mention `inductive A`.
   priorCtorEnv <- getConstructorEnv
+  priorPatternCtorEnv <- getPatternEnv
   priorAliases <- getCasTypeAliasEnv
   let declaredTypes = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
-                                    ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ])
+                                    ++ [ n | PatternInductiveDecl n _ _ <- exprs ]
+                                    ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ]
+                                    ++ concatMap
+                                         (namedInductiveTypes . schemeBody . snd)
+                                         (patternEnvToList priorPatternCtorEnv))
   capabilityFormerArities <-
     buildCapabilityFormerArities exprs priorCtorEnv
 
@@ -921,7 +927,8 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         ctorEnv = ebrConstructorEnv result
 
     -- Register each constructor
-    (typeEnv', ctorEnv') <- foldM (registerConstructor aliasEnv typeName typeParams adtType)
+    (typeEnv', ctorEnv') <- foldM
+      (registerConstructor aliasEnv declaredTypes typeName typeParams adtType)
                                    (typeEnv, ctorEnv)
                                    constructors
     
@@ -1066,7 +1073,9 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         patternCtorEnv = ebrPatternConstructorEnv result
     
     -- Register each pattern constructor to pattern constructor environment
-    patternCtorEnv' <- foldM (registerPatternConstructor aliasEnv typeName typeParams patternType)
+    patternCtorEnv' <- foldM
+      (registerPatternConstructor
+        aliasEnv declaredTypes typeName typeParams patternType)
                               patternCtorEnv
                               constructors
     
@@ -1074,18 +1083,28 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
   
   -- 6. Pattern Function Declarations (from PatternFunctionDecl)
   PatternFunctionDecl name typeParams params retType _body -> do
-    let paramTypes = map (t2t . snd) params
-        retType' = t2t retType
+    let paramTypes =
+          map (concretizeDeclaredTypes declaredTypes . t2t . snd) params
+        retType' = concretizeDeclaredTypes declaredTypes (t2t retType)
         -- Pattern function type: arg1 -> arg2 -> ... -> retType (without Pattern wrapper)
         patternFuncType = foldr TFun retType' paramTypes
         
         -- Quantify over type parameters
         tyVars = map TyVar typeParams
-        typeScheme =
+        rawTypeScheme =
           Types.Forall (Set.toList (freeCapVars patternFuncType))
                        tyVars [] patternFuncType
-        
-        patternEnv = ebrPatternTypeEnv result
+
+    ensureDeclaredTypeVariables
+      ("pattern function " ++ name) typeParams patternFuncType
+    typeScheme <-
+      case makeResultScheme rawTypeScheme of
+        Just scheme -> return scheme
+        Nothing -> throwError $ Default $
+          "pattern function " ++ name ++
+          ": a matcher slot may occur only in a function parameter type"
+
+    let patternEnv = ebrPatternTypeEnv result
         patternEnv' = extendPatternEnv name typeScheme patternEnv
     
     return result { ebrPatternTypeEnv = patternEnv' }
@@ -1185,23 +1204,55 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
 -- Helper Functions
 --------------------------------------------------------------------------------
 
+schemeBody :: TypeScheme -> Type
+schemeBody (Forall _ _ _ ty) = ty
+
+-- | Pattern-constructor schemes from earlier load units retain their concrete
+-- result former.  Recover it so later signatures do not mistake that named
+-- type for an undeclared type variable during closedness checking.
+namedInductiveTypes :: Type -> [String]
+namedInductiveTypes ty =
+  case resultType ty of
+    TInductive name _ -> [name]
+    TString           -> ["String"]
+    _                 -> []
+  where
+    resultType (TFun _ rest) = resultType rest
+    resultType result        = result
+
 -- | Register a single data constructor
-registerConstructor :: HashMap.HashMap String Type -> String -> [String] -> Type
+registerConstructor :: HashMap.HashMap String Type -> Set.Set String
+                    -> String -> [String] -> Type
                     -> (TypeEnv, ConstructorEnv) -> InductiveConstructor
                     -> EvalM (TypeEnv, ConstructorEnv)
-registerConstructor aliasEnv typeName typeParams resultType (typeEnv, ctorEnv)
+registerConstructor aliasEnv declaredTypes typeName typeParams resultType (typeEnv, ctorEnv)
                     (InductiveConstructor ctorName argTypeExprs) = do
-  let argTypes = map (Types.expandTypeAliases aliasEnv . typeExprToType) argTypeExprs
+  let argTypes = map
+        (concretizeDeclaredTypes declaredTypes .
+         Types.expandTypeAliases aliasEnv . typeExprToType)
+        argTypeExprs
       
       -- Constructor type: argTypes -> resultType
       constructorType = foldr TFun resultType argTypes
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme = normalizePublicScheme $
+      rawTypeScheme =
         Types.Forall (Set.toList (freeCapVars constructorType))
                      tyVars [] constructorType
-      
+
+  ensureDeclaredTypeVariables
+    ("data constructor " ++ ctorName) typeParams constructorType
+  ensureParametersDetermined
+    ("data constructor " ++ ctorName) argTypes resultType
+  typeScheme <-
+    case makeResultScheme rawTypeScheme of
+      Just scheme -> return scheme
+      Nothing -> throwError $ Default $
+        "data constructor " ++ ctorName ++
+        ": a matcher slot may occur only in a function parameter type"
+
+  let
       -- Add to type environment
       typeEnv' = extendEnv (stringToVar ctorName) typeScheme typeEnv
       
@@ -1353,26 +1404,78 @@ constraintToInternal aliasEnv (ConstraintExpr clsName tyExprs) =
     _  -> map (Types.expandTypeAliases aliasEnv . typeExprToType) tyExprs)
 
 -- | Register a single pattern constructor
-registerPatternConstructor :: HashMap.HashMap String Type -> String -> [String] -> Type
+registerPatternConstructor :: HashMap.HashMap String Type -> Set.Set String
+                           -> String -> [String] -> Type
                            -> PatternConstructorEnv -> PatternConstructor
                            -> EvalM PatternConstructorEnv
-registerPatternConstructor aliasEnv _typeName typeParams resultType patternCtorEnv
+registerPatternConstructor aliasEnv declaredTypes _typeName typeParams resultType patternCtorEnv
                           (PatternConstructor ctorName argTypeExprs) = do
-  let argTypes = map (Types.expandTypeAliases aliasEnv . typeExprToType) argTypeExprs
+  let argTypes = map
+        (concretizeDeclaredTypes declaredTypes .
+         Types.expandTypeAliases aliasEnv . typeExprToType)
+        argTypeExprs
       
       -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType (without Pattern wrapper)
       patternCtorType = foldr TFun resultType argTypes
       
       -- Quantify over type parameters
       tyVars = map TyVar typeParams
-      typeScheme =
+      rawTypeScheme =
         Types.Forall (Set.toList (freeCapVars patternCtorType))
                      tyVars [] patternCtorType
-      
+
+  ensureDeclaredTypeVariables
+    ("pattern constructor " ++ ctorName) typeParams patternCtorType
+  ensureParametersDetermined
+    ("pattern constructor " ++ ctorName) argTypes resultType
+  typeScheme <-
+    case makeResultScheme rawTypeScheme of
+      Just scheme -> return scheme
+      Nothing -> throwError $ Default $
+        "pattern constructor " ++ ctorName ++
+        ": a matcher slot may occur only in a function parameter type"
+
+  let
       -- Add to pattern constructor environment (same format as PatternTypeEnv)
       patternCtorEnv' = extendPatternEnv ctorName typeScheme patternCtorEnv
   
   return patternCtorEnv'
+
+-- | Public signatures bind exactly their explicitly declared ordinary type
+-- variables.  Capability variables are separately quantified by the scheme.
+ensureDeclaredTypeVariables :: String -> [String] -> Type -> EvalM ()
+ensureDeclaredTypeVariables label declared ty = do
+  let declaredNames = Set.fromList declared
+      usedNames = Set.map Types.tyVarName (freeTyVars ty)
+      undeclared = Set.toList (usedNames `Set.difference` declaredNames)
+  unless (null undeclared) $ throwError $ Default $
+    label ++ ": undeclared type variable(s): " ++ unwords undeclared
+
+-- | Runtime constructor fields must be determined by the constructor result:
+-- every type/capability parameter occurring in a field also occurs in the
+-- result.  This is TypePM's ParametersDetermined premise.
+ensureParametersDetermined :: String -> [Type] -> Type -> EvalM ()
+ensureParametersDetermined label fields result = do
+  let fieldTyVars = Set.map Types.tyVarName $
+        Set.unions (map freeTyVars fields)
+      resultTyVars = Set.map Types.tyVarName (freeTyVars result)
+      undeterminedTyVars =
+        Set.toList (fieldTyVars `Set.difference` resultTyVars)
+      fieldCapVars = Set.unions (map freeCapVars fields)
+      resultCapVars = freeCapVars result
+      undeterminedCapVars =
+        Set.toList (fieldCapVars `Set.difference` resultCapVars)
+  unless (null undeterminedTyVars && null undeterminedCapVars) $
+    throwError $ Default $
+      label ++
+      ": every field type parameter must occur in the constructor result" ++
+      (if null undeterminedTyVars
+         then ""
+         else "; undetermined type variable(s): " ++ unwords undeterminedTyVars) ++
+      (if null undeterminedCapVars
+         then ""
+         else "; undetermined matcher capability variable(s): " ++
+              unwords (map show undeterminedCapVars))
 
 -- | Internal declarations are constructed from result types, so failure here
 -- indicates a malformed declaration that will be diagnosed at its explicit

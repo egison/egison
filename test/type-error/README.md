@@ -49,9 +49,9 @@ done
 | 41-matcher-body-matchsite | 本体内 match-site 検査 | matcher 本体内の `integer` × cons |
 | 42-tuple-pattern-arity | PAT-TUPLE | タプルパターンの arity 不一致 |
 | 50-matcher-collection-hetero | capability equality | `[something, list integer]`(`Any` と `[Any]` の異種 capability) |
-| 51-matcher-cast-structured | capability preservation | `def m2 : Matcher [Any] [Integer] := something`(capability 強化の拒否) |
+| 51-matcher-cast-structured | capability equality | `Any` と `[Any]` という ground capability の不一致 |
 | 52-missing-signature-constraint | シグネチャ完全性(残存制約検査) | 本体が `<=`({Ord a})を要求するのにシグネチャに無い |
-| 53-matcher-alias-specialize | capability preservation | `def myint : Matcher Integer Integer := eq`(`Any` からの capability 強化を拒否) |
+| 53-matcher-alias-specialize | capability equality | `eq` の ground `Any` と `Integer` capability の不一致 |
 | 54-something-structured-hole | PP-Con 遅延判定 | 結果注釈を capability evidence に使わず，list tail hole への `something` を拒否 |
 | 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
 | 56-multisite-structural-join | 同(capability 要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
@@ -60,7 +60,7 @@ done
 | 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の `Any` matcher を構造 hole へ渡す |
 | 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ `Any` capability を構造 hole へ渡す |
 | 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ `Any` capability を構造 hole へ渡す |
-| 62-next-matcher-nested-rename | capability rename / R12 | `Maybe [p]` の入れ子骨格を欠く matcher |
+| 62-next-matcher-nested-rename | nested capability equality | `Maybe [p]` の入れ子骨格を欠く matcher |
 | 63-next-matcher-zero-hole | T-MATCHER / R12 成分境界 | 0 hole に `()` 以外の next matcher |
 | 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
 | 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | capability は一致するが target 添字が不一致の既存 slot |
@@ -84,6 +84,10 @@ done
 | 90-closed-field-slot-application | PP-Con / Matcher Consistency (1a) | closed list field が推論した `MatcherSlot` へ `something` を渡す適用を拒否 |
 | 91-match-else-result | match result checking | 通常節と `else` の結果型不一致を拒否 |
 | 92-match-else-scope | match fallback scope | 通常節の束縛を `else` から参照することを拒否 |
+| 93-data-constructor-open-scheme | signature closedness | data constructor field の未宣言型変数を拒否 |
+| 94-data-constructor-undetermined-capability | parameters determined | data constructor field にだけ現れる capability 変数を拒否 |
+| 95-pattern-constructor-undetermined-capability | parameters determined | pattern constructor field にだけ現れる capability 変数を拒否 |
+| 96-pattern-function-open-scheme | signature closedness | pattern function の未宣言型変数を拒否 |
 
 ## ケース追加時の注意
 

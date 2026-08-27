@@ -35,18 +35,19 @@ guarantee. General production extensions are reported by the optional flag
 --outside-egison-core-warnings
 ```
 
-Two independently useful primitive-pattern diagnostics have dedicated flags:
+Dedicated diagnostics use separate flags:
 
 ```text
 --pattern-hole-before-primitive-value-pattern-warnings
 --nested-structured-primitive-pattern-pattern-warnings
+--match-without-else-warnings
+--matcher-consistency-warnings
 ```
 
 Enabling any warning flag is diagnostic only: it must not change inferred
 types, substitutions, elaborated terms, evaluation order, runtime values, or
 failure behavior. Disabling them must preserve the existing production
-behavior exactly. The former umbrella option is not retained as an alias: it
-did not identify which boundary was being audited.
+behavior exactly.
 
 The outside-core warning path is deliberately separate from strict type
 errors. A core construct rejected by the synchronized core path remains an
@@ -127,80 +128,38 @@ Target specialization alone is never evidence for a structured capability.
 Ordinary gradual `TAny`, a target annotation, or a match-site demand must not
 invent a capability head.
 
-### 2.3 Capability-origin ledger and nested core solver
+### 2.3 Ordinary capability unification
 
-Nested `Matcher` and `MatcherSlot` occurrences are solved by the same
-two-sorted rules as root occurrences. `InferState` records every capability
-variable as `Rigid`, `RenameOnly`, or `StructuralFlexible`. Unlisted ambient
-variables are rigid. A generic scheme instance is rename-only: it may be
-alpha-renamed to another non-structural variable, but it must not acquire a
-constructor such as `Collection`. Fresh consumer and constructor-local
-variables are structural until their scope is complete.
+Nested `Matcher` and `MatcherSlot` occurrences use the same two-sorted rules
+as root occurrences. Capability variables are ordinary unification variables;
+there is no origin ledger, protected-producer set, or history-dependent
+classification. Scheme instantiation simply freshens quantified capability
+variables, and all capability equations use the ordinary most general
+unifier.
 
-Constructor and primitive schemes use a dedicated structural instantiation
-path. After the application constraints have been solved, only structural
-capability leaves that remain visible in the exported type are frozen to
-rename-only. A constructor capability consumed entirely inside an application
-therefore stays locally flexible, while a partially applied or bare
-constructor cannot export structural flexibility.
+The core solver still fails closed. It does not weaken an unsolved equation to
+ordinary `TAny`, capability `Any`, or a fresh unconstrained slot, and it does
+not retry with an older matcher algorithm. A separate extension rule applies
+only when its own non-core syntax or type is already present.
 
-Egison also exposes consumer positions as `MatcherSlot` arguments of ordinary
-library combinators such as `list` and `maybe`. On a syntactically direct
-application, only scheme binders occurring in such slots receive the same
-local structural treatment; all other binders remain rename-only, and the
-surviving result leaves are frozen. Taking the function as a value does not
-use this path. Likewise, a named pattern-function application allocates its
-dual binders as local structural pattern demands for that match cut, while
-ordinary standalone dual-scheme instantiation remains rename-only. These are
-production representations of consumer-demand allocation, not permission to
-strengthen an exported producer.
+### 2.4 Directed `Matcher` to `MatcherSlot` conversion
 
-The nested paired-type solver must recurse through products, functions,
-collections, data constructors, tensors, and embedded matcher types while
-consulting the same origin ledger for every capability component. Tensor
-application retains Egison's traversal rule; the capability-origin check does
-not change that evaluation-order extension.
-
-The core solver fails closed. If a nested core constraint cannot be handled by
-its origin-aware two-sorted rules, inference fails rather than weakening the
-constraint to ordinary `TAny`, capability `Any`, or a fresh unconstrained slot.
-There is no failure-triggered retry. A separate extension rule can apply only
-when its own non-core syntax or type is already present in the constraint.
-
-An origin violation is never such a warning event. Any substitution that
-strengthens a rigid or rename-only variable is rejected as a type error before
-it can be committed to the global substitution.
-
-### 2.4 One-way `Matcher` to `MatcherSlot` coercion
-
-Coercion is producer-to-consumer and is not symmetric unification:
+The conversion is selected only from producer to consumer:
 
 ```text
 Matcher kappa_p tau_p  ->  MatcherSlot kappa_c tau_c
 ```
 
-At the start of the check, the bindable capability domain is fixed to flexible
-variables owned only by the consumer. Producer variables, and variables shared
-by producer and consumer, remain rigid even if they later occur in a consumer
-position during recursive decomposition. Repeated consumer variables must be
-solved consistently, and the occurs check remains active.
+The direction belongs to choosing this conversion, not to capability
+unification. The target equation `tau_p = tau_c` is solved with A/R-preserving
+ordinary unification. If the consumer capability is literal `Any`, it adds no
+capability equation; otherwise `kappa_p = kappa_c` is solved by the ordinary
+capability MGU. Thus a fresh producer variable may be specialized by the use
+site. Ground capability `Any` remains distinct from a structured capability.
 
-Capability `Any` is a ground constructor, not an unsolved metavariable. Its
-wildcard behavior is limited to a literal `Any` node in the original consumer
-shape of this one-way judgment. Producer `Any` is rigid, as is every `Any` in
-symmetric capability unification and exact evidence merging. If a consumer
-variable is first bound to producer `Any`, a later occurrence of that variable
-must compare strictly with the saved `Any`; applying the substitution must not
-turn it into a new wildcard. Thus matching `Prod[Any, K]` against the consumer
-`Prod[kappa, kappa]` fails unless `K` is also `Any`. The original-node
-provenance and shared binding environment are retained across product-slot
-aggregation, nested `Matcher`/`MatcherSlot` types, and multi-parameter
-one-way matching.
-
-The capability check runs first. Its substitution is applied to constraints
-and both targets before the ordinary target equality is solved. The resulting
-substitutions are composed in that order. Tuple coercion is componentwise and
-preserves the same fixed producer/consumer boundary in every nested component.
+Tuple conversion is componentwise. The fresh target variable for each source
+tuple component is argument-class (A), because a component target may itself
+contain `MatcherSlot`.
 
 This coercion is available only at an explicit slot-use boundary. Generic type
 equality rejects `Matcher`/`MatcherSlot` crossing and raw tuple/matcher
@@ -257,7 +216,9 @@ with the one result type shared by the ordinary arms. At runtime it is
 evaluated in the original environment only after every ordinary arm has
 produced an empty result. It is not a wildcard arm and performs no matcher
 operation of its own. The enumerating forms `matchAll` and `matchAllDFS` do not
-have this fallback.
+have this fallback. TypePM requires the fallback; production Egison keeps it
+optional and reports omission only when `--match-without-else-warnings` is
+enabled.
 
 ### 2.7 Primitive-pattern capture order
 
@@ -292,30 +253,14 @@ syntax-only warning is distinct from `checkVpScope`: an actual user value
 pattern that refers to a binding made to its left in the same matcher atom is
 still a hard type error.
 
-### 2.8 Allocated/protected producer ledger
+### 2.8 Source-ordered match inference
 
-The production solver maintains explicit sets for capability variables
-allocated during inference and for variables protected from later
-consumer-side solving. Scheme capability images are protected immediately;
-inference-owned variables that survive in a finalized matcher capability are
-protected at finalization.
-
-The ledger has the following invariants:
-
-- a producer variable is allocated before any target equality can expose it in
-  a consumer position;
-- a protected producer variable is never added to a one-way substitution
-  domain later in decomposition;
-- fresh hole and scheme-instance variables have distinct allocation
-  identities, even when subsequent target unification makes their displayed
-  types equal;
-- zonking does not change allocation identity; and
-- nested solver calls inherit the protected set of their enclosing producer.
-
-This information must be carried explicitly. The final capability is
-intersected with the allocation set only to select which surviving
-inference-owned variables become protected; source capability variables are
-therefore not accidentally claimed by the matcher producer.
+`matchAll` checks `target -> pattern -> matcher -> body`. `match` synthesizes
+the matcher after the target, then checks each arm as
+`pattern -> matcher-slot conversion -> body`. An arm's pattern is inferred
+once; all patterns are not pre-scanned. Every body and the optional fallback
+shares one fresh R result variable, and the fallback is checked last outside
+arm bindings.
 
 ## 3. Egison extension rules
 
@@ -528,12 +473,11 @@ Both cases are reported with the relevant types. Successful use of the core
 solver does not warn. The first rule applies only at the explicit slot-use
 boundary and is not matcher capability evidence.
 
-Capability-origin violations, generic `Matcher`/`MatcherSlot` crossing,
-same-head nested matcher mismatches, and implicit tuple-to-slot decomposition
-remain hard errors. In particular, the ground capability `Any` of a value
-`Matcher Any tau` cannot witness a structured capability, and no extension
-rule may replace a capability failure with capability `Any` or an
-unconstrained variable.
+Generic `Matcher`/`MatcherSlot` crossing, incompatible ground capability
+heads, and implicit raw-product conversion remain hard errors. In particular,
+the ground capability `Any` of a value `Matcher Any tau` cannot witness a
+structured capability, and no extension rule may replace a capability failure
+with capability `Any` or an unconstrained variable.
 
 Recursive matcher uses do not select an extension merely because they pass
 through an alias or ordinary function application. They use the A/R rule in
@@ -541,18 +485,28 @@ Section 2.1 and the type-derived next-matcher check.
 
 ## 5. Coverage uses a separate option
 
-Coverage is a well-formedness premise of the mechanized core, while the
-production language deliberately retains it as a separate opt-in diagnostic.
-Coverage diagnostics remain controlled by:
+ArmCoverage is a hard well-formedness check in both systems: the final arm is
+irrefutable, or all arms are constructor-rooted and general arms cover every
+constructor of every mentioned data former. CatchAllLast likewise requires
+exactly one final bare-hole clause, without restricting that clause to one
+variable arm.
+
+RootCoverage is a premise of the mechanized core, while production Egison
+deliberately retains only this condition as an opt-in diagnostic. It is
+controlled by:
 
 ```text
 --matcher-consistency-warnings
 ```
 
-They must not be enabled, disabled, reclassified, or used as capability
-evidence by the outside-core warning flags. Auditing a production program
-against the complete core acceptance conditions therefore requires
-`--matcher-consistency-warnings` together with the relevant outside-core flags.
+It must not be enabled, disabled, reclassified, or used as capability evidence
+by the outside-core warning flags. A warning is emitted exactly when a clause
+header mentions a declared pattern former and some declared constructor of
+that former lacks a general clause. Tuple capability alone creates no
+RootCoverage obligation. Auditing a production program against the complete
+core acceptance conditions therefore requires `--matcher-consistency-warnings`
+together with the relevant outside-core flags and
+`--match-without-else-warnings`.
 A matcher can exercise only synchronized inference operations while
 remaining intentionally partial under the production policy, and it can be
 coverage-complete while using an out-of-core Egison extension.

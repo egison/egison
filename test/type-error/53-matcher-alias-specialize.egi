@@ -1,6 +1,5 @@
--- Target specialization is allowed, but an annotation cannot strengthen a
--- producer's capability.  `eq` has type `{Eq a} => Matcher Any a`;
--- claiming Integer constructor capability would change what patterns may
--- safely be routed to it.
+-- Target specialization is allowed, but ground capability Any does not unify
+-- with ground capability Integer.  `eq` therefore cannot be annotated as a
+-- matcher that supports Integer constructor patterns.
 
 def myint : Matcher Integer Integer := eq

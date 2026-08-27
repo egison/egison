@@ -14,9 +14,6 @@ module Language.Egison.Type.Types
   ( Type(..)
   , Capability(..)
   , CapVar(..)
-  , CapOrigin(..)
-  , CapabilityOriginLedger
-  , capabilityOriginOf
   , TypeFormer(..)
   , TypeFormerId(..)
   , SymbolSet(..)
@@ -88,8 +85,6 @@ import           Data.Char        (toLower, toUpper)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import           Data.Hashable    (Hashable)
-import           Data.Map.Strict  (Map)
-import qualified Data.Map.Strict  as Map
 import           Data.Set         (Set)
 import qualified Data.Set         as Set
 import           GHC.Generics     (Generic)
@@ -132,23 +127,6 @@ asResultTyVar = ResultTyVar . tyVarName
 newtype CapVar = MkCapVar String
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype Hashable
-
--- | Runtime solve permission attached to a flexible capability variable.
--- Variables absent from the ledger are source/signature owned and therefore
--- rigid.  Exported producer variables retain alpha-renaming freedom without
--- regaining permission to acquire structural capability evidence.
-data CapOrigin
-  = Rigid
-  | RenameOnly
-  | StructuralFlexible
-  deriving (Eq, Ord, Show, Generic, Hashable)
-
-type CapabilityOriginLedger = Map CapVar CapOrigin
-
--- | Look up one capability origin.  Unlisted variables are rigid.
-capabilityOriginOf :: CapabilityOriginLedger -> CapVar -> CapOrigin
-capabilityOriginOf ledger variable =
-  Map.findWithDefault Rigid variable ledger
 
 -- | Canonical identity of a type former in the frozen signature
 -- environment.  Surface synonyms are removed before an ID is constructed.

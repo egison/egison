@@ -20,6 +20,7 @@
 - [pattern-function-implementation.md](./pattern-function-implementation.md): パターン関数の `DualScheme` と実装契約。
 - [matcher-capability.md](./matcher-capability.md): Egison 本体における二-sort matcher capability の実装範囲。
 - [type-pm-compatibility.md](./type-pm-compatibility.md): `type-pm-mech3` の core と Egison 固有拡張の境界。
+- [type-pm-conformance.md](./type-pm-conformance.md): TypePM との適合条件、警告として残す拡張、回帰検査。
 
 形式仕様と証明の正本は `type-pm-mech3` に置く。Egison 側の文書は、実装との対応と
 Egison core 外の拡張だけを記述する。

@@ -1,0 +1,4 @@
+-- Pattern-constructor field parameters must likewise be determined by the
+-- result signature.
+
+inductive pattern HiddenPatternMatcher := hiddenPatternMatcher (Matcher p Integer)

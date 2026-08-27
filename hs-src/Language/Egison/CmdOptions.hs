@@ -47,8 +47,9 @@ data EgisonOpts = EgisonOpts {
     optOutsideEgisonCoreWarnings :: Bool,         -- ^ Warn when checking proceeds through an extension outside Egison core
     optPatternHoleBeforePrimitiveValuePatternWarnings :: Bool,
                                                    -- ^ Warn when a primitive-pattern hole precedes a primitive value pattern
-    optNestedStructuredPrimitivePatternPatternWarnings :: Bool
+    optNestedStructuredPrimitivePatternPatternWarnings :: Bool,
                                                    -- ^ Warn about nested structured primitive-pattern patterns
+    optMatchWithoutElseWarnings :: Bool             -- ^ Warn when match/matchDFS omits else
     }
 
 defaultOption :: EgisonOpts
@@ -82,6 +83,7 @@ defaultOption = EgisonOpts
   , optOutsideEgisonCoreWarnings = False
   , optPatternHoleBeforePrimitiveValuePatternWarnings = False
   , optNestedStructuredPrimitivePatternPatternWarnings = False
+  , optMatchWithoutElseWarnings = False
   }
 
 cmdParser :: ParserInfo EgisonOpts
@@ -198,6 +200,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "nested-structured-primitive-pattern-pattern-warnings"
                   <> help "Warn when a matcher clause contains a nested structured primitive-pattern pattern")
+            <*> switch
+                  (long "match-without-else-warnings"
+                  <> help "Warn when match or matchDFS omits its optional final else branch")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

@@ -63,7 +63,7 @@ import           Language.Egison.Type.Types     (CapVar (..),
 import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
                                                   matchCapability, matchOneWay,
                                                   unify, unifyCapability,
-                                                  unifyWithOriginsAndConstraints)
+                                                  unifyWithConstraints)
 
 main :: IO ()
 main = do
@@ -78,16 +78,19 @@ main = do
          , arInferenceTests
          , coreConservativeExtensionTests
          , cliWarningFlagParsingTests
+         , matchWithoutElseWarningTests
          , primitivePatternWarningTests
+         , matcherStaticConditionTests
          , outsideEgisonCoreWarningTests
          , patternFunctionDualSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
+         , signatureBoundaryTypeErrorTests
          , closedFieldTypeErrorTests
          , strictPipelineTests
          , strictSelectedCoreTests
          , annotationRigidityTests
-         , capabilityOriginTests
+         , capabilityMguTests
          , failedInferAtomicityTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
@@ -98,15 +101,19 @@ cliWarningFlagParsingTests =
     [ parses
         "general outside-core warning flag"
         "--outside-egison-core-warnings"
-        (True, False, False)
+        (True, False, False, False)
     , parses
         "pattern-hole ordering warning flag"
         "--pattern-hole-before-primitive-value-pattern-warnings"
-        (False, True, False)
+        (False, True, False, False)
     , parses
         "nested structured primitive-pattern warning flag"
         "--nested-structured-primitive-pattern-pattern-warnings"
-        (False, False, True)
+        (False, False, True, False)
+    , parses
+        "match without else warning flag"
+        "--match-without-else-warnings"
+        (False, False, False, True)
     ]
   where
     parses label flag expected =
@@ -119,11 +126,60 @@ cliWarningFlagParsingTests =
               ( optOutsideEgisonCoreWarnings options
               , optPatternHoleBeforePrimitiveValuePatternWarnings options
               , optNestedStructuredPrimitivePatternPatternWarnings options
+              , optMatchWithoutElseWarnings options
               )
           Failure _ ->
             assertFailure ("the CLI parser rejected " ++ flag)
           CompletionInvoked _ ->
             assertFailure ("the CLI parser requested completion for " ++ flag)
+
+matchWithoutElseWarningTests :: Test
+matchWithoutElseWarningTests =
+  TestLabel "match without else warnings" . TestList $
+    [ checksMode BFSMode
+    , checksMode DFSMode
+    ]
+  where
+    checksMode mode = TestLabel (show mode) . TestCase $ do
+      let withoutElse =
+            IMatchExpr
+              mode
+              (IConstantExpr (IntegerExpr 1))
+              (IConstantExpr SomethingExpr)
+              [(IWildCard, IConstantExpr (IntegerExpr 1))]
+              Nothing
+          withElse =
+            IMatchExpr
+              mode
+              (IConstantExpr (IntegerExpr 1))
+              (IConstantExpr SomethingExpr)
+              [(IWildCard, IConstantExpr (IntegerExpr 1))]
+              (Just (IConstantExpr (IntegerExpr 0)))
+          offConfig = defaultInferConfig
+          onConfig = defaultInferConfig
+            { cfgMatchWithoutElseWarnings = True }
+      (offResult, offWarnings) <-
+        runInferWithWarnings
+          (inferIExpr withoutElse)
+          (initialInferStateWithConfig offConfig)
+      (onResult, onWarnings) <-
+        runInferWithWarnings
+          (inferIExpr withoutElse)
+          (initialInferStateWithConfig onConfig)
+      (elseResult, elseWarnings) <-
+        runInferWithWarnings
+          (inferIExpr withElse)
+          (initialInferStateWithConfig onConfig)
+      assertBool "warning-off inference succeeds" (either (const False) (const True) offResult)
+      assertBool "warning-on inference succeeds" (either (const False) (const True) onResult)
+      assertBool "else inference succeeds" (either (const False) (const True) elseResult)
+      assertEqual "the option does not alter warning-off behavior" [] offWarnings
+      case onWarnings of
+        [MatchWithoutElseWarning _] -> return ()
+        other ->
+          assertFailure
+            ("expected one match-without-else warning, got " ++ show other)
+      assertEqual "an explicit else does not warn" [] elseWarnings
 
 primitivePatternWarningTests :: Test
 primitivePatternWarningTests =
@@ -278,6 +334,100 @@ primitivePatternWarningTests =
         NestedStructuredPrimitivePatternPatternWarning{} -> True
         _ -> False
 
+matcherStaticConditionTests :: Test
+matcherStaticConditionTests =
+  TestLabel "TypePM matcher static conditions" . TestList $
+    [ TestLabel "catch-all arms may enumerate a complete ADT" . TestCase $ do
+        (result, warnings) <-
+          runInferWithWarnings
+            (inferIExpr completeDataMatcher)
+            dataState
+        case result of
+          Left err ->
+            assertFailure
+              ("complete constructor arms were rejected: " ++ show err)
+          Right _ -> return ()
+        assertEqual "hard static checks emit no warning" [] warnings
+
+    , TestLabel "incomplete constructor arms are rejected" . TestCase $ do
+        (result, _) <-
+          runInferWithWarnings
+            (inferIExpr incompleteDataMatcher)
+            dataState
+        case result of
+          Left MatcherDataArmsNotExhaustive{} -> return ()
+          Left err ->
+            assertFailure
+              ("incomplete arms failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure "an incomplete user-ADT arm set was accepted"
+
+    , TestLabel "RootCoverage warning uses mentioned pattern formers" .
+        TestCase $ do
+          let offState = patternState False
+              onState = patternState True
+          (offResult, offWarnings) <-
+            runInferWithWarnings (inferIExpr partialPatternMatcher) offState
+          (onResult, onWarnings) <-
+            runInferWithWarnings (inferIExpr partialPatternMatcher) onState
+          assertBool "warning-off matcher succeeds"
+            (either (const False) (const True) offResult)
+          assertBool "warning-on matcher succeeds"
+            (either (const False) (const True) onResult)
+          assertEqual "RootCoverage is silent by default" [] offWarnings
+          case onWarnings of
+            [MatcherCoverageWarning _ missing _] ->
+              assertEqual "only the missing constructor is reported" ["pB"] missing
+            other ->
+              assertFailure
+                ("expected one RootCoverage warning, got " ++ show other)
+    ]
+  where
+    choiceType = TInductive "StaticChoice" []
+    nullaryChoiceScheme = Forall [] [] [] choiceType
+    dataEnvironment =
+      TypeEnv.extendEnv (Var "ChoiceA" []) nullaryChoiceScheme $
+        TypeEnv.extendEnv (Var "ChoiceB" []) nullaryChoiceScheme emptyEnv
+    dataState =
+      initialInferState
+        { inferEnv = dataEnvironment
+        , inferDataConstructorNames = Set.fromList ["ChoiceA", "ChoiceB"]
+        }
+    completeDataMatcher =
+      dataMatcher
+        [ PDInductivePat "ChoiceA" []
+        , PDInductivePat "ChoiceB" []
+        ]
+    incompleteDataMatcher = dataMatcher [PDInductivePat "ChoiceA" []]
+    dataMatcher arms =
+      IMatcherExpr
+        [ ( PPPatVar
+          , IConstantExpr SomethingExpr
+          , [ (arm, ICollectionExpr []) | arm <- arms ]
+          )
+        ]
+
+    patternType = TInductive "StaticPattern" []
+    patternEnvironment =
+      extendPatternEnv "pA" (Forall [] [] [] patternType) $
+        extendPatternEnv "pB" (Forall [] [] [] patternType) emptyPatternEnv
+    patternState enabled =
+      (initialInferStateWithConfig
+        defaultInferConfig
+          { cfgMatcherConsistencyWarnings = enabled })
+        { inferPatternEnv = patternEnvironment }
+    partialPatternMatcher =
+      IMatcherExpr
+        [ ( PPInductivePat "pA" []
+          , ITupleExpr []
+          , [(PDPatVar (Var "value" []), ICollectionExpr [])]
+          )
+        , ( PPPatVar
+          , IConstantExpr SomethingExpr
+          , [(PDWildCard, ICollectionExpr [])]
+          )
+        ]
+
 outsideEgisonCoreWarningTests :: Test
 outsideEgisonCoreWarningTests =
   TestLabel "outside-Egison-core warnings" $ TestCase $ do
@@ -362,8 +512,7 @@ coreConservativeExtensionTests =
       TestLabel label . TestCase $ do
         let coreResult =
               fmap fst $
-                unifyWithOriginsAndConstraints
-                  Map.empty emptyClassEnv [] left right
+                unifyWithConstraints emptyClassEnv [] left right
             config =
               defaultInferConfig
                 { cfgOutsideEgisonCoreWarnings = True }
@@ -935,7 +1084,7 @@ patternFunctionDualSchemeTests =
               second <- instantiateDualSchemeInState scheme
               return (first, second)
 
-        (result, warnings, finalState) <-
+        (result, warnings, _finalState) <-
           runInferWithWarningsAndState
             instantiateTwice
             (initialInferStateWithConfig defaultInferConfig)
@@ -956,8 +1105,6 @@ patternFunctionDualSchemeTests =
                       secondCapabilities = [secondCapLeft, secondCapRight]
                       firstTargets = [firstTypeLeft, firstTypeRight]
                       secondTargets = [secondTypeLeft, secondTypeRight]
-                      allCapabilities =
-                        firstCapabilities ++ secondCapabilities
                   assertBool
                     "capability images within the first instance are distinct"
                     (firstCapLeft /= firstCapRight)
@@ -976,24 +1123,10 @@ patternFunctionDualSchemeTests =
                   assertBool
                     "separate instances must not share target images"
                     (all (`notElem` secondTargets) firstTargets)
-                  assertBool
-                    "fresh capability images are recorded as allocated"
-                    (all
-                      (\variable ->
-                        Set.member variable
-                          (inferAllocatedCapVars finalState))
-                      allCapabilities)
-                  assertBool
-                    "fresh capability images are protected from strengthening"
-                    (all
-                      (\variable ->
-                        Set.member variable (inferProtectedCaps finalState))
-                      allCapabilities)
               other ->
                 assertFailure
                   ("instantiation lost an argument/result correlation: " ++
                    show other)
-
     , TestLabel "named applications distinguish finalized and header-only schemes" .
         TestCase $ do
           let typeVariable = TyVar "a"
@@ -1481,7 +1614,7 @@ matcherCapabilityTests =
             assertFailure
               "identical malformed capabilities bypassed the kind invariant"
 
-  , TestLabel "TypePM: capability matching binds only the consumer" .
+  , TestLabel "TypePM: capability matching returns an ordinary MGU" .
       TestCase $ do
         let producerVariable = MkCapVar "producer"
             consumerVariable = MkCapVar "consumer"
@@ -1493,13 +1626,9 @@ matcherCapabilityTests =
           either (assertFailure . show) return
             (matchCapability producer consumer)
         assertEqual
-          "the consumer variable must be solved to the producer capability"
-          producer
-          (applyCapSubst substitution consumer)
-        assertEqual
-          "the producer capability must remain unchanged"
-          producer
+          "both capability images agree after the MGU"
           (applyCapSubst substitution producer)
+          (applyCapSubst substitution consumer)
 
   , TestLabel "TypePM: literal consumer Any is a one-way wildcard" .
       TestCase $ do
@@ -1538,19 +1667,22 @@ matcherCapabilityTests =
             assertFailure
               "a repeated consumer variable forgot its first Any binding"
 
-  , TestLabel "TypePM: capability matching never strengthens a producer" .
+  , TestLabel "TypePM: capability matching may specialize a producer" .
       TestCase $ do
         let producer = CapVar (MkCapVar "producer")
             consumer =
               CapCon (mkTypeFormer "Collection" 1) [CapAny]
         case matchCapability producer consumer of
-          Left _ ->
-            return ()
-          Right _ ->
+          Left err ->
             assertFailure
-              "a consumer constructor bound the producer capability variable"
+              ("ordinary capability specialization failed: " ++ show err)
+          Right substitution ->
+            assertEqual
+              "the producer is specialized to the demanded structure"
+              consumer
+              (applyCapSubst substitution producer)
 
-  , TestLabel "TypePM: a shared capability variable is not consumer-owned" .
+  , TestLabel "TypePM: capability occurs check rejects a cyclic equality" .
       TestCase $ do
         let shared = MkCapVar "shared"
             producer =
@@ -1561,9 +1693,9 @@ matcherCapabilityTests =
             return ()
           Right _ ->
             assertFailure
-              "a shared variable was rebound through its consumer occurrence"
+              "a cyclic capability equation was unexpectedly accepted"
 
-  , TestLabel "TypePM: target equality cannot strengthen the producer root" .
+  , TestLabel "TypePM: target equality uses ordinary capability MGU" .
       TestCase $ do
         let producerVar = MkCapVar "producer"
             consumerVar = MkCapVar "consumer"
@@ -1578,13 +1710,12 @@ matcherCapabilityTests =
                 (CapVar consumerVar)
                 (TMatcher listAny TInt)
         case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
-          Left _ ->
-            return ()
-          Right _ ->
+          Left err ->
             assertFailure
-              "target unification strengthened the producer capability"
+              ("target capability specialization was rejected: " ++ show err)
+          Right _ -> return ()
 
-  , TestLabel "TypePM: target capability bindings stay in consumer support" .
+  , TestLabel "TypePM: target capability variables may be specialized" .
       TestCase $ do
         let targetVar = MkCapVar "target-only"
             listAny =
@@ -1594,11 +1725,10 @@ matcherCapabilityTests =
             consumer =
               TMatcherSlot CapAny (TMatcher listAny TInt)
         case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
-          Left _ ->
-            return ()
-          Right _ ->
+          Left err ->
             assertFailure
-              "target unification introduced a capability binding outside the consumer"
+              ("target capability variable was not specialized: " ++ show err)
+          Right _ -> return ()
 
   , TestLabel "TypePM: target ordinary variables remain specializable" .
       TestCase $ do
@@ -2202,6 +2332,44 @@ matchElseTypeErrorTests =
             assertFailure
               ("an invalid match else expression was accepted: " ++ file)
 
+signatureBoundaryTypeErrorTests :: Test
+signatureBoundaryTypeErrorTests =
+  TestLabel "TypePM signature boundaries" . TestList $
+    map rejects
+      [ ( "test/type-error/93-data-constructor-open-scheme.egi"
+        , "undeclared type variable(s): a"
+        )
+      , ( "test/type-error/94-data-constructor-undetermined-capability.egi"
+        , "every field type parameter must occur in the constructor result"
+        )
+      , ( "test/type-error/95-pattern-constructor-undetermined-capability.egi"
+        , "every field type parameter must occur in the constructor result"
+        )
+      , ( "test/type-error/96-pattern-function-open-scheme.egi"
+        , "undeclared type variable(s): a"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | expectedFragment `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("signature boundary failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure
+              ("an invalid public signature was accepted: " ++ file)
+
 -- | Closed constructor fields do not project into a nullary result
 -- capability, but an actual primitive-pattern hole still has to expose the
 -- field's visible head.  Require the field-evidence diagnostic so these cases
@@ -2295,53 +2463,30 @@ annotationRigidityTests =
             assertFailure
               "an over-general ordinary annotation was accepted"
 
--- | Executable counterparts of the three capability-origin boundaries in
--- type-pm-mech3: exported producers cannot gain structure, constructor-local
--- binders can, and two frozen variables may be alpha-renamed.
-capabilityOriginTests :: Test
-capabilityOriginTests =
-  TestLabel "TypePM: capability-origin ledger" . TestList $
-    [ TestLabel "producer strengthening is rejected" . TestCase $ do
-        result <- runSource producerStrengtheningSource
-        case result of
-          Left err
-            | "capability-origin violation" `isInfixOf` show err -> return ()
-            | otherwise ->
-                assertFailure
-                  ("producer strengthening failed for an unexpected reason: " ++
-                   show err)
-          Right _ ->
-            assertFailure "a rename-only producer acquired list capability"
+-- | Executable regressions for TypePM's ordinary capability MGU.
+capabilityMguTests :: Test
+capabilityMguTests =
+  TestLabel "TypePM: ordinary capability MGU" . TestList $
+    [ TestLabel "matcher-to-slot may specialize a producer variable" .
+        TestCase $ do
+          let producerVariable = MkCapVar "producer"
+              required = CapCon (mkTypeFormer "Collection" 1) [CapAny]
+          substitution <-
+            either (assertFailure . show) return
+              (matchCapability (CapVar producerVariable) required)
+          assertEqual
+            "the ordinary MGU specializes the producer capability"
+            required
+            (applyCapSubst substitution (CapVar producerVariable))
 
-    , TestLabel "constructor-local specialization is accepted" . TestCase $ do
-        result <- runSource constructorLocalSource
-        case result of
-          Right _ -> do
-            exportedResult <- runSource constructorExportSource
-            case exportedResult of
-              Left err
-                | "capability-origin violation" `isInfixOf` show err ->
-                    return ()
-                | otherwise ->
-                    assertFailure
-                      ("exported constructor capability failed for an " ++
-                       "unexpected reason: " ++ show err)
-              Right _ ->
-                assertFailure
-                  "an exported constructor capability remained structural"
-          Left err ->
-            assertFailure
-              ("constructor-local capability specialization was rejected: " ++
-               show err)
-
-    , TestLabel "frozen-variable rename is accepted" . TestCase $ do
-        result <- runSource safeRenameSource
-        case result of
-          Right _ -> return ()
-          Left err ->
-            assertFailure
-              ("safe rename between frozen capability variables was rejected: " ++
-               show err)
+    , TestLabel "a polymorphic matcher instance specializes at its use" .
+        TestCase $ do
+          result <- runSource producerSpecializationSource
+          case result of
+            Right _ -> return ()
+            Left err ->
+              assertFailure
+                ("ordinary capability specialization was rejected: " ++ show err)
     ]
   where
     runSource source = fromEvalM
@@ -2354,7 +2499,7 @@ capabilityOriginTests =
           expressions <- readTopExprs source
           evalTopExprsNoPrint env expressions
 
-    producerStrengtheningSource = unlines
+    producerSpecializationSource = unlines
       [ "def passMatcher {a}"
       , "  (m : Matcher p a)"
       , "  : Matcher p a := m"
@@ -2364,29 +2509,6 @@ capabilityOriginTests =
       , "  : Integer := 0"
       , ""
       , "def result := requireListFunction passMatcher"
-      ]
-
-    constructorLocalSource = unlines
-      [ "inductive Packed := Pack (Matcher p Integer)"
-      , ""
-      , "def packed := Pack something"
-      ]
-
-    constructorExportSource = unlines
-      [ "inductive Packed := Pack (Matcher p Integer)"
-      , ""
-      , "def packer := Pack"
-      , "def packed := packer something"
-      ]
-
-    safeRenameSource = unlines
-      [ "def passMatcher {a}"
-      , "  (m : Matcher p a)"
-      , "  : Matcher p a := m"
-      , ""
-      , "def sameType {a} (x : a) (y : a) : a := x"
-      , ""
-      , "def result := sameType passMatcher passMatcher"
       ]
 
 -- | A rejected top-level item must not publish the temporary recursive

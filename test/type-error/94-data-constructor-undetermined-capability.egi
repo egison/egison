@@ -1,0 +1,4 @@
+-- A capability parameter that occurs only in a constructor field cannot be
+-- recovered from the constructor result.
+
+inductive HiddenMatcher := HiddenMatcher (Matcher p Integer)

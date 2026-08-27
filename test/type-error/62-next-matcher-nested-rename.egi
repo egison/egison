@@ -1,7 +1,6 @@
--- R12 fresh_rename preserves the complete nested type skeleton.  The hole
--- requires `Maybe [p]` capability, whereas `maybe something` has only
--- `Maybe Any`.  Target unification can set the target to `[a]`, but must
--- not retroactively strengthen the frozen capability.
+-- The hole requires `Maybe [p]` capability, whereas `maybe something` has
+-- `Maybe Any`.  The ground Any child does not unify with the Collection
+-- capability required by the nested list field.
 --
 -- Expected: Type error (nested list structure is absent from the capability)
 

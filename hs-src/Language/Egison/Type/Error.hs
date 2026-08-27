@@ -83,6 +83,8 @@ data TypeWarning
   | NestedStructuredPrimitivePatternPatternWarning String TypeErrorContext
     -- ^ A primitive-pattern pattern (rendered in the first field) nests a
     --   constructor or tuple inside another structured node.
+  | MatchWithoutElseWarning TypeErrorContext
+    -- ^ A match or matchDFS expression omits its optional final else branch.
   | ClassMethodShadowWarning String String TypeErrorContext
     -- ^ A top-level definition reuses a class method name (method name, class name).
     --   The definition replaces the dispatching binding, so the method stops
@@ -354,6 +356,11 @@ formatTypeWarning warn = case warn of
     formatWithContext ctx $
       "Warning: nested structured primitive-pattern pattern `" ++ pattern ++ "`." ++
       "\n  Production Egison accepts this matcher clause; its end-to-end core bridge has not been validated."
+
+  MatchWithoutElseWarning ctx ->
+    formatWithContext ctx $
+      "Warning: match expression has no final else branch." ++
+      "\n  Egison permits this partial match; add `else` to handle unmatched targets."
 
   ClassMethodShadowWarning name cls ctx ->
     formatWithContext ctx $

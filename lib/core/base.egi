@@ -237,5 +237,6 @@ def unorderedPair {a} (m: MatcherSlot p a) : Matcher (p, p) (a, a) :=
   matcher
     | ($, $) as (m, m) with
       | ($x, $y) -> [(x, y), (y, x)]
+      | _ -> []
     | $ as something with
       | $tgt -> [tgt]

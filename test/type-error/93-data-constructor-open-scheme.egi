@@ -1,0 +1,4 @@
+-- A constructor signature is closed: an ordinary field type variable must
+-- be declared by the inductive type header.
+
+inductive OpenBox := OpenBox a

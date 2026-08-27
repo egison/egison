@@ -147,6 +147,7 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 | `--pattern-hole-before-primitive-value-pattern-warnings` | Phase 5-6 | 左側に pattern hole がある primitive value pattern | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
 | `--nested-structured-primitive-pattern-pattern-warnings` | Phase 5-6 | 入れ子の structured primitive-pattern pattern | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
 | `--matcher-consistency-warnings` | Phase 5-6 | matcher Coverage | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
+| `--match-without-else-warnings` | Phase 5-6 | `else` を省略した `match`／`matchDFS` | `CmdOptions.hs` + `Eval.hs` + `Type/Infer.hs` |
 | `--verbose` | 全て | 各段階の詳細 | `Eval.hs` |
 
 ## データフロー詳細

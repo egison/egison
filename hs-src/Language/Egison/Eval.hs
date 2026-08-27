@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgOutsideEgisonCoreWarnings, cfgPatternHoleBeforePrimitiveValuePatternWarnings, cfgNestedStructuredPrimitivePatternPatternWarnings)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgOutsideEgisonCoreWarnings, cfgPatternHoleBeforePrimitiveValuePatternWarnings, cfgNestedStructuredPrimitivePatternPatternWarnings, cfgMatchWithoutElseWarnings)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv,
                                            extendEnvMany, envToList,
                                            classEnvToList, lookupInstances,
@@ -426,6 +426,8 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
                               optPatternHoleBeforePrimitiveValuePatternWarnings opts
                           , cfgNestedStructuredPrimitivePatternPatternWarnings =
                               optNestedStructuredPrimitivePatternPatternWarnings opts
+                          , cfgMatchWithoutElseWarnings =
+                              optMatchWithoutElseWarnings opts
                           }
       currentPatternEnv' <- getPatternEnv
       currentPatternFuncDeclEnv' <- getPatternFuncDeclEnv

@@ -1,5 +1,5 @@
--- A ground-Any matcher value cannot be bound at a structured matcher
--- type.  This cast would let cons patterns reach
--- `something`, which cannot decompose them (well-typed but stuck).
+-- Ground capability Any and Collection Any are distinct constructors, so
+-- their ordinary capability equation has no solution.  This cast would let
+-- cons patterns reach `something`, which cannot decompose them.
 
 def m2 : Matcher [Any] [Integer] := something
