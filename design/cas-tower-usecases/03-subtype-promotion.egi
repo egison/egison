@@ -1,41 +1,18 @@
--- Use case 03: サブタイプによる自動昇格 (Phase β)
+-- Use case 03: サブタイプによる自動昇格
 --
--- Intent:
---   `Integer` の値を GaussianInt と混在させて演算したとき、自動的に
---   GaussianInt として扱われるようにしたい。現状のタワーは Integer ⊂ Frac Integer
---   ⊂ Poly Integer [..] が hard-code だが、user-declared cas-type への
---   subtype 関係も同様に動くようにする。
+-- `Integer` と GaussianInt を混在させた演算で、一意な最小上界を計算して
+-- GaussianInt 側へ昇格できることを確認する。
 --
--- Required machinery:
---   - Phase α (型 alias)
---   - Phase β (`declare cas-subtype` + dynamic isSubtype)
---   - join lattice 計算: 任意 2 型の LUB を求める
---   - `Type/Join.hs:joinTypes` を DeclareEnv 参照に拡張
+-- `declare cas-subtype` は型レベルの関係だけを追加する。値の表現は
+-- `casReshapeAs` が組み替える。推移閉包と一意な最小上界は
+-- `Type/Subtype.hs` が計算し、宣言時に曖昧性を検査する。
 --
--- Resolved (2026-07-04):
---   - D5: embed 関数は**存在しない**。`declare cas-subtype A ⊂ B` は関係のみを宣言し、
---     昇格は常に casReshapeAs (構造書き換え・値不変)。coherence は吸収律で無条件保証
---   - 推移閉包は宣言プリパスで DAG として計算・保持 (Phase β、Type/Subtype.hs)
---   - join の一意性は D1: declare 時に join 半束性を検査し、破れる辺は
---     欠落辺の提案つきでエラー (08-join-completion.egi 参照)
---
--- Implementation note (β 着手時に確認):
---   D3 (透明エイリアス) の帰結として GaussianInt = Poly Integer [i] なので、
---   Integer ⊂ GaussianInt は骨格規則 (Integer ⊂ Poly Integer atoms) +
---   エイリアス展開から導出可能のはず。cas-subtype 宣言が本当に必要になるのは
---   骨格から導出できない辺 (例: nested と flat の正規形間の順序配置) に
---   限られる可能性がある — β 実装時に「宣言が必須な辺」の範囲を確定する
---
--- Tests:
-
 declare symbol i
 declare rule auto term i^2 = -1
 declare cas-type GaussianInt := Poly Integer [i]
 
 declare cas-subtype Integer ⊂ GaussianInt
-  -- 関係のみの宣言 (D5)。昇格 n : Integer → GaussianInt は casReshapeAs が
-  -- CASInteger n を CASPoly [CASTerm (CASInteger n) []] に書き換える
-  -- (骨格規則から導出可能なら本宣言は冗長 — 上の Implementation note 参照)
+  -- 関係だけを宣言し、値の表現は casReshapeAs が組み替える
 
 -- 自動昇格: Integer + GaussianInt → GaussianInt
 def z := 5 + 3 * i
@@ -52,7 +29,4 @@ assertEqual "promotion in arithmetic"
 -- 通常のタワー (Integer ⊂ Frac Integer) との共存
 def q : Frac Integer := 1 / 2
 def r := q + 3 * i  -- 期待: Poly (Frac Integer) [i]
-                    -- 骨格 join: level 2 ⊔ level 3 → level 4 (2026-07-04 修正 —
-                    -- 旧版の「Frac (Poly Integer [i])」は誤り。level 5 に上がるのは
-                    -- 分母が非モノミアルのときだけで、ここでは該当しない)
 inspect r

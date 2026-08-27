@@ -2,13 +2,13 @@
 Module      : Language.Egison.Type.Subtype
 Licence     : MIT
 
-Phase beta of the extensible CAS tower (design/type-cas-tower.md D1/D5,
-design/type-cas-tower-implementation.md section 3).
+The extensible CAS tower is specified in
+design/type-cas-tower-implementation.md section 3.
 
 This module implements the dynamic subtype order: a structural skeleton
 (the design document's inclusion table, complete with coefficient
 propagation) extended with user-declared `declare cas-subtype A ⊂ B`
-edges, plus the D1 declare-time join-semilattice check:
+edges, plus the declare-time join-semilattice check:
 
   * an edge already derivable from the order is redundant (warning; it is
     still stored so its endpoints participate in later checks)
@@ -20,15 +20,12 @@ edges, plus the D1 declare-time join-semilattice check:
     change, static types only become more precise)
 
 The pair enumeration runs over declared nodes (all endpoints ever
-declared, including redundant edges) — a finite approximation of the
-full scheme-level check, to be refined counterexample-driven
-(implementation plan, section 7).
+declared, including redundant edges) — the finite approximation documented
+in design/type-cas-tower-implementation.md section 3.
 
 This order also backs instance resolution (Type.Instance and Core's
 runtime dispatch) through 'isSubtypeWith', which additionally treats
-'TAny' as the top element for arbitrary (non-CAS) instance types. The
-older, partial relation that instance resolution used to carry
-separately ('Type.Join.isSubtype') has been retired.
+'TAny' as the top element for arbitrary (non-CAS) instance types.
 -}
 
 module Language.Egison.Type.Subtype
@@ -234,7 +231,7 @@ joinTypesWith edges a b =
       v /= u && isSubtypeWith edges v u && not (isSubtypeWith edges u v)
 
 --------------------------------------------------------------------------------
--- D1 declare-time check
+-- Declare-time check
 --------------------------------------------------------------------------------
 
 -- | Result of checking a new edge against the current order.
@@ -253,7 +250,7 @@ data EdgeCheck
   | EdgeOk
   deriving (Eq, Show)
 
--- | D1 join-semilattice check for adding edge (a ⊂ b).
+-- | Join-semilattice check for adding edge (a ⊂ b).
 -- Pairs are drawn from declared nodes below b in the extended order.
 checkEdgeAddition :: SubtypeEnv -> SubtypeEdge -> EdgeCheck
 checkEdgeAddition edges (a, b)

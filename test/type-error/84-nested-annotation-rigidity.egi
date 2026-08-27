@@ -2,6 +2,6 @@
 -- the same rigid binder as the outer scheme.  Treating the inner `a` as a
 -- fresh flexible variable would wrongly allow it to specialize to Integer.
 
-def p2NestedAnnotationMustStayRigid {a} (x : a) : Integer :=
+def nestedAnnotationMustStayRigid {a} (x : a) : Integer :=
   let y := (1 : a)
    in 0

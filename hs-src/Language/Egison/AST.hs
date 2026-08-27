@@ -122,19 +122,19 @@ data TopExpr
     -- Combined with `declare derivative`, this gives the user a callable
     -- function and a registered derivative under one umbrella.
   | DeclareCasType String TypeExpr
-    -- ^ Transparent CAS type alias (Phase alpha of the extensible tower;
-    -- design/type-cas-tower.md D3: transparent aliases only, no nominal types).
+    -- ^ Transparent CAS type alias
+    -- (design/type-cas-tower-implementation.md section 2).
     -- e.g.  declare cas-type GaussianInt := Poly Integer [i]
     -- String: alias name (must be capitalized), TypeExpr: the aliased type.
     -- Expanded away during environment building / desugaring; no runtime artifact.
   | DeclareCasSubtype TypeExpr TypeExpr
-    -- ^ Subtype-order edge declaration (Phase beta; design D1/D5).
+    -- ^ Subtype-order edge declaration.
     -- e.g.  declare cas-subtype Poly Integer [i, x] <: Poly (Poly Integer [i]) [x]
     --       declare cas-subtype Integer ⊂ GaussianInt
-    -- Relation only (D5: no embed clause — promotion is always casReshapeAs).
-    -- Checked at declare time for the D1 join-semilattice invariant.
+    -- Relation only: there is no embed clause, and promotion always uses
+    -- casReshapeAs. Checked at declare time for a unique join.
   | DeclareCasQuotient String TypeExpr Expr
-    -- ^ Coefficient-domain quotient declaration (M4; design/type-cas-quotient.md).
+    -- ^ Coefficient-domain quotient declaration (design/type-cas-quotient.md).
     -- e.g.  declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
     -- String: nominal quotient type name; TypeExpr: base type; Expr: the
     -- idempotent reduce (representative selector). Macro-expanded before
@@ -257,7 +257,7 @@ data Expr
   | LetRecExpr [BindingExpr] Expr
   | WithSymbolsExpr [String] Expr
 
-  | MatchExpr PMMode Expr Expr [MatchClause]
+  | MatchExpr PMMode Expr Expr [MatchClause] (Maybe Expr)
   | MatchAllExpr PMMode Expr Expr [MatchClause]
   | MatchLambdaExpr Expr [MatchClause]
   | MatchAllLambdaExpr Expr [MatchClause]

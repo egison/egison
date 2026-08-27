@@ -1,7 +1,7 @@
 assert "string's value pattern"
   (match "abc" as string with
     | #"abc" -> True
-    | _ -> False)
+    else False)
 
 --
 -- String as collection

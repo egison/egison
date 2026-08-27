@@ -782,7 +782,8 @@ casNormalizeFrac num denom =
 -- a compile-time annotation embedded in the AST, and at evaluation time we
 -- structurally rewrite the CASValue to fit that shape.
 --
--- The implementation follows the type promotion tower (see type-cas-tower.md):
+-- The implementation follows the type promotion tower (see
+-- design/type-cas-tower-implementation.md section 4):
 -- normalize first (which handles tower-level reductions), then recursively
 -- adjust coefficients/numerators/denominators to match nested type arguments.
 -- For values that cannot be reshaped to the target structure (e.g. a value
@@ -832,10 +833,10 @@ reshapeAsFrac innerTy v = case casNormalize v of
 -- The inside atoms are folded into the coefficient (which is then
 -- recursively reshaped to the inner type, repeating the same routing one
 -- level deeper), the outside atoms form the new term's monomial.
--- Note (Phase gamma-prime): the entry `casNormalize v` flattens any nested
+-- The entry `casNormalize v` flattens any nested
 -- shape the input may carry, so reshape is a function of the VALUE only —
 -- this is what makes the absorption law `casReshapeAs C . casReshapeAs B =
--- casReshapeAs C` hold (D5 coherence). The final grouping then uses the
+-- casReshapeAs C` hold. The final grouping then uses the
 -- keep-nested normalizer so the structure just built is not re-flattened.
 reshapeAsPoly :: Type -> SymbolSet -> CASValue -> CASValue
 reshapeAsPoly innerTy outerSS v = case casNormalize v of

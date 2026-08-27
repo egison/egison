@@ -1,39 +1,41 @@
-# 拡張可能 CAS 型タワーのユースケース集
+# 拡張可能 CAS 型タワーの検収例
 
-このディレクトリは、[type-cas-tower.md](../type-cas-tower.md) と [type-cas-quotient.md](../type-cas-quotient.md) の実装 (Phase α–δ / 商機構 q1–q4) の**検収基準**。
+このディレクトリには、[type-cas-tower-implementation.md](../type-cas-tower-implementation.md) と
+[type-cas-quotient.md](../type-cas-quotient.md) の現行機能を検証する、実行可能な Egison
+プログラムだけを置く。穴を含む設計スケッチや、対象外の将来案は置かない。
 
-> **2026-07-04 更新**: 実装完了に伴い、**本体 01–08 の全ファイルがそのまま実行可能**になった (旧 API `coerce` の除去・`_` 入り識別子の camelCase 化・γ′ の flat-exit に合わせた比較の意味論的等価化を実施):
->
-> ```sh
-> for f in design/cas-tower-usecases/0*.egi; do gtimeout 30 cabal run egison -- -t "$f"; done
-> ```
->
-> **2026-07-05 更新**: 暗黙 join が推論に配線された (適用位置 CAS join — implementation.md §7)。06 は明示注釈なしの自然形 `def c := a + b` で通る。
+## 実行
 
-**収録基準 (2026-07-04)**: **本機構で簡潔に書けるものだけ**を置く。確定済みの設計判断 D1–D5 ([type-cas-tower.md §8](../type-cas-tower.md)) の構文・意味論に整合し、`...` の穴や長いアルゴリズム本体を含まないこと。基準を満たさないものは [deferred/](./deferred/) に隔離する。
+各ファイルは `assertEqual` を含み、単独で実行できる。
+
+```sh
+cabal run egison -- -t design/cas-tower-usecases/01-type-alias.egi
+```
+
+Haskell 系のビルド・テストは、ワークスペース規則どおり一度に一つの `cabal` コマンドだけを実行する。
 
 ## ファイル一覧
 
-| 番号 | ファイル | 主な機能 | 必要フェーズ |
-|---|---|---|---|
-| 01 | `01-type-alias.egi` | 透明型エイリアス (D3) | α |
-| 02 | `02-gaussian-integers.egi` | Z[i]: 基本演算・共役 (substitute 1 行)・ノルム | α + 既存規則 |
-| 03 | `03-subtype-promotion.egi` | subtype 自動昇格・骨格 join | β |
-| 04 | `04-gaussian-poly.egi` | 中間型: nested vs flat の正規形選択 (**中核ケーススタディ**) | α+β+γ |
-| 05 | `05-quadratic-extension.egi` | Z[√2]: シンボル担持商・Pell 方程式 | α + 既存規則 |
-| 06 | `06-combined-extensions.egi` | Z[i, √2]: 原子集合 join・Galois ノルム (substitute) | α+β |
-| 07 | `07-modular.egi` | Z/7Z: 商機構 (proj/repr・per-op reduce・型 dispatch Eq) | 商 q1–q4 |
-| 08 | `08-join-completion.egi` | D1: join 半束性検査・完備化・細化単調性 | β |
+| ファイル | 検証する機能 |
+|---|---|
+| `01-type-alias.egi` | 透明な `declare cas-type` と多段別名 |
+| `02-gaussian-integers.egi` | Z[i] の基本演算、共役、ノルム |
+| `03-subtype-promotion.egi` | `declare cas-subtype` による昇格 |
+| `04-gaussian-poly.egi` | 入れ子と平らな多項式正規形の選択 |
+| `05-quadratic-extension.egi` | Z[√2] とシンボルが関係式を担う商 |
+| `06-combined-extensions.egi` | 原子集合の join と複数拡大の合成 |
+| `07-modular.egi` | `declare cas-quotient`, `proj`, `repr`, 演算ごとの reduce |
+| `08-join-completion.egi` | join の半束性検査、完備化候補、細分化 warning |
 
-**[deferred/](./deferred/)**: 収録基準を満たさないもの — 機構スコープ外 (Chebyshev = 再解釈型、Quaternion = ε) と、機構的には書けるが簡潔にならないもの (Z[i] の divMod/UFD 素因数分解)。分類基準は [deferred/README.md](./deferred/README.md)。
+暗黙 join は関数適用位置だけで使い、一般の単一化へは入れない。06 は明示注釈なしの
+`def c := a + b` でこの経路を検証する。実装との対応は
+[type-cas-tower-implementation.md §3, §6](../type-cas-tower-implementation.md) を参照する。
 
-## 読み方
+## 対象外の例
 
-各ファイルの先頭に **Intent / Required machinery / Resolved (確定済み設計判断との対応) / Open questions (残存)** を記載する。コード部分は `assertEqual` を含み、**すべて実行して検証できる** (上記コマンド)。
+- Chebyshev 基底のように同じ表現の読み方を変える型は、値を保って正規形だけを変える
+  CAS 型タワーの対象外である。
+- Quaternion の非可換乗算は、可換な単項式を前提とする現在の `CASValue` の対象外である。
+- Z[i] の素因数分解のように長いアルゴリズム本体が主題となる例は、型機構の検収には含めない。
 
-## 検収基準としての使い方
-
-1. **Phase α**: 01・02・05 が動くこと
-2. **Phase β**: 03・06・08 が動くこと (08 は半束性検査のエラーメッセージ・完備化提案まで含む)
-3. **Phase γ–δ**: 04 が動くこと (注釈による nested ↔ flat の正規形選択)
-4. **商機構 q1–q4**: 07 が動くこと
+これらの制限は設計文書に記し、実行不能な `.egi` スケッチは管理しない。

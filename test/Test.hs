@@ -42,7 +42,8 @@ import           Language.Egison.Type.Infer     (InferConfig (..),
                                                   initialInferStateWithConfig,
                                                   instantiateDualSchemeInState,
                                                   runInferWithWarnings,
-                                                  runInferWithWarningsAndState)
+                                                  runInferWithWarningsAndState,
+                                                  unifyTypes)
 import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   applyCapSubst,
                                                   applySubst,
@@ -51,7 +52,6 @@ import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   makeResult,
                                                   singletonCapSubst,
                                                   singletonSubst)
-import qualified Language.Egison.Type.ShapeSolver as ShapeSolver
 import           Language.Egison.Type.Types     (CapVar (..),
                                                   Capability (..),
                                                   Dual (..), DualScheme (..),
@@ -62,7 +62,8 @@ import           Language.Egison.Type.Types     (CapVar (..),
                                                   tyVarName)
 import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
                                                   matchCapability, matchOneWay,
-                                                  unify, unifyCapability)
+                                                  unify, unifyCapability,
+                                                  unifyWithOriginsAndConstraints)
 
 main :: IO ()
 main = do
@@ -71,22 +72,23 @@ main = do
   mapM_ (\(f, why) -> putStrLn ("Skipping " ++ f ++ " (" ++ why ++ ")"))
         skippedLibTests
   flip defaultMainWithArgs args . hUnitTestToTests . test $
-    p2CapabilityTests
+    matcherCapabilityTests
       ++ [ matcherOneWayTests
          , arClassTests
          , arInferenceTests
+         , coreConservativeExtensionTests
          , cliWarningFlagParsingTests
          , primitivePatternWarningTests
          , outsideEgisonCoreWarningTests
          , patternFunctionDualSchemeTests
          , patternFunctionTypeErrorTests
+         , matchElseTypeErrorTests
          , closedFieldTypeErrorTests
          , strictPipelineTests
          , strictSelectedCoreTests
          , annotationRigidityTests
          , capabilityOriginTests
          , failedInferAtomicityTests
-         , producerCyclePersistenceTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
 
@@ -282,7 +284,7 @@ outsideEgisonCoreWarningTests =
     let slotExpression =
           IApplyExpr
             (IVarExpr "slotConsumer")
-            [IVarExpr "opaqueMatcher"]
+            [IVarExpr "rawUnknownValue"]
         slotState enabled =
           (initialInferStateWithConfig
             defaultInferConfig
@@ -291,7 +293,7 @@ outsideEgisonCoreWarningTests =
                 [ ( "slotConsumer"
                   , TFun (TMatcherSlot CapAny TInt) TInt
                   )
-                , ("opaqueMatcher", TAny)
+                , ("rawUnknownValue", TAny)
                 ]
             }
 
@@ -312,21 +314,81 @@ outsideEgisonCoreWarningTests =
       Right _ -> return ()
       Left err ->
         assertFailure
-          ("the extended Any-to-slot path should remain accepted: " ++ show err)
+          ("the raw ordinary TAny-to-slot path should remain accepted: " ++ show err)
     assertEqual
-      "the Any-to-slot extension is silent when disabled"
+      "the raw ordinary TAny-to-slot extension is silent when disabled"
       []
       slotWarningsOff
     case slotWarningsOn of
       [OutsideEgisonCoreWarning detail _] ->
         assertBool
-          "the Any-to-slot extension is reported at its explicit boundary"
+          "the raw ordinary TAny-to-slot extension is reported at its explicit boundary"
           ("explicit slot use `_ <= MatcherSlot Any Integer`"
             `isInfixOf` detail)
       other ->
         assertFailure
-          ("expected exactly one Any-to-slot outside-core warning, got " ++
+          ("expected exactly one raw TAny-to-slot outside-core warning, got " ++
            show other)
+
+-- | On the TypePM grammar, production equality must be exactly the
+-- synchronized core relation.  Enabling extension diagnostics cannot turn a
+-- core rejection into a warned success or change the core substitution.
+coreConservativeExtensionTests :: Test
+coreConservativeExtensionTests =
+  TestLabel "TypePM: Egison inference is a conservative extension" . TestList $
+    map checkCase cases
+  where
+    listCapability = CapCon (mkTypeFormer "Collection" 1) [CapAny]
+    cases =
+      [ ( "nested target refinement"
+        , TCollection (TMatcher CapAny (TVar (ResultTyVar "target")))
+        , TCollection (TMatcher CapAny TInt)
+        )
+      , ( "nested matcher-to-slot crossing"
+        , TCollection (TMatcher CapAny TInt)
+        , TCollection (TMatcherSlot CapAny TInt)
+        )
+      , ( "nested capability mismatch"
+        , TCollection (TMatcher CapAny TInt)
+        , TCollection (TMatcher listCapability TInt)
+        )
+      , ( "function result refinement"
+        , TFun TInt (TVar (ResultTyVar "result"))
+        , TFun TInt TBool
+        )
+      ]
+
+    checkCase (label, left, right) =
+      TestLabel label . TestCase $ do
+        let coreResult =
+              fmap fst $
+                unifyWithOriginsAndConstraints
+                  Map.empty emptyClassEnv [] left right
+            config =
+              defaultInferConfig
+                { cfgOutsideEgisonCoreWarnings = True }
+        (productionResult, warnings) <-
+          runInferWithWarnings
+            (unifyTypes left right)
+            (initialInferStateWithConfig config)
+        assertEqual
+          "a core constraint emits no extension warning"
+          [] warnings
+        case (coreResult, productionResult) of
+          (Right coreSubst, Right productionSubst) ->
+            assertEqual
+              "production and TypePM substitutions"
+              coreSubst productionSubst
+          (Left _, Left _) ->
+            return ()
+          (Left coreError, Right productionSubst) ->
+            assertFailure
+              ("production accepted a core rejection: " ++ show coreError ++
+               "; substitution " ++ show productionSubst)
+          (Right coreSubst, Left productionError) ->
+            assertFailure
+              ("production rejected a core success: " ++ show coreSubst ++
+               "; error " ++ show productionError)
 
 patternFunctionDualSchemeTests :: Test
 patternFunctionDualSchemeTests =
@@ -552,7 +614,8 @@ patternFunctionDualSchemeTests =
                     [ (IPApplyPat (IVarExpr "selfPattern") []
                       , IConstantExpr (IntegerExpr 1)
                       )
-                    ]))
+                    ]
+                    Nothing))
         (result, _warnings, _finalState) <-
           runInferWithWarningsAndState
             (inferITopExpr declaration)
@@ -952,6 +1015,7 @@ patternFunctionDualSchemeTests =
                     , IVarExpr "value"
                     )
                   ]
+                  Nothing
               config enabled =
                 defaultInferConfig
                   { cfgOutsideEgisonCoreWarnings = enabled }
@@ -986,6 +1050,7 @@ patternFunctionDualSchemeTests =
                     , IVarExpr "value"
                     )
                   ]
+                  Nothing
               shadowedName = "shadowedPatternFunction"
               shadowedScheme =
                 DualScheme [] [] [] (Dual CapAny TInt)
@@ -1007,7 +1072,8 @@ patternFunctionDualSchemeTests =
                           [IPatVar "value"]
                       , IVarExpr "value"
                       )
-                    ])
+                    ]
+                    Nothing)
               shadowedState enabled =
                 let targetProjection =
                       dualSchemeTargetScheme shadowedScheme
@@ -1210,12 +1276,12 @@ patternFunctionDualSchemeTests =
                   (leftCapability, rightCapability, leftTarget, rightTarget)
         _ -> Nothing
 
--- | Pure regressions for the two-sort P2 representation and evidence
+-- | Pure regressions for the two-sort matcher-capability representation and evidence
 -- calculus.  Language-level acceptance/rejection cases live in
--- test/lib/core/p2-capability.egi and test/type-error respectively.
-p2CapabilityTests :: [Test]
-p2CapabilityTests =
-  [ TestLabel "P2: type substitution does not enter capability" . TestCase $ do
+-- test/lib/core/matcher-capability.egi and test/type-error respectively.
+matcherCapabilityTests :: [Test]
+matcherCapabilityTests =
+  [ TestLabel "TypePM: type substitution does not enter capability" . TestCase $ do
       let typeVariable = TyVar "a"
           capabilityVariable = MkCapVar "p"
           original =
@@ -1235,7 +1301,7 @@ p2CapabilityTests =
           (TCollection TInt))
         substituted
 
-  , TestLabel "P2: capability substitution reaches nested matchers" . TestCase $ do
+  , TestLabel "TypePM: capability substitution reaches nested matchers" . TestCase $ do
       let capabilityVariable = MkCapVar "p"
           original =
             TCollection
@@ -1257,7 +1323,7 @@ p2CapabilityTests =
               (TInductive "Maybe" [TInt]))))
         substituted
 
-  , TestLabel "P2: exact evidence preserves variable identity" . TestCase $ do
+  , TestLabel "TypePM: exact evidence preserves variable identity" . TestCase $ do
       let p = CapVar (MkCapVar "p")
           q = CapVar (MkCapVar "q")
       assertEqual
@@ -1273,7 +1339,7 @@ p2CapabilityTests =
         Right _ ->
           assertFailure "different producer variables must not be unified by exact merge"
 
-  , TestLabel "P2: observability uses the least declaration fixpoint" . TestCase $ do
+  , TestLabel "TypePM: observability uses the least declaration fixpoint" . TestCase $ do
       let a = TyVar "a"
           tree = TInductive "Tree" [TVar a]
           nodeOnly =
@@ -1300,7 +1366,7 @@ p2CapabilityTests =
         (Just [True])
         (leafLookup treeFormer)
 
-  , TestLabel "P2: signature projection follows result-slot order" . TestCase $ do
+  , TestLabel "TypePM: signature projection follows result-slot order" . TestCase $ do
       let a = TyVar "a"
           b = TyVar "b"
           p = CapVar (MkCapVar "p")
@@ -1380,7 +1446,7 @@ p2CapabilityTests =
           (Capability.projectConstructorEvidence
             observable [fieldType] resultType [anyCapability])
 
-  , TestLabel "P2: CapTargetOK is canonical and context-relative" . TestCase $ do
+  , TestLabel "TypePM: CapTargetOK is canonical and context-relative" . TestCase $ do
       let p = CapVar (MkCapVar "p")
           a = TVar (TyVar "a")
           collectionP =
@@ -1404,7 +1470,7 @@ p2CapabilityTests =
           (CapCon (mkTypeFormer "MathValue" 0) [])
           TFactor))
 
-  , TestLabel "P2: malformed capability arity is rejected internally" .
+  , TestLabel "TypePM: malformed capability arity is rejected internally" .
       TestCase $ do
         let malformed =
               CapCon (mkTypeFormer "Collection" 1) []
@@ -1415,7 +1481,7 @@ p2CapabilityTests =
             assertFailure
               "identical malformed capabilities bypassed the kind invariant"
 
-  , TestLabel "P2: capability matching binds only the consumer" .
+  , TestLabel "TypePM: capability matching binds only the consumer" .
       TestCase $ do
         let producerVariable = MkCapVar "producer"
             consumerVariable = MkCapVar "consumer"
@@ -1435,7 +1501,7 @@ p2CapabilityTests =
           producer
           (applyCapSubst substitution producer)
 
-  , TestLabel "P2: literal consumer Any is a one-way wildcard" .
+  , TestLabel "TypePM: literal consumer Any is a one-way wildcard" .
       TestCase $ do
         let producer =
               CapCon (mkTypeFormer "Collection" 1) [CapAny]
@@ -1449,7 +1515,7 @@ p2CapabilityTests =
               producer
               (applyCapSubst substitution producer)
 
-  , TestLabel "P2: symmetric unification keeps Any rigid" .
+  , TestLabel "TypePM: symmetric unification keeps Any rigid" .
       TestCase $ do
         let structured =
               CapCon (mkTypeFormer "Collection" 1) [CapAny]
@@ -1459,7 +1525,7 @@ p2CapabilityTests =
             assertFailure
               "symmetric equality treated ground Any as a wildcard"
 
-  , TestLabel "P2: a variable bound to Any is strict on reuse" .
+  , TestLabel "TypePM: a variable bound to Any is strict on reuse" .
       TestCase $ do
         let shared = MkCapVar "shared-consumer"
             structured =
@@ -1472,7 +1538,7 @@ p2CapabilityTests =
             assertFailure
               "a repeated consumer variable forgot its first Any binding"
 
-  , TestLabel "P2: capability matching never strengthens a producer" .
+  , TestLabel "TypePM: capability matching never strengthens a producer" .
       TestCase $ do
         let producer = CapVar (MkCapVar "producer")
             consumer =
@@ -1484,7 +1550,7 @@ p2CapabilityTests =
             assertFailure
               "a consumer constructor bound the producer capability variable"
 
-  , TestLabel "P2: a shared capability variable is not consumer-owned" .
+  , TestLabel "TypePM: a shared capability variable is not consumer-owned" .
       TestCase $ do
         let shared = MkCapVar "shared"
             producer =
@@ -1497,7 +1563,7 @@ p2CapabilityTests =
             assertFailure
               "a shared variable was rebound through its consumer occurrence"
 
-  , TestLabel "P2: target equality cannot strengthen the producer root" .
+  , TestLabel "TypePM: target equality cannot strengthen the producer root" .
       TestCase $ do
         let producerVar = MkCapVar "producer"
             consumerVar = MkCapVar "consumer"
@@ -1518,7 +1584,7 @@ p2CapabilityTests =
             assertFailure
               "target unification strengthened the producer capability"
 
-  , TestLabel "P2: target capability bindings stay in consumer support" .
+  , TestLabel "TypePM: target capability bindings stay in consumer support" .
       TestCase $ do
         let targetVar = MkCapVar "target-only"
             listAny =
@@ -1534,7 +1600,7 @@ p2CapabilityTests =
             assertFailure
               "target unification introduced a capability binding outside the consumer"
 
-  , TestLabel "P2: target ordinary variables remain specializable" .
+  , TestLabel "TypePM: target ordinary variables remain specializable" .
       TestCase $ do
         let targetVar = TyVar "target"
             producer = TMatcher CapAny (TVar targetVar)
@@ -1627,7 +1693,7 @@ p2CapabilityTests =
             assertFailure
               "raw product alignment bypassed the source-tuple checking boundary"
 
-  , TestLabel "P2: product slot keeps an Any binding strict" .
+  , TestLabel "TypePM: product slot keeps an Any binding strict" .
       TestCase $ do
         let shared = MkCapVar "product-consumer"
             listAny =
@@ -1648,7 +1714,7 @@ p2CapabilityTests =
             assertFailure
               "product validation treated a saved Any as a literal wildcard"
 
-  , TestLabel "P2: product slot coercion retains one shared witness" .
+  , TestLabel "TypePM: product slot coercion retains one shared witness" .
       TestCase $ do
         let shared = MkCapVar "shared"
             listAny =
@@ -1669,7 +1735,7 @@ p2CapabilityTests =
             assertFailure
               "a later product component changed an earlier producer"
 
-  , TestLabel "P2: one-way type matching keeps shared matcher variables rigid" .
+  , TestLabel "TypePM: one-way type matching keeps shared matcher variables rigid" .
       TestCase $ do
         let shared = TyVar "shared"
             slot = TTuple [TVar shared, TVar shared]
@@ -1681,7 +1747,7 @@ p2CapabilityTests =
             assertFailure
               "a slot occurrence rebound a variable shared with the matcher"
 
-  , TestLabel "P2: one-way type matching shares one capability domain" .
+  , TestLabel "TypePM: one-way type matching shares one capability domain" .
       TestCase $ do
         let shared = MkCapVar "shared-capability"
             listAny =
@@ -1703,7 +1769,7 @@ p2CapabilityTests =
             assertFailure
               "a later component rebound a shared matcher capability"
 
-  , TestLabel "P2: one-way type matching preserves Any provenance" .
+  , TestLabel "TypePM: one-way type matching preserves Any provenance" .
       TestCase $ do
         let shared = MkCapVar "consumer-only-capability"
             listAny =
@@ -1725,7 +1791,7 @@ p2CapabilityTests =
             assertFailure
               "a substituted Any became a wildcard at the second component"
 
-  , TestLabel "P2: one-way type matching keeps literal Any wild" .
+  , TestLabel "TypePM: one-way type matching keeps literal Any wild" .
       TestCase $ do
         let listAny =
               CapCon (mkTypeFormer "Collection" 1) [CapAny]
@@ -1746,166 +1812,6 @@ p2CapabilityTests =
           Just _ ->
             return ()
 
-  , TestLabel "P2 D4: recursive shape solver computes least evidence" . TestCase $ do
-      let producer = ShapeSolver.ShapeProducerId 0
-          node = ShapeSolver.rootShapeNode producer
-          p = CapVar (MkCapVar "p")
-          equations =
-            [ ShapeSolver.ShapeEquation node (ShapeSolver.ShapeRef node)
-            , ShapeSolver.ShapeEquation node (ShapeSolver.ShapeKnown p)
-            ]
-      solution <-
-        either (assertFailure . show) return
-          (ShapeSolver.solveShapeEquations equations)
-      assertEqual
-        "a known seed must propagate through a self-copy cycle"
-        (Just (ShapeSolver.SolvedKnown p))
-        (Map.lookup node solution)
-
-  , TestLabel "P2 D4: seedless copy cycle stays unseen" . TestCase $ do
-      let node =
-            ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-      solution <-
-        either (assertFailure . show) return
-          (ShapeSolver.solveShapeEquations
-            [ShapeSolver.ShapeEquation node (ShapeSolver.ShapeRef node)])
-      assertEqual
-        "a recursive reference is not a generation seed"
-        (Just ShapeSolver.SolvedUnseen)
-        (Map.lookup node solution)
-
-  , TestLabel "P2 D4: mutual copy recursion propagates one seed" . TestCase $ do
-      let left =
-            ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-          right =
-            ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 1)
-          p = CapVar (MkCapVar "p")
-          equations =
-            [ ShapeSolver.ShapeEquation left (ShapeSolver.ShapeRef right)
-            , ShapeSolver.ShapeEquation right (ShapeSolver.ShapeRef left)
-            , ShapeSolver.ShapeEquation right (ShapeSolver.ShapeKnown p)
-            ]
-      solution <-
-        either (assertFailure . show) return
-          (ShapeSolver.solveShapeEquations equations)
-      assertEqual
-        "the seed must reach every node in a mutual copy SCC"
-        [ Just (ShapeSolver.SolvedKnown p)
-        , Just (ShapeSolver.SolvedKnown p)
-        ]
-        [ Map.lookup left solution
-        , Map.lookup right solution
-        ]
-
-  , TestLabel "P2 D4: mutual copy recursion rejects unequal seeds" .
-      TestCase $ do
-        let left =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-            right =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 1)
-            p = CapVar (MkCapVar "p")
-            q = CapVar (MkCapVar "q")
-            equations =
-              [ ShapeSolver.ShapeEquation left (ShapeSolver.ShapeRef right)
-              , ShapeSolver.ShapeEquation right (ShapeSolver.ShapeRef left)
-              , ShapeSolver.ShapeEquation left (ShapeSolver.ShapeKnown p)
-              , ShapeSolver.ShapeEquation right (ShapeSolver.ShapeKnown q)
-              ]
-        case ShapeSolver.solveShapeEquations equations of
-          Left (ShapeSolver.ShapeExactMismatch _ _ _ _) ->
-            return ()
-          Left other ->
-            assertFailure
-              ("unexpected mutual Shape mismatch: " ++ show other)
-          Right _ ->
-            assertFailure
-              "a mutual copy SCC with unequal seeds must fail exact merge"
-
-  , TestLabel "P2 D4: an explicit path node can be projected acyclically" .
-      TestCase $ do
-        let sourceRoot =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-            projectedRoot =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 1)
-            collectionFormer = mkTypeFormer "Collection" 1
-            sourceElement =
-              ShapeSolver.conParameterNode sourceRoot collectionFormer 0
-            p = CapVar (MkCapVar "p")
-            equations =
-              [ ShapeSolver.ShapeEquation sourceElement
-                  (ShapeSolver.ShapeKnown p)
-              , ShapeSolver.ShapeEquation projectedRoot
-                  (ShapeSolver.ShapeRef sourceElement)
-              ]
-        solution <-
-          either (assertFailure . show) return
-            (ShapeSolver.solveShapeEquations equations)
-        assertEqual
-          "projection is expressed by referring to the canonical path node"
-          (Just (ShapeSolver.SolvedKnown p))
-          (Map.lookup projectedRoot solution)
-
-  , TestLabel "P2 D4: expansive generation cycle is rejected" . TestCase $ do
-      let node =
-            ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-          collectionFormer = mkTypeFormer "Collection" 1
-          equations =
-            [ ShapeSolver.ShapeEquation node
-                (ShapeSolver.ShapeCon collectionFormer
-                  [ShapeSolver.ShapeRef node])
-            ]
-      case ShapeSolver.solveShapeEquations equations of
-        Left (ShapeSolver.ExpansiveShapeCycle _) ->
-          return ()
-        Left other ->
-          assertFailure
-            ("unexpected recursive Shape solver error: " ++ show other)
-        Right _ ->
-          assertFailure "g <- Collection g must fail the structural occurs check"
-
-  , TestLabel "P2 D4: mutual expansive generation cycle is rejected" .
-      TestCase $ do
-        let left =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-            right =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 1)
-            collectionFormer = mkTypeFormer "Collection" 1
-            equations =
-              [ ShapeSolver.ShapeEquation left
-                  (ShapeSolver.ShapeCon collectionFormer
-                    [ShapeSolver.ShapeRef right])
-              , ShapeSolver.ShapeEquation right (ShapeSolver.ShapeRef left)
-              ]
-        case ShapeSolver.solveShapeEquations equations of
-          Left (ShapeSolver.ExpansiveShapeCycle _) ->
-            return ()
-          Left other ->
-            assertFailure
-              ("unexpected mutual Shape solver error: " ++ show other)
-          Right _ ->
-            assertFailure
-              "a mutual cycle containing a structural edge must be rejected"
-
-  , TestLabel "P2 D4: cyclic outward path projection is rejected" .
-      TestCase $ do
-        let root =
-              ShapeSolver.rootShapeNode (ShapeSolver.ShapeProducerId 0)
-            collectionFormer = mkTypeFormer "Collection" 1
-            element =
-              ShapeSolver.conParameterNode root collectionFormer 0
-            equations =
-              [ ShapeSolver.ShapeEquation root (ShapeSolver.ShapeRef element)
-              , ShapeSolver.ShapeEquation element (ShapeSolver.ShapeRef root)
-              ]
-        case ShapeSolver.solveShapeEquations equations of
-          Left (ShapeSolver.ExpansiveShapeCycle _) ->
-            return ()
-          Left other ->
-            assertFailure
-              ("unexpected path-cycle Shape solver error: " ++ show other)
-          Right _ ->
-            assertFailure
-              "copying a producer root into its own child path must be rejected"
   ]
 
 -- | The substitution domain belongs to the structural slot only.  In
@@ -2140,7 +2046,7 @@ arInferenceTests =
 
 -- | Strict type checking must not silently feed an ill-typed definition to
 -- the untyped evaluator.  Permissive mode retains that fallback for gradual
--- adoption, but the strict boundary is required for meaningful P2 checking.
+-- adoption, but the strict boundary is required for meaningful TypePM checking.
 strictPipelineTests :: Test
 strictPipelineTests =
   TestLabel "strict mode stops before untyped fallback" . TestCase $ do
@@ -2153,7 +2059,7 @@ strictPipelineTests =
           env <- initialEnv
           exprs <-
             readTopExprs
-              "def p2StrictMustReject := p2DefinitelyUnbound"
+              "def coreStrictMustReject := definitelyUnbound"
           evalTopExprsNoPrint env exprs
     case result of
       Left err
@@ -2166,14 +2072,14 @@ strictPipelineTests =
         assertFailure
           "strict mode accepted an unbound definition through untyped fallback"
 
--- | The P2 surface regressions must type-check without relying on the
+-- | The matcher-capability surface regressions must type-check without relying on the
 -- permissive fallback.  The base library still contains five MathValue
 -- instances whose implementations normally arrive from the CAS layer.  Give
 -- those names inert, correctly typed test definitions, then load only the
 -- ordinary matcher/list/maybe surface needed by this regression.
 strictSelectedCoreTests :: Test
 strictSelectedCoreTests =
-  TestLabel "P2: strict selected-library and language regressions" . TestCase $ do
+  TestLabel "TypePM: strict selected-library and language regressions" . TestCase $ do
     result <- fromEvalM
       defaultOption
         { optNoPrelude = True
@@ -2208,14 +2114,15 @@ strictSelectedCoreTests =
             env
             (casBridgeStubs
               ++ map Load selectedCoreLibraries
-              ++ [ LoadFile "test/lib/core/p2-capability.egi"
+              ++ [ LoadFile "test/lib/core/matcher-capability.egi"
                  , LoadFile "test/lib/core/pattern-function.egi"
                  , LoadFile "test/lib/core/closed-field-next-matcher.egi"
+                 , LoadFile "test/lib/core/ar-recursive-matcher-strict.egi"
                  ])
     case result of
       Left err ->
         assertFailure
-          ("strict selected-library P2 regression failed: " ++ show err)
+          ("strict selected-library TypePM regression failed: " ++ show err)
       Right _ ->
         return ()
 
@@ -2258,6 +2165,42 @@ patternFunctionTypeErrorTests =
           Right _ ->
             assertFailure
               ("an invalid pattern function was accepted: " ++ file)
+
+-- | Ordinary match arms and the fallback share one result type, while the
+-- fallback is checked outside the bindings introduced by every ordinary arm.
+matchElseTypeErrorTests :: Test
+matchElseTypeErrorTests =
+  TestLabel "match else rejection" . TestList $
+    map rejects
+      [ ( "test/type-error/91-match-else-result.egi"
+        , ["Type error:", "Integer", "Bool"]
+        )
+      , ( "test/type-error/92-match-else-scope.egi"
+        , ["Type error:", "Unbound variable: x"]
+        )
+      ]
+  where
+    rejects (file, expectedFragments) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | all (`isInfixOf` show err) expectedFragments ->
+                return ()
+            | otherwise ->
+                assertFailure
+                  ("match else rejection failed for an unexpected reason: " ++
+                   show err)
+          Right _ ->
+            assertFailure
+              ("an invalid match else expression was accepted: " ++ file)
 
 -- | Closed constructor fields do not project into a nullary result
 -- capability, but an actual primitive-pattern hole still has to expose the
@@ -2320,13 +2263,13 @@ closedFieldTypeErrorTests =
 -- the standalone type-error corpus.
 annotationRigidityTests :: Test
 annotationRigidityTests =
-  TestLabel "P2: annotation binders are rigid in both sorts" . TestList $
+  TestLabel "TypePM: annotation binders are rigid in both sorts" . TestList $
     map rejects
-      [ ("test/type-error/83-p2-ordinary-annotation-rigidity.egi", "only retain its identity")
-      , ("test/type-error/84-p2-nested-annotation-rigidity.egi", "only retain its identity")
-      , ("test/type-error/85-p2-pattern-function-annotation-rigidity.egi", "only retain its identity")
-      , ("test/type-error/86-p2-pattern-function-nested-annotation-rigidity.egi", "only retain its identity")
-      , ("test/type-error/87-p2-capability-annotation-rigidity.egi", "Matcher $skc")
+      [ ("test/type-error/83-ordinary-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/84-nested-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/85-pattern-function-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/86-pattern-function-nested-annotation-rigidity.egi", "only retain its identity")
+      , ("test/type-error/87-capability-annotation-rigidity.egi", "Matcher $skc")
       ]
   where
     rejects (file, expectedSkolem) =
@@ -2353,7 +2296,7 @@ annotationRigidityTests =
               "an over-general ordinary annotation was accepted"
 
 -- | Executable counterparts of the three capability-origin boundaries in
--- type-pm-mech: exported producers cannot gain structure, constructor-local
+-- type-pm-mech3: exported producers cannot gain structure, constructor-local
 -- binders can, and two frozen variables may be alpha-renamed.
 capabilityOriginTests :: Test
 capabilityOriginTests =
@@ -2461,7 +2404,7 @@ failedInferAtomicityTests =
             env <- initialEnv
             exprs <-
               readTopExprs
-                "def p2FailedBindingMustNotLeak := p2DefinitelyUnbound"
+                "def failedBindingMustNotLeak := definitelyUnbound"
             rejected <-
               catchError
                 (evalTopExprsNoPrint env exprs >> return False)
@@ -2470,7 +2413,7 @@ failedInferAtomicityTests =
             return
               ( rejected
               , lookupEnvExact
-                  (Var "p2FailedBindingMustNotLeak" [])
+                  (Var "failedBindingMustNotLeak" [])
                   typeEnv
               )
       case result of
@@ -2482,66 +2425,6 @@ failedInferAtomicityTests =
         Left err ->
           assertFailure
             ("atomicity regression failed unexpectedly: " ++ show err)
-
--- | Producer SCC summaries must survive the end of a load unit.  Otherwise
--- the same alias cycle rejected inside one batch becomes Known merely by
--- placing the consuming matcher in the next batch.
-producerCyclePersistenceTests :: Test
-producerCyclePersistenceTests =
-  TestLabel "producer cycles remain unseen across load units" . TestCase $ do
-    result <- fromEvalM
-      defaultOption
-        { optNoPrelude = True
-        , optTypeCheckStrict = True
-        }
-      $ do
-          env0 <- initialEnv
-          declarations <- readTopExprs $ unlines
-            [ "inductive P2CrossBatchTree a :="
-            , "  | P2CrossBatchLeaf a"
-            , "  | P2CrossBatchNode (P2CrossBatchTree a)"
-            , "inductive pattern P2CrossBatchTree a :="
-            , "  | p2CrossBatchLeaf a"
-            , "  | p2CrossBatchNode (P2CrossBatchTree a)"
-            , "def p2CrossBatchOpaque {a} : Matcher Any a :="
-            , "  matcher"
-            , "    | $ as p2CrossBatchOpaque with"
-            , "      | $tgt -> [tgt]"
-            , "def p2CrossBatchLeft {a}"
-            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
-            , "  p2CrossBatchRight"
-            , "def p2CrossBatchRight {a}"
-            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
-            , "  p2CrossBatchLeft"
-            ]
-          env1 <- evalTopExprsNoPrint env0 declarations
-          consumer <- readTopExprs $ unlines
-            [ "def p2CrossBatchUse {a}"
-            , "  : Matcher (P2CrossBatchTree Any) (P2CrossBatchTree a) :="
-            , "  matcher"
-            , "    | p2CrossBatchLeaf $ as p2CrossBatchOpaque with"
-            , "      | P2CrossBatchLeaf $value -> [value]"
-            , "      | _ -> []"
-            , "    | p2CrossBatchNode $ as p2CrossBatchLeft with"
-            , "      | P2CrossBatchNode $rest -> [rest]"
-            , "      | _ -> []"
-            , "    | $ as p2CrossBatchOpaque with"
-            , "      | $tgt -> [tgt]"
-            ]
-          catchError
-            (evalTopExprsNoPrint env1 consumer >> return False)
-            (\err ->
-              return
-                ("producer/path Shape equations" `isInfixOf` show err))
-    case result of
-      Right True ->
-        return ()
-      Right False ->
-        assertFailure
-          "a completed producer cycle became Known in a later load unit"
-      Left err ->
-        assertFailure
-          ("cross-batch producer regression failed unexpectedly: " ++ show err)
 
 -- | Language-level tests: the surface syntax and the primitives.
 languageTests :: [FilePath]

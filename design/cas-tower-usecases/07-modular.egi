@@ -1,28 +1,13 @@
 -- Use case 07: 剰余環 Z/nZ — 商機構 (タワー外、type-cas-quotient.md)
 --
--- 2026-07-04 実装済み (M4)。mini-test/129-cas-quotient.egi が検収テスト。
---
--- 実装形態: `declare cas-quotient` は評価パイプライン冒頭の**マクロ展開**で
---   reduce<Q> / proj<Q> / repr<Q> の def、準同型 Ring/Eq instance、
---   合同律 assertion (q4) に展開される。nominal 性 (q1) は Q を
---   「Q → TInductive Q []」として cas-type alias 環境に登録することで獲得
---   (同名同士しか単一化せず、⊂ 順序にも join にも参加しない — D4)。
---
--- 確定した設計判断:
---   - 横断は明示: projQ : MathValue -> Q / reprQ : Q -> MathValue。
---     注釈による暗黙 proj (`def a : Mod7 := 5`) は導入せず、将来の糖衣候補
---   - 混在演算 (Mod7 + Integer) は instance 不一致で dispatch 不成立 —
---     gradual typing では Warning + 未解決シンボリック値として可視的に失敗し、
---     strict モード (optTypeCheckStrict) では型エラー。projQ/reprQ で明示的に
---     渡ることを強制する防壁は機能している
---   - 準同型でない演算 (inv/gcd/比較) はパターン2: Q 上に直接定義する
---
--- Tests (mini-test/129 と同内容):
+-- `declare cas-quotient` は reduceQ、projQ、reprQ、環演算の instance、法則検査へ
+-- 展開される。Q は不透明な型で、CAS 型タワーの順序と join には参加しない。
+-- 基底表現との移動は projQ : MathValue -> Q と reprQ : Q -> MathValue で明示する。
 
 declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
   -- 展開結果: reduceMod7 / projMod7 / reprMod7、Eq・AddSemigroup・AddMonoid・
   -- AddGroup・MulSemigroup・MulMonoid・Ring の各 instance、
-  -- 合同律 assertion 3 本 (冪等・+' 合同・*' 合同、整数バッテリ)
+  -- 法則検査 3 本 (冪等・+' との整合・*' との整合)
 
 def a : Mod7 := projMod7 5
 def b : Mod7 := projMod7 4
@@ -39,13 +24,10 @@ assertEqual "12 == 5 in Mod7" (projMod7 12 == projMod7 5) True
 -- 明示的な戻り
 assertEqual "repr of reduced" (reprMod7 (projMod7 12)) 5
 
--- パターン2 (商上に直接定義)。Fermat の小定理による逆元 z^5:
+-- 商上に直接定義する演算。Fermat の小定理による逆元 z^5:
 def inv7 (z : Mod7) : Mod7 := z * z * z * z * z
 assertEqual "inv 3 mod 7" (inv7 (projMod7 3)) (projMod7 5)
 
--- 複数の商が共存する (別 nominal 型・別 instance)
+-- 複数の商が共存する (別の不透明型・別 instance)
 declare cas-quotient Mod5 := Integer by (\n -> modulo n 5)
 assertEqual "3 * 4 mod 5" ((projMod5 3) * (projMod5 4)) (projMod5 2)
-
--- q5 (optional・未実装): 商型を係数にした多項式 GF(7)[x] (Poly Mod7 [x]) と
--- GF(p^k) 合成は type-cas-quotient.md §7-8 を参照

@@ -1,45 +1,89 @@
-# Function Symbol 仕様
+# 関数シンボル
 
-> **2026-07-07 仕様確定**: 導関数索引は**位置正準形**に統一した。
-> (1) `userRefs` はシンボル/値の索引を**構築時に位置へ解決**する
-> (引数は名前でなく**値**なので、位置索引だけが常に well-defined —
-> 合成引数 `function (rr)` (rr = r²) では名前索引は定義しようがない)。
-> 非引数値・複数回現れる値 (`function (x, x)` への `[x]`)・範囲外整数は
-> **エラー**。(2) 多重索引は**構築時に昇順ソート** — この機構が表す滑らかな
-> 未知関数では混合偏導関数が可換 (Schwarz) なので、`f|2|1` は `f|1|2` と
-> 同一原子として構築される (`d/d (d/d g x) y = d/d (d/d g y) x` が True)。
-> (3) 適用形が冪の下に来るときは括弧付き表示 (`(g x y)^2`)。
-> (4) 型統合: `function (…)` と導関数の型は `MathValue`。**値レベルは完全
-> 統合済み** (GB エンジン・declare rule・トリガー収集が FunctionData を
-> 扱うことを実測確認)。型レベルの原子集合 (`Poly … [f x]`) への出現禁止は
-> 維持 — 必要になれば compound atom と同じ extendAtoms 経路で開放できる。
-> 検収: mini-test/146・test/lib/math/analysis.egi (Taylor の混合項が
-> Schwarz 正準形で `f|1|2` に併合される形)。実装: Core.hs IUserrefsExpr
-> (FunctionData 分岐のみ; 裸シンボルへの user 索引は従来どおり)・
-> Math/CAS.hs prettyPow。
-
-> **2026-07-08 追補**: 第一級構築子 **`functionSymbol : String ->
-> [MathValue] -> MathValue`** を追加(定義文脈不要; 名前を計算で作れる
-> ので族を map で構築できる)。定義文脈由来のシンボルと名前・引数が
-> 一致すれば等値。付随して `quoteScalar`(quote 原子の再構築; mapSymbols
-> の quote 透過に使用)と `mathFunctionName`(apply1..4 頭の名前)も追加。
-> 経緯と設計判断は [function-symbol-formurae.md](function-symbol-formurae.md)。
-
-## 概要
-
-`function` キーワードで定義されるシンボリック関数。
-具体的な実装を持たないが、微分・代入などのシンボリック操作が可能。
+関数シンボルは、具体的な実装を持たない未知関数を CAS 値として表す。引数の置換、表示、
+連鎖律による微分、テンソル成分名の生成を行える。
 
 ```egison
 declare symbol x, y
-def f := function (x)        -- 1変数関数 f(x)
-def g := function (x, y)     -- 2変数関数 g(x, y)
+def f := function (x)
+def g := function (x, y)
 ```
 
-### テンソル成分の名前 (2026-07-11 仕様確定)
+`function (...)` の型と、その偏微分から作る値の型は `MathValue` である。
 
-`generateTensor` の中で `function (...)` を評価すると、テンソルを束縛する
-変数の基底名と、生成中の全成分位置から関数シンボル名を構成する。
+## 1. 構築
+
+### 定義文脈からの構築
+
+`function (...)` は、定義左辺の名前を関数シンボル名として使う。
+
+```egison
+def f := function (x, y)  -- f x y
+```
+
+### 名前を値として渡す構築
+
+`functionSymbol` は定義文脈を使わず、名前と引数列から同じ値を作る。
+
+```egison
+functionSymbol : String -> [MathValue] -> MathValue
+
+def fs := map (\n -> functionSymbol (S.append "f" (show n)) [x, y])
+              (between 0 18)
+```
+
+名前と引数が同じなら、`function (...)` から作った値と `functionSymbol` から作った値は等しい。
+
+## 2. 内部表現
+
+Haskell の `SymbolExpr` に次の構成子を持つ。
+
+```haskell
+FunctionData CASValue [CASValue]
+```
+
+第1フィールドは索引を含む名前、第2フィールドは現在の引数列である。
+
+```text
+def f := function (x, y)
+
+FunctionData
+  (CASFactor (Symbol "" "f" []))
+  [x, y]
+```
+
+Egison からは `mathValue` matcher の `func` view で分解する。
+
+```egison
+match expression as mathValue with
+  | func $name $args -> ...
+```
+
+## 3. 表示と適用
+
+関数シンボルは引数を常に表示する。
+
+```text
+show f       -> "f x"
+show g       -> "g x y"
+show (f 0)   -> "f 0"
+```
+
+`f 0` のような適用は、通常の関数クロージャを呼ぶのではなく、`FunctionData` の引数列を
+置き換えた新しい関数シンボルを返す。引数の個数が違えばエラーになる。
+
+```egison
+f 0       -- f の引数列 [x] を [0] へ置換
+g 0 1     -- [x, y] を [0, 1] へ置換
+g 0       -- arity error
+```
+
+関数適用形が冪の底になる場合は、`(g x y)^2` のように括弧を付けて表示する。
+
+## 4. テンソル成分の名前
+
+`generateTensor` の中で新しく `function (...)` を評価すると、テンソルを束縛する変数の
+基底名と、生成中の全成分位置から関数シンボル名を作る。
 
 ```egison
 def E := generateTensor (\[i] -> function (x, y, z)) [3]
@@ -49,20 +93,16 @@ def T := generateTensor (\[i, j] -> function (x, y, z)) [2, 3]
 -- T_1_1, T_1_2, ..., T_2_3
 ```
 
-定義左辺に明示された添字の上下は維持し、`generateTensor` のrankに対して
-不足する位置は下添字で補完する。
+定義左辺に明示した添字の上下は維持する。`generateTensor` の階数に対して不足する位置は
+下添字で補う。
 
 ```egison
 def H~i := generateTensor (\[i, j] -> function (x, y, z)) [2, 2]
 -- H~1_1, H~1_2, H~2_1, H~2_2
 ```
 
-`generateTensor` がネストする場合、外側ですでに確定した位置を保持し、内側の
-位置を後ろへ追加する。したがってrank-1生成器を2段ネストしたbare定義では、
-成分名は `A_1_1`, `A_1_2`, ... のようになる。
-
-この規則は、生成器の中で新しく評価される `function (...)` だけに適用する。
-既存の関数シンボルを成分として参照した場合、その名前は変更しない。
+生成器を入れ子にした場合は、外側で決まった位置を保ち、内側の位置を後ろへ追加する。
+生成器の中で既存の関数シンボルを参照しただけなら、その名前は変更しない。
 
 ```egison
 def f := function (x, y, z)
@@ -70,147 +110,83 @@ def E := generateTensor (\_ -> f) [3]
 -- [| f x y z, f x y z, f x y z |]
 ```
 
-したがって、添字を省略したテンソル定義では `def E := E_#` のような別名は
-不要である。テンソル値の省略軸と関数シンボル名の不足添字は、どちらも
-共変を既定値として扱う。
+## 5. 偏微分索引
 
-## 内部表現
+偏微分は位置索引 `|1`, `|2`, ... を使う。`userRefs` は、値で指定された引数を
+関数シンボルの引数列における位置へ構築時に解決する。
 
-Haskell側: `FunctionData ScalarData [ScalarData]`
+```text
+f = function (x, y)
 
-```
-FunctionData name args
-```
-
-| フィールド | 型 | 例 (`def f := function (x, y)`) |
-|---|---|---|
-| `name` | `ScalarData` | `Symbol "" "f" []` |
-| `args` | `[ScalarData]` | `[x, y]`（declare symbolで宣言されたシンボルへの参照） |
-
-Egison側パターンマッチ:
-```egison
-match expr as mathExpr with
-  | func $name $args -> ...
+partialDiff f x  = f|1 x y
+partialDiff f y  = f|2 x y
 ```
 
-inductive pattern 宣言:
-```egison
-inductive pattern MathExpr :=
-  | ...
-  | func MathExpr [MathExpr]   -- 2フィールド（name, args）
+引数は名前ではなく任意の CAS 値なので、位置索引だけが常に定義できる。例えば
+`function (r^2)` の引数に名前はないが、位置 1 は一意である。
+
+次の場合は構築時エラーになる。
+
+- 指定した整数位置が引数範囲外である。
+- 指定した値が引数列にない。
+- 同じ値が引数列に複数回現れ、値から位置を一意に決められない。この場合は整数位置を使う。
+
+この機構が表す未知関数は滑らかで混合偏微分が可換であると仮定し、多重索引を構築時に
+昇順へ並べる。
+
+```text
+f|2|1  = f|1|2
+partialDiff (partialDiff f x) y
+  = partialDiff (partialDiff f y) x
 ```
 
-## 動作
+## 6. 連鎖律
 
-### 表示（show）
-
-引数を**常に表示**する。
-
-```
-show f           -- "f x"
-show g           -- "g x y"
-show (f 0)       -- "f 0"
-show (f a)       -- "f a"
-show (g 0 y)     -- "g 0 y"
-```
-
-### 関数適用（f 0 構文）
-
-`f 0` は args を `[0]` に置き換えた新しい `FunctionData` を返す。
-引数の個数が合わない場合はエラー。
-
-```egison
-f 0        -- FunctionData("f", [0]) → show: "f 0"
-f a        -- FunctionData("f", [a]) → show: "f a"
-g 0 1      -- FunctionData("g", [0, 1]) → show: "g 0 1"
-g 0        -- Error: function applied to wrong number of arguments: expected 2, got 1
-```
-
-### 微分（derivative.egi）
-
-連鎖律で実装。偏微分の記号は**整数インデックス**（`|1`, `|2`, ...）:
-
-```egison
--- ∂/∂' 内の func ケース
-| func _ $args ->
-   sum (map2 (\s r -> (userRefs f [s]) * ∂/∂' r x) (between 1 (length args)) args)
-```
-
-`def f := function (x, y)` に対して:
-```
-∂/∂ f x  = f|1 x y * (∂x/∂x) + f|2 x y * (∂y/∂x) = f|1 x y
-∂/∂ f y  = f|2 x y
-∂/∂ f z  = 0（f は z に依存しない）
-∂/∂ (∂/∂ f x) y = f|1|2 x y
-```
-
-### 連鎖律の例
+微分器は引数ごとの偏微分を内側の微分と掛けて足し合わせる。
 
 ```egison
 declare symbol r
-def x := r^2
-def f := function (x)   -- f(x) where x = r^2
+def rr := r^2
+def f := function (rr)
 
-show f                   -- "f r^2"
-show (∂/∂ f r)           -- "2 * f|1 r^2 * r"
+show (∂/∂ f r)
+-- "2 * f|1 r^2 * r"
 ```
 
-### 変数代入（V.substitute）
+`lib/math/analysis/derivative.egi` の `func` 分岐が、位置列と引数列を対応させてこの連鎖律を実装する。
 
-`mapSymbols` の `func` ケースで、`args` 内のシンボルを再帰的に置換:
+## 7. 代入と等値性
+
+`V.substitute` は `FunctionData` の引数列を再帰的に置換する。
+
 ```egison
-| func _ $args ->
-    let args' := map (mapSymbols fn) args
-    in if args = args' then x ^' n
-       else fn (updateFunctionArgs x args') ^' n
+V.substitute [|x|] [|0|] f
+-- f x -> f 0
+
+V.substitute [|x, y|] [|0, 0|] g
+-- g x y -> g 0 0
 ```
 
-```
-V.substitute [|x|] [|0|] f       -- f(x) → f(0)  内部: args=[0], show: "f 0"
-V.substitute [|x|] [|a|] f       -- f(x) → f(a)  内部: args=[a], show: "f a"
-V.substitute [|x,y|] [|0,0|] g   -- g(x,y) → g(0,0)
-```
+名前の索引を含む構造と引数列が両方等しい場合だけ、二つの関数シンボルは等しい。
+偏微分索引は構築時に整列済みなので、混合偏微分の等値性も通常の構造比較で決まる。
 
-### 等値性
+`mapSymbols` は `Quote` の内部も再帰し、必要なら `quoteScalar` でクオート原子を再構築する。
+`mathFunctionName` は `Apply1`–`Apply4` の関数頭の名前を返す。これらは文字列表現を解析せず、
+CAS の構造を使って代入や名前取得を行うための補助関数である。
 
-`name`(索引込み)と `args` の両方が等しい場合のみ等しい:
-```
-f(x) = f(x)   -- True
-f(x) = f(0)   -- False
-f(0) = f(a)   -- False
-```
+## 8. 型レベル原子集合との境界
 
-導関数索引は構築時正規化により、次が構造的等価で成立する:
-```
-userRefs g [y]        = userRefs g [2]    -- True(位置へ解決)
-d/d (d/d g x) y       = d/d (d/d g y) x   -- True(索引ソート = Schwarz)
-userRefs g [2, 1]     = userRefs g [1, 2] -- True
-userRefs h [r^2]      = userRefs h [1]    -- True(合成引数も値で解決)
-```
+`FunctionData` は値レベルの CAS 原子として、簡約規則、グレブナー基底、トリガー収集、代入で扱う。
+一方、`Poly Integer [f x]` のように関数シンボルを型レベルの閉じた原子集合へ入れる経路は
+開放していない。関数シンボルを含む式は `MathValue` または開いた原子集合で扱う。
 
-エラー(構築時):
-```
-userRefs g [3]   -- index 3 is out of range for the 2-argument function symbol g
-userRefs g [a]   -- a is not an argument of the function symbol g
-userRefs k [x]   -- (k = function (x, x)) appears more than once; use a positional index
-```
+## 9. 実装と検証
 
-## 実装の変更点（argnames削除）
+- `Math/CAS.hs`: `FunctionData`, 等値性, 表示。
+- `Core.hs`: `function`, `functionSymbol`, 引数置換, `userRefs`。
+- `Primitives.hs`: `functionSymbol`, `updateFunctionArgs`, `quoteScalar`, `mathFunctionName`。
+- `lib/math/expression.egi`: `func` view と `mapSymbols`。
+- `lib/math/analysis/derivative.egi`: 連鎖律。
 
-旧: `FunctionData ScalarData [String] [ScalarData]` (name, argnames, args)  
-新: `FunctionData ScalarData [ScalarData]` (name, args)
-
-### 変更ファイル
-
-- `hs-src/Language/Egison/Math/Expr.hs` - 型定義・Eq・func pattern・pretty
-- `hs-src/Language/Egison/Core.hs` - IFunctionExpr評価・userRefs・applyRef・PDFunctionPat
-- `hs-src/Language/Egison/Data.hs` - Egison値との相互変換
-- `hs-src/Language/Egison/Primitives.hs` - updateFunctionArgs
-- `hs-src/Language/Egison/PrettyMath/AST.hs` - toMathExpr
-- `hs-src/Language/Egison/AST.hs` - PDFunctionPat 2引数化
-- `hs-src/Language/Egison/Parser/NonS.hs` - Function パターン引数数
-- `hs-src/Language/Egison/Pretty.hs` - PDFunctionPat pretty
-- `hs-src/Language/Egison/Type/Infer.hs` - PDFunctionPat 型推論・MathExpr適用
-- `hs-src/Language/Egison/Math/Rewrite.hs` - func pattern 2引数化
-- `lib/math/expression.egi` - inductive pattern func 2引数化・mathExpr matcher
-- `lib/math/analysis/derivative.egi` - func pattern 2引数化
+主な回帰は `test/lib/math/analysis.egi` で検証する。値レベルでは Taylor 展開の混合項が
+`f|1|2` に正準化されることも確認する。

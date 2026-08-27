@@ -1,0 +1,19 @@
+-- Shape capability: CapabilityNone does not determine the observable parameter
+-- of CapabilityMaybe.
+-- The result annotation must not fill that missing evidence.
+
+inductive CapabilityMaybe a :=
+  | CapabilityNone
+  | CapabilitySome a
+
+inductive pattern CapabilityMaybe a :=
+  | capabilityNone
+  | capabilitySome a
+
+def capabilityNoneOnly {a} : Matcher (CapabilityMaybe Any) (CapabilityMaybe a) :=
+  matcher
+    | capabilityNone as () with
+      | CapabilityNone -> [()]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

@@ -1,0 +1,6 @@
+-- TypePM capability name elaboration inside an expression annotation.
+-- Expected: Type error / Capability kind error: unknown capability former
+-- `MissingLocalCapability`.
+
+def localUnknown :=
+  (integer : Matcher MissingLocalCapability Integer)

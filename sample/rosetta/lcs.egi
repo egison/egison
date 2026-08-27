@@ -31,7 +31,7 @@ def sortBy f xs :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
-    | _ ->
+    else
       let n := length xs
           p := nth (quotient n 2) xs
           (ys1, ys2, ys3) := splitByOrderingBy f p xs

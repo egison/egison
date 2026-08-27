@@ -29,8 +29,8 @@ Example:
   def t1 := [| 1, 2 |]
   f t1  --=>  tensorMap (\t1e -> f t1e) t1
 
-  def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
-  --=>  def sum {Num a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
+  def sum {AddMonoid a} (xs: [a]) : a := foldl1 (+) xs
+  --=>  def sum {AddMonoid a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
 
   map inc [t1]
   --=>  map (\x -> tensorMap inc x) [t1]
@@ -69,7 +69,7 @@ import           Language.Egison.Type.Unify as Unify (unifyStrictWithConstraints
 --
 -- Arguments:
 --   ClassEnv     : The current type class environment (holds available type class instances).
---   [Constraint] : The set of type class constraints in scope (e.g., Num a, Eq a).
+--   [Constraint] : The set of type class constraints in scope (e.g., AddSemigroup a, Eq a).
 --   Type         : The type of the argument being applied to the function.
 --   Type         : The type of the parameter as expected by the function (i.e., declared type).
 shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
@@ -652,13 +652,14 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         return $ TISeqExpr e1' e2'
       
       -- Pattern matching
-      TIMatchExpr mode target matcher clauses -> do
+      TIMatchExpr mode target matcher clauses fallback -> do
         target' <- insertTensorMapsWithConstraints env cs target
         matcher' <- insertTensorMapsWithConstraints env cs matcher
         clauses' <- mapM (\(pat, body) -> do
           body' <- insertTensorMapsWithConstraints env cs body
           return (pat, body')) clauses
-        return $ TIMatchExpr mode target' matcher' clauses'
+        fallback' <- mapM (insertTensorMapsWithConstraints env cs) fallback
+        return $ TIMatchExpr mode target' matcher' clauses' fallback'
       
       TIMatchAllExpr mode target matcher clauses -> do
         target' <- insertTensorMapsWithConstraints env cs target

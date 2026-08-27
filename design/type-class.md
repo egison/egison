@@ -1,391 +1,138 @@
-# Egison 型クラスシステム：現状と改善計画
+# Egison 型クラスシステム
 
-## 概要
+この文書は、現在実装されている型クラスの仕様、辞書渡しによる実行方式、既知の制限をまとめる。
+過去の移行計画や完了済みの不具合一覧は扱わない。
 
-Egisonの型クラスシステムの現在の実装状況を整理し、CAS型システム（`type-cas.md`）で必要とされる代数的型クラス階層（`Num` クラスの分割）に向けた改善計画をまとめる。
+## 1. 表層構文
 
----
+単一または複数の型パラメータを持つクラスを宣言できる。
 
-## 現在の型クラスシステムの構成
-
-### 処理の流れ
-
-```
-Parser (NonS.hs)
-  ↓  ClassDeclExpr / InstanceDeclExpr を生成
-EnvBuilder (EnvBuilder.hs)
-  ↓  ClassInfo / InstanceInfo を ClassEnv に登録
-     メソッドの型を TypeEnv に登録
-Type Inference (Infer.hs)
-  ↓  制約 [Constraint] を収集
-TypeClassExpand (TypeClassExpand.hs)
-  ↓  メソッド呼び出しを辞書ベースのディスパッチに変換
-Evaluation (Core.hs)
-```
-
-### 主要なデータ構造
-
-**型クラス情報**（`Types.hs:102-107`）:
-```haskell
-data ClassInfo = ClassInfo
-  { classSupers  :: [String]           -- スーパークラス名のリスト
-  , classParam   :: TyVar              -- 型パラメータ
-  , classMethods :: [(String, Type)]   -- メソッド名と型
-  }
-```
-
-**インスタンス情報**（`Types.hs:109-115`）:
-```haskell
-data InstanceInfo = InstanceInfo
-  { instContext :: [Constraint]        -- インスタンス制約
-  , instClass   :: String              -- クラス名
-  , instType    :: Type                -- インスタンスの型
-  , instMethods :: [(String, ())]      -- メソッド実装（プレースホルダー）
-  }
-```
-
-**クラス環境**（`Env.hs:224-228`）:
-```haskell
-data ClassEnv = ClassEnv
-  { classEnvClasses   :: Map String ClassInfo
-  , classEnvInstances :: Map String [InstanceInfo]
-  }
-```
-
----
-
-## 現在の言語機能
-
-### 動作している機能
-
-**型クラス定義**:
 ```egison
 class Eq a where
   (==) (x: a) (y: a) : Bool
-  (/=) (x: a) (y: a) : Bool
-```
 
-**単一スーパークラス**（構文のみ。意味論は不完全）:
-```egison
-class Ord a extends Eq a where
-  compare (x: a) (y: a) : Ordering
-```
-
-**インスタンス定義（制約つき）**:
-```egison
-instance {Eq a} Eq (Tensor a) where
-  (==) t1 t2 := t1 = t2
-  (/=) t1 t2 := not (t1 == t2)
-```
-
-**制約つき関数**:
-```egison
-def sum {Num a} (xs: [a]) : a := foldl (+) 0 xs
-```
-
-**多パラメータクラス**（2026-08-16 に登録・ディスパッチを全パラメータ対応化）:
-```egison
 class Coerce a b where
   coerce (x: a) : b
-
--- インスタンス head の任意位置の変数を context が参照できる
-instance {Eq b} MyPick Integer b where
-  myPick x y z := y == z
-
--- シグネチャの制約も多パラメータ可（パーサ対応済み）
-def usePick {MyPick a b} (x: a) (y: b) (z: b) : Bool := myPick x y z
 ```
-インスタンスメソッドの型登録（`EnvBuilder.registerInstanceMethods`）、
-ディスパッチ展開（`TypeClassExpand`: メソッド型の取得・インスタンス context の
-置換・制約付き変数への辞書引数解決）はいずれも全クラスパラメータを
-位置対応で同時置換する。既知の制限: スーパークラスへの継承経路
-（`classSupers` は名前のみ保持）はパラメータ対応を記録しないため、
-多パラメータクラス間の extends はパラメータ位置が一致する場合のみ正しい。
-MathValue 実行時ディスパッチ（runtime-type-dispatch.md）は従来どおり
-第1パラメータ（principal type）基準。
 
-**メソッドなしクラス定義**:
+クラスは複数のスーパークラスを持てる。スーパークラスとは、あるクラスを使うために
+同時に必要となる上位の制約である。
+
 ```egison
-class Ring a extends AddGroup a where
-  -- メソッドなしでも構文上は可能
+class Ring a extends AddGroup a, MulMonoid a
+class Field a extends Ring a, MulGroup a
 ```
 
-**空メソッドインスタンス**（`where` は必要）:
+クラスやインスタンスにメソッドがなければ `where` を省略できる。
+
 ```egison
-instance Ring Integer where
-  -- メソッドがなくても where があればパース可能
+class Marker a
+instance Marker Integer
 ```
 
-### 現在のクラス階層
+インスタンスの文脈と関数の型注釈には、型クラス制約を書ける。
 
+```egison
+instance {Eq a} Eq (Tensor a) where
+  (==) x y := tensorEq x y
+
+def member {Eq a} (x: a) (xs: [a]) : Bool := ...
 ```
-Eq a                    (base.egi)
-  └─ Ord a              (order.egi)
-Num a                   (base.egi) ← スーパークラスなし
-```
 
-**Num のインスタンス**:
-- `instance Num MathExpr` — `plusForMathExpr` 等の関数経由で実装
-- `instance Num Float` — プリミティブ `f.+` 等で実装
-- `instance Num Integer` — コメントアウト（MathExpr = Integer のため不要）
+## 2. 型推論
 
-**Num を使う関数**:
-- `def sum {Num a} (xs: [a]) : a` （`arithmetic.egi`）
-- `def product {Num a} (xs: [a]) : a` （`arithmetic.egi`）
+型推論はメソッドの利用から `Constraint` を集める。`Constraint` はクラス名と、
+宣言順に並んだ全ての型引数を持つ。
 
----
-
-## 実装の不備
-
-### 1. 複数スーパークラスのパースが未対応 → **解消済み**
-
-(下の TODO 表 1-1 のとおり実装済み。`class MyRing a extends MyAdd a, MyMul a` が
-パース・推論・ディスパッチまで通ることを実測確認 (2026-07-07)。歴史的記述として残す。)
-
-**当時の現状**: パーサーが `extends` の後に単一のクラス名しか受け付けない。
-
-**該当箇所**: `NonS.hs:294-295`
 ```haskell
-superClassName <- upperId
-superTypeArgs <- manyTill typeVarIdent (lookAhead (reserved "where"))
-let constraints = [ConstraintExpr superClassName (map TEVar superTypeArgs)]
+Constraint
+  { constraintClass :: String
+  , constraintTypes :: [Type]
+  }
 ```
 
-**必要な構文**:
-```egison
-class Ring a extends AddGroup a, MulMonoid a where ...
+スーパークラス制約は再帰的に展開する。例えば `Field a` があれば、`Ring a`、
+`MulGroup a` と、それらのスーパークラスが利用できる。インスタンス選択は全型引数を
+同時に照合するため、多引数クラスの文脈に現れる変数も位置を保って具体化される。
+
+トップレベルの無注釈再帰は単相再帰として推論する。単相再帰とは、再帰本体の中で
+自己関数を一つの型だけで使う方式である。異なる型で再帰的に使う多相再帰には明示的な
+型注釈が必要となる。
+
+## 3. 辞書渡し
+
+辞書渡しとは、型クラスの実装をメソッド名から関数へのハッシュとして表し、制約付き関数へ
+隠れた引数として渡す実行方式である。処理は次の順になる。
+
+1. `Desugar.hs` がクラスとインスタンスから辞書とメソッド関数を生成する。
+2. `Infer.hs` がメソッドの型を推論し、必要な制約を型スキームに残す。
+3. `TypeClassExpand.hs` がメソッド呼び出しを辞書アクセスへ変換する。
+4. 具体型が分かる呼び出しでは対応するインスタンス辞書を直接適用する。
+5. 型変数が残る関数では、一つの最小制約につき一つの辞書引数を追加する。
+
+各辞書は `__super_<Class>` という項目にスーパークラス辞書を保持する。例えば
+`Field a` の辞書だけを受け取った関数でも、その項目を順に辿って `MulSemigroup a` の
+`(*)` を呼べる。全スーパークラス辞書を平らに並べて渡す経路は使わない。
+
+ローカル変数は同名のトップレベルメソッドより優先する。ラムダ、`let`、`letrec`、
+`do`、match 節などの主要な束縛構文では、辞書展開がローカルな名前の範囲を追跡する。
+
+## 4. インスタンスの選択
+
+通常の具体型では、全ての型引数に一致する最も具体的なインスタンスを選ぶ。CAS 型については、
+組み込みの部分型関係と `declare cas-subtype` で追加された関係も比較に使う。同じ値集合を
+別の正規形で表す候補が並ぶ場合は、対象型の外側の型構成子と一致する候補を優先する。
+
+静的型が `MathValue` またはそれに相当する CAS 型で、静的に辞書を決められない場合は、
+[runtime-type-dispatch.md](./runtime-type-dispatch.md) の浅い実行時型ディスパッチを使う。
+この実行時経路は単一パラメータクラスの第1型引数だけを対象とする。多引数クラスは静的な
+インスタンス選択を使う。
+
+## 5. 標準の代数的クラス階層
+
+`lib/core/base.egi` は算術を一つの `Num` にまとめず、必要な演算ごとに分ける。
+
+```text
+AddSemigroup a
+  └─ AddMonoid a
+       └─ AddGroup a
+
+MulSemigroup a
+  └─ MulMonoid a
+       └─ MulGroup a
+
+Ring a  extends AddGroup a, MulMonoid a
+Field a extends Ring a, MulGroup a
+GCDDomain a extends Ring a
+EuclideanDomain a extends GCDDomain a
 ```
 
-**影響**: AST（`ClassDecl.classSuperclasses :: [ConstraintExpr]`）と EnvBuilder は複数スーパークラスに対応済み。パーサーのみが制限。
+これにより、関数は実際に必要な演算だけを制約として要求できる。
 
-### 2. スーパークラス制約の伝播が未実装 → **解消済み**
+## 6. 現在の制限
 
-(下の TODO 表 1-2 のとおり `expandSuperclasses` で実装済み。歴史的記述として残す。)
+- クラスメソッドの `:=` による既定実装は構文解析されるが、辞書生成では使われない。
+  各インスタンスがメソッドを実装するか、通常のトップレベル関数として共通実装を書く。
+- 多引数クラス間の `extends` は、型パラメータの対応を `ClassInfo` に保存していない。
+  親子で同じ位置に同じ型引数を置く場合だけ使用する。
+- 実行時型ディスパッチは単一パラメータクラスの第1引数だけを見る。複数引数による
+  実行時の多重ディスパッチは行わない。
+- 制約付き関数の本体が通常のラムダ形を取らない一部の内部経路と、パターン関数内の
+  埋め込み式では、辞書展開のローカル名追跡が完全ではない。同名のクラスメソッドを
+  その局所範囲で束縛しないことで回避できる。
 
-**当時の現状**: `ClassInfo.classSupers` に格納されたスーパークラス情報が、型推論時に一切参照されていない。
+## 7. 実装と検証
 
-**期待される動作**:
-```egison
-def f {Ord a} (x: a) (y: a) : Bool := x == y
--- Ord a → Eq a が自動で利用可能であるべき
--- 現在は {Ord a} だけでは (==) が使えない
-```
+主要な実装箇所は次のとおりである。全処理段階との対応は
+[FILE_MAPPING.md](./FILE_MAPPING.md) を参照する。
 
-**該当箇所**: `Infer.hs` の `addConstraints` は制約を蓄積するのみで、スーパークラスの展開を行わない。
+- `AST.hs`, `Parser/NonS.hs`: クラス・インスタンス構文。
+- `Type/Types.hs`, `Type/Env.hs`: `ClassInfo`, `InstanceInfo`, `Constraint`。
+- `EnvBuilder.hs`: クラス環境とメソッド型の登録。
+- `Desugar.hs`: インスタンス辞書とスーパークラス参照の生成。
+- `Type/Infer.hs`: 制約の収集とスーパークラス展開。
+- `Type/Instance.hs`, `Type/Subtype.hs`: インスタンス候補の照合と具体性比較。
+- `Type/TypeClassExpand.hs`: 辞書アクセスと辞書引数への変換。
 
-### 3. `where` なしインスタンスがパースできない → **解消済み**
-
-(下の TODO 表 1-3 のとおり実装済み。class/instance とも `where` は `option` になっており、
-`class Marker a` + `instance Marker Integer` のマーカー運用が通ることを実測確認 (2026-07-07)。
-歴史的記述として残す。)
-
-**当時の現状**: `reserved "where"` が必須（`NonS.hs:342`）。
-
-**必要な構文**:
-```egison
-instance Ring Integer   -- where なし（マーカーインスタンス）
-```
-
-**回避策**: `instance Ring Integer where` + 空のメソッドリストは動作する。設計ドキュメント側でこの記法を採用すれば実装変更は不要。
-
-### 4. デフォルトメソッドが未使用（実装の不備で唯一残るもの）
-
-**現状**: パーサーは `:=` によるデフォルト実装を読み取り、AST の `ClassMethod.methodDefault :: Maybe Expr` に格納するが、型推論・展開フェーズで使われない (2026-07-07 時点で parser/AST 以外に `methodDefault` の参照ゼロを確認)。
-
-**実装計画 (据え置き、中規模)**: `Types.ClassInfo` は型しか持たないので (surface `Expr`
-を Type 層に置くのは層違反)、Desugar が `ClassDeclExpr` を処理する際にデフォルト本体を
-`EvalState` のマップ (メソッド名 → (クラス名, パラメータ, 本体 Expr)) に登録し、
-`InstanceDeclExpr` の desugar (`makeDictDef`) で「インスタンスが提供しないメソッド」に
-ついてこのマップから通常のインスタンスメソッドと同じ経路 (`desugarInstanceMethod`) で
-定義を生成して辞書に詰める。辞書のキーが常に全メソッドを持つようになるので、
-ディスパッチ時の欠落キー実行時エラーも同時に消える。型付けはインスタンス型での通常推論に
-乗る。後続バッチのインスタンスにも効かせるため EvalState 永続が必要。
-
-**将来必要になる場面**:
-```egison
-class AddGroup a extends AddMonoid a where
-  neg (x: a) : a
-
--- (-) を AddGroup から自動導出
-def (-) {AddGroup a} (x: a) (y: a) : a := x + neg y
-```
-
-デフォルトメソッドがなくてもトップレベル関数として定義すれば代用できるため、優先度は低い。
-
-### 5. トップレベル def によるメソッド名 shadowing → **警告実装済み (2026-07-07)**
-
-**現象**: `def one : GF4 := ...` のようにクラスメソッド名を素の def で再定義すると、
-ディスパッチ束縛がプログラムの残り全体で置き換わり、**遠い場所の不可解な型エラー**
-として現れる (GF(4) の作業中に発見した footgun)。
-
-**対策**: クラス/インスタンス宣言は `IDefineMany` (レジストリ・ラッパー・辞書) に
-降ろされ、素のメソッド名の `IDefine` を生成しない。よって「メソッド名と一致する
-`IDefine` = 常にユーザーによる shadowing」が構造的に成立し、`inferITopExpr` が
-`warnOnClassMethodShadow` で `ClassMethodShadowWarning` を出す
-(`Type/Infer.hs` / `Type/Error.hs`、検収 mini-test/143)。
-
-**警告が導入直後に検出した実物 2 件 (修正済み)**:
-
-- `lib/core/order.egi` の min/max — Ord のメソッド宣言と総称 `def` の二重定義。
-  呼び出し側はメソッド機構 (制約+メソッド名所有) で解決されており def は重複だった
-  ため削除し、min/max は純粋な Ord メソッドに一本化 (全インスタンス+高階
-  `foldl1 min` を実測)。
-- `test/syntax.egi` の `def gcd` — GCDDomain のメソッドを shadow。しかもその
-  「再帰」呼び出しは実際には Integer インスタンスへのディスパッチだった
-  (自己参照ではなかった)。`euclid` に改名+シグネチャ付与。
-
-### 6. 無注釈トップレベル再帰はシグネチャ必須 → **解消済み (2026-07-07、単相再帰)**
-
-**当時の現状**: 型シグネチャのないトップレベル def の本体推論では自己名が
-typeEnv に居らず、再帰呼び出しは `Unbound variable` 警告 + `Any` になり、実行時の
-dispatch 失敗 (Pattern match failed) まで進みえた。`DefineWithType` は EnvBuilder
-が署名を先に登録するので再帰できる — lib の再帰関数が全てシグネチャ付きなのは
-このため。上記 gcd → euclid の改名で顕在化した (旧 `def gcd` はメソッドスキーム
-経由で「たまたま」型が付いていた)。
-
-**解消 (ML 流の単相再帰)**: `inferITopExpr` の IDefine 署名なし分岐が、本体推論の
-**前に**自己名を fresh 型変数の単相スキーム `∀[]. t_rec` で束縛し、推論後に本体の
-型と t_rec を単一化してから一般化する。`def euclid m n := ... euclid ...` が
-警告なしに型付く (検収: test/syntax.egi の無注釈 euclid・mini-test/144)。付随する
-明確化 2 点:
-
-- **多相再帰** (本体内で自分を異なる型で使う) は単一化エラーになり、エラー文脈に
-  「polymorphic recursion needs an explicit type signature」のヒントが付く
-  (Haskell/OCaml と同じ扱い; permissive モードでは従来どおり無型評価へ
-  フォールバックして実行は継続)。
-- **前方参照** (無注釈の相互再帰を含む) は単相自己束縛では救えない (相手がまだ
-  環境に居ない)。従来の generic な Unbound 警告の代わりに、参照先が同一ロード
-  単位内の定義であることを検出して **ForwardReferenceWarning** を出す —
-  「署名はプリパスで収集されるので、参照先に型シグネチャを付ければ前方参照は
-  型付く」という修正方法つき (Eval が batch の定義名集合を
-  `inferBatchDefNames` として推論状態に種付けする)。注釈付きの後方定義への
-  前方参照は従来どおり無警告で型付く。
-
-### 7. ローカル束縛による制約付きトップレベル関数の shadowing → **解消済み (2026-07-16)**
-
-**現象**: 5 の対偶。`def subA (count: Integer) : Integer := count - 1` が
-`subA 5` で `Expected function, but found: 5` を出して落ちる。lib に
-`count {Eq a} (x: a) (xs: [a]) : Integer` (collection.egi) が存在するため、
-辞書展開 (`Type/TypeClassExpand.hs` の `checkConstrainedVariable`) が **全ての
-変数参照をグローバル typeEnv で引いて** ラムダパラメータの `count` を制約付き
-トップレベル関数と誤認し、`count (eqCollection {...})` と辞書引数を適用して
-いた。適用済みの値は遅延サンクとして `plusForMathValue` →
-`mathNormalizeBuiltin` の中で強制されるため、エラーは無関係な CAS 正規化の
-スタックトレースとして現れる (原因から遠い)。ラムダに限らず let / letrec /
-do / match のパターン変数 / withSymbols 等、全てのローカル束縛で同じ誤認が
-起きていた。インスタンス選択の問題ではない (Integer の算術が CAS タワー経由で
-MathValue インスタンスに解決されるのは意図どおりで、その経路自体は
-`plusForMathValue 5 1 = 6` と正常に動く)。
-
-**解消**: `expandTypeClassMethodsT` にローカル束縛名の集合 `LocalScope` を
-スレッドし、束縛構文 (lambda params / let / letrec / do / match 節 / matcher
-の primitive-data 節 / cambda / memoizedLambda / withSymbols / loop pattern)
-で拡張する。パターン変数は左から右に蓄積し (`expandTIPattern` が拡張済み
-scope を返す)、value/predicate パターン内の式はそこまでの束縛だけを見る。
-scope に居る名前は (a) `checkConstrainedVariable` の辞書適用対象にしない、
-(b) `tryResolveMethodCall` でクラスメソッドとして解決しない — ローカル束縛は
-常にトップレベル定義を shadow する、という通常のスコープ規則を辞書展開にも
-適用した (検収: minitest/007-integer-minus.egi、formurae 正規化環境でも確認)。
-
-**残る既知の限界**: `addDictionaryParametersT` 配下の
-`replaceMethodCallsWithDictAccessT` (本体がラムダでない制約付き def の
-ラッパー経路) と pattern function 宣言内の埋め込み式は scope を追跡しない。
-露出するのは「ローカル束縛名がクラスメソッド名そのものと衝突し、かつ囲む def
-がそのクラスで制約されている」場合に限られ、実害が出たら同じ LocalScope を
-通せばよい。
-
----
-
-## Num クラス分割の計画
-
-### 目標の階層
-
-```
-AddSemigroup a          (+)
-  └─ AddMonoid a        zero
-       └─ AddGroup a    neg
-
-MulSemigroup a          (*)
-  └─ MulMonoid a        one
-       └─ MulGroup a    inv
-
-Ring a = AddGroup a + MulMonoid a
-Field a = Ring a + MulGroup a
-
-GCDDomain a extends Ring a        gcd
-EuclideanDomain a extends GCDDomain a    divMod
-```
-
-### 現在の Num との対応
-
-```
-現在の Num           →   新しい階層
-─────────────────────────────────────
-(+) : a -> a -> a    →   AddSemigroup.+
-(-) : a -> a -> a    →   AddGroup.neg から導出（x + neg y）
-(*) : a -> a -> a    →   MulSemigroup.*
-(/) : a -> a -> a    →   Field（MulGroup.inv から導出）
-```
-
-### 移行の影響範囲
-
-| 変更対象 | 内容 |
-|---|---|
-| `lib/core/base.egi` | `Num` クラスを階層に分割。互換のため `Num` をエイリアスとして残す案もあり |
-| `lib/math/common/arithmetic.egi` | `{Num a}` → `{Ring a}` 等に変更。`sum`, `product` の制約を更新 |
-| `instance Num MathExpr` | `instance AddSemigroup MathExpr`, `instance Ring MathExpr` 等に分割 |
-| `instance Num Float` | 同上 |
-
----
-
-## TODO（優先順）
-
-### Phase 1: 型クラスの基盤強化
-
-| # | 項目 | 該当ファイル | 状態 | 内容 |
-|---|---|---|---|---|
-| 1-1 | 複数スーパークラスのパース | `NonS.hs` | **完了** | `classHeader` を修正し、カンマ区切りの複数制約をパースできるようにした。インデントガードも追加 |
-| 1-2 | スーパークラス制約の伝播 | `Infer.hs` | **完了** | `expandSuperclasses` を実装。`addConstraints` と `instConstraints` の両方でスーパークラスを再帰的に展開する |
-| 1-3 | `where` なしインスタンス | `NonS.hs` | **完了** | `reserved "where"` を `option` にし、`where` なしマーカーインスタンス（`instance MyRing Integer`）をサポート |
-
-### Phase 2: Num クラスの分割
-
-| # | 項目 | 該当ファイル | 状態 | 内容 |
-|---|---|---|---|---|
-| 2-1 | 代数的型クラス階層の定義 | `lib/core/base.egi` | **完了** | `AddSemigroup` → `AddMonoid` → `AddGroup`、`MulSemigroup` → `MulMonoid` → `MulGroup`、`Ring`、`Field` を定義 |
-| 2-2 | 既存インスタンスの分割 | `lib/core/base.egi` | **完了** | `Num MathExpr` / `Num Float` を各クラスのインスタンスに分割（8クラス×2型） |
-| 2-3 | 制約の更新 | 全 `.egi` ライブラリ | **完了** | `{Num a}` を `{AddMonoid a}`, `{MulSemigroup a}`, `{Ring a}`, `{Field a}` 等の最小制約に変更 |
-| 2-4 | `(-)` と `(/)` の導出 | `lib/core/base.egi` | **完了** | `(-) := x + neg y`、`(/) := x * inv y` をトップレベル関数として定義 |
-| 2-5 | 0-arity メソッド対応 | `TypeClassExpand.hs` | **完了** | `zero`, `one` 等の定数メソッドが空ラムダにラップされる問題を修正。辞書アクセスを直接返すように変更 |
-
-### Phase 2.5: Haskellスタイルのネスト辞書パッシングへの移行
-
-| # | 項目 | 該当ファイル | 状態 | 内容 |
-|---|---|---|---|---|
-| 2.5-1 | 辞書にスーパークラス参照を追加 | `Desugar.hs` | **完了** | `makeDictDef` を修正し、各辞書に `("__super_ClassName", superDictExpr)` エントリを追加。マーカー型クラス（Ring, Field）でもスーパークラス参照を含む辞書を生成するようになった |
-| 2.5-2 | 制約の脱展開 | `TypeClassExpand.hs` | **完了** | `deExpandConstraints` を実装。展開された制約 `{Field a, Ring a, AddGroup a, ...}` から最小セット `{Field a}` を算出する。`addDictionaryParametersT` 等で使用 |
-| 2.5-3 | スーパークラスチェーンアクセス | `TypeClassExpand.hs` | **完了** | `findSuperclassPath` と `buildSuperclassChain` を実装。メソッドアクセスを `(dict_Field)_("__super_Ring")_("__super_MulMonoid")_("__super_MulSemigroup")_("times")` のようなチェーンに変換 |
-| 2.5-4 | 辞書パラメータの最小化 | `TypeClassExpand.hs` | **完了** | `addDictionaryParametersT`, `checkConstrainedVariable`, `applyConcreteConstraintDictionaries` で脱展開した制約を使用。1制約につき1辞書パラメータのみ生成 |
-| 2.5-5 | TITest/TIExecute の辞書適用 | `TypedDesugar.hs` | **完了** | `TITest` と `TIExecute` にも `applyConcreteConstraintDictionaries` を適用。制約が最小化されているため二重適用は発生しない |
-| 2.5-6 | 辞書参照のリマッピング | `TypeClassExpand.hs` | **完了** | `remapDictRefsInBody` を実装。Step 1（expandTypeClassMethodsT）で展開済みの辞書参照名（dict_MulSemigroup等）を、Step 3（addDictionaryParametersT）の脱展開パラメータ名（dict_Field等）からのスーパークラスチェーンに置換 |
-
-**設計の概要**:
-
-以前のフラットな辞書パッシング（全スーパークラスを展開して並列に渡す）から、Haskellスタイルのネスト辞書パッシング（1制約につき1辞書、スーパークラスは辞書内の `__super_*` 参照で辿る）に移行した。
-
-- 旧: `\dict_Field dict_Ring dict_AddGroup dict_AddMonoid dict_AddSemigroup dict_MulMonoid dict_MulSemigroup dict_MulGroup x y -> (dict_MulSemigroup)_("times") x ((dict_MulGroup)_("inv") y)`
-- 新: `\dict_Field x y -> (dict_Field)_("__super_Ring")_("__super_MulMonoid")_("__super_MulSemigroup")_("times") x ((dict_Field)_("__super_MulGroup")_("inv") y)`
-
-これにより以下の問題が解決された:
-- Ring/Field のようなメソッドなしマーカー型クラスの辞書が存在しなかった問題
-- 展開された制約の順序が定義と呼び出しで不一致になる問題
-- TIDefine と TITest で辞書適用フェーズが異なり二重適用が起きる問題
-
-### Phase 3: CAS 向け拡張
-
-| # | 項目 | 該当ファイル | 状態 | 内容 |
-|---|---|---|---|---|
-| 3-1 | `GCDDomain` / `EuclideanDomain` 定義 | `lib/core/base.egi` | **完了** | `GCDDomain a extends Ring a` と `EuclideanDomain a extends GCDDomain a` を定義。導出関数 `modulo`, `quotient` も追加 |
-| 3-2 | MathExpr インスタンス | `lib/core/base.egi` | **完了** | `gcd` は既存の `gcdForMathExpr` を使用、`divMod` は `i.quotient`/`i.modulo` を使用 |
-| 3-3 | 既存 `gcd` のリネーム | `arithmetic.egi`, `root.egi`, `derivative.egi` | **完了** | 型クラスメソッド `gcd` との衝突を回避するため `gcdForMathExpr` にリネーム |
-| 3-4 | `Poly` / `Div` 型のインスタンス | 新規 `.egi` | 未着手 | `type-cas.md` で設計した各インスタンスを実装 |
+標準クラス階層は `test/lib/core/base.egi`、CAS を含む利用例は `test/lib/math/`、
+構文と一般的な回帰は `test/syntax.egi` で検証する。

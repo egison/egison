@@ -486,7 +486,7 @@ evalExprShallow env (IMatchAllExpr pmmode target matcher clauses) = do
             mmap (flip evalExprShallow expr . extendEnv env) result >>= (`mappend` results)
       mfoldr tryMatchClause (return MNil) (fromList clauses)
 
-evalExprShallow env (IMatchExpr pmmode target matcher clauses) = do
+evalExprShallow env (IMatchExpr pmmode target matcher clauses fallback) = do
   target <- evalExprShallow env target
   matcher <- evalExprShallow env matcher >>= evalMatcherWHNF
   f matcher target
@@ -498,7 +498,11 @@ evalExprShallow env (IMatchExpr pmmode target matcher clauses) = do
               MCons bindings _ -> evalExprShallow (extendEnv env bindings) expr
               MNil             -> cont
       callstack <- getFuncNameStack
-      foldr tryMatchClause (throwError $ MatchFailure callstack) clauses
+      let onFailure =
+            case fallback of
+              Just expr -> evalExprShallow env expr
+              Nothing   -> throwError $ MatchFailure callstack
+      foldr tryMatchClause onFailure clauses
 
 evalExprShallow env (ISeqExpr expr1 expr2) = do
   _ <- evalExprDeep env expr1

@@ -133,7 +133,6 @@ Library
                    Language.Egison.Tensor
                    Language.Egison.Type
                    Language.Egison.Type.Capability
-                   Language.Egison.Type.ShapeSolver
                    Language.Egison.Type.Check
                    Language.Egison.Type.Env
                    Language.Egison.Type.Error

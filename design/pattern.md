@@ -135,6 +135,31 @@ nonrecursive side condition に従って定義時に拒否する。cross-load �
 `IPatternFuncExpr` に変換し，通常の定義や型クラス辞書とともに `recursiveBind` する。
 これにより，capture した環境から他の定義・辞書・パターン関数を参照できる。
 
+## `match` と `matchDFS` の `else`
+
+最初の解を返す `match` と `matchDFS` には，一本以上の通常節の後へ省略可能な `else` を置ける。
+`else` は通常節の `|` と同じ字下げに置く。
+
+```egison
+match target as matcher with
+  | pattern1 -> result1
+  | pattern2 -> result2
+  else fallback
+```
+
+通常節は従来どおりソース順に試す。どの節からも解が得られなかった場合だけ，
+`fallback` を `match` の外側と同じ環境で評価する。したがって，通常節のパターン変数は
+`else` から参照できない。`else` を省略してすべての節が失敗した場合は，従来どおり
+実行時のパターンマッチ失敗となる。
+
+`else` は matcher にパターンを渡さない。これは最終節の `| _ -> fallback` と重要な違いがある。
+後者では wildcard も matcher によって照合されるため，ユーザー定義 matcher が空の結果を返せる。
+前者はすべての通常節が空だったことに対する式自身のフォールバックである。
+
+型検査では通常節と `else` が一つの結果型を共有する。通常節をソース順に検査した後，
+`else` を外側の型環境で検査し，その結果型を通常節の結果型と単一化する。
+`matchAll`，`matchAllDFS`，match-lambda は複数の結果を列挙する形式なので，この `else` は持たない。
+
 ## Value patternの扱い
 
 primitive value patternを含むmatcher節は、mがvalue patternを処理できることを要求している。
@@ -158,7 +183,7 @@ def multiset {p, a} (m: MatcherSlot p a) : Matcher [p] [a] :=
           | loop $i (1, length pxs, _)
               {($x_i :: @, #x_i :: @), ...}
               ([], $rs) -> [rs]
-          | _ -> []
+          else []
     | $ ++ $ as (multiset m, multiset m) with
       | $tgt ->
         matchAll tgt as list m with
@@ -171,7 +196,7 @@ def multiset {p, a} (m: MatcherSlot p a) : Matcher [p] [a] :=
         match (val, tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
-          | (_, _) -> []
+          else []
     | $ as (something) with
       | $tgt -> [tgt]
 ```

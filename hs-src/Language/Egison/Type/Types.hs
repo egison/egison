@@ -1029,7 +1029,8 @@ reservedCasTypeNames = Set.fromList
   , "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr" ]
 
 -- | Expand `declare cas-type` transparent aliases inside a Type (Phase alpha
--- of the extensible CAS tower; design/type-cas-tower.md D3: aliases only).
+-- of the extensible CAS tower; see
+-- design/type-cas-tower-implementation.md section 2).
 -- A capitalized name in type position parses to `TVar (TyVar name)` (or is
 -- concretized to `TInductive name []`), so we substitute both forms.
 -- Alias bodies stored in the map are already fully expanded, hence a single

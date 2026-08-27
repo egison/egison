@@ -130,7 +130,7 @@ declare rule auto term term $c ((apply1 #abs $a, $n) :: $rr) =
                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
           else c *' ('abs a) ^' n
                  *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
-    | _ -> c *' ('abs a) ^' n
+    else c *' ('abs a) ^' n
              *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
 
 --

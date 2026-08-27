@@ -65,12 +65,12 @@ data EnvBuildResult = EnvBuildResult
   -- DeclareApply handler to enforce that `declare apply foo ...` only
   -- appears after a corresponding `declare mathfunc foo`.
   , ebrMathFuncNames :: Set.Set String
-  -- Phase alpha (extensible CAS tower): `declare cas-type` aliases declared
-  -- in THIS batch, name -> fully expanded Type. Merged into the persistent
+  -- `declare cas-type` aliases declared in THIS batch, name -> fully
+  -- expanded Type. Merged into the persistent
   -- EvalState alias env by the caller (Eval.buildAndMergeEnvironments).
   , ebrCasTypeAliases :: HashMap.HashMap String Type
-  -- Phase beta: `declare cas-subtype` edges declared in THIS batch
-  -- (alias-expanded, D1-checked, redundant ones included). Appended to the
+  -- `declare cas-subtype` edges declared in THIS batch (alias-expanded,
+  -- checked for a unique join, redundant ones included). Appended to the
   -- persistent EvalState edge list by the caller.
   , ebrCasSubtypeEdges :: [(Type, Type)]
   } deriving (Show)
@@ -96,8 +96,8 @@ buildEnvironments exprs = do
   capabilityFormerArities <-
     buildCapabilityFormerArities exprs priorCtorEnv
 
-  -- Phase alpha (extensible CAS tower): collect `declare cas-type` aliases
-  -- first (prepass, so declaration order does not matter for users of the
+  -- Collect `declare cas-type` aliases first (prepass, so declaration order
+  -- does not matter for users of the
   -- alias), then resolve alias-in-alias references to a fixpoint. Bodies are
   -- stored fully expanded so a single substitution pass suffices at use sites.
   newAliasesRaw <- foldM (collectCasTypeAlias declaredTypes priorAliases)
@@ -122,8 +122,8 @@ buildEnvironments exprs = do
   -- TypeFormer values merely by counting their surface arguments.
   mapM_ (validateTopExprCapabilities capabilityFormerArities aliasEnv) exprs
 
-  -- Phase beta: collect `declare cas-subtype` edges (alias-expanded) and run
-  -- the D1 join-semilattice check per edge, in declaration order.
+  -- Collect `declare cas-subtype` edges (alias-expanded) and check that each
+  -- addition preserves a unique join, in declaration order.
   priorEdges <- getCasSubtypeEdges
   newEdges <- foldM (collectCasSubtypeEdge aliasEnv priorEdges) []
                     [ (l, r) | DeclareCasSubtype l r <- exprs ]
@@ -485,10 +485,11 @@ validateExprCapabilities arities aliases context expression =
       validate body
     WithSymbolsExpr _ body ->
       validate body
-    MatchExpr _ target matcher clauses -> do
+    MatchExpr _ target matcher clauses fallback -> do
       validate target
       validate matcher
       mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
+      mapM_ validate fallback
     MatchAllExpr _ target matcher clauses -> do
       validate target
       validate matcher
@@ -795,8 +796,8 @@ plural _ = "s"
 --   * the alias name must be capitalized
 --   * it must not clash with builtin type names, declared inductive types,
 --     or an existing alias (no redeclaration)
---   * the body may reference previously declared aliases only (a leftover
---     alias name after expansion means a self/forward reference)
+--   * declarations in the same load unit are resolved to a fixed point, so
+--     forward references are allowed while self/cyclic references are rejected
 collectCasTypeAlias :: Set.Set String -> HashMap.HashMap String Type
                     -> HashMap.HashMap String Type -> (String, TypeExpr)
                     -> EvalM (HashMap.HashMap String Type)
@@ -822,8 +823,8 @@ collectCasTypeAlias declaredTypes priorAliases acc (name, te) = do
     startsUpper (c:_) = isUpper c
     startsUpper _     = False
 
--- | Validate and register a `declare cas-subtype A ⊂ B` edge (Phase beta;
--- D1 declare-time semilattice check, design/type-cas-tower.md §8 D1).
+-- | Validate and register a `declare cas-subtype A ⊂ B` edge
+-- (design/type-cas-tower-implementation.md section 3).
 -- Redundant edges are stored anyway — their endpoints then participate in
 -- the node set of later checks — with a warning.
 collectCasSubtypeEdge :: HashMap.HashMap String Type -> [(Type, Type)]
@@ -850,7 +851,7 @@ collectCasSubtypeEdge aliasEnv priorEdges acc (lhsTE, rhsTE) = do
       "collapse the two types into one order point (cycle)"
     Subtype.EdgeAmbiguous witnesses -> throwError $ Default $
       "declare cas-subtype " ++ pp lhs ++ " <: " ++ pp rhs ++
-      ": join would become ambiguous (D1 semilattice check).\n" ++
+      ": join would become ambiguous.\n" ++
       concatMap (\(x, y, j) ->
         "  pair (" ++ pp x ++ ", " ++ pp y ++ ") would get minimal upper bounds {" ++
         pp j ++ ", " ++ pp rhs ++ "}\n" ++

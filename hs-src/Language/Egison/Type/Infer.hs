@@ -48,7 +48,6 @@ module Language.Egison.Type.Infer
   , unifyTypes
   , generalize
   , inferConstant
-  , batchForwardProducerDependencies
   , addWarning
   , clearWarnings
   ) where
@@ -194,16 +193,12 @@ data InferState = InferState
   , inferProtectedCaps :: Set.Set CapVar   -- ^ Compatibility index of frozen producer variables.
                                           --   The origin ledger is authoritative: these variables
                                           --   may be safely renamed but not structurally expanded.
-  , inferCoreSolverFallbackReported :: Bool
-                                          -- ^ Avoid repeating the same outside-core warning
-                                          --   for every nested/capability equation in one
-                                          --   extended-Egison inference run.
   , inferCasSubtypeEdges :: Subtype.SubtypeEnv
                                           -- ^ Declared `cas-subtype` edges (alias-expanded), seeded
                                           --   from EvalState per top-level item.  Consulted by the
                                           --   application-site CAS join: when two CAS operand types
                                           --   fail to unify, their unique join in the declared order
-                                          --   (D1) becomes the promotion target and both operands are
+                                          --   becomes the promotion target and both operands are
                                           --   reshaped to it (elaboration inserts the coercion; the
                                           --   unifier itself never joins).
   , inferBatchDefNames :: Set.Set String  -- ^ Names of the definitions of the current load unit,
@@ -222,36 +217,6 @@ data InferState = InferState
                                           --   harvested at IDefine. Consulted by the production
                                           --   use-site safeguard for outside-core primitive-pattern
                                           --   clauses to resolve matcher clause shapes statically.
-  , inferRecursiveBinders :: Set.Set String
-                                          -- ^ Names in the currently inferred
-                                          --   recursive group.  A next-matcher
-                                          --   expression that refers to one of
-                                          --   these names is generation
-                                          --   dependency, not known ShapeCap
-                                          --   evidence.
-  , inferProducerDependencies :: Map.Map String (Set.Set String)
-                                          -- ^ Lexically scoped value-flow
-                                          --   approximation for recursive
-                                          --   matcher producers.  A binding
-                                          --   maps to the recursive roots on
-                                          --   which its value depends.  An
-                                          --   explicit empty set is important:
-                                          --   it shadows an outer recursive
-                                          --   binder of the same name.
-  , inferRecursiveOwner :: Maybe String
-                                          -- ^ Binder whose recursive RHS is
-                                          --   currently being inferred.  Only
-                                          --   a direct reference headed by
-                                          --   this binder is the supported D4
-                                          --   self-copy case.
-  , inferCompletedBatchDefNames :: Set.Set String
-                                          -- ^ Definitions from the current
-                                          --   load batch that have already
-                                          --   completed inference.  Batch
-                                          --   names not in this set are
-                                          --   forward producer dependencies,
-                                          --   even when a signature prepass
-                                          --   put their schemes in inferEnv.
   } deriving (Show)
 
 -- | Complete inferred type of one next-matcher component, captured before
@@ -260,23 +225,19 @@ data InferState = InferState
 -- Scheme instantiation has already freshened quantified capability variables;
 -- repeated occurrences within a product therefore retain their shared
 -- identity.  Slot components keep both indices; an undetermined component is
--- committed to a slot before it is recorded.  Tuples are retained recursively
--- so COERCE-SLOT-TUPLE can check each component without consulting syntax.
+-- committed according to its A/R class before it is recorded.  A result-class
+-- variable becomes 'HCResultMatcher': it must fill the slot structurally, but
+-- cannot be independent evidence for the result shape that is still being
+-- inferred.  This distinction follows the type variable, so aliases and
+-- ordinary function applications need no expression-origin tracking.  Tuples
+-- are retained recursively so COERCE-SLOT-TUPLE can check each component
+-- without consulting syntax.
 data HoleComponentType
-  = HCMatcher HoleProducerOrigin Capability Type
-  | HCSlot HoleProducerOrigin Capability Type
+  = HCMatcher Capability Type
+  | HCResultMatcher Capability Type
+  | HCSlot Capability Type
   | HCTuple [HoleComponentType]
   deriving (Show)
-
-data HoleProducerOrigin
-  = HoleKnownProducer
-  -- A singleton direct self-copy is a generation dependency with no seed.
-  | HoleRecursiveProducer
-  -- A recursive value reached through a transform, alias, or mutual binder
-  -- needs the full producer/path graph.  Until that graph is wired in it is
-  -- rejected, including at the explicitly uncertified legacy CAS boundary.
-  | HoleUnsupportedRecursiveProducer
-  deriving (Eq, Show)
 
 -- | Evidence used only for PP-Con field-head validation.  The slot-variable
 -- set records consumer-owned capability metas that Step 3a' may solve from a
@@ -345,15 +306,10 @@ initialInferStateWithConfig cfg = InferState
   , inferAllocatedCapVars = Set.empty
   , inferCapabilityOrigins = Map.empty
   , inferProtectedCaps = Set.empty
-  , inferCoreSolverFallbackReported = False
   , inferCasSubtypeEdges = []
   , inferBatchDefNames = Set.empty
   , inferDataConstructorNames = Set.empty
   , inferMatcherShapes = Map.empty
-  , inferRecursiveBinders = Set.empty
-  , inferProducerDependencies = Map.empty
-  , inferRecursiveOwner = Nothing
-  , inferCompletedBatchDefNames = Set.empty
   }
 
 -- | Inference monad (with IO for potential future extensions)
@@ -806,7 +762,7 @@ freshCapability prefix = do
 
 -- | Instantiate a polymorphic scheme and immediately protect every fresh
 -- capability image.  This is the executable counterpart of
--- @instantiateSchemeInState@ in type-pm-mech: a producer capability obtained
+-- @instantiateSchemeInState@ in type-pm-mech3: a producer capability obtained
 -- from a scheme may be copied into a consumer, but later inference must never
 -- strengthen the producer image itself.
 instantiateSchemeInState :: TypeScheme -> Infer ([Constraint], Type)
@@ -1188,19 +1144,6 @@ freezeCapabilityExport capImages exportedType = do
           leaves
     }
 
--- | Record one transition from the protected type-pm solver to Egison's
--- extension solver.  The protected ledger remains intact, so subsequent
--- deltas are still audited, but one inference run produces at most one
--- diagnostic.
-reportTypePmSolverFallback :: String -> TypeErrorContext -> Infer ()
-reportTypePmSolverFallback detail ctx = do
-  reported <- gets inferCoreSolverFallbackReported
-  unless reported $
-    warnOutsideEgisonCore
-      (detail ++ "; using Egison's extended capability solver")
-      ctx
-  modify $ \state -> state { inferCoreSolverFallbackReported = True }
-
 -- | Get the current type environment
 getEnv :: Infer TypeEnv
 getEnv = inferEnv <$> get
@@ -1555,8 +1498,9 @@ deskolemizeAnnotationTIExpr skolems (TIExpr scheme node) =
     goClause (pattern', expression) =
       (goPattern pattern', goExpr expression)
 
-    deskolemizeNode (TIMatchExpr mode target matcher clauses) =
+    deskolemizeNode (TIMatchExpr mode target matcher clauses fallback) =
       TIMatchExpr mode (goExpr target) (goExpr matcher) (map goClause clauses)
+        (goExpr <$> fallback)
     deskolemizeNode (TIMatchAllExpr mode target matcher clauses) =
       TIMatchAllExpr mode (goExpr target) (goExpr matcher) (map goClause clauses)
     deskolemizeNode (TIMatcherExpr patternDefinitions) =
@@ -1835,8 +1779,9 @@ clearDeferredHoleChecks = modify $ \s -> s { inferDeferredHoleChecks = [] }
 -- arm result types are available immediately.
 holeComponentTargetType :: HoleComponentType -> Type
 holeComponentTargetType component = case component of
-  HCMatcher _ _ targetTy -> targetTy
-  HCSlot _ _ targetTy    -> targetTy
+  HCMatcher _ targetTy -> targetTy
+  HCResultMatcher _ targetTy -> targetTy
+  HCSlot _ targetTy    -> targetTy
   HCTuple components   -> TTuple (map holeComponentTargetType components)
 
 -- | A component type used only for the delayed structural half of the slot
@@ -1844,8 +1789,9 @@ holeComponentTargetType component = case component of
 -- for this hole before target unification.
 holeComponentFrozenType :: HoleComponentType -> Type
 holeComponentFrozenType component = case component of
-  HCMatcher _ capability targetTy -> TMatcher capability targetTy
-  HCSlot _ capability targetTy -> TMatcherSlot capability targetTy
+  HCMatcher capability targetTy -> TMatcher capability targetTy
+  HCResultMatcher capability targetTy -> TMatcher capability targetTy
+  HCSlot capability targetTy -> TMatcherSlot capability targetTy
   HCTuple components -> TTuple (map holeComponentFrozenType components)
 
 -- | Capture a component's complete inferred type before it is related to the
@@ -1856,10 +1802,9 @@ holeComponentFrozenType component = case component of
 -- here.
 prepareHoleComponent
   :: TypeErrorContext
-  -> HoleProducerOrigin
   -> Type
   -> Infer (HoleComponentType, [(Type, Type)])
-prepareHoleComponent ctx origin ty = do
+prepareHoleComponent ctx ty = do
   prepareRaw ty
   where
     -- Capture the whole component before target unification.  Recursing
@@ -1867,21 +1812,21 @@ prepareHoleComponent ctx origin ty = do
     -- Matcher leaves, e.g. the result of @\m -> (m, m)@.
     prepareRaw componentTy = case componentTy of
       TMatcher capability targetTy ->
-        return (HCMatcher origin capability targetTy, [])
+        return (HCMatcher capability targetTy, [])
       TMatcherSlot capability targetTy ->
-        return (HCSlot origin capability targetTy, [])
+        return (HCSlot capability targetTy, [])
       TVar variable -> do
         capability <- freshCapability "nextMatcherCap"
         targetTy <- freshVar "nextMatcherTarget"
         case tyVarClass variable of
           ResultClass ->
             return
-              ( HCMatcher origin capability targetTy
+              ( HCResultMatcher capability targetTy
               , [(componentTy, TMatcher capability targetTy)]
               )
           ArgumentClass ->
             return
-              ( HCSlot origin capability targetTy
+              ( HCSlot capability targetTy
               , [(componentTy, TMatcherSlot capability targetTy)]
               )
       TTuple tys -> do
@@ -1966,214 +1911,10 @@ restoreInferStateAfter restore action = do
   restore
   either throwError return outcome
 
--- | Extend recursive-producer provenance under a lexical scope.  Entries on
--- the left override outer entries; in particular, an empty dependency set
--- records a genuine shadow rather than absence of information.
-withProducerDependencyBindings
-  :: [(String, Set.Set String)]
-  -> Infer a
-  -> Infer a
-withProducerDependencyBindings bindings action = do
-  previous <- gets inferProducerDependencies
-  modify $ \state ->
-    state
-      { inferProducerDependencies =
-          Map.union (Map.fromList bindings) previous
-      }
-  restoreInferStateAfter
-    (modify $ \state -> state { inferProducerDependencies = previous })
-    action
-
--- | Remove stale outer provenance for names introduced by a recursive group.
--- The group's active recursive roots are installed separately, so leaving an
--- alias entry here would incorrectly take precedence over the new binder.
-withoutProducerDependencyBindings :: [String] -> Infer a -> Infer a
-withoutProducerDependencyBindings names action = do
-  previous <- gets inferProducerDependencies
-  modify $ \state ->
-    state
-      { inferProducerDependencies =
-          foldr Map.delete previous names
-      }
-  restoreInferStateAfter
-    (modify $ \state -> state { inferProducerDependencies = previous })
-    action
-
--- | Infer one RHS in a recursive group.  Bindings introduced by this group
--- shadow same-named outer roots, while unrelated outer recursive roots remain
--- visible.  The active names are the RHS's actual intra-group dependency
--- closure, not every binder that happened to share the letrec/DefineMany.
-withRecursiveRhsScope
-  :: [String]
-  -> Set.Set String
-  -> Maybe String
-  -> Infer a
-  -> Infer a
-withRecursiveRhsScope shadowed active owner action = do
-  previousBinders <- gets inferRecursiveBinders
-  previousOwner <- gets inferRecursiveOwner
-  let shadowSet = Set.fromList shadowed
-  modify $ \state ->
-    state
-      { inferRecursiveBinders =
-          (previousBinders `Set.difference` shadowSet) `Set.union` active
-      , inferRecursiveOwner = owner
-      }
-  restoreInferStateAfter
-    (modify $ \state ->
-      state
-        { inferRecursiveBinders = previousBinders
-        , inferRecursiveOwner = previousOwner
-        })
-    (withoutProducerDependencyBindings shadowed action)
-
 -- | Names bound by a primitive data pattern.
 primitivePatternNames :: IPrimitiveDataPattern -> [String]
 primitivePatternNames =
   foldr (\var names -> extractNameFromVar var : names) []
-
--- | Resolve one lexical name to recursive producer roots.  Alias/shadow
--- information wins over recursive-group and batch information.
-resolveProducerName :: String -> Infer (Set.Set String)
-resolveProducerName name = do
-  state <- get
-  case Map.lookup name (inferProducerDependencies state) of
-    Just dependencies ->
-      return dependencies
-    Nothing
-      | name `Set.member` inferRecursiveBinders state ->
-          return (Set.singleton name)
-      | name `Set.member` inferBatchDefNames state
-      , name `Set.notMember` inferCompletedBatchDefNames state ->
-          return (Set.singleton name)
-      | otherwise ->
-          return Set.empty
-
--- | Conservative, scoped value-flow dependency of an expression.  Free
--- variables are resolved through the lexical provenance environment, so an
--- alias or closure cannot turn a recursive producer into ordinary evidence.
-recursiveProducerDependencies :: IExpr -> Infer (Set.Set String)
-recursiveProducerDependencies expression = do
-  dependencies <-
-    mapM resolveProducerName
-      (Set.toList (iexprFreeVarRefs expression))
-  return (Set.unions dependencies)
-
--- | Sequential binding provenance, used by non-recursive let/do forms.
--- Destructuring conservatively gives every bound component the RHS's complete
--- producer dependency.
-sequentialBindingDependencies
-  :: [IBindingExpr]
-  -> Infer [(String, Set.Set String)]
-sequentialBindingDependencies [] = return []
-sequentialBindingDependencies ((pat, rhs) : rest) = do
-  dependencies <- recursiveProducerDependencies rhs
-  let here =
-        [ (name, dependencies)
-        | name <- primitivePatternNames pat
-        ]
-  later <-
-    withProducerDependencyBindings here
-      (sequentialBindingDependencies rest)
-  return (here ++ later)
-
--- | Actual intra-group reference closure for each recursive binder.  A pure
--- self-reference therefore has context {self} even when unrelated binders
--- share the group, while mutual recursion reaches every member of its SCC.
-recursiveBindingGroupContexts
-  :: [IBindingExpr]
-  -> Map.Map String (Set.Set String)
-recursiveBindingGroupContexts bindings =
-  Map.mapWithKey (\name _ -> reachableFrom name) adjacency
-  where
-    entries =
-      [ (name, rhs)
-      | (pat, rhs) <- bindings
-      , name <- primitivePatternNames pat
-      ]
-    allNames = Set.fromList (map fst entries)
-    rhsRefs =
-      Map.fromListWith Set.union
-        [ (name, iexprFreeVarRefs rhs)
-        | (name, rhs) <- entries
-        ]
-    adjacency =
-      Map.map (`Set.intersection` allNames) rhsRefs
-
-    reachableFrom name =
-      walk Set.empty
-        (Set.toList (Map.findWithDefault Set.empty name adjacency))
-
-    walk seen [] = seen
-    walk seen (name : rest)
-      | name `Set.member` seen =
-          walk seen rest
-      | otherwise =
-          walk
-            (Set.insert name seen)
-            (Set.toList
-              (Map.findWithDefault Set.empty name adjacency) ++ rest)
-
--- | Provenance of the values exported by a recursive group.  Acyclic aliases
--- are substituted to a fixed point.  Every cyclic binder contributes an
--- unseen marker (its own name), which prevents a completed local cycle from
--- becoming fabricated Known evidence before the full ShapeSolver is wired in.
-recursiveBindingResultDependencies
-  :: [IBindingExpr]
-  -> Infer [(String, Set.Set String)]
-recursiveBindingResultDependencies bindings = do
-  externalByName <-
-    mapM resolveExternal (Map.toList rhsRefs)
-  let external = Map.fromList externalByName
-      initial =
-        Map.mapWithKey
-          (\name dependencies ->
-            if name `Set.member`
-                 Map.findWithDefault Set.empty name contexts
-              then Set.insert name dependencies
-              else dependencies)
-          external
-      solved = fixedPoint propagate initial
-  return (Map.toList solved)
-  where
-    entries =
-      [ (name, rhs)
-      | (pat, rhs) <- bindings
-      , name <- primitivePatternNames pat
-      ]
-    allNames = Set.fromList (map fst entries)
-    rhsRefs =
-      Map.fromListWith Set.union
-        [ (name, iexprFreeVarRefs rhs)
-        | (name, rhs) <- entries
-        ]
-    adjacency =
-      Map.map (`Set.intersection` allNames) rhsRefs
-    contexts = recursiveBindingGroupContexts bindings
-
-    resolveExternal (name, refs) = do
-      dependencies <-
-        mapM resolveProducerName
-          (Set.toList (refs `Set.difference` allNames))
-      return (name, Set.unions dependencies)
-
-    propagate dependencies =
-      Map.mapWithKey
-        (\name known ->
-          known `Set.union`
-            Set.unions
-              [ Map.findWithDefault Set.empty dependency dependencies
-              | dependency <-
-                  Set.toList
-                    (Map.findWithDefault Set.empty name adjacency)
-              ])
-        dependencies
-
-    fixedPoint step current =
-      let next = step current
-      in if next == current
-           then current
-           else fixedPoint step next
 
 -- | Look up a variable's type
 lookupVar :: String -> Infer Type
@@ -2303,14 +2044,56 @@ recursiveValueRoot _ = False
 
 checkRecursiveValueRoot :: String -> IExpr -> TypeErrorContext -> Infer ()
 checkRecursiveValueRoot name expression ctx =
+  checkRecursiveGroupValueRoot name (Set.singleton name) expression ctx
+
+checkRecursiveGroupValueRoot
+  :: String
+  -> Set.Set String
+  -> IExpr
+  -> TypeErrorContext
+  -> Infer ()
+checkRecursiveGroupValueRoot name recursiveNames expression ctx =
   when
-    (name `Set.member` iexprFreeVarRefs expression &&
+    (not (Set.null
+      (recursiveNames `Set.intersection` iexprFreeVarRefs expression)) &&
       not (recursiveValueRoot expression)) $
     throwError $
       UnsupportedFeature
         ("recursive definition '" ++ name ++
           "' must have a lambda or matcher literal at its root")
         ctx
+
+-- | Members of actual cycles in a recursive binding group.  This graph is
+-- used only to enforce the recursive-value root restriction; it carries no
+-- matcher-producer or capability evidence.
+recursiveCycleMembers :: [IBindingExpr] -> Set.Set String
+recursiveCycleMembers bindings =
+  Set.filter (\name -> name `Set.member` reachableFrom name) allNames
+  where
+    entries =
+      [ (name, rhs)
+      | (pattern, rhs) <- bindings
+      , name <- primitivePatternNames pattern
+      ]
+    allNames = Set.fromList (map fst entries)
+    adjacency =
+      Map.fromListWith Set.union
+        [ (name, iexprFreeVarRefs rhs `Set.intersection` allNames)
+        | (name, rhs) <- entries
+        ]
+
+    reachableFrom name =
+      walk Set.empty
+        (Set.toList (Map.findWithDefault Set.empty name adjacency))
+
+    walk seen [] = seen
+    walk seen (name : rest)
+      | name `Set.member` seen = walk seen rest
+      | otherwise =
+          walk
+            (Set.insert name seen)
+            (Set.toList
+              (Map.findWithDefault Set.empty name adjacency) ++ rest)
 
 -- | T-MATCHER checking mode: unify the inferred and declared types of an
 -- annotated matcher-literal definition (possibly parameterized, i.e.
@@ -2345,7 +2128,7 @@ unifyTypesWithContext t1 t2 ctx = do
   -- commitment is unified against the first instead of silently shadowing it
   -- in a later left-biased 'composeSubst'.
   (t1', t2') <- zonkPair t1 t2
-  fst <$> solveWithCompatibility classEnv constraints t1' t2' ctx
+  fst <$> solveTypes classEnv constraints t1' t2' ctx
 
 -- | Resolve both unification operands through 'inferGlobalSubst' (with the
 -- usual constraint-aware Tensor adjustment).  'applySubstWithConstraintsM'
@@ -2399,39 +2182,21 @@ admissibleCapabilityImage ledger variable origin image =
         _ -> False
     StructuralFlexible -> True
 
--- | Run the synchronized origin-aware solver first.  Egison's full language retains
--- its historical nested-matcher solver as an explicit extension path; only a
--- successful fallback is reported, and the reporting flag never changes the
--- chosen substitution.
-solveWithCompatibility
+-- | Solve ordinary equality with the synchronized TypePM relation.  Egison
+-- extensions are selected only by a positive extension witness, such as a
+-- numeric/CAS/tensor representation type; failure of the core relation is
+-- never by itself permission to retry with a different matcher relation.
+solveTypes
   :: ClassEnv
   -> [Constraint]
   -> Type
   -> Type
   -> TypeErrorContext
   -> Infer (Subst, Bool)
-solveWithCompatibility classEnv constraints left right ctx = do
+solveTypes classEnv constraints left right ctx = do
   ledger <- gets inferCapabilityOrigins
   case TU.unifyWithOriginsAndConstraints ledger classEnv constraints left right of
     Right result -> commit result
-    Left err@(TU.MatcherRigidity mismatchLeft mismatchRight)
-      | not (sameMatcherHead mismatchLeft mismatchRight) ->
-          -- Matcher-to-slot and tuple conversions are checking conversions,
-          -- not ordinary equality.  They may only be selected at the
-          -- explicit source/expected boundary in
-          -- 'solveAtSlotWithCompatibility'.
-          throwUnifyError ctx err
-      | otherwise ->
-          case TU.unifyExtendedWithConstraints
-                 classEnv constraints left right of
-            Right result -> do
-              reportTypePmSolverFallback
-                ("nested matcher constraint `" ++ TP.prettyType left ++
-                 " ~ " ++ TP.prettyType right ++
-                 "` requires Egison's permissive capability alignment")
-                ctx
-              commit result
-            Left extensionError -> throwUnifyError ctx extensionError
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
           warnOutsideEgisonCore
@@ -2447,28 +2212,31 @@ solveWithCompatibility classEnv constraints left right ctx = do
       recordGlobalSubst ctx substitution
       return result
 
-    sameMatcherHead (TMatcher _ _) (TMatcher _ _) = True
-    sameMatcherHead (TMatcherSlot _ _) (TMatcherSlot _ _) = True
-    sameMatcherHead _ _ = False
-
--- | Role-aware counterpart of 'solveWithCompatibility' for an explicit
+-- | Role-aware counterpart of 'solveTypes' for an explicit
 -- consumer slot.  TypePM's one-way producer-to-slot rule is attempted before
--- the general Egison extension solver, so a core-valid slot use neither
--- strengthens its producer nor emits an outside-core warning.
-solveAtSlotWithCompatibility
+-- any extension rule.  A raw ordinary 'TAny' is the sole gradual extension at
+-- this boundary and is selected directly from that non-core type constructor.
+solveAtSlot
   :: ClassEnv
   -> [Constraint]
   -> Type
   -> Type
   -> TypeErrorContext
   -> Infer (Subst, Bool)
-solveAtSlotWithCompatibility classEnv constraints inferred expected ctx = do
+solveAtSlot classEnv constraints inferred expected ctx = do
   case (inferred, expected) of
+    (TAny, TMatcherSlot _ _) -> do
+      warnOutsideEgisonCore
+        ("explicit slot use `" ++ TP.prettyType inferred ++
+         " <= " ++ TP.prettyType expected ++
+         "` uses Egison's gradual ordinary TAny extension")
+        ctx
+      commit (emptySubst, False)
     (TVar variable, TMatcherSlot _ target)
       | tyVarClass variable == ResultClass -> do
           producerCapability <- freshCapability "resultMatcherCap"
           (matcherSubst, matcherFlag) <-
-            solveWithCompatibility
+            solveTypes
               classEnv constraints inferred
               (TMatcher producerCapability target) ctx
           expected' <- applySubstWithConstraintsM matcherSubst expected
@@ -2501,20 +2269,6 @@ solveAtSlotWithCompatibility classEnv constraints inferred expected ctx = do
                   classEnv constraints inferred expected
       case coreResult of
         Right result -> commit result
-        Left err@(TU.MatcherRigidity _ _)
-          | TTuple _ <- inferred ->
-              throwUnifyError ctx err
-        Left (TU.MatcherRigidity _ _) ->
-          case TU.unifyExtendedWithConstraints
-                 classEnv constraints inferred expected of
-            Right result -> do
-              reportTypePmSolverFallback
-                ("explicit slot use `" ++ TP.prettyType inferred ++
-                 " <= " ++ TP.prettyType expected ++
-                 "` requires Egison's extended matcher alignment")
-                ctx
-              commit result
-            Left err -> throwUnifyError ctx err
         Left (TU.TypeMismatch mismatchLeft mismatchRight)
           | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
               warnOutsideEgisonCore
@@ -2548,12 +2302,13 @@ unifyTypesAtSlotWithConstraints constraints inferred expected ctx = do
   classEnv <- getClassEnv
   (inferred', expected') <- zonkPair inferred expected
   fst <$>
-    solveAtSlotWithCompatibility
+    solveAtSlot
       classEnv constraints inferred' expected' ctx
 
 -- | Egison's production numeric, CAS, and tensor typing predates rigid
 -- reconstruction.  These representation-level equalities are not core
--- equalities, so they are admitted only by the explicit compatibility path.
+-- equalities, so they are admitted only when an explicit extension type or
+-- constraint positively selects the production rule.
 skolemExtensionMismatch
   :: [Constraint]
   -> Type
@@ -2621,17 +2376,6 @@ unifyTypesWithTopLevel t1 t2 ctx = do
   ledger <- gets inferCapabilityOrigins
   case TU.unifyWithOriginsTopLevel ledger t1' t2' of
     Right s  -> recordGlobalSubst ctx s >> return s
-    Left (TU.MatcherRigidity _ _) ->
-      case TU.unifyExtendedWithTopLevel t1' t2' of
-        Right substitution -> do
-          reportTypePmSolverFallback
-            ("top-level nested matcher constraint `" ++
-             TP.prettyType t1' ++ " ~ " ++ TP.prettyType t2' ++
-             "` requires Egison's permissive capability alignment")
-            ctx
-          recordGlobalSubst ctx substitution
-          return substitution
-        Left err -> throwUnifyError ctx err
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch [] mismatchLeft mismatchRight -> do
           warnOutsideEgisonCore
@@ -2650,7 +2394,7 @@ unifyTypesWithConstraints :: [Constraint] -> Type -> Type -> TypeErrorContext ->
 unifyTypesWithConstraints constraints t1 t2 ctx = do
   classEnv <- getClassEnv
   (t1', t2') <- zonkPair t1 t2
-  fst <$> solveWithCompatibility classEnv constraints t1' t2' ctx
+  fst <$> solveTypes classEnv constraints t1' t2' ctx
 
 -- | Infer type for constants
 inferConstant :: ConstantExpr -> Infer Type
@@ -2875,7 +2619,7 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
       (pat, applySubstToTIExprWithClassEnv env s expr,
        map (\(dp, e) -> (dp, applySubstToTIExprWithClassEnv env s e)) bindings)) patDefs)
 
-  TIMatchExpr mode target matcher clauses ->
+  TIMatchExpr mode target matcher clauses fallback ->
     TIMatchExpr mode
                 (applySubstToTIExprWithClassEnv env s target)
                 (applySubstToTIExprWithClassEnv env s matcher)
@@ -2883,6 +2627,7 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
                   ( applySubstToTIPatternWithClassEnv env s pat
                   , applySubstToTIExprWithClassEnv env s body
                   )) clauses)
+                (applySubstToTIExprWithClassEnv env s <$> fallback)
 
   TIMatchAllExpr mode target matcher clauses ->
     TIMatchAllExpr mode
@@ -3188,12 +2933,9 @@ inferIExprWithContext expr ctx = case expr of
     -- warnings (or hard errors in strict mode).
     let indexBindings = concatMap paramIndexBindings params
                      ++ maybe [] fnNameIndexBindings mVar
-        scopedNames = map fst (bindings ++ indexBindings)
-        producerShadows = [(name, Set.empty) | name <- scopedNames]
     (bodyTIExpr, s) <-
       withEnv (map toScheme (bindings ++ indexBindings)) $
-        withProducerDependencyBindings producerShadows $
-          inferIExprWithContext body exprCtx
+        inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTIExpr
     -- A parameter that carries index patterns is necessarily a tensor
     -- (makeBindings forces the argument to TensorData at runtime).
@@ -3325,12 +3067,10 @@ inferIExprWithContext expr ctx = case expr of
   ILetExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     env <- getEnv
-    dependencyBindings <- sequentialBindingDependencies bindings
     (bindingTIs, extendedEnv, s1) <- inferIBindingsWithContext bindings env emptySubst exprCtx
     (bodyTI, s2) <-
       withEnv extendedEnv $
-        withProducerDependencyBindings dependencyBindings $
-          inferIExprWithContext body exprCtx
+        inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
         finalS = composeSubst s2 s1
     resultType <- applySubstWithConstraintsM finalS bodyType
@@ -3340,12 +3080,10 @@ inferIExprWithContext expr ctx = case expr of
   ILetRecExpr bindings body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     env <- getEnv
-    dependencyBindings <- recursiveBindingResultDependencies bindings
     (bindingTIs, extendedEnv, s1) <- inferIRecBindingsWithContext bindings env emptySubst exprCtx
     (bodyTI, s2) <-
       withEnv extendedEnv $
-        withProducerDependencyBindings dependencyBindings $
-          inferIExprWithContext body exprCtx
+        inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
         finalS = composeSubst s2 s1
     resultType <- applySubstWithConstraintsM finalS bodyType
@@ -3423,7 +3161,7 @@ inferIExprWithContext expr ctx = case expr of
           exprCtx
     -- Compatibility diagnostics describe an extension path the production
     -- checker actually proceeds to check.  Do not report a rejected malformed
-    -- matcher as though it had crossed an accepted fallback boundary.
+    -- matcher as though it had used an accepted extension rule.
     mapM_ (warnMatcherCompatibility exprCtx) patDefs
     -- Infer type of each pattern definition (matcher clause).  Each clause
     -- has a primitive-pattern pattern, a next-matcher expression, and data
@@ -3464,7 +3202,7 @@ inferIExprWithContext expr ctx = case expr of
     let allSubst = composeSubst s_matched finalSubst
     -- Paper Def 4.2(3) Coverage (warning-level diagnostic, non-fatal): use the
     -- finalized capability, not the ordinary target, to select the frozen
-    -- constructor family.  This mirrors type-pm-mech's CoverageOK; target
+    -- constructor family.  This mirrors type-pm-mech3's CoverageOK; target
     -- specialization cannot create or remove a structural coverage duty.
     covOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
     matchedTyFinal <- applySubstWithConstraintsM allSubst matchedTy
@@ -3598,36 +3336,10 @@ inferIExprWithContext expr ctx = case expr of
         -- In particular, no earlier hole's target equality may concretize a
         -- later component's Matcher index before that index is frozen.
         preparedComponents <- mapM
-          (\(componentExpr, componentTI) -> do
+          (\(_componentExpr, componentTI) -> do
             componentTy <- applySubstWithConstraintsM sBase
               (tiExprType componentTI)
-            recursiveDependencies <-
-              recursiveProducerDependencies componentExpr
-            recursiveBinders <- gets inferRecursiveBinders
-            dependencyEnv <- gets inferProducerDependencies
-            recursiveOwner <- gets inferRecursiveOwner
-            let directRecursiveHead =
-                  nextMatcherHeadName componentExpr
-                    >>= \name ->
-                          if name `Set.member` recursiveBinders
-                               && name `Map.notMember` dependencyEnv
-                            then Just name
-                            else Nothing
-                isDirectSelf =
-                  case (recursiveOwner, directRecursiveHead) of
-                    (Just owner, Just name) ->
-                      name == owner
-                        && recursiveDependencies == Set.singleton owner
-                    _ ->
-                      False
-                origin
-                  | Set.null recursiveDependencies =
-                      HoleKnownProducer
-                  | isDirectSelf =
-                      HoleRecursiveProducer
-                  | otherwise =
-                      HoleUnsupportedRecursiveProducer
-            prepareHoleComponent ctx origin componentTy)
+            prepareHoleComponent ctx componentTy)
           componentsWithSource
         let components = map fst preparedComponents
             slotCommitments = concatMap snd preparedComponents
@@ -3727,15 +3439,12 @@ inferIExprWithContext expr ctx = case expr of
         -- leave orphaned constraint variables behind, and TypeClassExpand
         -- then emitted unbound dictionary references for the arm's method
         -- calls (the method name leaked into evaluation as a string).
-        let ppDependencyShadows =
-              [(name, Set.empty) | (name, _) <- ppBindings']
         dataClauseResults <-
           withEnv ppBindings' $
-            withProducerDependencyBindings ppDependencyShadows $
-              mapM
-                (inferDataClauseWithCheck
-                  ctx nextMatcherInnerTypes matchedType')
-                dataClauses
+            mapM
+              (inferDataClauseWithCheck
+                ctx nextMatcherInnerTypes matchedType')
+              dataClauses
         let dataClauseTIs = map fst dataClauseResults
             s2 = foldr composeSubst emptySubst (map snd dataClauseResults)
 
@@ -3770,14 +3479,10 @@ inferIExprWithContext expr ctx = case expr of
             -- D5-CAS boundary: the current runtime exposes MathValue/IndexExpr
             -- pattern views independently of their target representation.  A
             -- target-indexed virtual signature is not available yet, so keep
-            -- those explicitly named nullary view capabilities operational,
-            -- including their historical producer flow, without treating
-            -- either as certified D4 or CapTargetOK evidence.
+            -- those explicitly named nullary view capabilities operational
+            -- without treating the result as certified CapTargetOK evidence.
             return (capability, True)
           Nothing -> do
-            when (any clauseHasUnsupportedRecursiveFlow seeds) $
-              shapeError
-                "recursive next-matcher flow through a transform, alias, forward reference, or mutual binder requires producer/path Shape equations; this definition is outside the currently supported certified D4 fragment"
             baseObservability <-
               either shapeError return (Cap.observabilityLookup patternEnv)
             let observability former =
@@ -3802,16 +3507,6 @@ inferIExprWithContext expr ctx = case expr of
         where
           shapeError detail =
             throwError (MatcherCapabilityError detail ctx)
-          clauseHasUnsupportedRecursiveFlow
-            (ClauseShapeSeed _ components) =
-              any componentHasUnsupportedRecursiveFlow components
-          componentHasUnsupportedRecursiveFlow component =
-            case component of
-              HCMatcher HoleUnsupportedRecursiveProducer _ _ -> True
-              HCSlot HoleUnsupportedRecursiveProducer _ _ -> True
-              HCTuple components ->
-                any componentHasUnsupportedRecursiveFlow components
-              _ -> False
       -- Temporary, explicit D5-CAS compatibility boundary.  It recognizes a
       -- matcher only when every structured root clause belongs to the same
       -- nullary CAS pattern-view signature.  Ordinary constructors and tuple
@@ -3896,8 +3591,9 @@ inferIExprWithContext expr ctx = case expr of
 
       -- Consume the flattened next-matcher components in primitive-pattern
       -- hole order and construct two evidence trees recursively.  Projection
-      -- evidence keeps recursive producers unseen (D4 non-seeding), while
-      -- validation evidence retains every actual hole producer capability.
+      -- evidence keeps result-class components unseen because they are not
+      -- independent evidence for the result shape still being inferred.
+      -- Validation evidence follows the same A/R distinction.
       -- Constructor names are related to capability heads exclusively through
       -- their fresh declared signatures.
       primitivePatternEvidence
@@ -4359,44 +4055,32 @@ inferIExprWithContext expr ctx = case expr of
       holeComponentEvidence :: Subst -> HoleComponentType -> Cap.CapEvidence
       holeComponentEvidence shapeSubst component =
         case component of
-          HCMatcher HoleRecursiveProducer _ _ ->
-            Cap.CapUnseen
-          HCSlot HoleRecursiveProducer _ _ ->
-            Cap.CapUnseen
-          HCMatcher HoleUnsupportedRecursiveProducer _ _ ->
-            Cap.CapUnseen
-          HCSlot HoleUnsupportedRecursiveProducer _ _ ->
-            Cap.CapUnseen
-          HCMatcher HoleKnownProducer capability _ ->
+          HCMatcher capability _ ->
             Cap.evidenceFromCapability
               (applyCapSubst shapeSubst capability)
-          HCSlot HoleKnownProducer capability _ ->
+          HCResultMatcher _ _ ->
+            Cap.CapUnseen
+          HCSlot capability _ ->
             Cap.evidenceFromCapability
               (applyCapSubst shapeSubst capability)
           HCTuple components ->
             Cap.CapTupleEvidence
               (map (holeComponentEvidence shapeSubst) components)
 
-      -- Closed-field validation observes an actual completed producer.  A
-      -- direct recursive producer remains unseen here as well as during
-      -- projection: its capability is the matcher capability currently being
-      -- inferred and cannot serve as independent evidence for itself.
       holeComponentValidationEvidence
         :: Subst
         -> HoleComponentType
         -> FieldValidationEvidence
       holeComponentValidationEvidence shapeSubst component =
         case component of
-          HCMatcher HoleRecursiveProducer _ _ ->
-            FieldValidationEvidence Cap.CapUnseen Set.empty
-          HCSlot HoleRecursiveProducer _ _ ->
-            FieldValidationEvidence Cap.CapUnseen Set.empty
-          HCMatcher _ capability _ ->
+          HCMatcher capability _ ->
             let capability' = applyCapSubst shapeSubst capability
             in FieldValidationEvidence
                  (Cap.evidenceFromCapability capability')
                  Set.empty
-          HCSlot _ capability _ ->
+          HCResultMatcher _ _ ->
+            FieldValidationEvidence Cap.CapUnseen Set.empty
+          HCSlot capability _ ->
             let capability' = applyCapSubst shapeSubst capability
             in FieldValidationEvidence
                  (Cap.evidenceFromCapability capability')
@@ -4447,19 +4131,13 @@ inferIExprWithContext expr ctx = case expr of
         -> [(Capability, Type)]
       holeComponentCapTargetAssumptions shapeSubst component =
         case component of
-          HCMatcher HoleRecursiveProducer _ _ ->
-            []
-          HCSlot HoleRecursiveProducer _ _ ->
-            []
-          HCMatcher HoleUnsupportedRecursiveProducer _ _ ->
-            []
-          HCSlot HoleUnsupportedRecursiveProducer _ _ ->
-            []
-          HCMatcher HoleKnownProducer capability target ->
+          HCMatcher capability target ->
             capTargetAssumptionClosure
               (applyCapSubst shapeSubst capability)
               (applySubst shapeSubst target)
-          HCSlot HoleKnownProducer capability target ->
+          HCResultMatcher _ _ ->
+            []
+          HCSlot capability target ->
             capTargetAssumptionClosure
               (applyCapSubst shapeSubst capability)
               (applySubst shapeSubst target)
@@ -4519,14 +4197,6 @@ inferIExprWithContext expr ctx = case expr of
                show holeCount ++ " components")
               ctx
 
-      nextMatcherHeadName :: IExpr -> Maybe String
-      nextMatcherHeadName expression =
-        case expression of
-          IVarExpr name      -> Just name
-          IApplyExpr fn _    -> nextMatcherHeadName fn
-          IReshape _ inner   -> nextMatcherHeadName inner
-          _                  -> Nothing
-      
       -- Infer PrimitivePatPattern type
       -- Returns (matched type, pattern hole types, variable bindings, substitution)
       -- Pattern hole types are the inner types (without TMatcher wrapper)
@@ -4680,12 +4350,9 @@ inferIExprWithContext expr ctx = case expr of
         let s_pd' = composeSubst s_match s_pd
 
         -- Infer the target expression with pattern variables in scope
-        let dependencyShadows =
-              [(name, Set.empty) | (name, _) <- bindings]
         (targetTI, s1) <-
           withEnv bindings $
-            withProducerDependencyBindings dependencyShadows $
-              inferIExprWithContext targetExpr ctx
+            inferIExprWithContext targetExpr ctx
         let exprType = tiExprType targetTI
             s_combined = composeSubst s1 s_pd'
 
@@ -5023,10 +4690,9 @@ inferIExprWithContext expr ctx = case expr of
           return (expectedType', bindings, s)
   
   -- Match expressions (pattern matching)
-  IMatchExpr mode target matcher clauses -> do
+  IMatchExpr mode target matcher clauses fallback -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     checkVpScope exprCtx matcher clauses
-    targetProducerDependencies <- recursiveProducerDependencies target
     (targetTI, s1) <- inferIExprWithContext target exprCtx
     (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
     let targetType = tiExprType targetTI
@@ -5056,34 +4722,64 @@ inferIExprWithContext expr ctx = case expr of
     matchedInnerType' <- applySubstWithConstraintsM s123 matchedInnerType
     s4 <- unifyTypesWithContext targetType' matchedInnerType' exprCtx
     
-    -- Infer match clauses result type
+    -- Infer the ordinary arms left-to-right.  The fallback is checked last
+    -- in the original environment, never under an arm's pattern bindings.
     let s1234 = composeSubst s4 s123
     case clauses of
       [] -> do
-        -- No clauses: this should not happen, but handle gracefully
-        resultTy <- freshResultVar "matchResult"
-        targetTI' <- applySubstToTIExprM s1234 targetTI
-        matcherTI' <- applySubstToTIExprM s1234 matcherTI
-        resultTy' <- applySubstWithConstraintsM s1234 resultTy
-        return (mkTIExpr resultTy' (TIMatchExpr mode targetTI' matcherTI' []), s1234)
+        -- Surface syntax requires an ordinary arm, but keep the internal form
+        -- total for generated expressions.
+        case fallback of
+          Nothing -> do
+            resultTy <- freshResultVar "matchResult"
+            targetTI' <- applySubstToTIExprM s1234 targetTI
+            matcherTI' <- applySubstToTIExprM s1234 matcherTI
+            resultTy' <- applySubstWithConstraintsM s1234 resultTy
+            return (mkTIExpr resultTy'
+                      (TIMatchExpr mode targetTI' matcherTI' [] Nothing), s1234)
+          Just fallbackExpr -> do
+            (fallbackTI, fallbackSubst) <-
+              inferIExprWithContext fallbackExpr exprCtx
+            let finalS = composeSubst fallbackSubst s1234
+            targetTI' <- applySubstToTIExprM finalS targetTI
+            matcherTI' <- applySubstToTIExprM finalS matcherTI
+            fallbackTI' <- applySubstToTIExprM finalS fallbackTI
+            resultTy' <- applySubstWithConstraintsM finalS (tiExprType fallbackTI)
+            return (mkTIExpr resultTy'
+                      (TIMatchExpr mode targetTI' matcherTI' [] (Just fallbackTI')), finalS)
       _ -> do
         -- Infer type of each clause and unify them
         matchedInnerType' <- applySubstWithConstraintsM s1234 matchedInnerType
         (resultTy, clauseTIs, clauseSubst) <-
           inferMatchClauses
             exprCtx matchedInnerType' clauses s1234
-            targetProducerDependencies
-        let finalS = composeSubst clauseSubst s1234
+        let clauseS = composeSubst clauseSubst s1234
+        (fallbackTI, finalS) <-
+          case fallback of
+            Nothing -> return (Nothing, clauseS)
+            Just fallbackExpr -> do
+              (rawFallbackTI, fallbackSubst) <-
+                inferIExprWithContext fallbackExpr exprCtx
+              let preUnifyS = composeSubst fallbackSubst clauseS
+              expectedType <- applySubstWithConstraintsM preUnifyS resultTy
+              fallbackType <-
+                applySubstWithConstraintsM preUnifyS (tiExprType rawFallbackTI)
+              resultSubst <-
+                unifyTypesWithContext expectedType fallbackType exprCtx
+              let combined = composeSubst resultSubst preUnifyS
+              typedFallback <- applySubstToTIExprM combined rawFallbackTI
+              return (Just typedFallback, combined)
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
+        clauseTIs' <- mapM (applyMatchClauseSubst finalS) clauseTIs
         resultTy' <- applySubstWithConstraintsM finalS resultTy
-        return (mkTIExpr resultTy' (TIMatchExpr mode targetTI' matcherTI' clauseTIs), finalS)
+        return (mkTIExpr resultTy'
+                  (TIMatchExpr mode targetTI' matcherTI' clauseTIs' fallbackTI), finalS)
   
   -- MatchAll expressions
   IMatchAllExpr mode target matcher clauses -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     checkVpScope exprCtx matcher clauses
-    targetProducerDependencies <- recursiveProducerDependencies target
     (targetTI, s1) <- inferIExprWithContext target exprCtx
     (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
     let targetType = tiExprType targetTI
@@ -5129,7 +4825,6 @@ inferIExprWithContext expr ctx = case expr of
         (resultElemTy, clauseTIs, clauseSubst) <-
           inferMatchClauses
             exprCtx matchedInnerType' clauses s1234
-            targetProducerDependencies
         let finalS = composeSubst clauseSubst s1234
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
@@ -5142,11 +4837,9 @@ inferIExprWithContext expr ctx = case expr of
     argTypes <- mapM (\_ -> freshVar "memoArg") args
     let bindings = zip args argTypes  -- [(String, Type)]
         schemes = map (\(name, t) -> (name, Forall [] [] [] t)) bindings
-        producerShadows = [(name, Set.empty) | name <- args]
     (bodyTI, s) <-
       withEnv schemes $
-        withProducerDependencyBindings producerShadows $
-          inferIExprWithContext body exprCtx
+        inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
     (resultType, resultSubst) <- makeResultWithContext bodyType exprCtx
     let finalSubst = composeSubst resultSubst s
@@ -5163,12 +4856,10 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     -- Infer IO monad bindings: each binding should be of type IO a
     env <- getEnv
-    dependencyBindings <- sequentialBindingDependencies bindings
     (bindingTIs, bindingSchemes, s1) <- inferIOBindingsWithContext bindings env emptySubst exprCtx
     (bodyTI, s2) <-
       withEnv bindingSchemes $
-        withProducerDependencyBindings dependencyBindings $
-          inferIExprWithContext body exprCtx
+        inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
         finalS = composeSubst s2 s1
         
@@ -5184,9 +4875,7 @@ inferIExprWithContext expr ctx = case expr of
   ICambdaExpr var body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
     argType <- freshVar "cambdaArg"
-    (bodyTI, s) <-
-      withProducerDependencyBindings [(var, Set.empty)] $
-        inferIExprWithContext body exprCtx
+    (bodyTI, s) <- inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
     (resultType, resultSubst) <- makeResultWithContext bodyType exprCtx
     let finalSubst = composeSubst resultSubst s
@@ -5202,11 +4891,9 @@ inferIExprWithContext expr ctx = case expr of
     -- Add symbols to type environment as MathValue (TMathValue = TInt)
     -- Symbols introduced by withSymbols are mathematical symbols
     let symbolBindings = [(sym, Forall [] [] [] TMathValue) | sym <- syms]
-        producerShadows = [(sym, Set.empty) | sym <- syms]
     (bodyTI, s) <-
       withEnv symbolBindings $
-        withProducerDependencyBindings producerShadows $
-          inferIExprWithContext body ctx
+        inferIExprWithContext body ctx
     let bodyType = tiExprType bodyTI
     return (mkTIExpr bodyType (TIWithSymbolsExpr syms bodyTI), s)
   
@@ -5552,14 +5239,12 @@ patternDualType pat ctx = do
   return (capability, target)
 
 -- | Snapshot of state that speculative structural inference must not leak.
--- Compatibility diagnostics are included: a failed probe is not an actual
--- transition to Egison's extension solver.  The fresh counter is deliberately
+-- Diagnostics are included so a failed probe is not observable.  The fresh counter is deliberately
 -- absent so variables allocated by a discarded probe are never reused.
 data ConstraintStateSnapshot = ConstraintStateSnapshot
   { snapshotConstraints :: [Constraint]
   , snapshotGlobalSubst :: Subst
   , snapshotWarnings :: [TypeWarning]
-  , snapshotCoreSolverFallbackReported :: Bool
   , snapshotDeferredHoleChecks :: [DeferredHoleCheck]
   , snapshotAllocatedCapVars :: Set.Set CapVar
   , snapshotCapabilityOrigins :: CapabilityOriginLedger
@@ -5573,8 +5258,6 @@ saveConstraintState = do
     { snapshotConstraints = inferConstraints state
     , snapshotGlobalSubst = inferGlobalSubst state
     , snapshotWarnings = inferWarnings state
-    , snapshotCoreSolverFallbackReported =
-        inferCoreSolverFallbackReported state
     , snapshotDeferredHoleChecks = inferDeferredHoleChecks state
     , snapshotAllocatedCapVars = inferAllocatedCapVars state
     , snapshotCapabilityOrigins = inferCapabilityOrigins state
@@ -5587,8 +5270,6 @@ restoreConstraintState snapshot =
     { inferConstraints = snapshotConstraints snapshot
     , inferGlobalSubst = snapshotGlobalSubst snapshot
     , inferWarnings = snapshotWarnings snapshot
-    , inferCoreSolverFallbackReported =
-        snapshotCoreSolverFallbackReported snapshot
     , inferDeferredHoleChecks = snapshotDeferredHoleChecks snapshot
     , inferAllocatedCapVars = snapshotAllocatedCapVars snapshot
     , inferCapabilityOrigins = snapshotCapabilityOrigins snapshot
@@ -5767,10 +5448,11 @@ patternFunctionCallHeads initialBound = goPattern initialBound
         goSequentialBindings bound bindings inner
       IWithSymbolsExpr symbols inner ->
         goExpression (bound `Set.union` Set.fromList symbols) inner
-      IMatchExpr _ target matcher clauses ->
+      IMatchExpr _ target matcher clauses fallback ->
         goExpression bound target ++
           goExpression bound matcher ++
-          concatMap (goClause bound) clauses
+          concatMap (goClause bound) clauses ++
+          maybe [] (goExpression bound) fallback
       IMatchAllExpr _ target matcher clauses ->
         goExpression bound target ++
           goExpression bound matcher ++
@@ -6206,7 +5888,8 @@ iexprVarRefs = go
     go (ILetRecExpr bs b)       = concatMap (go . snd) bs ++ go b
     go (ILetExpr bs b)          = concatMap (go . snd) bs ++ go b
     go (IWithSymbolsExpr _ b)   = go b
-    go (IMatchExpr _ t m cls)   = go t ++ go m ++ concatMap goClause cls
+    go (IMatchExpr _ t m cls fallback) =
+      go t ++ go m ++ concatMap goClause cls ++ maybe [] go fallback
     go (IMatchAllExpr _ t m cls) = go t ++ go m ++ concatMap goClause cls
     go (IMatcherExpr defs)      = concatMap goDef defs
     go (IQuoteExpr e)           = go e
@@ -6253,9 +5936,9 @@ iexprVarRefs = go
       _                  -> []
 
 -- | Lexically scoped free variables of an expression.  Unlike
--- 'iexprVarRefs', this is suitable for producer provenance: a lambda
--- parameter or local pattern binding must shadow a same-named recursive
--- producer, while references captured by a closure must remain visible.
+-- 'iexprVarRefs', this respects lambda parameters and local pattern bindings.
+-- It is used only to identify actual cycles for the recursive-value root
+-- restriction; it does not contribute matcher capability evidence.
 iexprFreeVarRefs :: IExpr -> Set.Set String
 iexprFreeVarRefs = go Set.empty
   where
@@ -6315,11 +5998,12 @@ iexprFreeVarRefs = go Set.empty
         freeSequentialBindings bound bindings body
       IWithSymbolsExpr symbols body ->
         go (bound `Set.union` Set.fromList symbols) body
-      IMatchExpr _ target matcher clauses ->
+      IMatchExpr _ target matcher clauses fallback ->
         Set.unions
           [ go bound target
           , go bound matcher
           , Set.unions (map (goClause bound) clauses)
+          , maybe Set.empty (go bound) fallback
           ]
       IMatchAllExpr _ target matcher clauses ->
         Set.unions
@@ -6492,107 +6176,6 @@ iexprFreeVarRefs = go Set.empty
       in go bound rhs `Set.union`
            freePatternBindings (bound `Set.union` names) rest inner
 
--- | Summarize already-processed top-level aliases/closures that still depend
--- on a definition later in the same load batch.  Eval creates a fresh
--- InferState per top-level item, so this summary is the cross-item part of the
--- scoped producer environment.  Only non-empty dependencies are returned:
--- ordinary completed definitions remain external Known producers.
-batchForwardProducerDependencies
-  :: Map.Map String (Set.Set String)
-  -> Set.Set String
-  -> [(Var, IExpr)]
-  -> Map.Map String (Set.Set String)
-batchForwardProducerDependencies externalDependencies batchNames completedBindings =
-  Map.filter (not . Set.null) (fixedPoint propagate initial)
-  where
-    -- Later redefinitions shadow earlier ones in the batch.
-    rhsByName =
-      Map.fromList
-        [ (extractNameFromVar var, rhs)
-        | (var, rhs) <- completedBindings
-        ]
-    completedNames = Map.keysSet rhsByName
-    futureNames = batchNames `Set.difference` completedNames
-    directRefs = Map.map producerFlowRefs rhsByName
-    directBatchRefs =
-      Map.map (`Set.intersection` batchNames) directRefs
-    completedEdges =
-      Map.map (`Set.intersection` completedNames) directBatchRefs
-    futureDependencies =
-      Map.map (`Set.intersection` futureNames) directBatchRefs
-    inheritedDependencies =
-      Map.map
-        (\references ->
-          Set.unions
-            [ Map.findWithDefault Set.empty reference externalDependencies
-            | reference <- Set.toList (references `Set.difference` batchNames)
-            ])
-        directRefs
-    cycleDependencies =
-      Map.mapWithKey
-        (\name _ ->
-          let reachable = reachableCompleted name
-          in if name `Set.member` reachable
-               then Set.filter
-                      (\candidate ->
-                        name `Set.member` reachableCompleted candidate)
-                      (Set.insert name reachable)
-               else Set.empty)
-        completedEdges
-    initial =
-      Map.unionsWith Set.union
-        [ futureDependencies
-        , inheritedDependencies
-        , cycleDependencies
-        ]
-
-    propagate dependencies =
-      Map.mapWithKey
-        (\name known ->
-          known `Set.union`
-            Set.unions
-              [ Map.findWithDefault Set.empty dependency dependencies
-              | dependency <-
-                  Set.toList
-                    (Map.findWithDefault Set.empty name completedEdges)
-              ])
-        dependencies
-
-    fixedPoint step current =
-      let next = step current
-      in if next == current
-           then current
-           else fixedPoint step next
-
-    reachableCompleted name =
-      walk Set.empty
-        (Set.toList
-          (Map.findWithDefault Set.empty name completedEdges))
-      where
-        walk seen [] = seen
-        walk seen (next : rest)
-          | next `Set.member` seen =
-              walk seen rest
-          | otherwise =
-              walk
-                (Set.insert next seen)
-                (Set.toList
-                  (Map.findWithDefault Set.empty next completedEdges)
-                  ++ rest)
-
-    -- A successfully checked matcher literal is a completed producer
-    -- boundary.  References in its next-matcher clauses and data arms have
-    -- already been classified while that literal was inferred; scanning the
-    -- whole syntax again would confuse arbitrary body dependencies with
-    -- value flow (and make every later consumer of the standard CAS matchers
-    -- depend on unrelated future helper definitions).  Aliases and closures
-    -- whose result is not a literal retain their free references so a
-    -- cross-top producer cycle remains visible.
-    producerFlowRefs rhs =
-      case stripLambdasForShape rhs of
-        IMatcherExpr _ -> Set.empty
-        _              -> iexprFreeVarRefs rhs
-
 -- | Align a clause's pp with a match-site pattern, threading the pattern
 -- variables bound to the left (within the same atom's pattern) and
 -- collecting each captured value pattern's expression with the variables
@@ -6682,6 +6265,11 @@ pdIrrefutable (PDPatVar _)    = True
 pdIrrefutable (PDTuplePat ps) = all pdIrrefutable ps
 pdIrrefutable _               = False
 
+applyMatchClauseSubst :: Subst -> TIMatchClause -> Infer TIMatchClause
+applyMatchClauseSubst subst (pattern', body) =
+  (,) <$> applySubstToTIPatternM subst pattern'
+      <*> applySubstToTIExprM subst body
+
 -- | Infer match clauses type
 -- All clauses should return the same type
 -- NEW: Returns TIMatchClause list in addition to type and subst
@@ -6690,10 +6278,9 @@ inferMatchClauses
   -> Type
   -> [IMatchClause]
   -> Subst
-  -> Set.Set String
   -> Infer (Type, [TIMatchClause], Subst)
 inferMatchClauses
-  ctx matchedType clauses initSubst targetProducerDependencies = do
+  ctx matchedType clauses initSubst = do
   case clauses of
     [] -> do
       -- No clauses (should not happen)
@@ -6707,7 +6294,6 @@ inferMatchClauses
       (firstTI, firstType, s1) <-
         inferMatchClause
           ctx matchedType firstClause initSubst
-          targetProducerDependencies
       commonResult' <- applySubstWithConstraintsM s1 commonResult
       firstType' <- applySubstWithConstraintsM s1 firstType
       sFirst <- unifyTypesWithContext commonResult' firstType' ctx
@@ -6727,7 +6313,6 @@ inferMatchClauses
       (clauseTI, clauseType, s1) <-
         inferMatchClause
           ctx' matchedTy' clause accSubst
-          targetProducerDependencies
       expectedType' <- applySubstWithConstraintsM s1 expectedType
       s2 <- unifyTypesWithContext expectedType' clauseType ctx'
       let finalS = composeSubst s2 (composeSubst s1 accSubst)
@@ -6741,11 +6326,9 @@ inferMatchClause
   -> Type
   -> IMatchClause
   -> Subst
-  -> Set.Set String
   -> Infer (TIMatchClause, Type, Subst)
 inferMatchClause
-  ctx matchedType (pattern, bodyExpr) initSubst
-  targetProducerDependencies = do
+  ctx matchedType (pattern, bodyExpr) initSubst = do
   -- Infer pattern type and extract pattern variable bindings
   -- Use pattern constructor and pattern function type information
   (tiPattern, bindings, s_pat, _) <- inferIPattern pattern matchedType ctx
@@ -6753,16 +6336,11 @@ inferMatchClause
   
   -- Convert bindings to TypeScheme format
   let schemes = [(var, Forall [] [] [] ty) | (var, ty) <- bindings]
-      dependencyBindings =
-        [ (var, targetProducerDependencies)
-        | (var, _) <- bindings
-        ]
   
   -- Infer body expression type with pattern variables in scope
   (bodyTI, s2) <-
     withEnv schemes $
-      withProducerDependencyBindings dependencyBindings $
-        inferIExprWithContext bodyExpr ctx
+      inferIExprWithContext bodyExpr ctx
   let bodyType = tiExprType bodyTI
       finalS = composeSubst s2 s1
   finalBodyType <- applySubstWithConstraintsM finalS bodyType
@@ -6785,9 +6363,7 @@ inferPatternsLeftToRight (p:ps) (t:ts) accBindings accSubst ctx = do
   t' <- applySubstWithConstraintsM accSubst t
   (tipat, newBindings, s, capability) <-
     withEnv schemes $
-      withProducerDependencyBindings
-        [(name, Set.empty) | (name, _) <- schemes] $
-          inferIPattern p t' ctx
+      inferIPattern p t' ctx
 
   -- Compose substitutions
   let accSubst' = composeSubst s accSubst
@@ -7149,15 +6725,13 @@ inferIPattern pat expectedType ctx = case pat of
     -- Let pattern: infer bindings and then the pattern
     -- Infer bindings first
     env <- getEnv
-    dependencyBindings <- sequentialBindingDependencies bindings
     (bindingTIs, bindingSchemes, s1) <- inferIBindingsWithContext bindings env emptySubst ctx
 
     -- Infer pattern with bindings in scope
     expectedType' <- applySubstWithConstraintsM s1 expectedType
     (tipat, patBindings, s2, innerCapability) <-
       withEnv bindingSchemes $
-        withProducerDependencyBindings dependencyBindings $
-          inferIPattern p expectedType' ctx
+        inferIPattern p expectedType' ctx
 
     let s = composeSubst s2 s1
     finalType <- applySubstWithConstraintsM s expectedType
@@ -7180,9 +6754,7 @@ inferIPattern pat expectedType ctx = case pat of
     expectedType' <- applySubstWithConstraintsM s1 expectedType
     (tipat2, bindings2, s2, capability2) <-
       withEnv schemes1 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes1] $
-            inferIPattern p2 expectedType' ctx
+        inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
@@ -7241,9 +6813,7 @@ inferIPattern pat expectedType ctx = case pat of
     expectedType' <- applySubstWithConstraintsM s1 expectedType
     (tipat2, bindings2, s2, capability2) <-
       withEnv schemes1 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes1] $
-            inferIPattern p2 expectedType' ctx
+        inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
@@ -7276,9 +6846,7 @@ inferIPattern pat expectedType ctx = case pat of
     expectedType1 <- applySubstWithConstraintsM s_combined expectedType
     (tipat1, bindings1, s1, capability1) <-
       withEnv schemes0 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes0] $
-            inferIPattern p1 expectedType1 ctx
+        inferIPattern p1 expectedType1 ctx
 
     -- Infer p2 with all previous bindings in scope
     allPrevBindings' <- mapM (\(v, ty) -> do
@@ -7289,9 +6857,7 @@ inferIPattern pat expectedType ctx = case pat of
     expectedType2 <- applySubstWithConstraintsM s1 expectedType
     (tipat2, bindings2, s2, capability2) <-
       withEnv schemes1 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes1] $
-            inferIPattern p2 expectedType2 ctx
+        inferIPattern p2 expectedType2 ctx
 
     let s = foldr composeSubst emptySubst [s2, s1, s_combined]
     -- Apply final substitution to all bindings
@@ -7398,9 +6964,7 @@ inferIPattern pat expectedType ctx = case pat of
     expectedType' <- applySubstWithConstraintsM s1 expectedType
     (tipat2, bindings2, s2, capability2) <-
       withEnv schemes1 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes1] $
-            inferIPattern p2 expectedType' ctx
+        inferIPattern p2 expectedType' ctx
     let s = composeSubst s2 s1
     -- Apply substitution to left bindings
     bindings1'' <- mapM (\(v, ty) -> do
@@ -7429,9 +6993,7 @@ inferIPattern pat expectedType ctx = case pat of
     let schemes1 = [(var, Forall [] [] [] ty) | (var, ty) <- bindings1]
     (tipats, argBindings, s2, _) <-
       withEnv schemes1 $
-        withProducerDependencyBindings
-          [(name, Set.empty) | (name, _) <- schemes1] $
-            inferPatternsLeftToRight pats argTypes [] s1 ctx
+        inferPatternsLeftToRight pats argTypes [] s1 ctx
 
     let s = composeSubst s2 s1
     -- Apply substitution to base bindings
@@ -7480,10 +7042,10 @@ solveApplicationArgument classEnv constraints source typed inferred expected ctx
       solveSourceTupleAtSlot
         classEnv constraints components typed slot ctx
     (_, slot@TMatcherSlot{}) ->
-      solveAtSlotWithCompatibility
+      solveAtSlot
         classEnv constraints inferred slot ctx
     _ ->
-      solveWithCompatibility
+      solveTypes
         classEnv constraints inferred expected ctx
 
 solveSourceTupleAtSlot
@@ -7504,14 +7066,14 @@ solveSourceTupleAtSlot classEnv constraints sources typed expected ctx =
             case consumerCap of
               CapAny -> do
                 result <-
-                  solveWithCompatibility
+                  solveTypes
                     classEnv constraints consumerTarget
                     (TTuple componentTargets) ctx
                 return (replicate (length sources) CapAny, fst result, snd result)
               _ -> do
                 caps <- mapM (const (freshCapability "tupleSlotCap")) sources
                 result <-
-                  solveWithCompatibility
+                  solveTypes
                     classEnv constraints expected
                     (TMatcherSlot (CapTuple caps) (TTuple componentTargets))
                     ctx
@@ -7540,7 +7102,7 @@ solveSourceTupleAtSlot classEnv constraints sources typed expected ctx =
             (shapeSubst, shapeFlag)
             triples
     _ ->
-      solveAtSlotWithCompatibility
+      solveAtSlot
         classEnv constraints (tiExprType typed) expected ctx
 
 -- TensorMap insertion logic has been moved to Language.Egison.Type.TensorMapInsertion
@@ -7604,7 +7166,7 @@ inferIApplicationSequential funcTIExpr funcType args initSubst ctx = do
   contextConstraints <- getConstraints
   let constraints = funcConstraints ++ contextConstraints
   initialUnifier <-
-    (Just <$> solveWithCompatibility
+    (Just <$> solveTypes
       classEnv constraints appliedFuncType expectedFuncType ctx)
       `catchError` \_ -> return Nothing
   case initialUnifier of
@@ -7734,7 +7296,7 @@ inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubs
   contextConstraints <- getConstraints
   let constraints = funcConstraints ++ contextConstraints
   initialUnifier <-
-    (Just <$> solveWithCompatibility
+    (Just <$> solveTypes
       classEnv constraints appliedFuncType expectedFuncType ctx)
       `catchError` \_ -> return Nothing
   case initialUnifier of
@@ -7783,7 +7345,6 @@ inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubs
 inferIOBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIOBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
-  producerDependencies <- recursiveProducerDependencies expr
   -- Infer the type of the expression
   (exprTI, s1) <- inferIExprWithContext expr ctx
   let exprType = tiExprType exprTI
@@ -7810,14 +7371,9 @@ inferIOBindingsWithContext ((pat, expr):bs) env s ctx = do
 
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
-      dependencyBindings =
-        [ (name, producerDependencies)
-        | name <- primitivePatternNames pat
-        ]
   (restBindingTIs, restBindings, s2') <-
     withEnv extendedEnvList $
-      withProducerDependencyBindings dependencyBindings $
-        inferIOBindingsWithContext bs env s' ctx
+      inferIOBindingsWithContext bs env s' ctx
   return ((pat, exprTI) : restBindingTIs, bindings ++ restBindings, s2')
   where
     -- Infer the type that a pattern expects
@@ -7874,7 +7430,6 @@ applySubstRecursively = applySubstWithConstraintsM
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
-  producerDependencies <- recursiveProducerDependencies expr
   -- Infer the type of the expression
   (exprTI, s1) <- inferIExprWithContext expr ctx
   (exprType, resultSubst) <- case pat of
@@ -7946,14 +7501,9 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
 
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
-      dependencyBindings =
-        [ (name, producerDependencies)
-        | name <- primitivePatternNames pat
-        ]
   (restBindingTIs, restBindings, s2') <-
     withEnv extendedEnvList $
-      withProducerDependencyBindings dependencyBindings $
-        inferIBindingsWithContext bs env s' ctx
+      inferIBindingsWithContext bs env s' ctx
   return ((pat, exprTI) : restBindingTIs, bindings ++ restBindings, s2')
   where
     -- Infer the type that a pattern expects
@@ -8018,27 +7568,20 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   
   -- Extract bindings from placeholders
   let placeholderBindings = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders placeholderTypes
-      groupNames =
-        concatMap (primitivePatternNames . fst) bindings
-      groupContexts = recursiveBindingGroupContexts bindings
+      cycleMembers = recursiveCycleMembers bindings
       inferRecursiveBinding (pat, expr) =
         let boundNames = primitivePatternNames pat
             owner = case boundNames of
               [name] -> Just name
               _      -> Nothing
-            active =
-              Set.unions
-                [ Map.findWithDefault Set.empty name groupContexts
-                | name <- boundNames
-                ]
         in do
           case owner of
             Just name
-              | name `Set.member` active ->
-                  checkRecursiveValueRoot name expr ctx
+              | name `Set.member` cycleMembers ->
+                  checkRecursiveGroupValueRoot
+                    name cycleMembers expr ctx
             _ -> return ()
-          withRecursiveRhsScope groupNames active owner
-            (inferIExprWithContext expr ctx)
+          inferIExprWithContext expr ctx
   
   -- Infer expressions in extended environment
   results <-
@@ -8331,10 +7874,7 @@ inferITopExpr topExpr = case topExpr of
           -- indexed reference to an earlier overload is not a self-reference
           -- to this exact binding.
           Var _ _ -> return ()
-        (exprTI, subst1) <-
-          withRecursiveRhsScope
-            [owner] (Set.singleton owner) (Just owner) $
-              inferIExpr checkedExpr
+        (exprTI, subst1) <- inferIExpr checkedExpr
         let exprType = tiExprType exprTI
 
         -- Unify inferred type with expected type using constraint-aware unification
@@ -8439,10 +7979,7 @@ inferITopExpr topExpr = case topExpr of
             checkRecursiveValueRoot
               owner expr (withExpr (prettyStr expr) emptyContext)
           Var _ _ -> return ()
-        (exprTI, subst1) <-
-          withRecursiveRhsScope
-            [owner] (Set.singleton owner) (Just owner) $
-              inferIExpr expr
+        (exprTI, subst1) <- inferIExpr expr
         -- Tie the placeholder to the inferred body type.  For a
         -- non-recursive body the placeholder is still free and the
         -- unification just discharges it; for a recursive one this is
@@ -8534,28 +8071,23 @@ inferITopExpr topExpr = case topExpr of
           [ (PDPatVar var, expression)
           | (var, expression) <- bindings
           ]
-        groupNames = map (extractNameFromVar . fst) bindings
-        groupContexts =
-          recursiveBindingGroupContexts recursiveBindings
+        cycleMembers = recursiveCycleMembers recursiveBindings
     results <-
-      mapM (inferBinding env groupNames groupContexts) bindings
+      mapM (inferBinding env cycleMembers) bindings
     let bindingsTI = map fst results
         substs = map snd results
         combinedSubst = foldr composeSubst emptySubst substs
     return (Just (TIDefineMany bindingsTI), combinedSubst)
     where
-      inferBinding env groupNames groupContexts binding@(var, expression) =
-        let owner = extractNameFromVar var
-            active =
-              Map.findWithDefault Set.empty owner groupContexts
-        in do
-          when (owner `Set.member` active) $
+      inferBinding env cycleMembers binding@(var, expression) = do
+          let owner = extractNameFromVar var
+          when (owner `Set.member` cycleMembers) $
             case var of
               Var _ [] ->
-                checkRecursiveValueRoot owner expression emptyContext
+                checkRecursiveGroupValueRoot
+                  owner cycleMembers expression emptyContext
               Var _ _ -> return ()
-          withRecursiveRhsScope groupNames active (Just owner) $
-            inferBindingInScope env binding
+          inferBindingInScope env binding
 
       -- An IDefineMany hash-literal binding is, by construction, a type-class
       -- instance dictionary (Desugar's makeDictDef; the other IDefineMany
@@ -8799,9 +8331,7 @@ inferITopExpr topExpr = case topExpr of
       state { inferPatfunParamDuals = parameterDualMap }
     bodyOutcome <-
       (Right <$> withEnv paramBindings
-        (withProducerDependencyBindings
-          [(parameterName, Set.empty) | parameterName <- paramNames]
-          (inferIPattern checkedBody checkedRetType ctx)))
+        (inferIPattern checkedBody checkedRetType ctx))
         `catchError` (return . Left)
     modify $ \state ->
       state { inferPatfunParamDuals = previousParameterDuals }

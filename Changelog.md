@@ -18,6 +18,8 @@
 
 ### Type System and Pattern Matching
 
+* Added `else` fallbacks to `match` and `matchDFS`; the fallback runs in the
+  surrounding environment only after every ordinary arm has failed.
 * Strengthened matcher consistency and exhaustiveness checking, promoting
   incomplete matcher arms to type errors.
 * Improved type-class hierarchy handling, dictionary expansion, instance

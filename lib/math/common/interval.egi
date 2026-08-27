@@ -81,10 +81,10 @@ def constInterval (k: Integer) (v: MathValue) : Maybe (MathValue, MathValue) :=
                 let (al, ah) := a
                     (bl, bh) := b
                  in Just (al + bl, ah + bh)
-            | (_, _) -> Nothing)
+            else Nothing)
           (Just (0, 0))
           ts
-    | _ -> Nothing
+    else Nothing
 
 def constTermInterval (k: Integer) (t: MathValue) : Maybe (MathValue, MathValue) :=
   match t as mathValue with
@@ -115,7 +115,7 @@ def constAtomInterval (k: Integer) (x: MathValue) : Maybe (MathValue, MathValue)
                     then Just (sqrtInterval k lo hi)
                     else Nothing
           | nothing -> Nothing
-    | _ -> Nothing
+    else Nothing
 
 -- Certified sign of a symbol-free real value: "pos", "neg", or
 -- "unknown" (outside the fragment, or zero cannot be separated even
@@ -138,4 +138,4 @@ def signOfConstLoop (v: MathValue) (ks: [Integer]) : String :=
           | #"pos" -> "pos"
           | #"neg" -> "neg"
           | #"unknown" -> "unknown"
-          | _ -> signOfConstLoop v rest
+          else signOfConstLoop v rest

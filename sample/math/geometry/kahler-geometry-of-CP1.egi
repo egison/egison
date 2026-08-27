@@ -4,7 +4,7 @@
 -- Wirtinger calculus treats z and zbar as independent symbols; the complex
 -- structure enters through the library symbol i (i^2 = -1, a symbol-carried
 -- quotient). This sample showcases the extensible CAS tower
--- (design/type-cas-tower.md):
+-- (design/type-cas-tower-implementation.md):
 --   * cas-type aliases for complex-coefficient rings (Phase alpha)
 --   * annotation-selected canonical forms: the same value viewed flat
 --     (Z[i, z, zbar]) or nested (coefficients in Z[i], organized by z and

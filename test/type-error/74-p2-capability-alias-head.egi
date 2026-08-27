@@ -1,7 +1,0 @@
--- P2 capability name elaboration.
--- Expected: Type error / Capability kind error: a transparent surface type
--- alias cannot be used as a capability head.
-
-declare cas-type P2AliasCapability := Integer
-
-def p2AliasHead : Matcher P2AliasCapability P2AliasCapability := integer

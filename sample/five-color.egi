@@ -20,7 +20,7 @@ def main (graphData: [((Integer, Maybe Integer), [(Integer, Maybe Integer)])]) :
       , ($nid_1, just $c_1) :: ($nid_2, just $c_2) :: ( $nid_3
       , just $c_3 ) :: ($nid_4, just $c_4) :: ( $nid_5
       , just $c_5 ) :: [] ) :: _ ) -> undefined
-    | _ -> graphData
+    else graphData
 
 def assignColor (id: Integer) (c: Integer) (graphData: [((Integer, Maybe Integer), [(Integer, Maybe Integer)])]) : [((Integer, Maybe Integer), [(Integer, Maybe Integer)])] :=
   map
@@ -31,7 +31,7 @@ def assignColor (id: Integer) (c: Integer) (graphData: [((Integer, Maybe Integer
 def rewriteNode (id: Integer) (c: Integer) (n: (Integer, Maybe Integer)) : (Integer, Maybe Integer) :=
   match n as node with
     | (#id, nothing) -> (id, Just c)
-    | _ -> n
+    else n
 
 rewriteNode 1 5 (1, Nothing)
 

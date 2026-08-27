@@ -96,7 +96,7 @@ data IExpr
   | ILetRecExpr [IBindingExpr] IExpr
   | ILetExpr [IBindingExpr] IExpr
   | IWithSymbolsExpr [String] IExpr
-  | IMatchExpr PMMode IExpr IExpr [IMatchClause]
+  | IMatchExpr PMMode IExpr IExpr [IMatchClause] (Maybe IExpr)
   | IMatchAllExpr PMMode IExpr IExpr [IMatchClause]
   | IMatcherExpr [IPatternDef]
   | IQuoteExpr IExpr
@@ -284,11 +284,12 @@ mapIExprTypes transformType = goExpr
         ILetExpr (map goBinding bindings) (goExpr body)
       IWithSymbolsExpr names body ->
         IWithSymbolsExpr names (goExpr body)
-      IMatchExpr mode target matcher clauses ->
+      IMatchExpr mode target matcher clauses fallback ->
         IMatchExpr mode
           (goExpr target)
           (goExpr matcher)
           (map goClause clauses)
+          (goExpr <$> fallback)
       IMatchAllExpr mode target matcher clauses ->
         IMatchAllExpr mode
           (goExpr target)
@@ -484,7 +485,7 @@ data TIExprNode
   | TIWithSymbolsExpr [String] TIExpr
   
   -- Pattern matching
-  | TIMatchExpr PMMode TIExpr TIExpr [TIMatchClause]
+  | TIMatchExpr PMMode TIExpr TIExpr [TIMatchClause] (Maybe TIExpr)
   | TIMatchAllExpr PMMode TIExpr TIExpr [TIMatchClause]
   | TIMatcherExpr [TIPatternDef]
   
@@ -577,8 +578,9 @@ stripType (TIExpr _ node) = case node of
   TILetExpr bindings body -> ILetExpr (map stripTypeBinding bindings) (stripType body)
   TILetRecExpr bindings body -> ILetRecExpr (map stripTypeBinding bindings) (stripType body)
   TIWithSymbolsExpr syms body -> IWithSymbolsExpr syms (stripType body)
-  TIMatchExpr mode target matcher clauses -> 
+  TIMatchExpr mode target matcher clauses fallback ->
     IMatchExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
+      (stripType <$> fallback)
   TIMatchAllExpr mode target matcher clauses -> 
     IMatchAllExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
   TIMatcherExpr patDefs -> 
@@ -750,8 +752,8 @@ mapTIExprChildren f node = case node of
   TIDoExpr bs body     -> TIDoExpr (mapBind f bs) (f body)
 
   -- Pattern matching (expression children only; patterns are untouched)
-  TIMatchExpr mode tgt mat cls ->
-    TIMatchExpr mode (f tgt) (f mat) (mapClause f cls)
+  TIMatchExpr mode tgt mat cls fallback ->
+    TIMatchExpr mode (f tgt) (f mat) (mapClause f cls) (f <$> fallback)
   TIMatchAllExpr mode tgt mat cls ->
     TIMatchAllExpr mode (f tgt) (f mat) (mapClause f cls)
 

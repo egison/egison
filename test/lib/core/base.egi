@@ -5,22 +5,22 @@
 assert "bool's value pattern"
   (match (True, False) as (bool, bool) with
    | #(True, False) -> True
-   | _ -> False)
+   else False)
 
 assert "char's value pattern"
   (match 'a' as char with
    | #'a' -> True
-   | _ -> False)
+   else False)
 
 assert "integer's value pattern"
   (match 10 as integer with
    | #10 -> True
-   | _ -> False)
+   else False)
 
 assert "float's value pattern"
   (match 0.1 as float with
    | #0.1 -> True
-   | _ -> False)
+   else False)
 
 --
 -- Utility

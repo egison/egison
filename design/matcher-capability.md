@@ -1,30 +1,35 @@
-# P2 matcher capability 実装契約
+# Matcher capability 実装契約
 
-> **状態（2026-08-06）**
-> 本文書は、Egison 本体に実装した P2 の契約と、その保証範囲を記録する。
+> **状態（2026-08-27）**
+> 本文書は、Egison 本体に実装した TypePM matcher capability の契約と、その保証範囲を記録する。
 > 形式設計の正本は
-> [type-pm-mech の P2 設計文書](../../type-pm-mech/problem/matcher-capability-instantiation.md)
-> であり、課題全体の索引は
-> [type-pm-mech の problem 一覧](../../type-pm-mech/problem/README.md)
-> を参照すること。`design/matcher-slot.md` は P2 以前の実装史であり、現行契約の
-> 正本ではない。
+> [type-pm-mech3](../../type-pm-mech3/README.md)
+> を参照すること。二添字導入前の一-sort matcher 設計は現行契約ではなく、
+> 本文書と `type-pm-mech3` へ統合済みである。
 
 ## 1. 実装範囲の要約
 
 | 項目 | 現在の状態 | 保証範囲 |
 |---|---|---|
+| core に対する保守的拡張 | 実装済み | core の構文・型・署名を使い、core の静的な前提を満たすプログラムは同期済み TypePM 規則だけで型付けし、core の型等式の失敗を別の matcher solver で救済しない |
 | 二 sort・二添字 | 実装済み | `Matcher κ τ` と `MatcherSlot κ τ` を使用し、capability と通常型を別 sort として扱う |
 | D1 ShapeCap | 実装済み | pattern constructor の署名から evidence と observability を計算し、節間を exact merge する |
 | Coverage | D1 から独立して実装済み | primitive pattern の網羅性は opt-in warning のままとし、ShapeCap を弱めない |
 | D3 代入・一般化 | core fragment 実装済み | capability 変数と通常型変数を別々に代入、一般化、具体化し、top-level definition と pattern function の明示 scheme を両 sort とも rigid に検査する |
-| D4 再帰 flow | 一部実装 | scoped な name-level dependency と singleton direct-self を扱い、未解決／循環 summary を load unit 間で保持するが、一般の producer/path 方程式は未統合 |
+| 再帰値 | 実装済み | 再帰変数へ A/R 用途制約を持つ単相 placeholder を与え、本体の推論型と最後に単一化する。再帰値の根を lambda／matcher literal に制限し、self の名前や別名関係は追跡しない |
 | D5-core `CapTargetOK` | 実装済み | 固定された構文的 type former と文脈仮定だけで検査する |
 | D5-CAS | 未実装 | 標準ライブラリを動かすための legacy compatibility boundary のみ存在する |
 
-したがって、現在の実装は **非 legacy 経路に P2-core の検査済み fragment を持つ**
+ここで保守的拡張とは、core の静的な前提を満たす既存プログラムの型と代入を Egison
+固有の規則が変更しないという意味である。Egison 固有の型付け規則は、通常型
+`TAny`、CAS／Tensor 型、legacy CAS view、core 外の pattern 構文、または Coverage
+などの core の表層上の前提を緩和することが明示的に診断された場合だけ選択する。
+core の型等式や matcher／slot 判定が失敗したという事実だけでは拡張規則を選択しない。
+
+したがって、現在の実装は **非 legacy 経路に TypePM core の検査済み fragment を持つ**
 が、形式証明済みまたは certified な fragment を持つという主張ではない。型検査器
 または標準ライブラリ全体も certified とみなせる状態ではない。
-特に full D4 と D5-CAS を実装済みとは扱わない。
+特に D5-CAS を実装済みとは扱わない。
 
 ## 2. 型の契約：二 sort・二添字
 
@@ -228,7 +233,7 @@ nested expression annotation である。次の局所 annotation は `Desugar.hs
 ものだけを量化する。parameter／result annotation にだけ現れる未宣言 ordinary
 variable を拒否する general well-scopedness check は未実装であり、inductive、
 pattern-inductive、class signature にも同種の前段検査が必要である。
-type class は formal P2 core の対象外であり、constraint のみに現れる変数の閉包、
+type class は formal TypePM core の対象外であり、constraint のみに現れる変数の閉包、
 capability variable／skolem のみに依存する residual constraint の検査、
 pattern function の constraint syntax も未実装境界である。
 
@@ -254,61 +259,29 @@ pattern function の constraint syntax も未実装境界である。
 import 時の署名環境の凍結や coupled substitution lemma の証明まで完了した、という
 主張ではない。
 
-## 7. D4：現在扱える再帰 flow
+## 7. 再帰値：A/R 用途制約と根の制限
 
-### 7.1 型推論器に統合済みの範囲
+再帰定義では、再帰変数へ fresh な結果用型変数 `ρᴿ` を与え、同じ変数を本体の
+型と最後に単一化する。結果用型変数（R 変数）は `ResultOK`、すなわち関数の返り値
+として妥当な型だけへ置換できる。仮引数用型変数（A 変数）は通常の `TypeOK` な型へ
+置換できる。これにより `Slot` は関数の仮引数部分だけに現れ、再帰本体の結果には
+現れない。
 
-現在の `Type/Infer.hs` は producer を次の三つに分類する。
+matcher literal の next-matcher 位置で未解決の R 変数が現れた場合、その変数は
+`Matcher` へ精密化される。ここで得た capability は slot 適合性の検査には使うが、
+現在構築中の結果形に対する独立した evidence には数えない。重要なのは、この判定が
+式の名前や構文上の head ではなく、現在の型変数の A/R 用途だけに基づく点である。
+したがって、次は同じ規則で処理される。
 
-1. 再帰参照を含まない producer。
-2. singleton direct-self producer。
-3. それ以外の、追加の flow 方程式を必要とする producer。
+- `self` の直接利用。
+- `let next := self in next` のような局所 alias。
+- `identity self` のような通常の関数適用。
 
-singleton direct-self は、next matcher の head を構文的に追った結果が同じ binder
-になる範囲である。bare variable に限らず、その binder を head とする application
-や reshape を含む。ただし direct-self edge 自体は evidence でも
-`CapTargetOK` の仮定でもない。非再帰 clause などから得た genuine evidence が別に
-必要であり、自己再帰や結果注釈だけで `Unseen` を確定できない。
-
-この direct-self fragment は P2-core の検査済み fragment に含める。transform、
-alias、相互再帰、higher-order 経由など、producer/path 方程式が必要な非 legacy
-flow は現在 fail-closed で拒否する。
-
-producer provenance は、単一の matcher literal 内だけでなく、局所 alias／closure、
-同じ load unit の先行 top-level 定義、および以前の load unit から引き継いだ
-top-level summary を通して追跡する。
-
-- load unit 全体の定義名を先に集め、未確定の forward producer を通常の外部 producer
-  と区別する。
-- 完了済み top-level alias／closure の依存関係を推移的に要約し、alias-only の閉じた
-  SCC は、全要素が構文上は完了した後も `Known` evidence にしない。
-- 非空の unresolved／cyclic summary は `EvalState` に保存し、次の load unit へ
-  引き継ぐ。現在の load unit による再定義は以前の summary を shadow する。
-- 型検査に成功した matcher literal は producer boundary とする。その clause body の
-  任意の自由変数を matcher value の flow と混同しない。
-- 局所環境と speculative constraint state は成功時・失敗時の両方で復元し、top-level
-  inference state はその項目全体が成功した場合だけ永続化する。
-
-これらは、未統合の一般 solver を使わずに既知の alias／closure 隠蔽と load-unit
-境界のすり抜けを fail-closed にするための name-level provenance 近似である。
-summary 自体は capability evidence や certificate ではない。summary がない外部
-producer はこの近似の下では `Known` と扱われ、保持範囲も同じ `EvalState` を使う
-evaluator session 内に限られる。`TypeScheme`、typed AST、serialized module artifact、
-process restart には保存されない。相互再帰を一般に解けるようにするものでもない。
-
-### 7.2 純粋 `ShapeSolver` の位置づけ
-
-`Type/ShapeSolver.hs` には、producer/node 方程式、参照、constructor projection、
-SCC、exact merge、expansive cycle の拒否を扱う純粋 solver がある。また、この solver
-単体の回帰テストも存在する。
-
-しかし、現在この module は `Type/Infer.hs` から呼ばれていない。したがって、
-solver の存在をもって相互再帰や一般の producer/path flow が言語実装へ統合済みとは
-みなさない。full D4 の残作業は、型推論時に producer ID と path 方程式を収集し、
-この solver の解を D1 finalization と `CapTargetOK` へ接続することである。
-現在の name set だけでは projection／constructor edge を表現できないため、solver
-なら受理できる可能性がある transform、mutual flow、higher-order flow も保守的に
-拒否する。
+推論器は next-matcher 式の名前、構文上の head、局所 alias、通常の関数適用、
+load unit をまたぐ値依存を capability evidence として追跡しない。再帰に関して残す
+構文制限は、実際に循環する定義の根を lambda または matcher literal に限る規則だけ
+である。再帰グループの循環検査はこの根制限のためだけに行い、matcher capability の
+evidence や型変数の単一化には使わない。
 
 ## 8. D5-CAS：legacy compatibility boundary
 
@@ -322,13 +295,11 @@ target/view ごとの virtual pattern signature や、runtime extraction がそ�
 pattern constructor を view として使用する。この既存コードを動かすため、現在の
 型推論器には限定的な legacy allowlist がある。
 
-legacy root の検出は unsupported-flow rejection と通常の evidence finalization
-より先に行われる。この branch は対応する deferred structural hole を legacy 扱いに
-し、最終的な `CapTargetOK` 検査も省略する。そのため、対象となる matcher literal
-または nested leaf は従来の recursive／alias flow を保持し得る。legacy 判定は局所的な
-boolean であり、`TypeScheme`、typed expression、runtime state に certificate として
-保存されない。producer summary の永続化や matcher literal を summary boundary とする
-処理も、この経路を D4／D5 certificate に変えない。したがって、
+legacy root の検出は通常の evidence finalization より先に行われる。この branch は
+対応する deferred structural hole を legacy 扱いにし、最終的な `CapTargetOK` 検査も
+省略する。そのため受理結果には core の `CapTargetOK` certificate がない。legacy
+判定は局所的な boolean であり、`TypeScheme`、typed expression、runtime state に
+certificate として保存されない。したがって、
 
 - legacy CAS の受理は ShapeCap evidence でも証明書でもない。
 - legacy CAS を通過したプログラムを certified と呼ばない。
@@ -338,7 +309,7 @@ boolean であり、`TypeScheme`、typed expression、runtime state に certific
 full D5-CAS には、少なくとも target-indexed virtual pattern signatures、
 view-qualified constructor identity、kind-aware projection、および runtime extraction
 preservation certificate が必要である。詳細は
-[P2 設計文書の D5-CAS](../../type-pm-mech/problem/matcher-capability-instantiation.md)
+[type-pm-mech3 の D5-CAS](../../type-pm-mech3/README.md)
 に従う。
 
 また、`casQuotientCast` は現在、公開型では任意の型間の cast、runtime では identity
@@ -347,22 +318,26 @@ certified mode を主張できない理由の一つである。
 
 ## 9. certification claim の境界
 
-現在、非 legacy の P2-core 経路については、上記の D1、D3、direct-self D4 fragment、
+現在、非 legacy の TypePM core 経路については、上記の D1、D3、A/R 用途制約による再帰値、
 D5-core の契約を checker が検査する。ただし、この実装上の検査を形式証明済みの
 certification と呼ばず、次の理由から Egison 全体の certification も主張しない。
 
-- full D4 は型推論器へ未統合である。
+core の等式制約については、公開の production entry point と同期済み core entry
+point の受理・拒否・代入が一致することを回帰テストで固定する。これは保守的拡張の
+実装契約を検査するものである。Haskell 実装全体と Lean 実装の翻訳・対応定理は
+本プロジェクトの明示的な非目標とし、将来課題にも含めない。
+
 - D5-CAS は legacy compatibility boundary に留まる。
-- 永続化する producer summary は name-level の fail-closed metadata であり、
-  capability evidence や形式的 certificate ではない。また legacy bypass を修復しない。
+- 回帰テストは同期済み Haskell entry point の実装契約を検査するが、Lean との
+  対応証明または proof certificate ではない。
 - 通常型 `TAny` の structured-duty 拒否は gradual typing の抜け道を一つ閉じるが、
   certified execution mode を与えるものではない。
 - default の core library 読込みには legacy CAS 利用箇所が含まれる。
 - default の permissive evaluator は型エラーを表示した後に untyped evaluation へ
   フォールバックできる。`--type-check-strict` は型エラー時に評価前で停止するが、
-  P2 専用の certificate や taint の追跡を持つ certified execution mode ではない。
+  matcher capability 専用の certificate や taint の追跡を持つ certified execution mode ではない。
 
-したがって、通常の runtime 回帰テストが通ることと、P2 の検査済み fragment に
+したがって、通常の runtime 回帰テストが通ることと、TypePM の検査済み fragment に
 属することは別の主張である。
 
 ## 10. コード対応表
@@ -373,13 +348,12 @@ certification と呼ばず、次の理由から Egison 全体の certification �
 | surface type syntax | `hs-src/Language/Egison/AST.hs`, `hs-src/Language/Egison/Parser/NonS.hs` |
 | capability 代入と通常型代入 | `hs-src/Language/Egison/Type/Subst.hs` |
 | 二 sort の一般化・instantiate・skolemize | `hs-src/Language/Egison/Type/Env.hs` |
-| producer-stable capability matching | `hs-src/Language/Egison/Type/Unify.hs` |
+| core の等式、producer-stable capability matching、明示 slot 判定 | `hs-src/Language/Egison/Type/Unify.hs` |
+| core と拡張規則の正の証拠に基づく dispatch | `hs-src/Language/Egison/Type/Infer.hs` |
 | annotation skolem の no-escape／deskolemize | `hs-src/Language/Egison/Type/Infer.hs` |
 | capability name／kind elaboration | `hs-src/Language/Egison/EnvBuilder.hs` |
 | D1 evidence、observability、exact merge、D5-core | `hs-src/Language/Egison/Type/Capability.hs` |
-| matcher 推論、Coverage warning、scoped provenance、direct-self、通常型 `TAny` guard、legacy 境界 | `hs-src/Language/Egison/Type/Infer.hs` |
-| load-unit 間 producer summary、成功時だけの state 永続化 | `hs-src/Language/Egison/Type/Infer.hs` (`batchForwardProducerDependencies`), `hs-src/Language/Egison/Eval.hs`, `hs-src/Language/Egison/EvalState.hs` |
-| 未統合の D4 純粋 solver | `hs-src/Language/Egison/Type/ShapeSolver.hs` |
+| matcher 推論、A/R 用途制約による再帰 component、Coverage warning、通常型 `TAny` guard、legacy 境界 | `hs-src/Language/Egison/Type/Infer.hs` |
 | legacy CAS を利用する標準 matcher | `lib/math/expression.egi` |
 
 ## 11. テスト入口
@@ -392,16 +366,16 @@ repository root で次を実行する。
 cabal test test
 ```
 
-`test/Test.hs` の `p2CapabilityTests` は、通常型／capability の別代入、nested
+`test/Test.hs` の `matcherCapabilityTests` は、通常型／capability の別代入、nested
 capability 代入、producer-stable な片方向 capability matching、literal consumer
 `Any` の wildcard、対称単一化での `Any` の rigidity、`Any` へ束縛された反復 consumer
 変数の strict な再利用、shared-variable 拒否、evidence の exact identity、observability の最小不動点、
-projection、文脈相対 `CapTargetOK`、純粋 `ShapeSolver` の SCC・exact mismatch・
-expansive cycle、malformed capability arity の内部拒否を検査する。さらに pipeline
-回帰は、strict mode の評価前停止、失敗した inference state の非永続化、および
-load unit をまたぐ producer SCC summary の保持を検査する。P2 選択テストには、
+projection、文脈相対 `CapTargetOK`、malformed capability arity の内部拒否を検査する。
+さらに pipeline 回帰は、strict mode の評価前停止と失敗した inference state の
+非永続化を検査する。TypePM 選択テストには、
 CAS bridge 名だけを inert stub で与えて選択した core 9 ライブラリと
-`p2-capability.egi` を strict mode で読み込む回帰、および過剰一般な通常型 annotation
+`matcher-capability.egi` と `ar-recursive-matcher-strict.egi` を strict mode で読み込む回帰、
+および過剰一般な通常型 annotation
 を `TSkolem` 不一致、過剰一般な capability annotation を capability skolem
 （診断上は `$skc`）との不一致として strict mode で拒否する回帰も含む。
 `patternFunctionDualSchemeTests` は、一回だけ現れる非 ambient capability variable が
@@ -412,11 +386,12 @@ type class、通常型 `TAny`、既存の CAS／Tensor 寛容単一化を含む�
 隔離した試験ではない。
 
 同じ test suite は `test/lib/**/*.egi` を自動発見するため、
-`test/lib/core/p2-capability.egi` も実行される。ここでは target 特殊化による
-capability 非強化、関数結果での保存、list／nested capability、direct-self 再帰、
+`test/lib/core/matcher-capability.egi` も実行される。ここでは target 特殊化による
+capability 非強化、関数結果での保存、list／nested capability、A/R 用途制約による再帰、
 Coverage と独立な partial matcher、flexible capability projection、closed nested
-constructor に加え、正しい通常型 rigid annotation と type-class constraint の
-dictionary passing を受理側から検査する。
+constructor、通常関数適用または局所 alias を介した recursive self に加え、正しい
+通常型 rigid annotation と type-class constraint の dictionary passing を受理側から
+検査する。
 
 通常の自動発見 language-level test は `defaultOption` で全 core libraries を
 読み込むため legacy D5-CAS view 経路も含む。上記の strict 選択ライブラリ回帰は
@@ -441,36 +416,28 @@ done
 [ $fail -eq 0 ] && echo "all rejected as expected"
 ```
 
-P2 固有の reject ケースは次のとおりである。
+matcher capability 固有の reject ケースは次のとおりである。
 
-- `67-p2-target-specialization-cons.egi`：target 特殊化で capability を強化しない。
-- `68-p2-unseen-observable-parameter.egi`：observable な `Unseen` を注釈で埋めない。
-- `69-p2-exact-clause-mismatch.egi`：clause evidence の不一致を拒否する。
-- `70-p2-recursive-annotation-is-not-evidence.egi`：自己需要と結果注釈を evidence にしない。
-- `71-p2-recursive-transform-requires-flow.egi`：未統合の再帰 flow を fail-closed にする。
-- `72-p2-capability-unknown-former.egi`：未宣言 capability former を拒否する。
-- `73-p2-capability-arity-mismatch.egi`：capability former の arity 不一致を拒否する。
-- `74-p2-capability-alias-head.egi`：transparent alias head を拒否する。
-- `75-p2-local-capability-unknown-former.egi`：局所注釈からの name check bypass を拒否する。
-- `76-p2-recursive-alias-hiding.egi`：local alias に隠れた recursive producer を拒否する。
-- `77-p2-forward-producer-is-unseen.egi`：未確定の forward producer を evidence にしない。
-- `78-p2-forward-alias-cycle.egi`：top-level alias に隠れた producer cycle を拒否する。
-- `79-p2-recursive-closure-hiding.egi`：closure に capture された recursive producer を
-  evidence にしない。
-- `80-p2-capability-builtin-collision.egi`：builtin と同じ canonical former を持つ
+- `67-target-specialization-cons.egi`：target 特殊化で capability を強化しない。
+- `68-unseen-observable-parameter.egi`：observable な `Unseen` を注釈で埋めない。
+- `69-exact-clause-mismatch.egi`：clause evidence の不一致を拒否する。
+- `72-capability-unknown-former.egi`：未宣言 capability former を拒否する。
+- `73-capability-arity-mismatch.egi`：capability former の arity 不一致を拒否する。
+- `74-capability-alias-head.egi`：transparent alias head を拒否する。
+- `75-local-capability-unknown-former.egi`：局所注釈からの name check bypass を拒否する。
+- `80-capability-builtin-collision.egi`：builtin と同じ canonical former を持つ
   user inductive を拒否する。
-- `81-p2-completed-alias-cycle.egi`：完了済み alias-only SCC を evidence にしない。
-- `82-p2-any-cannot-witness-capability.egi`：通常型 `TAny` で structured match-site
+- `82-any-cannot-witness-capability.egi`：通常型 `TAny` で structured match-site
   capability を満たさない。
-- `83-p2-ordinary-annotation-rigidity.egi`：通常型 binder を本体から特殊化して
+- `83-ordinary-annotation-rigidity.egi`：通常型 binder を本体から特殊化して
   `forall a. a -> a` を捏造する過剰一般 annotation を拒否する。
-- `84-p2-nested-annotation-rigidity.egi`：top-level の通常型 rigid binder を
+- `84-nested-annotation-rigidity.egi`：top-level の通常型 rigid binder を
   nested annotation でも共有する。
-- `85-p2-pattern-function-annotation-rigidity.egi`：pattern function の通常型
+- `85-pattern-function-annotation-rigidity.egi`：pattern function の通常型
   binder を rigid に検査する。
-- `86-p2-pattern-function-nested-annotation-rigidity.egi`：pattern-function body の
+- `86-pattern-function-nested-annotation-rigidity.egi`：pattern-function body の
   nested annotation でも同じ rigid binder を共有する。
-- `87-p2-capability-annotation-rigidity.egi`：明示 matcher scheme の capability
+- `87-capability-annotation-rigidity.egi`：明示 matcher scheme の capability
   binder を `CapSkolem` として rigid に検査する。
 
 D5-CAS の certified-mode test はまだ存在しない。D5-CAS の metadata、certificate、
@@ -483,27 +450,19 @@ checker integration とともに追加する必要がある。
 1. **former signature の永続化**：constructor の有無に依存しない専用 metadata を
    `EvalState` に保持し、load unit をまたぐ空 inductive と nominal quotient の扱いを
    明示する。
-2. **full D4 integration**：producer/path 方程式を `Type/Infer.hs` で生成し、
-   name-level summary と matcher-literal boundary を producer ID／path equation へ
-   置き換え、`Type/ShapeSolver.hs` の解を evidence finalization と `CapTargetOK` へ
-   接続する。evaluator session 外へ依存情報を持ち出す場合は typed／module artifact
-   上の永続表現も定義する。
-3. **D5-CAS**：target-indexed virtual pattern signatures と preservation
+2. **D5-CAS**：target-indexed virtual pattern signatures と preservation
    certificate を導入し、legacy allowlist を certified 経路で置き換える。
-4. **局所 annotation semantics**：`TypedLambdaExpr`、
+3. **局所 annotation semantics**：`TypedLambdaExpr`、
    `TypedMemoizedLambdaExpr`、`BindWithType` を型付き IR に保持し、局所 scheme
    checking、rigid binder、no-escape を実装する。
-5. **declaration well-scopedness**：pattern function、inductive、
+4. **declaration well-scopedness**：pattern function、inductive、
    pattern-inductive、class signature の未宣言 ordinary type variable を拒否し、
    constraint-only variable も含め scheme closure を検査する。type class を core
    証明に含めない間も、この実装境界を明示する。
-6. **source certificate bridge**：actual clause-evidence、二種 Algorithm W、
-   `ValueTy`／`EnvTyped`／matching-state invariant、Preservation／Progress／
-   Type Safety を Egison の typed IR と対応づける。現在の checker fragment と
-   `type-pm-mech` の相対 runtime invariant の間に proof-producing certificate はない。
-7. **Coverage／module integration**：ordinary warning と covered/certified mode、
-   module certificate、raw declaration validator、標準ライブラリ全体の移行を行う。
+5. **Coverage／module integration**：ordinary warning と covered/strict mode、
+   module validation、raw declaration validator、標準ライブラリ全体の移行を行う。
 
-その後に、certification 条件を満たす fragment だけを受理・実行し、legacy bypass、
-`casQuotientCast`、型エラー後の untyped fallback を明示的に排除または taint として
-追跡する whole-program mode を設計する。
+その後に、選択した strict fragment だけを受理・実行し、legacy bypass、
+`casQuotientCast`、型エラー後の untyped fallback を明示的に排除または追跡する
+whole-program mode を設計できる。この mode も Haskell–Lean 対応定理や形式的な
+certification を主張しない。

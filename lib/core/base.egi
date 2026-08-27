@@ -215,7 +215,7 @@ def flip {a, b, c} (fn: a -> b -> c) : b -> a -> c := \x y -> fn y x
 def eqAs {a} (m: MatcherSlot p a) (x: a) (y: a) : Bool :=
   match x as m with
     | #y -> True
-    | _ -> False
+    else False
 
 def curry {a, b, c} (f: (a, b) -> c) (x: a) (y: b) : c := f (x, y)
 def uncurry {a, b, c} (f: a -> b -> c) (x: a, y: b) : c := f x y

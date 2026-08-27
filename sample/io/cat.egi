@@ -5,4 +5,4 @@
 def main (args: [String]) : IO () :=
   match args as list string with
     | [] -> eachLine print
-    | _ -> eachFile args print
+    else eachFile args print

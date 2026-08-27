@@ -11,7 +11,7 @@ def nodeTable {a, b} : Matcher DatabaseTable DatabaseTable :=
                 (simpleSelect ["id"] (tableName tgt) [("id", itos px)]) as
           list (integer, integer) with
           | [] -> []
-          | _ -> [tgt]
+          else [tgt]
     | cons node #$px $ $ as (integer, nodeTable) with
       | tgt ->
         map
@@ -41,7 +41,7 @@ def edgeTable {a, b} : Matcher DatabaseTable DatabaseTable :=
                    [("from_id", itos px), ("to_id", itos py)]) as
           list (integer, integer) with
           | [] -> []
-          | _ -> [tgt]
+          else [tgt]
     | cons edge #$px $ $ as (integer, edgeTable) with
       | tgt ->
         map

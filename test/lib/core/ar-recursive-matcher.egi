@@ -20,6 +20,37 @@ def recursiveIntegerList :=
     | $ as something with
       | $tgt -> [tgt]
 
+def identityRecursiveMatcher {a} (x : a) : a := x
+
+def recursiveIntegerListViaApplication :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as (integer, identityRecursiveMatcher recursiveIntegerListViaApplication) with
+      | $tgt ->
+        match tgt as list integer with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def recursiveIntegerListViaAlias :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as
+        (integer,
+         let nextMatcher := recursiveIntegerListViaAlias
+          in nextMatcher) with
+      | $tgt ->
+        match tgt as list integer with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
 assertEqual "unannotated recursive matcher constructor"
   (matchAll [1, 2, 1] as recursiveMultiset integer with
     | $x :: $xs -> (x, xs))
@@ -27,5 +58,15 @@ assertEqual "unannotated recursive matcher constructor"
 
 assertEqual "zero-argument recursive matcher"
   (matchAll [1, 2] as recursiveIntegerList with
+    | $x :: $xs -> (x, xs))
+  [(1, [2])]
+
+assertEqual "recursive matcher through an ordinary function application"
+  (matchAll [1, 2] as recursiveIntegerListViaApplication with
+    | $x :: $xs -> (x, xs))
+  [(1, [2])]
+
+assertEqual "recursive matcher through a local alias"
+  (matchAll [1, 2] as recursiveIntegerListViaAlias with
     | $x :: $xs -> (x, xs))
   [(1, [2])]

@@ -261,13 +261,13 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
   --   declare rule trigPyth poly (sin $x)^2 + (cos #x)^2 = 1
   --   ⇒  def rule.trigPyth := \v -> match v as mathExpr with
   --                                  | (apply1 #sin $x)^2 + (apply1 #cos #x)^2 -> 1
-  --                                  | _ -> v
+  --                                  else v
   --
   -- Strategy:
   --   - If the LHS pattern contains no PatVar, take the literal-LHS path:
   --     reconstruct an Expr from the pattern and use `applyTermRule` so
   --     monomial-containment matching keeps working for term-level rules.
-  --   - Otherwise, emit a `match v as <matcher> with | <pat> -> <rhs> | _ -> v`
+  --   - Otherwise, emit a `match v as <matcher> with | <pat> -> <rhs> else v`
   --     lambda. The user's surface syntax `f $x` (PApplyPat) is translated
   --     to `apply1 #f $x` so it matches mathExpr's matcher constructors.
   fr <- fresh
@@ -351,8 +351,8 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
           matchExpr = MatchExpr BFSMode
                         (VarExpr innerArg)
                         (VarExpr "mathExpr")
-                        [(translated, ConstantExpr UndefinedExpr),
-                         (WildCard,   VarExpr innerArg)]
+                        [(translated, ConstantExpr UndefinedExpr)]
+                        (Just (VarExpr innerArg))
       matchI <- desugar matchExpr
       let patchedMatchI = patchFirstMatchRhs matchI rhsI
           -- Per-term trigger guard: skip the matcher entirely on
@@ -379,8 +379,8 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     -- Replace the first match clause's body in an IMatchExpr with the given
     -- IExpr. (We placeholder-desugar the match with `undefined`, then patch.)
     patchFirstMatchRhs :: IExpr -> IExpr -> IExpr
-    patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest)) newBody =
-      IMatchExpr m tgt mtcher ((p, newBody) : rest)
+    patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest) fallback) newBody =
+      IMatchExpr m tgt mtcher ((p, newBody) : rest) fallback
     patchFirstMatchRhs e _ = e
 -- G3 (design/cas-simplification.md): `declare ideal [g1, ..., gk]`.
 --
@@ -432,7 +432,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --         | apply1 #<n_1> $a -> deriv.<n_1> a *' chainPartialDiff a dx
   --         ...
   --         | apply1 #<n_k> $a -> deriv.<n_k> a *' chainPartialDiff a dx
-  --         | _ -> chainPartialDiffBuiltin v dx
+  --         else chainPartialDiffBuiltin v dx
   --   where n_1..n_k are *all* the derivative names seen so far (including
   --   <name>). Each declare derivative redefines `chainPartialDiff` with the
   --   broader pattern set; Egison's name shadowing lets the latest
@@ -458,7 +458,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
     --   \v dx -> match v as mathValue with
     --              | apply1 #<n1> $a -> deriv.<n1> a *' chainPartialDiff a dx
     --              ...
-    --              | _ -> chainPartialDiffBuiltin v dx
+    --              else chainPartialDiffBuiltin v dx
     --
     -- We desugar a synthetic Egison expression rather than hand-building
     -- the IExpr tree, since match patterns and `apply1 #` are easier at
@@ -483,14 +483,13 @@ desugarTopExpr (DeclareDerivative name rhs) = do
                  (ApplyExpr (VarExpr "partialDiff")
                             [VarExpr "a", VarExpr "dx"])
             )
-          fallbackClause =
-            ( WildCard
-            , ApplyExpr (VarExpr "chainPartialDiffBuiltin") [VarExpr "v", VarExpr "dx"]
-            )
+          fallbackExpr =
+            ApplyExpr (VarExpr "chainPartialDiffBuiltin") [VarExpr "v", VarExpr "dx"]
           matchExpr = MatchExpr BFSMode
                         (VarExpr "v")
                         (VarExpr "mathValue")
-                        (map mkClause names ++ [fallbackClause])
+                        (map mkClause names)
+                        (Just fallbackExpr)
           lambda = LambdaExpr
                      [ Arg (APPatVar (VarWithIndices "v" []))
                      , Arg (APPatVar (VarWithIndices "dx" []))
@@ -877,11 +876,11 @@ desugar (AlgebraicDataMatcherExpr patterns) = do
                     IMatchExpr BFSMode
                                (ITupleExpr [IVarExpr "val", IVarExpr "tgt"])
                                (ITupleExpr [matcher, matcher])
-                               clauses)])
+                               clauses
+                               (Just matchingFailure))])
         where
           genClauses :: [(String, [Expr])] -> EvalM [IMatchClause]
-          genClauses patterns = (++) <$> mapM genClause patterns
-                                     <*> pure [(ITuplePat [IWildCard, IWildCard], matchingFailure)]
+          genClauses = mapM genClause
 
           genClause :: (String, [Expr]) -> EvalM IMatchClause
           genClause pattern = do
@@ -934,7 +933,7 @@ desugar (MatchAllLambdaExpr matcher clauses) = do
 desugar (MatchLambdaExpr matcher clauses) = do
   name <- fresh
   ILambdaExpr Nothing [stringToVar name] <$>
-    desugar (MatchExpr BFSMode (VarExpr name) matcher clauses)
+    desugar (MatchExpr BFSMode (VarExpr name) matcher clauses Nothing)
 
 desugar (IndexedExpr override expr indices) = do
   expr' <- desugar expr
@@ -1101,8 +1100,9 @@ desugar (LetRecExpr binds expr) =
 desugar (WithSymbolsExpr vars expr) =
   IWithSymbolsExpr vars <$> desugar expr
 
-desugar (MatchExpr pmmode expr0 expr1 clauses) =
+desugar (MatchExpr pmmode expr0 expr1 clauses fallback) =
   IMatchExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
+    <*> mapM desugar fallback
 
 desugar (MatchAllExpr pmmode expr0 expr1 clauses) =
   IMatchAllExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses

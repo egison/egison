@@ -31,7 +31,7 @@ def Δ (A: Tensor MathValue) : Tensor MathValue :=
   match (dfOrder A) as integer with
   | #0 -> δ (d A)
   | #N -> d (δ A)
-  | _  -> d (δ A) + δ (d A)
+  else d (δ A) + δ (d A)
 
 def f : MathValue := function (r, θ)
 

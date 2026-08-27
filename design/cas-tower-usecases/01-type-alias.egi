@@ -1,26 +1,7 @@
--- Use case 01: 単純な型エイリアス (Phase α)
+-- Use case 01: 単純な型エイリアス
 --
--- Intent:
---   現状の Egison では `Frac Integer` のような長い型名を毎回書く必要がある。
---   ユーザが任意の型に短い alias を付けられるようにしたい。
---
--- Required machinery:
---   - `declare cas-type <Name> := <Type>` 構文
---   - parser: 型を value-level の式と区別して受ける必要あり
---   - elaboration: alias を展開 (Type/Types.hs に alias env を追加)
---   - 型推論時に alias を unfold して既存の比較ロジックに渡す
---   - エラーメッセージや `inspect` での表示は alias の名前を保持したい
---
--- Resolved (2026-07-04, D3):
---   - cas-type は**透明エイリアスのみ** (nominal は無い — 表現と意味づけが乖離する型は
---     タワーに存在できない: 商は商機構 [07]、再解釈はスコープ外 [08])。
---     単一化時に展開し、表示・エラーメッセージ・観察型の報告では宣言名を優先する
---   - 部分適用は当面なし (無引数 alias のみ、MVP どおり)
---
--- Open questions (残存):
---   - 既存の組み込み型 (Integer 等) と同名の alias は禁止? (既定: 禁止でよい)
---
--- Examples below show what we want to write.
+-- `declare cas-type` は無引数の透明エイリアスを宣言する。型推論と単一化では
+-- 本体へ展開される。組み込み型、inductive 型、既存の別名と同名にはできない。
 
 declare cas-type Q := Frac Integer
 declare cas-type Qx := Poly Q [x]
@@ -35,11 +16,11 @@ def g : Qxy := x*y + (1/2)*x + (1/3)*y + 1
 
 assertEqual "half is rational" half (1/2)
 
--- alias は型推論結果でも展開される (現状の挙動と互換)
+-- alias は型推論でも本体へ展開される
 def h := f + 2  -- 推論型: Qx (= Poly (Frac Integer) [x])
-inspect h       -- 表示: f が "Qx" で、結果も "Qx" と出るとよい
+inspect h
 
--- 単純 alias なので reshape は no-op (def 注釈で書く — coerce 関数は廃止済み)
+-- 単純 alias なので reshape は no-op
 def f' : Qx := f    -- 内部表現は変わらない
 
 -- 多段 alias
@@ -48,7 +29,7 @@ declare cas-type Zxy := Poly Z [x, y]
 def p : Zxy := x*y + 2*x + 3*y + 4
 
 -- alias 同士の互換性 (透明なので骨格の subtype 規則がそのまま効く)。
--- def 注釈が reshape を挿入するので coerce 関数は不要 (旧 API は廃止済み)。
+-- def 注釈が必要な reshape を挿入する。
 -- 識別子に _ は使えない (添字構文と衝突) ので camelCase で書く
 def pInQxy : Qxy := p   -- OK: Poly Z [x, y] ⊂ Poly Q [x, y] (係数昇格の骨格規則)
 def pInQx : Qx := p     -- 注釈と値の不整合 (原子 y は [x] に無い)。

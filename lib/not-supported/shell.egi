@@ -29,7 +29,7 @@ def TSV.parseLine (sopts: [[Integer]]) (copts: [[Integer]]) (line: String) : a :
               (ms, ts)  := splitAt (n - m + 1) ts'
            in fnS opts' (hs ++ map (\m -> S.concat ["\"", m, "\""]) ms ++ ts)
         | [$m, _] :: $opts' -> fnS ([m] :: opts') xs
-        | _ -> xs
+        else xs
       fnC (copts: [[Integer]]) (xs: [String]) : [String] :=
         match copts as list (list integer) with
         | [$m] :: $opts' ->
@@ -44,6 +44,6 @@ def TSV.parseLine (sopts: [[Integer]]) (copts: [[Integer]]) (line: String) : a :
               (ms, ts)  := splitAt (n - m + 1) ts'
            in fnC opts' (hs ++ S.concat ["[", S.intercalate ", " ms, "]"] :: ts)
         | [$m, _] :: $opts' -> fnC ([m] :: opts') xs
-        | _ -> xs
+        else xs
 
 def TSV.show {a} : a -> String := showTsv

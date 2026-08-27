@@ -17,7 +17,7 @@ def cF' (a: MathValue) (b: MathValue) (c: MathValue) (d: MathValue) : (MathValue
       (3)#($1 - b / 3, $2 - b / 3, $3 - b / 3)
         (withSymbols [x, y]
           cF (substitute [(x, y - b / 3)] (x ^ 3 + b * x ^ 2 + c * x + d)) y)
-    | (_, _, _, _) -> cF' 1 (b / a) (c / a) (d / a)
+    else cF' 1 (b / a) (c / a) (d / a)
 
 def w : MathValue := ((-1) + i * sqrt 3) / 2
 

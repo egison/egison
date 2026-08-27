@@ -1,0 +1,7 @@
+-- `else` is checked in the original context, outside ordinary-arm bindings.
+-- Expected: Type error (x is unbound in the fallback).
+
+def result :=
+  match 1 as something with
+  | $x -> x
+  else x

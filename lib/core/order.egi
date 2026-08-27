@@ -59,24 +59,24 @@ instance Ord String where
   (<) s1 s2 :=
     match compare s1 s2 as ordering with
       | less -> True
-      | _ -> False
+      else False
   (<=) s1 s2 :=
     match compare s1 s2 as ordering with
       | greater -> False
-      | _ -> True
+      else True
   (>) s1 s2 :=
     match compare s1 s2 as ordering with
       | greater -> True
-      | _ -> False
+      else False
   (>=) s1 s2 :=
     match compare s1 s2 as ordering with
       | less -> False
-      | _ -> True
+      else True
   min s1 s2 :=
     match compare s1 s2 as ordering with
       | less -> s1
-      | _ -> s2
+      else s2
   max s1 s2 :=
     match compare s1 s2 as ordering with
       | greater -> s1
-      | _ -> s2
+      else s2

@@ -14,21 +14,21 @@ def inverse (t: MathValue) (f: MathValue) (x: MathValue) : MathValue :=
         | #sin #x -> asin t
         | #acos #x -> cos t
         | #asin #x -> sin t
-        | _ -> inverse' t f x  -- TODO: define inverse'
+        else inverse' t f x  -- TODO: define inverse'
     | ?isTerm ->
       match f as termExpr with
         | term #1 ($n ^ #x :: []) -> rt n t
         | term _ ($n ^ #x :: _) ->
           let a := f / x ^ n
            in inverse (t / a) (f / a) x
-        | _ -> 'inverse t f x
+        else 'inverse t f x
     | ?isPolynomial ->
       match coefficients x f as list mathValue with
         | $c :: (loop $i (1, $n)
                    (#0 :: ...)
                    ($a :: [])) -> inverse ((t - c) / a) (x ^ (n + 1)) x
-        | _ -> 'inverse t f x
-    | _ ->
+        else 'inverse t f x
+    else
       match f as mathValue with
         | $p1 / $p2 -> inverse (p2 * t) p1 x
-    | _ -> 'inverse t f x
+    else 'inverse t f x

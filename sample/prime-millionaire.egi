@@ -11,6 +11,6 @@ def combs {a} (xs: [a]) : [[a]] :=
 def p? (xs: [Integer]) : Bool :=
   match xs as list integer with
     | #[1] -> False
-    | _ -> isPrime (read (S.concat (map show xs)))
+    else isPrime (read (S.concat (map show xs)))
 
 def main (args: [String]) : IO () := each (compose show print) (filter p? (combs (map read args)))

@@ -1,0 +1,7 @@
+-- `match` ordinary arms and `else` share one result type.
+-- Expected: Type error (Integer cannot unify with Bool).
+
+def result :=
+  match 1 as something with
+  | $x -> x
+  else True

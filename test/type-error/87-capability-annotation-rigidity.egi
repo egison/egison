@@ -1,0 +1,5 @@
+-- TypePM annotation checking: a free capability binder in an explicit matcher scheme is rigid
+-- while the body is checked.  `something` has intrinsic capability `Any`;
+-- it must not specialize the declared capability p to Any.
+
+def bogusCapability : Matcher p Integer := something

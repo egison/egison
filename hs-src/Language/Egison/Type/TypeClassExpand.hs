@@ -347,14 +347,15 @@ expandTypeClassMethodsT tiExpr = do
       -- Pattern matching. Pattern variables bind left-to-right: embedded
       -- expressions (value/predicate patterns, loop ranges) see the binders
       -- accumulated so far, and the clause body sees them all.
-      TIMatchExpr mode target matcher clauses -> do
+      TIMatchExpr mode target matcher clauses fallback -> do
         target' <- expandTIExprWithConstraints classEnv' scope target
         matcher' <- expandTIExprWithConstraints classEnv' scope matcher
         clauses' <- mapM (\(pat, body) -> do
           (pat', clauseScope) <- expandTIPattern classEnv' scope pat
           body' <- expandTIExprWithConstraints classEnv' clauseScope body
           return (pat', body')) clauses
-        return $ TIMatchExpr mode target' matcher' clauses'
+        fallback' <- mapM (expandTIExprWithConstraints classEnv' scope) fallback
+        return $ TIMatchExpr mode target' matcher' clauses' fallback'
 
       TIMatchAllExpr mode target matcher clauses -> do
         target' <- expandTIExprWithConstraints classEnv' scope target
@@ -1662,9 +1663,10 @@ fixUnboundDictRefs classEnv = goE Set.empty
       -- Patterns embed expressions (value patterns, predicate patterns,
       -- pattern-function applications, loop ranges); mapTIExprChildren does
       -- not descend into them, so handle the pattern-carrying nodes here.
-      TIMatchExpr mode tgt mat clauses ->
+      TIMatchExpr mode tgt mat clauses fallback ->
         TIMatchExpr mode (goE scope tgt) (goE scope mat)
                     [ (goP scope p, goE scope b) | (p, b) <- clauses ]
+                    (goE scope <$> fallback)
       TIMatchAllExpr mode tgt mat clauses ->
         TIMatchAllExpr mode (goE scope tgt) (goE scope mat)
                        [ (goP scope p, goE scope b) | (p, b) <- clauses ]

@@ -1,7 +1,0 @@
--- P2 capability kind elaboration.
--- Expected: Type error / Capability kind error: `P2Arity` expects one
--- capability argument, but no argument was supplied.
-
-inductive P2Arity a := | P2Box a
-
-def p2BadArity : Matcher P2Arity (P2Arity Integer) := something

@@ -3,7 +3,7 @@
 このディレクトリの各 `.egi` ファイルは、**型検査がエラーを検知すべき**プログラムを
 1ファイル1ケースで収めたものです。`mini-test/` が受理側(型 clean + 実行結果)の
 回帰テストであるのに対し、こちらは拒否側の適合テストです
-(`design/paper-compliance-roadmap.md` 課題 H の reject 側)。
+（現行仕様は `design/matcher-capability.md` の reject 側検収を参照）。
 各ファイルの先頭コメントに、対応する論文の規則・出典と期待されるエラーを記しています。
 
 ## 検証方法
@@ -65,30 +65,25 @@ done
 | 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
 | 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | capability は一致するが target 添字が不一致の既存 slot |
 | 66-next-matcher-repeated-slot | exact merge / R12 | 同一 target の反復 slot に `Choice` と `Any` が届く不一致 |
-| 67-p2-target-specialization-cons | P2 capability/target separation | target を list へ特殊化した `Any` matcher で cons を拒否 |
-| 68-p2-unseen-observable-parameter | P2 D1 finalization | `None` 型の節だけでは observable parameter を確定できない |
-| 69-p2-exact-clause-mismatch | P2 D1 exact merge | 同じ result slot へ異なる clause capability が届く |
-| 70-p2-recursive-annotation-is-not-evidence | P2 D4 | 再帰需要と結果注釈だけで Shape evidence を生成しない |
-| 71-p2-recursive-transform-requires-flow | P2 D4 fail-closed boundary | producer/path 方程式が必要な application 経由の再帰 flow を拒否 |
-| 72-p2-capability-unknown-former | P2 capability name elaboration | 未宣言 head を `Capability kind error` で拒否 |
-| 73-p2-capability-arity-mismatch | P2 capability kind elaboration | user inductive head の arity 不一致を `Capability kind error` で拒否 |
-| 74-p2-capability-alias-head | P2 canonical former discipline | transparent surface type alias の capability head 使用を `Capability kind error` で拒否 |
-| 75-p2-local-capability-unknown-former | P2 local annotation elaboration | 式内注釈からの未宣言 capability head bypass を `Capability kind error` で拒否 |
-| 76-p2-recursive-alias-hiding | P2 D4 scoped producer flow | local alias 経由で recursive producer origin を隠す next matcher を拒否 |
-| 77-p2-forward-producer-is-unseen | P2 D4 batch producer flow | signature prepass で型だけ見える未確定 forward producer を Known evidence にせず拒否 |
-| 78-p2-forward-alias-cycle | P2 D4 cross-definition flow | 先行 alias から現在の producer へ戻る top-level cycle を Known evidence にせず拒否 |
-| 79-p2-recursive-closure-hiding | P2 D4 scoped closure flow | recursive producer を capture した local closure の適用を Known evidence にせず拒否 |
-| 80-p2-capability-builtin-collision | P2 frozen former signature | builtin と同じ canonical ID を持つ user inductive を `Capability kind error` で拒否 |
-| 81-p2-completed-alias-cycle | P2 D4 closed producer SCC | 完了済み alias-only cycle を Known evidence にせず拒否 |
-| 82-p2-any-cannot-witness-capability | P2 match-site fail-closed | `Any` を structured matcher capability の witness にせず拒否 |
-| 83-p2-ordinary-annotation-rigidity | P2 D3 annotation checking | `forall a. a -> a` の通常型 binder を rigid にし，定数を返す過剰一般注釈を拒否 |
-| 84-p2-nested-annotation-rigidity | P2 D3 nested annotation checking | top-level の rigid 通常型 binder を nested annotation でも共有し，特殊化を拒否 |
-| 85-p2-pattern-function-annotation-rigidity | P2 D3 pattern-function checking | pattern function の明示通常型 binder を rigid に検査する |
-| 86-p2-pattern-function-nested-annotation-rigidity | P2 D3 nested pattern annotation | pattern-function body の nested annotation でも同じ rigid binder を共有する |
-| 87-p2-capability-annotation-rigidity | P2 D3 capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `Any` への特殊化を拒否 |
+| 67-target-specialization-cons | capability/target separation | target を list へ特殊化した `Any` matcher で cons を拒否 |
+| 68-unseen-observable-parameter | shape-capability finalization | `None` 型の節だけでは observable parameter を確定できない |
+| 69-exact-clause-mismatch | exact evidence merge | 同じ result slot へ異なる clause capability が届く |
+| 72-capability-unknown-former | capability name elaboration | 未宣言 head を `Capability kind error` で拒否 |
+| 73-capability-arity-mismatch | capability kind elaboration | user inductive head の arity 不一致を `Capability kind error` で拒否 |
+| 74-capability-alias-head | canonical former discipline | transparent surface type alias の capability head 使用を `Capability kind error` で拒否 |
+| 75-local-capability-unknown-former | local annotation elaboration | 式内注釈からの未宣言 capability head bypass を `Capability kind error` で拒否 |
+| 80-capability-builtin-collision | frozen former signature | builtin と同じ canonical ID を持つ user inductive を `Capability kind error` で拒否 |
+| 82-any-cannot-witness-capability | match-site fail-closed | `Any` を structured matcher capability の witness にせず拒否 |
+| 83-ordinary-annotation-rigidity | scheme annotation checking | `forall a. a -> a` の通常型 binder を rigid にし，定数を返す過剰一般注釈を拒否 |
+| 84-nested-annotation-rigidity | nested annotation checking | top-level の rigid 通常型 binder を nested annotation でも共有し，特殊化を拒否 |
+| 85-pattern-function-annotation-rigidity | pattern-function checking | pattern function の明示通常型 binder を rigid に検査する |
+| 86-pattern-function-nested-annotation-rigidity | nested pattern annotation | pattern-function body の nested annotation でも同じ rigid binder を共有する |
+| 87-capability-annotation-rigidity | capability annotation checking | `Matcher p Integer` の capability binder を rigid にし，`something` による `Any` への特殊化を拒否 |
 | 88-patfun-param-target | PATFUN-DEF / PAT-EMBED target | `~parameter` が宣言された `Integer` target を保持し，結果の `Bool` へ再型付けされることを拒否 |
 | 89-patfun-exact-arity | PAT-APP exact arity | target-only の関数型統一では受理できる pattern function の過少適用を拒否 |
 | 90-closed-field-slot-application | PP-Con / Matcher Consistency (1a) | closed list field が推論した `MatcherSlot` へ `something` を渡す適用を拒否 |
+| 91-match-else-result | match result checking | 通常節と `else` の結果型不一致を拒否 |
+| 92-match-else-scope | match fallback scope | 通常節の束縛を `else` から参照することを拒否 |
 
 ## ケース追加時の注意
 
@@ -97,8 +92,6 @@ done
   (無関係なエラーや parse error で偶然 reject されると回帰検出にならない)。
 - 72--75 と 80 は共通の `Type error:` に加えて `Capability kind error` を含むことを
   確認する。これにより，後段の型推論エラーによる偶然の reject と区別する。
-- 76--79 と 81 は `producer/path Shape equations` を含むことを確認し、別の型エラーで
-  偶然 reject されていないことを確認する。
 - 82 は `Any cannot witness a structured matcher capability` を含むことを確認する。
 - 83--86 は `TSkolem`，87 は capability skolem の surface 表示 `Matcher $skc` を
   含むことを確認し，別の型エラーで偶然 reject されていないことを確認する。
@@ -108,3 +101,8 @@ done
   consumer slot への不適合な適用で reject されたことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。
+
+再帰 matcher の受理側は `test/lib/core/ar-recursive-matcher.egi` と、strict mode で
+読み込む `test/lib/core/ar-recursive-matcher-strict.egi` に置く。直接参照、局所 alias、
+通常の関数適用を同じ A/R 用途規則で検査し、式の名前や値の依存経路を理由とする
+reject ケースは設けない。

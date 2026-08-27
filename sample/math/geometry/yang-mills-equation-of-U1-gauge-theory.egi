@@ -28,7 +28,7 @@ def Δ A :=
   match dfOrder A as integer with
     | #0 -> δ (d A)
     | #4 -> d (δ A)
-    | _ -> d (δ A) + δ (d A)
+    else d (δ A) + δ (d A)
 
 def normalize2 A := withSymbols [t1, t2] A_t1_t2 - A_t2_t1
 

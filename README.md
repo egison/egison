@@ -112,8 +112,20 @@ and symmetric capability equality remain rigid. A structured capability uses
 a canonical declared type former with its exact arity, such as `[p]` or
 `Maybe p`; transparent surface type aliases may still be used in the target
 index, but not as capability heads.
-The implemented guarantees and the current full-D4/D5-CAS boundaries are
-documented in [design/p2-matcher-capability.md](design/p2-matcher-capability.md).
+Egison's additional typing rules form a conservative extension of this core:
+for a program using core syntax and types and satisfying the core's static side
+conditions, the production checker uses the synchronized type-pm-mech3
+relation without retrying a rejected type equality in a wider matcher solver.
+An Egison-specific rule is selected only by an explicit non-core form, such as
+ordinary `TAny`, a CAS or tensor type, production-only pattern syntax, or a
+diagnosed relaxation of a core surface side condition.
+The project maintains this synchronization through an implementation contract
+and regression tests; a formal correspondence theorem between the complete
+Haskell implementation and the Lean implementation is intentionally out of
+scope.
+The implemented guarantees, the A/R-constrained recursion rule, and the current
+D5-CAS boundary are
+documented in [design/matcher-capability.md](design/matcher-capability.md).
 
 ```hs
 def station : Matcher String String := string

@@ -1,58 +1,50 @@
-# Design Documentation
+# Egison 設計文書
 
-このディレクトリには、Egisonインタプリタの設計ドキュメントが含まれています。
+`design/` には、現行実装を説明する仕様、実装マッピング、検収用プログラムだけを置く。
+解決済みの不具合報告、廃案、作業途中の調査記録は残さず、必要なら Git の履歴を参照する。
 
-## 📁 ファイル一覧
+文書の役割は次の三つに分ける。
 
-### 主要ドキュメント
+- **仕様**: 現在の言語機能と制約を定義する。
+- **実装マッピング**: 仕様がどの処理段階・ファイルで実装されるかを示す。
+- **検収資料**: 実装済み機能を実行可能な例で確認する。
 
-- **`implementation.md`** - 全体の実装設計と処理フロー
-- **`FILE_MAPPING.md`** - ファイルとフェーズの対応表
+## 全体構成
 
-### 型システム関連
+- [implementation.md](./implementation.md): パースから評価までの処理の流れ。
+- [FILE_MAPPING.md](./FILE_MAPPING.md): 処理段階と Haskell モジュールの詳細な対応表。
 
-- **`pattern.md`** - パターンマッチング設計
-- **`pattern-function-implementation.md`** - パターン関数の canonical `DualScheme` 設計と実装詳細
-- **`type-tensor.md`** - テンソル型システム
-- **`type-tensor-simple.md`** - テンソル型システム（簡易版）
+## パターンマッチと TypePM
 
-### CAS 型システム
+- [pattern.md](./pattern.md): パターン宣言、matcher、match 式の型付け。
+- [pattern-function-implementation.md](./pattern-function-implementation.md): パターン関数の `DualScheme` と実装契約。
+- [matcher-capability.md](./matcher-capability.md): Egison 本体における二-sort matcher capability の実装範囲。
+- [type-pm-compatibility.md](./type-pm-compatibility.md): `type-pm-mech3` の core と Egison 固有拡張の境界。
 
-- **`type-cas.md`** - CAS 型システム設計（メイン、実装到達点と未解決課題も末尾に統合）
-- **`type-cas-tower.md`** - ユーザ拡張可能な CAS タワー（将来構想）
+形式仕様と証明の正本は `type-pm-mech3` に置く。Egison 側の文書は、実装との対応と
+Egison core 外の拡張だけを記述する。
 
-## 🎯 クイックスタート
+## 型クラスとテンソル
 
-### 実装について知りたい
+- [type-class.md](./type-class.md): 型クラス、辞書渡し、スーパークラス、現在の制限。
+- [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値に対する浅い実行時型ディスパッチ。
+- [type-tensor-simple.md](./type-tensor-simple.md): テンソル型と添字記法の基本仕様。
+- [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md): スカラー関数をテンソルへ持ち上げる変換。
+- [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階関数の callback に対する tensor-lift の伝播。
 
-1. **全体の流れ** → `implementation.md`
-2. **ファイル構成** → `FILE_MAPPING.md`
+## CAS
 
-### 型システムについて知りたい
+- [type-cas.md](./type-cas.md): CAS 型システムの総合仕様。
+- [type-cas-tower-implementation.md](./type-cas-tower-implementation.md): CAS タワーの仕様と実装箇所の対応。
+- [type-cas-quotient.md](./type-cas-quotient.md): 型タワーと独立した CAS 商型。
+- [cas-simplification.md](./cas-simplification.md): グレブナー基底を含む CAS 簡約。
+- [function-symbol.md](./function-symbol.md): 関数シンボル、微分索引、代入。
+- [cas-tower-usecases/](./cas-tower-usecases/): CAS タワーと商型の実行可能な検収例。
 
-1. **パターンマッチング** → `pattern.md`（仕様）
-2. **パターン関数の実装** → `pattern-function-implementation.md`（実装詳細）
-3. **テンソル型** → `type-tensor-simple.md`（まずはこちら）
+## 文書を更新するときの基準
 
-### CAS 型システムについて知りたい
-
-1. **設計と実装到達点** → `type-cas.md` (末尾の「既知の制限と未解決課題」も参照)
-2. **将来のタワー拡張構想** → `type-cas-tower.md`
-
-## 📝 最近の更新
-
-### 2026-08-05: パターン関数を二-sort設計へ同期
-
-- 引数と結果の capability/target を一つの canonical `DualScheme` に保存
-- 適用時に capability binders と target binders を同時に fresh instantiate
-- header-only の前方・相互参照，expression-headed application，および body に残る非 core パターン形式を outside-core warning で明示（直接自己参照は定義時に拒否）
-- 再定義時は古い finalized scheme を先に無効化し，同一 load unit 内の重複宣言は拒否
-- runtime は引き続き `IPatternFuncExpr` と `recursiveBind` による統一的な環境 capture を使用
-- 詳細は `pattern-function-implementation.md` と `type-pm-compatibility.md` を参照
-
-### 2026-08-05: Egison core 境界 warning を用途別に分離
-
-- 一般の core 外拡張は `--outside-egison-core-warnings` で報告
-- primitive-pattern pattern を DFS 左から右へ走査して `$` より後に `#$x` があれば，`--pattern-hole-before-primitive-value-pattern-warnings` で報告
-- nested structured primitive-pattern pattern は `--nested-structured-primitive-pattern-pattern-warnings` で独立に報告
-- 同じ matcher atom の左 hole が束縛する変数を user value pattern が参照する場合は，従来どおり hard type error
+1. 現行仕様と実装が一致しない記述は、履歴注記を足すのではなく修正または削除する。
+2. 完了した計画表や一時的なテスト結果は残さない。
+3. 未実装事項を残す場合は、現在の制限と完了条件だけを記す。
+4. 実装ファイルの一覧を重複させず、詳細な一覧は [FILE_MAPPING.md](./FILE_MAPPING.md) に集約する。
+5. 文書から参照するテストは、現在追跡されている `test/` または検収用プログラムに限る。

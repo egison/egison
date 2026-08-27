@@ -4,12 +4,12 @@
 
 match between 1 n as multiset integer with
   | $x :: #x :: _ -> "Matched"
-  | _ -> "Not matched"
+  else "Not matched"
 
 match between 1 n as multiset integer with
   | $x :: #x :: #x :: _ -> "Matched"
-  | _ -> "Not matched"
+  else "Not matched"
 
 match between 1 n as multiset integer with
   | $x :: #x :: #x :: #x :: _ -> "Matched"
-  | _ -> "Not matched"
+  else "Not matched"

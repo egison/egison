@@ -1,32 +1,14 @@
--- Use case 02: 代数拡大 Z[i] = Gaussian integers (Phase α + 既存 declare rule)
+-- Use case 02: 代数拡大 Z[i] = Gaussian integers
 --
--- Intent:
---   虚数単位 i の最小多項式 i^2 = -1 を declare rule で登録し (シンボル担持商 —
---   D2、type-cas-quotient.md §2)、`Z[i]` を `Poly Integer [i]` の透明 alias として
---   扱う。基本演算・共役・ノルムが既存機構 + Phase α だけで簡潔に書けることを示す。
---
--- Required machinery:
---   - Phase α (透明型 alias、D3)
---   - 既存 `declare rule auto term i^2 = -1` (大域規則)
---   - 既存 `substitute` (conj 用)
---
--- Resolved (2026-07-04, D3):
---   - GaussianInt は透明エイリアスなので、Ring 系の構造的 instance (パターン1) は
---     Poly Integer [i] のものがそのまま適用され、個別宣言は不要
---
--- Note (2026-07-04): Euclidean 構造 (divMod/gcd) と UFD 素因数分解は
---   deferred/gaussian-factorization.egi に分離した。パターン2 instance として
---   機構的には書けるが、丸めや factor アルゴリズム本体が長く
---   「簡潔に書ける」基準を満たさないため。
---
--- Tests:
+-- i^2 = -1 を大域規則で登録し、Z[i] を `Poly Integer [i]` の透明な別名として
+-- 扱う。基本演算は多項式の instance を使い、共役は `substitute` で表す。
 
 declare symbol i
 declare rule auto term i^2 = -1
 declare cas-type GaussianInt := Poly Integer [i]
 
 --
--- Section 1: 基本演算 (既存 Ring instance をそのまま流用)
+-- Section 1: 基本演算
 --
 
 def z1 : GaussianInt := 2 + 3 * i
@@ -51,7 +33,7 @@ def conj (z : GaussianInt) : GaussianInt :=
 
 def norm (z : GaussianInt) : Integer := ((z * conj z) : Integer)
   -- z * conj z は i^2 = -1 の規則で実数に落ちる。式レベル注釈で Integer へ
-  -- (coerce 関数は廃止済み — 注釈が reshape を挿入する)
+  -- 型注釈が reshape を挿入する
 
 assertEqual "norm(3+4i) = 25" (norm (3 + 4*i)) 25
 assertEqual "norm(1+i) = 2" (norm (1 + i)) 2

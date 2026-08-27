@@ -1,0 +1,143 @@
+-- TypePM capability/target separation: positive language-level regressions.
+
+def rigidIdentity {a} (x : a) : a := x
+
+assertEqual
+  "TypePM: a valid rigid ordinary annotation is accepted"
+  (rigidIdentity [1, 2])
+  [1, 2]
+
+def rigidEqual {Eq a} (x : a) (y : a) : Bool := x == y
+
+assertEqual
+  "TypePM: a constrained rigid annotation retains dictionary passing"
+  (rigidEqual [1, 2] [1, 2])
+  True
+
+def catchAllMatcher {a} : Matcher Any a :=
+  matcher
+    | $ as something with
+      | $tgt -> [tgt]
+
+def matcherFor {a} (_ : a) : Matcher Any a := catchAllMatcher
+
+assertEqual
+  "TypePM: target specialization preserves Any capability"
+  (matchAll [1, 2] as catchAllMatcher with
+    | $xs -> xs)
+  [[1, 2]]
+
+assertEqual
+  "TypePM: function result preserves Any capability"
+  (matchAll [1, 2] as matcherFor [1, 2] with
+    | $xs -> xs)
+  [[1, 2]]
+
+assertEqual
+  "TypePM: list lifts the actual element capability"
+  (matchAll [1, 2] as list something with
+    | $x :: $xs -> (x, xs))
+  [(1, [2])]
+
+assertEqual
+  "TypePM: nested combinators preserve capability structure"
+  (match Just [1, 2] as maybe (list integer) with
+    | just (#1 :: $xs) -> xs
+    else [])
+  [2]
+
+inductive CapabilityList a :=
+  | CapabilityNil
+  | CapabilityCons a (CapabilityList a)
+
+inductive pattern CapabilityList a :=
+  | capabilityNil
+  | capabilityCons a (CapabilityList a)
+
+def capabilityList {a} (m : MatcherSlot p a)
+  : Matcher (CapabilityList p) (CapabilityList a) :=
+  matcher
+    | capabilityNil as () with
+      | CapabilityNil -> [()]
+      | _ -> []
+    | capabilityCons $ $ as (m, capabilityList m) with
+      | CapabilityCons $x $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual
+  "TypePM: recursive matcher propagates the input capability"
+  (matchAll (CapabilityCons 1 (CapabilityCons 2 CapabilityNil)) as capabilityList integer with
+    | capabilityCons $x (capabilityCons $y capabilityNil) -> (x, y))
+  [(1, 2)]
+
+inductive CapabilityChoice a :=
+  | CapabilityLeft a
+  | CapabilityRight a
+
+inductive pattern CapabilityChoice a :=
+  | capabilityLeft a
+  | capabilityRight a
+
+-- A partial matcher keeps its structured capability.  Coverage remains an
+-- independent optional warning.
+def capabilityLeftOnly {a} (m : MatcherSlot p a)
+  : Matcher (CapabilityChoice p) (CapabilityChoice a) :=
+  matcher
+    | capabilityLeft $ as m with
+      | CapabilityLeft $x -> [x]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual
+  "TypePM: partial matcher retains structured capability"
+  (matchAll (CapabilityLeft 1) as capabilityLeftOnly integer with
+    | capabilityLeft $x -> x)
+  [1]
+
+inductive CapabilityWrapped a :=
+  | CapabilityWrapped [a]
+
+inductive pattern CapabilityWrapped a :=
+  | capabilityWrapped [a]
+
+-- The argument starts with a flexible MatcherSlot capability.  The
+-- constructor field signature [a] constrains that capability to [p], and
+-- projection carries p to the result without using the target annotation as
+-- evidence.
+def capabilityWrappedMatcher m :=
+  matcher
+    | capabilityWrapped $ as m with
+      | CapabilityWrapped $xs -> [xs]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual
+  "TypePM: projection solves a flexible input capability head"
+  (match (CapabilityWrapped [1, 2]) as capabilityWrappedMatcher (list integer) with
+    | capabilityWrapped (#1 :: $xs) -> xs
+    else [])
+  [2]
+
+inductive CapabilityAtom :=
+  | CapabilityAtom Integer
+
+inductive pattern CapabilityAtom :=
+  | capabilityAtom Integer
+
+def capabilityAtomMatcher : Matcher CapabilityAtom CapabilityAtom :=
+  matcher
+    | capabilityAtom $ as integer with
+      | CapabilityAtom $n -> [n]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+assertEqual
+  "TypePM: a closed nested pattern keeps its constructor capability"
+  (match [CapabilityAtom 1] as list capabilityAtomMatcher with
+    | capabilityAtom $n :: _ -> n)
+  1

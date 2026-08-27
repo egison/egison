@@ -6,7 +6,7 @@ def mickey' (cs: [Char]) : [Char] :=
   match cs as list char with
     | (($hs & _ *: _) *: $x) *: $y *: $z ->
       mickey' hs ++ [',', x, y, z]
-    | _ -> cs
+    else cs
 
 def mickey (s: String) : String := pack (mickey' (unpack s))
 

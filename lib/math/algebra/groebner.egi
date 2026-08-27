@@ -89,7 +89,7 @@ def revlexGreater (us: [Integer]) (vs: [Integer]) : Bool :=
   match (us, vs) as (list integer, list integer) with
     | ($a :: $ars, $b :: $brs) ->
         if a = b then revlexGreater ars brs else a < b
-    | (_, _) -> False
+    else False
 
 --
 -- Leading terms, divisibility, lcm
@@ -109,7 +109,7 @@ def leadingTerm (atoms: [MathValue]) (f: MathValue) : MathValue :=
 def monoDivides (s: MathValue) (t: MathValue) : Bool :=
   match (s, t) as (mathValue, mathValue) with
     | (term _ $sfs, term _ $tfs) -> all (\(x, n) -> expOf x tfs >= n) sfs
-    | (_, _) -> False
+    else False
 
 def monoLcm (s: MathValue) (t: MathValue) : MathValue :=
   match (s, t) as (mathValue, mathValue) with
@@ -171,7 +171,7 @@ def isGbPoly (f: MathValue) : Bool :=
           (\n -> n >= 0)
           (matchAll f as mathValue with
             | poly (term _ ((_, $n) :: _) :: _) -> n)
-    | _ -> False
+    else False
 
 -- Normal form of f modulo the polynomials gs.  When gs is a Groebner
 -- basis, the result is the unique standard representative of f in
@@ -376,7 +376,7 @@ def reduceCoeffs (red: MathValue -> MathValue) (v: MathValue) : MathValue :=
               | term $c $xs ->
                   red c *' foldl (*') 1 (map (uncurry (^')) xs))
             ts)
-    | _ -> v
+    else v
 
 -- Monomial quotient with field division on the coefficients; the
 -- exponent part is field-independent.

@@ -54,7 +54,7 @@ import           Language.Egison.IExpr (TITopExpr(..), ITopExpr(..), IExpr(..), 
 import           Language.Egison.MathOutput (prettyMath)
 import           Language.Egison.Parser
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgOutsideEgisonCoreWarnings, cfgPatternHoleBeforePrimitiveValuePatternWarnings, cfgNestedStructuredPrimitivePatternPatternWarnings, batchForwardProducerDependencies)
+import           Language.Egison.Type.Infer (inferITopExpr, runInferWithWarningsAndState, InferState(..), initialInferStateWithConfig, permissiveInferConfig, defaultInferConfig, cfgMatcherConsistencyWarnings, cfgOutsideEgisonCoreWarnings, cfgPatternHoleBeforePrimitiveValuePatternWarnings, cfgNestedStructuredPrimitivePatternPatternWarnings)
 import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv,
                                            extendEnvMany, envToList,
                                            classEnvToList, lookupInstances,
@@ -69,7 +69,6 @@ import           Language.Egison.Type.Pretty (prettyTypeScheme, prettyType)
 import           Language.Egison.Pretty (prettyStr)
 import           Language.Egison.EvalState (ConstructorInfo(..))
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 
 
@@ -189,21 +188,6 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                            _                              -> Nothing] ]
   accum <- foldM (processOneExpr opts permissive printValues batchDefNames) emptyAccum exprs'
 
-  -- Preserve only unresolved/cyclic producer summaries across load units.
-  -- Every name declared by this batch shadows an older summary, including
-  -- the important case where a formerly cyclic name is redefined by a
-  -- completed matcher literal and therefore becomes Known.
-  previousProducerDependencies <- getProducerDependencyEnv
-  let externalProducerDependencies =
-        Set.foldr Map.delete previousProducerDependencies batchDefNames
-      completedProducerDependencies =
-        batchForwardProducerDependencies
-          externalProducerDependencies
-          batchDefNames
-          (accumBindings accum)
-  setProducerDependencyEnv
-    (Map.union completedProducerDependencies externalProducerDependencies)
-
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
     dumpPhaseExprs "Typed AST (Phase 5-6: Type Inference)" "End of Typed AST" (accumTypedExprs accum)
@@ -249,7 +233,7 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   return (lastVal, finalEnv)
 
 --------------------------------------------------------------------------------
--- M4: cas-quotient macro expansion (design/type-cas-quotient.md q1-q4)
+-- CAS quotient macro expansion (design/type-cas-quotient.md)
 --------------------------------------------------------------------------------
 
 -- | Expand `declare cas-quotient Q := Base by reduce` into ordinary
@@ -260,12 +244,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
 --   def reprQ (v : Q) : MathValue := casQuotientCast v
 --   instance Eq/AddSemigroup/../Ring Q           (homomorphic ops:
 --                                                 projQ (reprQ a ∘' reprQ b))
---   assertEqual ... (q4: idempotence + congruence over a sample battery)
+--   assertEqual ... (idempotence + congruence over a sample battery)
 --
--- Nominal typing (q1) comes from registering Q in the cas-type alias
+-- Nominal typing comes from registering Q in the cas-type alias
 -- environment as Q -> TInductive Q [], so every annotation seam maps the
 -- bare name to an opaque type that unifies only with itself and joins no
--- subtype order (D4: quotients live outside the tower; `declare
+-- subtype order (quotients live outside the tower; `declare
 -- cas-subtype` rejects them as non-CAS types).
 --
 -- Notes: crossing is explicit (projQ / reprQ). The homomorphic delegation
@@ -285,13 +269,13 @@ expandCasQuotientDecls exprs = concat <$> mapM expand exprs
       when (any ((== name) . ctorTypeName) (HashMap.elems ctorEnv)) $
         throwError $ Default $
           "declare cas-quotient: name clashes with an inductive type: " ++ name
-      -- q1: nominal registration through the alias environment
+      -- Nominal registration through the alias environment.
       setCasTypeAliasEnv (HashMap.insert name (Types.TInductive name []) aliases)
       generated <- readTopExprs (casQuotientTemplate name)
       return (Define (VarWithIndices ("reduce" ++ name) []) reduceExpr : generated)
     expand e = return [e]
 
--- | The generated program for one quotient declaration (q2/q3/q4).
+-- | The generated program for one quotient declaration.
 -- Kept as concrete source text and re-parsed: every piece is ordinary
 -- Egison, which keeps the mechanism a plain macro.
 casQuotientTemplate :: String -> String
@@ -384,12 +368,12 @@ buildAndMergeEnvironments exprs opts = do
   setPatternFuncDeclEnv mergedPatternFuncDeclEnv
   setPatternFuncEnv invalidatedPatternFuncEnv
 
-  -- Phase alpha (extensible CAS tower): persist `declare cas-type` aliases so
+  -- Persist `declare cas-type` aliases so
   -- Desugar (this batch) and later load batches can expand annotation types.
   prevAliases <- getCasTypeAliasEnv
   setCasTypeAliasEnv (HashMap.union (ebrCasTypeAliases envResult) prevAliases)
 
-  -- Phase beta: persist `declare cas-subtype` edges (D1-checked in EnvBuilder).
+  -- Persist `declare cas-subtype` edges checked in EnvBuilder.
   prevEdges <- getCasSubtypeEdges
   setCasSubtypeEdges (prevEdges ++ ebrCasSubtypeEdges envResult)
 
@@ -448,17 +432,9 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
       currentPatternFuncEnv' <- getPatternFuncEnv
       currentCasEdges <- getCasSubtypeEdges
       currentMatcherShapes <- getMatcherShapeEnv
-      currentProducerDependencies <- getProducerDependencyEnv
       currentConstructorEnv <- getConstructorEnv
       let patternFuncBindings = [(stringToVar name, scheme) | (name, scheme) <- patternEnvToList currentPatternFuncDeclEnv']
           enrichedTypeEnv = extendEnvMany patternFuncBindings currentTypeEnv
-          externalProducerDependencies =
-            Set.foldr Map.delete currentProducerDependencies batchDefNames
-          completedProducerDependencies =
-            batchForwardProducerDependencies
-              externalProducerDependencies
-              batchDefNames
-              (accumBindings acc)
           initState = (initialInferStateWithConfig inferConfig) {
             inferEnv = enrichedTypeEnv,
             inferClassEnv = currentClassEnv,
@@ -469,15 +445,6 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
             inferBatchDefNames = batchDefNames,
             inferDataConstructorNames =
               Set.fromList (HashMap.keys currentConstructorEnv),
-            inferProducerDependencies =
-              Map.union
-                completedProducerDependencies
-                externalProducerDependencies,
-            inferCompletedBatchDefNames =
-              Set.fromList
-                [ name
-                | (Var name _, _) <- accumBindings acc
-                ],
             inferMatcherShapes = currentMatcherShapes
           }
       (result, warnings, finalState) <- liftIO $

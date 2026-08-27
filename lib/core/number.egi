@@ -41,7 +41,7 @@ def findFactor : Integer -> Integer :=
   memoizedLambda n ->
     match takeWhile (<= floor (f.sqrt (itof n))) primes as list integer with
       | _ ++ (?(divisor n) & $x) :: _ -> x
-      | _ -> n
+      else n
 
 def primeFactorization : Integer -> [Integer] :=
   \match as integer with

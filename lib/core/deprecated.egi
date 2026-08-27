@@ -22,7 +22,7 @@ def nat : Matcher Integer Integer :=
       | $tgt ->
           match compare tgt 0 as ordering with
             | greater -> [tgt - 1]
-            | _       -> []
+            else []
     | #$n as () with
       | $tgt -> if tgt = n then [()] else []
     | $ as (something) with
@@ -56,7 +56,7 @@ def M.LU {Field a} (x: Matrix a) : (Matrix a, Matrix a) :=
           U := generateTensor
                  (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
-                   | _ -> c_i_j)
+                   else c_i_j)
                  [2, 2]
           m := M.* L U
           ret := solve
@@ -75,7 +75,7 @@ def M.LU {Field a} (x: Matrix a) : (Matrix a, Matrix a) :=
           U := generateTensor
                  (\[i, j] -> match compare i j as ordering with
                    | greater -> 0
-                   | _ -> c_i_j)
+                   else c_i_j)
                  [3, 3]
           m := M.* L U
           ret := solve
@@ -89,7 +89,7 @@ def M.LU {Field a} (x: Matrix a) : (Matrix a, Matrix a) :=
                    , (m_3_2, x_3_2, b_3_2)
                    , (m_3_3, x_3_3, c_3_3) ]
        in (substitute ret L, substitute ret U)
-    | _ -> undefined
+    else undefined
 
 --
 -- Utility

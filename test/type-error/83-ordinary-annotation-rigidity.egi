@@ -1,6 +1,6 @@
--- P2 D3: every binder of an explicit scheme is rigid while its body is
+-- TypePM annotation checking: every binder of an explicit scheme is rigid while its body is
 -- checked.  The implementation has type a -> Integer for a fresh local a;
 -- it must not specialize the annotation's quantified result variable to
 -- Integer and thereby claim the over-general type forall a. a -> a.
 
-def p2BogusIdentity {a} (_ : a) : a := 1
+def bogusIdentity {a} (_ : a) : a := 1

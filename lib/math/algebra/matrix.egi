@@ -13,7 +13,7 @@ def matrix : Matcher (Matrix MathValue) (Matrix MathValue) :=
         match tensorShape tgt as list integer with
           | $m :: $n :: _ ->
             [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
-          | _ -> []
+          else []
     | matCons #$i #$j $ $ $ $ $ as (mathValue, matrix, matrix, matrix, matrix) with
       | $tgt ->
         let ns := tensorShape tgt
@@ -140,6 +140,6 @@ def M.determinant (m: Matrix MathValue) : MathValue :=
       let (es, os) := evenAndOddPermutations' n
        in sum (map (\e -> product (map2 (\i j -> m_i_j) (between 1 n) e)) es) -
             sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
-    | _ -> undefined
+    else undefined
 
 def M.det (m: Matrix MathValue) : MathValue := M.determinant m

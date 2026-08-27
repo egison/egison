@@ -43,7 +43,7 @@ def sortBy {a} (f: a -> a -> Ordering) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
-    | _ ->
+    else
       let n := length xs
           p := nth (i.quotient n 2) xs
           (ys1, ys2, ys3) := splitByOrderingBy f p xs
@@ -68,14 +68,14 @@ def addVars (vs: [Integer]) (vars: [(Integer, Integer)]) : [(Integer, Integer)] 
 def deleteVar (v: Integer) (vars: [(Integer, Integer)]) : [(Integer, Integer)] :=
   matchDFS vars as multiset (literal, integer) with
     | (#v, _) :: (#(neg v), _) :: $vars' -> vars'
-    | _ -> []  -- Return empty list instead of error string
+    else []  -- Return empty list instead of error string
 
 -- Utility functions for literlas and cnfs
 
 def getStage (l: Integer) (trail: [Assignment]) : Integer :=
   matchDFS trail as list assignment with
     | _ ++ whichever (#(neg l), $s) :: _ -> s
-    | _ -> 0  -- Return 0 instead of error string
+    else 0  -- Return 0 instead of error string
 
 def deleteLiteral (l: Integer) (cnf: [([Integer], [Integer])]) : [([Integer], [Integer])] :=
   map
@@ -112,7 +112,7 @@ def unitPropagate'' (stage: Integer) (cnf: [([Integer], [Integer])]) (trail: [As
         (assignTrue l cnf)
         (Deduced (l, stage) (map (\r -> (r, getStage r trail)) rs) :: trail)
     -- otherwise
-    | _ -> (cnf, trail)
+    else (cnf, trail)
 
 def learn (stage: Integer) (cl: [(Integer, Integer)]) (trail: [Assignment]) : (Integer, [Integer]) :=
   matchDFS (trail, cl) as (list assignment, multiset (literal, stageMatcher)) with
@@ -126,7 +126,7 @@ def learn (stage: Integer) (cl: [(Integer, Integer)]) (trail: [Assignment]) : (I
 def backjump (stage: Integer) (trail: [Assignment]) : [Assignment] :=
   matchDFS trail as list assignment with
     | _ ++ (guessed (_, #stage) :: _ & $trail') -> trail'
-    | _ -> trail
+    else trail
 
 def guess (vars: [(Integer, Integer)]) (trail: [Assignment]) : Integer :=
   matchDFS (vars, trail) as (list (literal, integer), list assignment) with
@@ -153,8 +153,8 @@ def cdcl' (count: Integer) (stage: Integer) (vars: [(Integer, Integer)]) (cnf: [
                     (addVars lc vars)
                     ((lc, lc) :: cnf)
                     trail'''
-            | _ -> False
-        | _ ->
+            else False
+        else
           let g := guess vars trail'
            in cdcl'
                 (count + 1)

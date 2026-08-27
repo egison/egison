@@ -489,9 +489,9 @@ patternFunctionExpr = do
 
 -- | Parse the `declare cas-*` family of the extensible CAS tower:
 --
---   declare cas-type Q := <type>                     (transparent alias, D3)
---   declare cas-subtype A ⊂ B      (or A <: B)       (order edge, D1/D5)
---   declare cas-quotient Q := <base> by <reduce>     (quotient, M4)
+--   declare cas-type Q := <type>                     (transparent alias)
+--   declare cas-subtype A ⊂ B      (or A <: B)       (order edge)
+--   declare cas-quotient Q := <base> by <reduce>     (quotient)
 --
 -- The keyword lexes as `cas`, `-`, `<kind>` because identifiers cannot
 -- contain hyphens; the three kinds share this prefix and dispatch on the
@@ -1157,22 +1157,51 @@ ifExpr :: Parser Expr
 ifExpr = reserved "if" >> IfExpr <$> expr <* reserved "then" <*> expr <* reserved "else" <*> expr
 
 patternMatchExpr :: Parser Expr
-patternMatchExpr = makeMatchExpr (reserved "match")       (MatchExpr BFSMode)
-               <|> makeMatchExpr (reserved "matchDFS")    (MatchExpr DFSMode)
-               <|> makeMatchExpr (reserved "matchAll")    (MatchAllExpr BFSMode)
-               <|> makeMatchExpr (reserved "matchAllDFS") (MatchAllExpr DFSMode)
+patternMatchExpr = makeMatchFirstExpr (reserved "match")    BFSMode
+               <|> makeMatchFirstExpr (reserved "matchDFS") DFSMode
+               <|> makeMatchAllExpr (reserved "matchAll")    (MatchAllExpr BFSMode)
+               <|> makeMatchAllExpr (reserved "matchAllDFS") (MatchAllExpr DFSMode)
                <?> "pattern match expression"
   where
-    makeMatchExpr keyword ctor = ctor <$> (keyword >> expr)
-                                      <*> (reserved "as" >> expr)
-                                      <*> (reserved "with" >> matchClauses1)
+    makeMatchFirstExpr keyword mode = do
+      target <- keyword >> expr
+      matcher <- reserved "as" >> expr
+      (clauses, clauseIndent) <- reserved "with" >> matchClauses1WithIndent
+      fallback <- optional . try $ do
+        _ <- indentGuardEQ clauseIndent
+        reserved "else"
+        expr
+      return $ MatchExpr mode target matcher clauses fallback
+
+    makeMatchAllExpr keyword ctor = ctor <$> (keyword >> expr)
+                                        <*> (reserved "as" >> expr)
+                                        <*> (reserved "with" >> matchClauses1)
 
 -- Parse more than 1 match clauses.
 matchClauses1 :: Parser [MatchClause]
-matchClauses1 =
+matchClauses1 = fst <$> matchClauses1WithIndent
+
+-- Parse match clauses and retain their indentation so that a following
+-- `else` can be distinguished from an `else` belonging to an enclosing
+-- expression.
+matchClauses1WithIndent :: Parser ([MatchClause], Pos)
+matchClauses1WithIndent =
   -- If the first bar '|' is missing, then it is expected to have only one match clause.
-  (lookAhead (symbol "|") >> alignSome matchClause) <|> (:[]) <$> matchClauseWithoutBar
+  withBars <|> withoutBar
   where
+    withBars :: Parser ([MatchClause], Pos)
+    withBars = do
+      pos <- L.indentLevel
+      lookAhead (symbol "|")
+      clauses <- some (indentGuardEQ pos >> matchClause)
+      return (clauses, pos)
+
+    withoutBar :: Parser ([MatchClause], Pos)
+    withoutBar = do
+      pos <- L.indentLevel
+      clause <- matchClauseWithoutBar
+      return ([clause], pos)
+
     matchClauseWithoutBar :: Parser MatchClause
     matchClauseWithoutBar = (,) <$> pattern <*> (symbol "->" >> expr)
 

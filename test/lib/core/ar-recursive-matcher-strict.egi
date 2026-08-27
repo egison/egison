@@ -1,0 +1,33 @@
+def strictIdentityRecursiveMatcher {a} (x : a) : a := x
+
+def strictRecursiveIntegerListViaApplication :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as
+        (integer,
+         strictIdentityRecursiveMatcher
+           strictRecursiveIntegerListViaApplication) with
+      | $tgt ->
+        match tgt as list integer with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
+
+def strictRecursiveIntegerListViaAlias :=
+  matcher
+    | [] as () with
+      | [] -> [()]
+      | _ -> []
+    | $ :: $ as
+        (integer,
+         let nextMatcher := strictRecursiveIntegerListViaAlias
+          in nextMatcher) with
+      | $tgt ->
+        match tgt as list integer with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

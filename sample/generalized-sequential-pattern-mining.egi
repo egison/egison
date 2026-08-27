@@ -63,7 +63,7 @@ def gspm items ISDB I minSup C1 C2 C3 C4 :=
   let R := [] in
   let fs := filter (\α ISDB' -> match ISDB' as multiset sequence with
                                 | loop $i (1, minSup) (![] :: ...) _ -> True
-                                | _ -> False)
+                                else False)
                    (map (\α -> (α, project α ISDB)) (map (\x -> [(0, x)]) items)) in
   let iss := map (\α ISDB' -> α) fs in
   iss ++ concat (map (\α ISDB' -> projection α ISDB' I minSup C1 C2 C3 C4) fs)

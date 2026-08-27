@@ -1,18 +1,32 @@
 # Egison Core Boundary
 
-> **Status (2026-08-13).** This document defines the integration boundary
+> **Status (2026-08-27).** This document defines the integration boundary
 > between Egison's production type checker and the executable two-sorted core
-> mechanized in `type-pm-mech`. It is an implementation contract, not a claim
+> mechanized in `type-pm-mech3`. It is an implementation contract, not a claim
 > that the complete Egison language has been translated to, or proved sound by,
 > the mechanized core.
 
 ## 1. Integration policy
 
-Egison keeps its full surface language and runtime semantics. The production
-checker uses the mechanized core design wherever a source construct has a
-validated core interpretation. Egison-specific extensions that do not yet have
-a validated bridge continue through their existing typing and evaluation
-paths.
+Egison keeps its full surface language and runtime semantics, but its type
+system is a conservative extension of the mechanized core. Here,
+“conservative extension” means that a program using core syntax, core types,
+and core signatures and satisfying the core's static side conditions is typed
+by the synchronized TypePM rules, with the same type and substitution; adding
+Egison constructs does not change an existing core typing judgment.
+
+Every Egison-specific typing rule therefore requires a positive extension
+witness in the current input, such as an ordinary `TAny`, a CAS or tensor type,
+a legacy CAS view, a production-only pattern form, or an explicitly diagnosed
+relaxation of a core surface side condition such as coverage. Failure of core
+type equality or matcher/slot checking is not such a witness and never selects
+a second matcher solver. This makes the extra language forms extensions of the
+core rather than alternate interpretations of core programs.
+
+Here, “compatibility” refers only to explicitly non-core syntax or types that
+are outside the maintained mechanized-core contract. It does not mean source
+compatibility with `type-pm-mech` or `type-pm-mech2`, and it does not retain
+their producer-flow or syntax-head inference algorithms as shims.
 
 Crossing such an extension boundary must not silently be presented as a core
 guarantee. General production extensions are reported by the optional flag
@@ -35,11 +49,11 @@ behavior exactly. The former umbrella option is not retained as an alias: it
 did not identify which boundary was being audited.
 
 The outside-core warning path is deliberately separate from strict type
-errors. A construct rejected by the synchronized core path remains an error
-when the production checker already treats it as an error. The warning path is
-for an Egison extension or compatibility fallback through which the production
-system proceeds. A later, independent error may still reject the enclosing
-expression.
+errors. A core construct rejected by the synchronized core path remains an
+error; it cannot be rescued by enabling a warning-producing rule. The warning
+path records an explicitly witnessed Egison extension through which the
+production system proceeds. A later, independent error may still reject the
+enclosing expression.
 
 ## 2. Synchronized two-sorted core path
 
@@ -58,14 +72,46 @@ types, schemes, free-variable computation, instantiation, generalization,
 constraint solving, and zonking.
 
 Here, “synchronized” refers to this capability/target and matcher-slot
-fragment. The Haskell ordinary-type solver also contains production rules for
-CAS representations, tensors, type classes, ordinary gradual `TAny`, and other Egison features.
-A successful call to that whole production solver is therefore not, by
-itself, evidence of a TypePM derivation. The mechanized executable checker
-remains the Lean implementation; the Haskell integration records known
-departures through the boundary described below.
+fragment. On the TypePM grammar, the production entry point calls this relation
+directly and does not retry with a wider matcher relation. The Haskell checker
+also has separately selected rules for CAS representations, tensors, type
+classes, ordinary gradual `TAny`, and other Egison features. A successful use
+of one of those extension rules is not, by itself, evidence of a TypePM
+derivation. The mechanized executable checker remains the Lean implementation;
+the Haskell integration records known extra forms through the boundary below.
 
-### 2.1 Root capability/target alignment
+### 2.1 A/R-constrained ordinary variables and recursive values
+
+Ordinary unification variables carry one of two usage classes without creating
+a second grammar of types. An argument-class variable (A variable) may be
+replaced by any `TypeOK` type, including `MatcherSlot`. A result-class variable
+(R variable) may be replaced only by a `ResultOK` type. `MatcherSlot` itself is
+not `ResultOK`; a function is `ResultOK` when its domain is `TypeOK` and its
+codomain is `ResultOK`. Consequently, slots may occur only in function-argument
+positions, including argument positions of a returned function, and never as a
+returned value.
+
+When A and R occurrences are unified, the A occurrence is strengthened to the
+R class. Substitution, generalization, instantiation, public annotation
+checking, and principal-type comparison retain that class. Thus an identity
+function can have one shared R variable in both its domain and codomain instead
+of losing the fact that the shared type must be result-admissible.
+
+A recursive binder is assigned one fresh monomorphic R placeholder before its
+body is inferred. The completed body type is made result-admissible and unified
+with that placeholder. The only syntax restriction is that each actually
+cyclic definition has a lambda or matcher literal at its root. The cycle
+analysis enforces only this root restriction; it does not classify producer
+names or contribute matcher capability evidence.
+
+At a next-matcher slot, an unresolved A variable is committed to
+`MatcherSlot`, while an unresolved R variable must be committed to `Matcher`.
+The latter value is checked against the slot, but contributes neither
+independent clause-shape evidence nor a `CapTargetOK` assumption. This decision
+depends only on the current A/R class, so direct recursion, a local alias, and
+an ordinary identity-function application follow the same rule.
+
+### 2.2 Root capability/target alignment
 
 Every matcher-producing expression is aligned as one capability/target pair.
 The root capability and root target are resolved under the same prevailing
@@ -78,10 +124,10 @@ therefore satisfy both of the following:
    substitution to the shared matcher target.
 
 Target specialization alone is never evidence for a structured capability.
-Ordinary gradual `TAny`, a target annotation, a match-site demand, or a recursive result
-annotation must not invent a capability head.
+Ordinary gradual `TAny`, a target annotation, or a match-site demand must not
+invent a capability head.
 
-### 2.2 Capability-origin ledger and nested core solver
+### 2.3 Capability-origin ledger and nested core solver
 
 Nested `Matcher` and `MatcherSlot` occurrences are solved by the same
 two-sorted rules as root occurrences. `InferState` records every capability
@@ -115,17 +161,17 @@ consulting the same origin ledger for every capability component. Tensor
 application retains Egison's traversal rule; the capability-origin check does
 not change that evaluation-order extension.
 
-The core solver fails closed. If a nested constraint cannot be handled by its
-origin-aware two-sorted rules, the synchronized path fails rather than weakening the
-constraint to ordinary `TAny`, capability `Any`, or a fresh unconstrained slot. Production may then
-use an explicitly identified Egison fallback, but that crossing is a
-compatibility-warning event.
+The core solver fails closed. If a nested core constraint cannot be handled by
+its origin-aware two-sorted rules, inference fails rather than weakening the
+constraint to ordinary `TAny`, capability `Any`, or a fresh unconstrained slot.
+There is no failure-triggered retry. A separate extension rule can apply only
+when its own non-core syntax or type is already present in the constraint.
 
 An origin violation is never such a warning event. Any substitution that
 strengthens a rigid or rename-only variable is rejected as a type error before
 it can be committed to the global substitution.
 
-### 2.3 One-way `Matcher` to `MatcherSlot` coercion
+### 2.4 One-way `Matcher` to `MatcherSlot` coercion
 
 Coercion is producer-to-consumer and is not symmetric unification:
 
@@ -156,12 +202,15 @@ and both targets before the ordinary target equality is solved. The resulting
 substitutions are composed in that order. Tuple coercion is componentwise and
 preserves the same fixed producer/consumer boundary in every nested component.
 
-This coercion is available only at an explicit slot-use boundary. Generic
-type equality rejects `Matcher`/`MatcherSlot` crossing and raw tuple/matcher
-conveniences. The production extension solver may retain those historical
-conveniences after reporting a compatibility fallback.
+This coercion is available only at an explicit slot-use boundary. Generic type
+equality rejects `Matcher`/`MatcherSlot` crossing and raw tuple/matcher
+conveniences, including at nested positions. Egison does not retry a rejected
+core equality merely because the two types have the same matcher head. A raw
+ordinary `TAny` at the explicit slot boundary has its own gradual extension
+rule; that positive type witness is not matcher capability evidence and does
+not change core equality.
 
-### 2.4 Shared matcher target and fresh hole capabilities
+### 2.5 Shared matcher target and fresh hole capabilities
 
 A matcher literal has one shared ordinary target across all clauses. Each
 primitive-pattern hole allocates a fresh capability variable and pairs it with
@@ -184,18 +233,33 @@ skeleton, including nested observable heads. Thus a value of type
 `box $` clause whose declared field is `[Integer]`. Wildcard and captured-value
 refinements contribute unseen evidence and impose no next-matcher obligation.
 
-An undetermined next-matcher parameter committed to `MatcherSlot` by Step 3a'
-is consumer-owned. PP-Con may therefore solve that slot's capability meta to a
-fresh instance of the declared field skeleton (observable heads retained,
-leaves fresh). An `HCMatcher` value is a producer instead: field validation may
-inspect its existing capability but never strengthen it from the field target.
+An undetermined A variable committed to `MatcherSlot` at a next-matcher
+boundary is consumer-owned. PP-Con may therefore solve that slot's capability
+meta to a fresh instance of the declared field skeleton (observable heads
+retained, leaves fresh). An existing matcher value is a producer instead:
+field validation may inspect its existing capability but never strengthen it
+from the field target. An undetermined R variable is committed to `Matcher` so
+it can fill the slot, but that commitment supplies unseen shape evidence and no
+capability/target assumption. This is what prevents a recursive use from
+proving the structure of the matcher currently being defined.
 The nested structured primitive-pattern fallback in Section 4.2 remains a
 whole-clause uncertified path: it keeps generic result projection, but skips
 both this slot-skeleton alignment and closed-field validation. The dedicated
 nested-structure warning option controls reporting only, not which inference
 path is taken.
 
-### 2.5 Primitive-pattern capture order
+### 2.6 First-result match fallback
+
+The first-result forms `match` and `matchDFS` may carry an `else` fallback.
+Ordinary arms are inferred in source order. The fallback is inferred last in
+the surrounding context, outside every arm binding, and its result is unified
+with the one result type shared by the ordinary arms. At runtime it is
+evaluated in the original environment only after every ordinary arm has
+produced an empty result. It is not a wildcard arm and performs no matcher
+operation of its own. The enumerating forms `matchAll` and `matchAllDFS` do not
+have this fallback.
+
+### 2.7 Primitive-pattern capture order
 
 Egison core visits a `PrimitivePatPattern` depth first and from left to right.
 A primitive value pattern `#$name` is core-admissible only if no pattern hole
@@ -228,7 +292,7 @@ syntax-only warning is distinct from `checkVpScope`: an actual user value
 pattern that refers to a binding made to its left in the same matcher atom is
 still a hard type error.
 
-### 2.6 Allocated/protected producer ledger
+### 2.8 Allocated/protected producer ledger
 
 The production solver maintains explicit sets for capability variables
 allocated during inference and for variables protected from later
@@ -253,19 +317,33 @@ intersected with the allocation set only to select which surviving
 inference-owned variables become protected; source capability variables are
 therefore not accidentally claimed by the matcher producer.
 
-## 3. Egison extension fallbacks
+## 3. Egison extension rules
 
-An extension fallback is a production path whose acceptance has not yet been
-connected to the executable core inference theorem by a validated translation.
-The fallback may continue to use Egison's existing type checker and evaluator.
-Outside-core warnings observe the fallback; they do not replace it, reject
-it, or reinterpret it.
+An extension rule is a production rule for a form outside the TypePM admissible
+fragment and therefore outside the executable core inference theorem. It is selected by an explicit
+non-core form or a diagnosed relaxation of a surface side condition, not by a
+failed type equality or matcher/slot judgment. Outside-core warnings observe
+the rule; they do not replace it, reject it, or reinterpret it.
 
 Warnings should be emitted once per relevant source occurrence where
-practical, name the accepted fallback, and include the closest available
+practical, name the accepted extension, and include the closest available
 source expression. Generated code should be attributed to its originating
 surface construct when that provenance is available. Warning collection must
 not mutate the inference environment or participate in solver decisions.
+
+The intentional extension paths are therefore limited and independently
+controlled:
+
+| Production extension | Positive witness and purpose | Reporting or control |
+|---|---|---|
+| Raw ordinary `TAny` at an explicit slot | The ordinary `TAny` node explicitly requests Egison's gradual unknown rule | `--outside-egison-core-warnings` |
+| Numeric, CAS, and tensor representation equality at a rigid annotation boundary | An extension representation type, or a numeric type together with its production constraint, explicitly selects the relation | `--outside-egison-core-warnings` |
+| Legacy CAS pattern views | A named legacy view selects this path; the target-indexed virtual signature and runtime preservation certificate do not yet exist | `--outside-egison-core-warnings` |
+| Header-only or expression-headed pattern-function application, and residual non-core pattern forms | The corresponding production-only syntax or unresolved header is the witness; no finalized paired capability/target contract or validated surface-to-core translation is available | `--outside-egison-core-warnings` |
+| Broader primitive-pattern ordering or nesting | The broader primitive-pattern AST is the witness; production syntax is intentionally wider than the maintained core contract | Two dedicated primitive-pattern warning flags |
+| Partial matcher coverage | Production treats coverage as an optional diagnostic rather than an acceptance premise | `--matcher-consistency-warnings` |
+| Evaluation after a type error | The default evaluator retains the historical untyped fallback | Disabled by `--type-check-strict` |
+| Generated CAS quotient representation cast | Quotient projection and representation code currently crosses a nominal boundary with a reserved unsafe identity cast | Reserved for generated code by convention; no core certificate |
 
 ## 4. Warning inventory
 
@@ -309,9 +387,10 @@ handles operator precedence.
 
 Lean's core syntax, typing rules, operational semantics, and executable
 inference can represent nested structured primitive-pattern patterns. The
-warning exists because the production Egison-to-core bridge for these
-occurrences has not yet been validated end to end. It must not state that Lean
-cannot express or infer the pattern.
+warning classifies these production occurrences outside the maintained
+Egison-core integration contract; constructing and proving a complete
+Egison-to-core translation is not required. The diagnostic must not state that
+Lean cannot express or infer the pattern.
 
 ### 4.3 Primitive-pattern binder duplication or overlap
 
@@ -323,13 +402,14 @@ would otherwise choose one of two bindings by environment order.
 
 Once the production checker enforces the same distinctness and disjointness
 conditions as the core, these cases should become ordinary type errors and no
-longer use a compatibility fallback.
+longer use this explicit extension rule.
 
 ### 4.4 Undeclared primitive-pattern constructor fallback
 
 The core requires every primitive-pattern constructor to be found in the
 frozen pattern-constructor signature. Production's generic inference for an
-undeclared `PPInductivePat` is an extension fallback and is reported. The
+undeclared `PPInductivePat` is an extension rule selected by that undeclared
+constructor and is reported. The
 warning names the constructor and states that its result and field types were
 not obtained from the frozen signature.
 
@@ -374,8 +454,7 @@ capability. This `DualScheme` generalization/instantiation and PAT-APP component
 is on the synchronized direct path and is not reported merely because it belongs
 to a pattern function. This statement does not place the complete definition
 body or its embedded expressions on that path; they remain subject to the other
-extension boundaries in this inventory and to the bridge obligations in
-Section 6.
+extension boundaries in this inventory and to the scope boundary in Section 7.
 
 If the definition body itself contains a residual non-core pattern form from
 Section 4.7, that body boundary is reported when the definition is checked.
@@ -429,30 +508,36 @@ Constructor-shaped user patterns are core-facing only when their constructor
 is present in the frozen pattern signature. Falling back to a value
 constructor or to generic constructor inference is reported.
 
-### 4.8 Protected or nested core-solver fallback
+### 4.8 Explicit type-extension boundaries
 
-A warning is reported whenever the synchronized solver delegates a protected
-producer constraint or a nested matcher constraint to a more permissive
-production solver. This includes:
+There is no general extended matcher solver. Matcher equality, nested matcher
+equality, top-level matcher annotations, and explicit slot checks use the
+synchronized TypePM relations directly. Rejecting one of those judgments does
+not select another relation.
 
-- symmetric capability unification where one-way matching was required;
-- adding a protected producer variable to a consumer substitution domain;
-- using a raw ordinary `TAny` value, including a raw tuple component, as
-  evidence for a `MatcherSlot` head;
-- replacing a failed nested matcher constraint with ordinary `TAny`, capability
-  `Any`, or a fresh unconstrained variable;
-- deriving ownership from a final zonked type because the allocation ledger is
-  unavailable; and
-- changing an enclosing ordinary-type or capability metavariable at an
-  explicitly identified numeric, CAS, tensor, or related annotation bridge.
+Two ordinary-type extensions are selected independently by positive type
+evidence:
 
-The warning should record the fallback reason and the relevant producer and
-consumer types. Successful use of the rigid core solver does not warn.
+- a raw ordinary `TAny` may fill an explicit `MatcherSlot` through Egison's
+  gradual rule; and
+- an extension representation type (numeric, CAS, tensor, or a named
+  production representation), or a numeric type under a production numeric
+  constraint, may use its representation rule at a rigid annotation boundary.
 
-Recursive or transformed producer flow for which production cannot construct
-a conservative capability remains a hard type error. It is not reclassified
-as a warning merely because the missing proof obligation is outside the core;
-warnings are used only where Egison has an actual continuation path.
+Both cases are reported with the relevant types. Successful use of the core
+solver does not warn. The first rule applies only at the explicit slot-use
+boundary and is not matcher capability evidence.
+
+Capability-origin violations, generic `Matcher`/`MatcherSlot` crossing,
+same-head nested matcher mismatches, and implicit tuple-to-slot decomposition
+remain hard errors. In particular, the ground capability `Any` of a value
+`Matcher Any tau` cannot witness a structured capability, and no extension
+rule may replace a capability failure with capability `Any` or an
+unconstrained variable.
+
+Recursive matcher uses do not select an extension merely because they pass
+through an alias or ordinary function application. They use the A/R rule in
+Section 2.1 and the type-derived next-matcher check.
 
 ## 5. Coverage uses a separate option
 
@@ -470,30 +555,61 @@ against the complete core acceptance conditions therefore requires
 `--matcher-consistency-warnings` together with the relevant outside-core flags.
 A matcher can exercise only synchronized inference operations while
 remaining intentionally partial under the production policy, and it can be
-coverage-complete while using an unbridged Egison extension.
+coverage-complete while using an out-of-core Egison extension.
 
-## 6. Scope of the soundness claim
+## 6. Runtime compatibility outside inference warnings
+
+Two compatibility mechanisms are intentionally separate from the
+outside-core inference warnings.
+
+By default, a top-level type error is printed and the expression may continue
+through untyped desugaring and evaluation. `--type-check-strict` stops before
+that expression enters the runtime environment. Strict mode therefore removes
+this permissive evaluation fallback, but it does not disable the independently
+defined Egison extension relations above or turn the run into a certified
+whole-program mode.
+
+Generated CAS quotient declarations use the reserved primitive
+`casQuotientCast : forall a b. a -> b` for representation projection and
+reconstruction. Its runtime implementation is an identity operation. This is
+an explicit unsafe bridge for generated quotient code, not a TypePM
+derivation, a D5-CAS certificate, or a general implicit coercion rule. The
+current type environment does not carry a provenance marker proving that a
+call was generated, so this primitive remains a whole-program certification
+escape hatch.
+
+## 7. Scope of the soundness claim
+
+For a program in the core admissible fragment, the implementation contract is
+exact: production dispatch reaches the synchronized typing relations directly,
+emits no extension warning, and preserves their inferred type and
+substitution. At the constraint level, regression tests compare the public
+production unification entry point with the synchronized core entry point on
+accepted and rejected core constraints. This prevents an Egison extension from
+silently rescuing a core type-equality failure.
 
 A warning-free run is useful evidence that none of the instrumented production
-fallbacks was observed. It is not, by itself, a proof that the complete Egison
+extensions was observed. It is not, by itself, a proof that the complete Egison
 program is sound, nor does it imply that every production inference result is
 covered by `TypePM.infer_success_sound`.
 
-That claim additionally requires a completed translation bridge with, at
-minimum:
+Proving a translation or correspondence theorem between the complete Haskell
+implementation and the Lean implementation is an explicit non-goal. The
+production checker also contains parsing, elaboration, type classes, CAS,
+tensors, and runtime integration that are intentionally outside the
+mechanized core; formalizing that complete stack would be a separate project.
 
-1. a total translation for every warning-free source declaration, expression,
-   pattern, matcher clause, primitive-pattern pattern, and primitive data
-   pattern;
-2. a frozen-signature and context correspondence theorem;
-3. preservation of capability/target schemes, allocation ownership, and
-   substitutions across the translation;
-4. correspondence between production inference success and executable core
-   inference success; and
-5. an evaluation or elaboration correspondence sufficient to connect the core
-   theorem to the behavior claimed for Egison.
+The maintained boundary is therefore an engineering contract:
 
-Until those obligations are discharged, the precise claim is limited to the
-mechanized core itself and to individual production components whose bridges
-have been separately validated. Outside-core warnings expose the remaining
-boundary; they do not close it.
+1. `type-pm-mech3` is the normative specification and proof artifact for the
+   core type system;
+2. the Haskell core path implements the corresponding rules without a
+   failure-triggered alternate matcher solver;
+3. regression tests preserve acceptance, rejection, and substitutions at the
+   synchronized Haskell entry points; and
+4. production-only rules remain explicitly separated and observable through
+   the extension inventory and diagnostics.
+
+These tests and documents support synchronization, not a formal Haskell–Lean
+correspondence claim. Outside-core warnings expose the implementation boundary;
+they are not proof certificates.

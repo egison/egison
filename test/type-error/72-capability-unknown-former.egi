@@ -1,0 +1,5 @@
+-- TypePM capability name elaboration.
+-- Expected: Type error / Capability kind error: unknown capability former
+-- `MissingCapability`.
+
+def unknownCapability : Matcher MissingCapability Integer := integer

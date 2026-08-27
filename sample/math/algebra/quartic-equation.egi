@@ -33,7 +33,7 @@ def qtF' (a: MathValue) (b: MathValue) (c: MathValue) (d: MathValue) (e: MathVal
                [(x, y - b / 4)]
                (x ^ 4 + b * x ^ 3 + c * x ^ 2 + d * x + e))
             y)
-    | (_, _, _, _, _) -> qtF' 1 (b / a) (c / a) (d / a) (e / a)
+    else qtF' 1 (b / a) (c / a) (d / a) (e / a)
 
 def w := ((-1) + i * sqrt 3) / 2
 

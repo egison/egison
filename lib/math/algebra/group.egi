@@ -11,7 +11,7 @@ def evenAndOddPermutations' (n: Integer) : ([[Integer]], [[Integer]]) :=
   match n as integer with
     | #1 -> ([[1]], [])
     | #2 -> ([[1, 2]], [[2, 1]])
-    | _ ->
+    else
       let (es, os) := evenAndOddPermutations' (n - 1)
           es' := map (++ [n]) es
           os' := map (++ [n]) os

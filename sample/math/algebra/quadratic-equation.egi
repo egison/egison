@@ -15,7 +15,7 @@ def qF' (a: MathValue) (b: MathValue) (c: MathValue) : (MathValue, MathValue) :=
       (2)#((- (b / 2)) + $1, (- (b / 2)) + $2)
         (withSymbols [x, y]
           qF (substitute [(x, y - b / 2)] (x ^ 2 + b * x + c)) y)
-    | (_, _, _) -> qF' 1 (b / a) (c / a)
+    else qF' 1 (b / a) (c / a)
 
 assertEqual "x^2 + x + 1"
   (qF (x ^ 2 + x + 1) x)

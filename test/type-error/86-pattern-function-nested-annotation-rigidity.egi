@@ -2,5 +2,5 @@
 -- function's rigid explicit binders.  The value annotation cannot specialize
 -- forall a to Integer.
 
-def pattern p2NestedPatternAnnotation {a} (p : a) : a :=
+def pattern nestedPatternAnnotation {a} (p : a) : a :=
   ~p & #(1 : a)

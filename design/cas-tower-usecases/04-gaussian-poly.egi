@@ -1,26 +1,8 @@
--- Use case 04: 中間型 Poly GaussianInt [x] (Phase α + β + γ)
+-- Use case 04: 中間型 Poly GaussianInt [x]
 --
--- Intent:
---   既存の 5 段階タワーには「Gaussian 整数係数の多項式」の場所がない。
---   `Poly Integer [i, x]` (flat) と `Poly (Poly Integer [i]) [x]` (nested)
---   は表現が異なるが内容は同じ。ユーザがどちらの canonical form を使いたいか
---   を型注釈で選べるようにする。
---
--- Required machinery:
---   - Phase α (型 alias)
---   - Phase β (subtype)
---   - Phase γ (`class CASCanonical` + `primCASNormalizeAs`)
---     → 同じ抽象値に対する複数の正規形を、target type ごとに切り替え
---
--- Resolved (2026-07-04):
---   - 内部表現は A (ネストした CASPoly)。flat ↔ nested の変換は casReshapeAs が担い、
---     型注釈 (coerce) が変換の trigger (trust-the-annotation、検証なし)
---   - 主変数選択は型レベル (`Poly GaussianInt [x]` の注釈) —
---     「型注釈 = 正規形指令」の中核例で、本ファイルが論文の中心ケーススタディ
---   - flat → nested → flat の round-trip 一致は D5 の吸収律
---     (casReshapeAs C ∘ casReshapeAs B = casReshapeAs C) から従う
---
--- Tests:
+-- `Poly Integer [i, x]` という平らな表現と、`Poly (Poly Integer [i]) [x]`
+-- という入れ子の表現を、型注釈によって選べることを確認する。変換は
+-- `casReshapeAs` が行い、同じ最終型への変換は経路に依存しない。
 
 declare symbol i, x
 declare rule auto term i^2 = -1
@@ -33,7 +15,7 @@ def p : GaussianPoly := (2 + 3*i) + (1 - i)*x + 4*x^2
 inspect p
 -- 期待表示 (target type を尊重した形):
 --   2 + 3*i + (1 - i)*x + 4*x^2 : GaussianPoly
--- 内部 CAS 表現 (案 A):
+-- 内部 CAS 表現:
 --   CASPoly [
 --     CASTerm <CASPoly [CASTerm 2 [], CASTerm 3 [(i,1)]]> [],   -- (2+3i) * x^0
 --     CASTerm <CASPoly [CASTerm 1 [], CASTerm (-1) [(i,1)]]> [(x,1)],
@@ -41,7 +23,7 @@ inspect p
 --   ]
 
 -- p の x について微分: 演算出口は flat、def 注釈が GaussianPoly へ再整形。
--- flat リテラルとの比較は意味論的等価 (x - y = 0) で行う (γ′ の flat-exit 不変条件)
+-- flat リテラルとの比較は意味論的等価 (x - y = 0) で行う
 def p' : GaussianPoly := ∂/∂ p x
 assertEqual "derivative w.r.t. x"
   ((p' - ((1 - i) + 8 * x)) = 0)
@@ -54,7 +36,7 @@ def q : GaussianPoly := p^2
 inspect q
 
 -- 同じ値を flat な Poly Integer [i, x] として見ることもできる
--- (def 注釈が reshape を挿入するので coerce 関数は不要 — 旧 API は廃止済み)
+-- def 注釈が reshape を挿入する
 declare cas-type FlatGaussianPoly := Poly Integer [i, x]
 
 def pFlat : FlatGaussianPoly := p

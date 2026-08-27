@@ -1,6 +1,6 @@
--- P2 match-site fail-closed boundary: the fresh-value expression has type
+-- TypePM match-site fail-closed boundary: the fresh-value expression has type
 -- Any, but Any is not producer evidence for a structured pattern capability.
 
-def p2AnyCapabilityBypass :=
+def anyCapabilityBypass :=
   matchAll [1, 2] as # with
     | $x :: $xs -> x

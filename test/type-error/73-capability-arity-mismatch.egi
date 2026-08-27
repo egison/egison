@@ -1,0 +1,7 @@
+-- TypePM capability kind elaboration.
+-- Expected: Type error / Capability kind error: `CapabilityArity` expects one
+-- capability argument, but no argument was supplied.
+
+inductive CapabilityArity a := | CapabilityBox a
+
+def badCapabilityArity : Matcher CapabilityArity (CapabilityArity Integer) := something

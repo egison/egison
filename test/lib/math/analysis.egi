@@ -60,7 +60,7 @@ def derivativeVector := generateTensor (\[i] -> function (x, y)) [2]
 def functionDataHead (value: MathValue) : MathValue :=
   match value as mathValue with
     | func $head _ -> head
-    | _ -> 0
+    else 0
 
 assertEqual
   "symbolIndices preserves component and derivative index kinds"

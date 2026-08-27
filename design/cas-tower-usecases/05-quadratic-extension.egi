@@ -1,32 +1,8 @@
--- Use case 05: 二次代数拡大 Z[√2] (Phase α)
+-- Use case 05: 二次代数拡大 Z[√2]
 --
--- Intent:
---   √2 を symbol として導入し、(√2)^2 = 2 を declare rule で登録する。
---   Z[√2] は `Poly Integer [sqrt2]` の alias として扱う。
---   `(1 + √2)*(1 - √2) = -1` のような有理化計算が動く。
---
--- Required machinery:
---   - Phase α (型 alias)
---   - declare rule auto term (sqrt2)^2 = 2
---   - 既存の sqrt 機構との衝突回避: ユーザは生 symbol `sqrt2` を使う
---     (組み込み `sqrt` 関数とは別)
---
--- 位置づけ (2026-07-04): これは「**シンボル担持商**」のパターン
---   (type-cas-quotient.md §2)。商 Z[X]/(X^2 - 2) をシンボル sqrt2 が担い、
---   シンボルの大域一意性がスコープを代替するため、大域 declare rule だけで健全
---   (D2: 型スコープ規則は不要)。係数領域の商 (Z/nZ、07 参照) と違いタワー内に住む。
---
--- Open questions:
---   - 既存の `sqrt 2` (lib の sqrt 関数呼び出し) と
---     declare cas-type の `sqrt2` symbol の関係は?
---     → user code 中での名前衝突を避けるため、symbol 名は明示的に
---       `sqrt2` / `s2` 等のユニーク名を使う方針
---   - 5th-root-of-unity 等の denesting (`sqrt(9 - 4*sqrt 5) = sqrt 5 - 2`)
---     は CAS 簡約レベルの話で、この use case とは独立
---   - 自動的な「(α^n の degree-n 多項式 → degree-(n-1) form) 還元」は
---     declare rule auto を使えば書ける
---
--- Tests:
+-- sqrt2 を通常のシンボルとして宣言し、sqrt2^2 = 2 を大域規則で登録する。
+-- Z[√2] は `Poly Integer [sqrt2]` の透明な別名である。組み込み関数 `sqrt` と
+-- 区別するため、シンボルには `sqrt2` という別名を使う。
 
 declare symbol sqrt2
 declare rule auto term sqrt2^2 = 2

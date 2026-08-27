@@ -1,6 +1,0 @@
--- P2 capability name elaboration inside an expression annotation.
--- Expected: Type error / Capability kind error: unknown capability former
--- `P2MissingLocalCapability`.
-
-def p2LocalUnknown :=
-  (integer : Matcher P2MissingLocalCapability Integer)

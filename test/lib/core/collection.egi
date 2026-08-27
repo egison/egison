@@ -6,19 +6,19 @@ assert
   "list's value pattern"
   (match [1, 2, 3] as list integer with
     | #([1] ++ 2 :: [3]) -> True
-    | _ -> False)
+    else False)
 
 assert
   "list's nil - case 1"
   (match [] as list integer with
     | [] -> True
-    | _ -> False)
+    else False)
 
 assert
   "list's nil - case 2"
   (match [1] as list integer with
     | [] -> False
-    | _ -> True)
+    else True)
 
 assertEqual
   "list's cons"
@@ -72,19 +72,19 @@ assert
   "multiset's nil - case 1"
   (match [] as multiset integer with
     | [] -> True
-    | _ -> False)
+    else False)
 
 assert
   "multiset's nil - case 2"
   (match [1] as multiset integer with
     | [] -> False
-    | _ -> True)
+    else True)
 
 assert
   "multiset's value pattern"
   (match [1, 1, 1, 2, 3] as multiset integer with
     | #([1] ++ (2 :: [1, 3]) ++ [1]) -> True
-    | _ -> False)
+    else False)
 
 assertEqual
   "multiset's cons"
@@ -133,13 +133,13 @@ assert
   "set's nil - case 1"
   (match [] as set integer with
     | [] -> True
-    | _ -> False)
+    else False)
 
 assert
   "set's nil - case 2"
   (match [1] as set integer with
     | [] -> False
-    | _ -> True)
+    else True)
 
 assertEqual
   "set's cons"

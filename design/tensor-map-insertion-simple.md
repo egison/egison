@@ -1,238 +1,125 @@
-# TensorMap挿入設計
+# `tensorMap` 自動挿入
 
-> 注記: 高階 callback 引数の現在の実装方針は
-> `tensor-map-higher-order-lift.md` も参照すること。この文書の「二項
-> スカラー関数を常に `tensorMap2` で包む」規則は、現在は互換 fallback
-> として残しており、期待 callback 型から lift 位置が分かる場合は型主導の
-> eta expansion を優先する。
+この文書は、型推論後の `TIExpr` に `tensorMap` または `tensorMap2` を挿入し、
+スカラー関数をテンソルへ成分ごとに適用する現在の規則を定める。
 
-## 目標
+`tensorMap f x` は `x` がスカラーなら通常の `f x` と同じように振る舞い、
+`tensorMap2 f x y` も両引数がスカラーなら通常の `f x y` と同じように振る舞う。
+この性質により、縮約の途中でスカラーからテンソルへ変わる値にも同じ wrapper を使える。
 
-明示的なTensor型注釈なしで、スカラー関数をテンソルに自動適用する：
+## 1. 処理順
+
+自動挿入は型推論の後、型クラス辞書の展開より前に行う。
+
+```text
+Infer
+  ↓ 型つき TIExpr
+TensorMapInsertion
+  ↓ tensorMap / tensorMap2 を含む TIExpr
+TypeClassExpand
+  ↓ 要素型の辞書アクセスを含む TIExpr
+Evaluation
+```
+
+先に tensor-lift を決めることで、型クラス展開は `Tensor a` ではなく、成分へ適用される
+`a` のインスタンス辞書を選べる。
+
+## 2. 直接適用
+
+関数適用 `f argument` について、仮引数型がスカラーとして確定し、実引数型が
+`Tensor a` なら、成分ごとの適用へ変換する。
 
 ```egison
-def f (x: Integer) : Integer := x + 1
-def t1 := [| 1, 2, 3 |]
+def inc (x: Integer) : Integer := x + 1
+def t := [| 1, 2, 3 |]
 
-f t1        -- => tensorMap f t1  => [| 2, 3, 4 |]
-
-def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
-sum [t1, t2]  -- テンソル要素に (+) が適用される
+inc t
+-- tensorMap (\x -> inc x) t
 ```
 
-## 前提条件
+二つの引数を同時に持ち上げられるときは `tensorMap2` を使う。三つ以上の位置が必要なら、
+`tensorMap` と `tensorMap2` を入れ子にしたイータ展開を生成する。
 
-`tensorMap`/`tensorMap2`はスカラーに対してもそのまま関数を適用するため、テンソルかスカラーかに関わらず挿入しても結果は変わらない：
+## 3. スカラー型の判定
+
+`isPotentialScalarType` は、型を fresh な `Tensor a` と厳密単一化できるかで判定する。
+厳密単一化は `Tensor a` と `a` を同一視しない。
+
+- `Tensor t` はテンソルである。
+- `Integer` などの具体型はスカラーである。
+- 制約なしの型変数 `a` は `Tensor t` にもなれるため、スカラーと断定しない。
+- `{AddSemigroup a}` のような制約付き変数で `Tensor t` に対応するインスタンスがなければ、
+  その位置は成分型へ適用するスカラー位置である。
+
+`IO`、`IORef`、`Port`、関数型、およびこれらを内部に含む型は、スカラーに見えても
+tensor-lift しない。成分ごとの適用へ変えると制御や資源の意味が変わるためである。
+
+## 4. 高階関数の callback
+
+高階関数へ関数を引数として渡す場合は、外側の関数が期待する callback 型と、渡された関数の
+実際の型を比較する。
+
+例えば、期待 callback の第2引数が `Tensor Integer` で、渡された関数の第2引数が
+`Integer` なら、その位置を lift する。
 
 ```egison
-tensorMap f 5 = f 5
-tensorMap2 f 3 4 = f 3 4
+map scalarFunction tensors
+-- map (\x -> tensorMap scalarFunction x) tensors
 ```
 
-## 2つの挿入ルール
+`callbackLiftMask` は、持ち上げる callback 引数位置を固定点まで計算する。固定点とは、
+一度決めた位置から新しい必要位置を導き、増えなくなるまで繰り返した結果である。
 
-### ルール1（一般ケース）: スカラー関数にテンソルを直接渡す場合
+## 5. 返り値が次の引数へ戻る場合
 
-関数適用 `f arg` において、`f` のパラメータ型がスカラーで `arg` の型がテンソルであれば `tensorMap` を挿入する。
+`foldl` や `foldr` では、callback の返り値が次回の accumulator 引数へ戻る。
+テンソル引数を一つ持ち上げると callback の返り値もテンソルになりうるため、同じ型の
+accumulator 引数も持ち上げる。
 
 ```egison
-def f (x: Integer) : Integer := x + 1
+foldl (+) 0 [[| 1, 2 |], [| 3, 4 |]]
 
-f 5         -- そのまま: f 5
-f t1        -- tensorMap挿入: tensorMap (\x -> f x) t1
+-- 概念上の callback
+\acc x -> tensorMap2 (\a b -> a + b) acc x
 ```
 
-2つの引数が連続してテンソルの場合は `tensorMap2` を使う：
+初回の `acc` はスカラー 0、次回以降はテンソルになりうるが、`tensorMap2` はどちらにも使える。
+callback の返り値がリストの要素として包まれる `map` では accumulator への戻りがないため、
+この伝播を起こさない。詳細は
+[tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md) を参照する。
+
+## 6. 二引数 callback の互換経路
+
+多相な `foldl1 (+)` のように、期待型へまだ具体的な `Tensor` が現れない場合は、型主導の種を
+作れない。渡された値がちょうど二引数の lift 可能なスカラー関数で、期待型のどこかが
+テンソルを取りうる場合は、互換経路として `tensorMap2` wrapper を作る。
 
 ```egison
-def add (x: Integer) (y: Integer) : Integer := x + y
-
-add 3 4         -- そのまま: add 3 4
-add t1 t2       -- tensorMap2 (\x y -> add x y) t1 t2
-add t1 3        -- tensorMap (\x -> add x 3) t1
-add 3 t2        -- tensorMap (\y -> add 3 y) t2
+foldl1 (+) xs
+-- foldl1 (\x y -> tensorMap2 (+) x y) xs
 ```
 
-### ルール2（高階関数ケース）: 二項スカラー関数を引数として渡す場合
+期待 callback の全ての引数と返り値が、テンソルになりえない具体的な非 CAS スカラー型なら、
+この wrapper は挿入しない。型主導の wrapper が作れる場合は、常にそちらを優先する。
 
-関数適用において、引数の型が「両辺ともスカラー型を受け取る二項関数」であれば、**常に** `tensorMap2` でラップして渡す。
+## 7. Wedge 適用
 
-`tensorMap2` はスカラーに対しても正しく動作するため、実際の引数がテンソルかスカラーかに関わらず常にラップする。
+`TIWedgeApplyExpr` の関数が二引数のスカラー関数なら、
+`TITensorMap2WedgeExpr` へ変換し、微分形式の添字を補ってから成分ごとに適用する。
+関数がテンソル全体を引数として受け取る場合は、通常の Wedge 適用を保つ。
 
-```egison
-def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
--- (+) は a -> a -> a（aはスカラー制約付き）なのでtensorMap2でラップ
-```
+既に `tensorMap` 系の内部節へ変換済みの式は再び包まない。
 
-変換後：
-```egison
-def sum {Num a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
-```
+## 8. 実装と検証
 
-## 判定ロジック
+実装は `hs-src/Language/Egison/Type/TensorMapInsertion.hs` に集約する。
 
-### スカラー型の判定
+- `shouldInsertTensorMap`: 直接適用の判定。
+- `isPotentialScalarType`: 制約を考慮したスカラー判定。
+- `callbackLiftMask`: 高階 callback の lift 位置と feedback の固定点。
+- `wrapWithTypeDirectedTensorLift`: 型主導のイータ展開。
+- `shouldUseTensorMap2Fallback`: 二引数互換経路の判定。
+- `insertTensorMaps`: 変換の入口。
 
-型が `Tensor a` とunifyできなければスカラー型とみなす：
-
-```haskell
-isPotentialScalarType :: ClassEnv -> [Constraint] -> Type -> Bool
-isPotentialScalarType classEnv constraints ty =
-  let freshVar = TyVar "a_scalar_check"
-      tensorType = TTensor (TVar freshVar)
-  in case Unify.unifyStrictWithConstraints classEnv constraints ty tensorType of
-       Right _ -> False  -- Tensor a とunify可能 → スカラーでない
-       Left _  -> True   -- Tensor a とunify不可 → スカラー
-```
-
-例：
-- `{Num t0} t0`：`Num`インスタンスはTensorに存在しないためunify不可 → スカラー
-- `Tensor t0`：`Tensor a`とunify可能 → スカラーでない
-- `Integer`：具体型のためunify不可 → スカラー
-- 制約なしの型変数 `a`：`Tensor b`とunify可能 → スカラーでない
-
-### ルール1の判定: `shouldInsertTensorMap`
-
-パラメータ型がスカラー **かつ** 引数型がテンソルの場合に挿入：
-
-```haskell
-shouldInsertTensorMap :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
-shouldInsertTensorMap classEnv constraints argType paramType =
-  let isParamScalar = isPotentialScalarType classEnv constraints paramType
-      isArgTensor = case Unify.unifyStrictWithConstraints classEnv constraints argType (TTensor (TVar freshVar)) of
-                      Right _ -> True
-                      Left _  -> False
-  in isParamScalar && isArgTensor
-```
-
-### ルール2の判定: `shouldWrapWithTensorMap2`
-
-二項関数の両パラメータがともにスカラー型の場合にラップ：
-
-```haskell
-shouldWrapWithTensorMap2 :: ClassEnv -> [Constraint] -> Type -> Bool
-shouldWrapWithTensorMap2 classEnv constraints ty = case ty of
-  TFun param1 (TFun param2 _result) ->
-      isPotentialScalarType classEnv constraints param1 &&
-      isPotentialScalarType classEnv constraints param2
-  _ -> False
-```
-
-## 例のウォークスルー
-
-### 例1: 直接適用（ルール1）
-
-```egison
-def f (x: Integer) : Integer := x + 1
-f t1   -- t1 : Tensor Integer
-```
-
-型推論後：`f : Integer -> Integer`、`t1 : Tensor Integer`
-
-- パラメータ型 `Integer` はスカラー
-- 引数型 `Tensor Integer` はテンソル
-- → `tensorMap (\x -> f x) t1`
-
-### 例2: sum関数（ルール2）
-
-```egison
-def sum {Num a} (xs: [a]) : a := foldl1 (+) xs
-```
-
-#### Phase 5-6: 型推論後
-
-```egison
-def sum : {Num t0} [t0] -> t0 :=
-  \xs ->
-    foldl1 ((+) : {Num t0} t0 -> t0 -> t0) (xs : [t0])
-```
-
-- `(+)` の型は `{Num t0} t0 -> t0 -> t0`：両パラメータが `{Num t0} t0`（スカラー）
-- → `tensorMap2` でラップ
-
-#### Phase 7a: TensorMapInsertion
-
-```egison
-def sum : {Num t0} [t0] -> t0 :=
-  \xs ->
-    foldl1 (tensorMap2 (+)) xs
-```
-
-#### Phase 7b: TypeClassExpand
-
-```egison
-def sum : {Num t0} [t0] -> t0 :=
-  \dict_Num xs ->
-    foldl1 (tensorMap2 (dict_Num_("plus"))) xs
-```
-
-#### 呼び出し時
-
-```egison
--- スカラーの場合: t0 = Integer
-sum [1, 2, 3]   -- tensorMap2 (+) を各要素ペアに適用 → 6
-
--- テンソルの場合: t0 = Tensor Integer
-sum [t1, t2]    -- t1 = [| 1, 2 |], t2 = [| 3, 4 |]
-                -- tensorMap2 (+) t1 t2 → [| 4, 6 |]
-```
-
-## 実装上の注意点
-
-### ラッピングは関数引数への適用時のみ
-
-定義の右辺全体をラップしてはならない。ラップは `TIApplyExpr` の引数処理時のみ行う：
-
-```haskell
-TIApplyExpr func args -> do
-  func' <- insertTensorMapsWithConstraints env cs func
-  args' <- mapM (insertTensorMapsWithConstraints env cs) args
-  -- 各引数に対してルール1（shouldInsertTensorMap）とルール2（shouldWrapWithTensorMap2）を適用
-  let args'' = map (wrapBinaryFunctionIfNeeded env allConstraints) args'
-  result <- wrapWithTensorMapIfNeeded env constraints func' funcType args'' argTypes
-  ...
-```
-
-### イータ展開されたラムダの処理
-
-TypeClassExpandの前に処理されるため、型クラスメソッドはイータ展開された形式で現れる：
-
-```
-\etaVar1 etaVar2 -> numMathExpr_("plus") etaVar1 etaVar2
-```
-
-この形式に対応するため、2引数ラムダの本体を直接 `TITensorMap2Expr` に変換する：
-
-```haskell
-wrapLambdaBodyWithTensorMap2 :: [Constraint] -> Maybe Var -> Var -> Var -> TIExpr -> TIExpr -> TIExpr
-wrapLambdaBodyWithTensorMap2 constraints mVar var1 var2 body originalExpr =
-  case tiExprNode body of
-    TIApplyExpr func args
-      | length args == 2 ->
-          let newBody = TIExpr resultScheme (TITensorMap2Expr func (args!!0) (args!!1))
-          in TIExpr newLambdaScheme (TILambdaExpr mVar [var1, var2] newBody)
-    TITensorMap2Expr {} -> originalExpr  -- 既にラップ済み
-    _ -> wrapWithTensorMap2 constraints originalExpr
-```
-
-### Wedge積への対応
-
-`TIWedgeApplyExpr`（外積演算）に対しては、パラメータ型がスカラー関数の場合に `TITensorMap2WedgeExpr` を挿入する。テンソル引数を取る関数の場合は `TIWedgeApplyExpr` のまま保持する。
-
-## 関連ファイル
-
-### ソースコード
-
-- `hs-src/Language/Egison/Type/TensorMapInsertion.hs` - TensorMap挿入の実装
-- `hs-src/Language/Egison/Type/TypeClassExpand.hs` - 型クラス展開
-- `hs-src/Language/Egison/Type/TypedDesugar.hs` - 処理順序の制御
-
-### テストファイル
-
-- `mini-test/162-sum-tensor.egi` - テンソルに対するsum関数のテスト
-- `mini-test/163-sum-scalar.egi` - スカラーとテンソル両方に対するsum関数のテスト
-- `mini-test/159-riemann.egi` - リーマン曲率テンソル（回帰テスト）
-
-### ライブラリ
-
-- `lib/math/common/arithmetic.egi` - sum関数の定義
+変換順は `Type/TypedDesugar.hs` が管理する。回帰は `test/lib/math/tensor.egi` と
+`sample/math/geometry/` の縮約・微分形式・曲率計算で検証する。

@@ -4,11 +4,8 @@
 --
 -- Expected: Type error (slot capability mismatch)
 
--- A top-level annotation places the complete slot type in the lookup
--- environment before the matcher definition is inferred.
-def wrongStructuralSlot : MatcherSlot [Any] Integer := undefined
-
-def bad : Matcher [Any] [Integer] :=
+def bad (wrongStructuralSlot : MatcherSlot [Any] Integer)
+  : Matcher [Any] [Integer] :=
   matcher
     | $ :: $ as (wrongStructuralSlot, list integer) with
       | $x :: $xs -> [(x, xs)]

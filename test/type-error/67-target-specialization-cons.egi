@@ -1,0 +1,10 @@
+-- TypePM: specializing a catch-all matcher's target to a collection must not
+-- create collection constructor capability.
+
+def catchAllOnly {a} : Matcher Any a :=
+  matcher
+    | $ as something with
+      | $tgt -> [tgt]
+
+def bad := matchAll [1, 2] as catchAllOnly with
+  | $x :: $xs -> x

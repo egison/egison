@@ -5,11 +5,13 @@ Licence     : MIT
 Shallow runtime-type computation for CAS values, used by the runtime-type
 dispatch mechanism (see design/runtime-type-dispatch.md).
 
-The shallow `runtimeTypeOfCAS` walks at most two levels of the value: the
+The shallow `runtimeTypeOfCAS` inspects at most two structural levels: the
 outer constructor and one level of inner coefficient/numerator/denominator.
-This keeps the operation O(1) at the cost of representing nested
-`Frac (Poly Integer [..])` etc. as `Frac MathValue`. Instances that need
-finer-grained dispatch should pattern match on the value inside their body.
+For an outer polynomial it still scans the term list and its monomials to
+collect coefficient types and atoms, so the cost is linear in that outer
+representation rather than constant. Nested `Frac (Poly Integer [..])` etc.
+are represented as `Frac MathValue`. Instances that need finer-grained
+dispatch should pattern match on the value inside their body.
 -}
 
 module Language.Egison.Type.RuntimeType
@@ -25,7 +27,8 @@ import           Language.Egison.Type.Types (SymbolSet (..), Type (..),
 
 -- | Compute the shallow runtime type of a CAS value.
 -- Looks at the outer constructor and one level deeper. Inner Poly/Frac are
--- abstracted to TMathValue. See design/runtime-type-dispatch.md §3.
+-- abstracted to TMathValue. For an outer CASPoly, the term list and monomials
+-- are traversed to obtain the coefficient join and atom set.
 runtimeTypeOfCAS :: CASValue -> Type
 runtimeTypeOfCAS (CASInteger _) = TInt
 runtimeTypeOfCAS (CASFactor _)  = TFactor

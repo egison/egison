@@ -1,177 +1,131 @@
-# Egison CAS 商型機構 (実装済: q1–q4)
+# Egison CAS の商型
 
-このドキュメントは、係数領域の商 (ℤ/nℤ、打ち切り羃級数 ℤ[x]/(xⁿ) など) を CAS 型システムで扱うための、**型昇格タワーから独立した機構**の設計と実装をまとめる。2026-07-04、[type-cas-tower.md](./type-cas-tower.md) §8 D4 の判断 (商型はタワーの枠組みとは違う枠組みで実現すべき) を受けて分離し、同日 q1–q4 を実装完了 (§10 実装ノート)。q5 (商を係数にもつ多項式) のみ optional 未実装。
+この文書は、整数の剰余環や有限体など、同じ表現に別の等価関係を入れる CAS 型の
+現行仕様をまとめる。商型は [CAS 型タワー](./type-cas-tower-implementation.md) とは
+独立している。
 
-最終更新: 2026-07-06 (実装完了を反映して整理)
+## 1. 型タワーから分ける理由
 
----
+CAS 型タワーの暗黙の昇格は、値を変えずに表現だけを組み替える。商への射影はこの条件を
+満たさない。例えば整数 8 を 5 を法とする剰余類へ移すと代表元は 3 になる。
 
-## 1. なぜタワーから分離するか
+また、商の等値性は型に依存する。整数としての 12 と 2 は異なるが、5 を法とする商では
+等しい。このため、商型は次のように扱う。
 
-タワー ([type-cas-tower.md](./type-cas-tower.md)) の意味論は「**単一の大域理論を共有する部分環の、単射埋め込みによる束**」であり、全機構がこの前提に依存する:
+- 基底型とは単一化しない不透明な型名を持つ。
+- `declare cas-subtype` の順序と join に参加しない。
+- 基底表現との移動には、生成された `projQ` と `reprQ` を明示的に使う。
+- 等値性と演算には、その商型専用の型クラス instance を使う。
 
-| タワーの概念 | 前提 | 商で破れる点 |
-|---|---|---|
-| `embed` / `⊂` | 値保存 ⟦embed v⟧ = ⟦v⟧ (mono) | 射影は epi: `8 ↦ 3` で値そのものが変わる |
-| `Eq MathValue` 一本 | 等価性は ambient 領域から一様に継承 | 商の等価性は**型依存**: x ~ y ⟺ reduce(x−y) = 0。未簡約の中間値 12 と 2 は mod 5 で等しいが `x − y = 0` 判定では不等。`#x` 非線形パターンの意味論的照合も誤る |
-| `join` / 保守性 | 上界 = 共通の包含先 | ℤ と ℤ/5ℤ に共通の包含先はない (混在は型エラーにすべき) |
-| 観察型 | 表現から型を読める | `CASInteger 3` が ℤ か ℤ/5ℤ かは表現から決まらない |
+## 2. 宣言と展開
 
-原則: **タワー型に「追加の等式」を課すことは、生成イデアルによる商にほかならない**。理論が変わる場所は商であり、タワー (理論を共有する部分環の束) ではなくこの機構で扱う。
-
-## 2. すでに言語にある商: シンボル担持商
-
-ℤ[i] = ℤ[X]/(X²+1)、ℤ[ε]/(ε⁵) (双対数/ジェット)、1 の冪根 ℤ[ζ]/(Φₙ(ζ)) は現行の
+宣言は次の形である。
 
 ```egison
-declare symbol i
-declare rule auto term i^2 = -1
+declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
 ```
 
-で健全に扱えている。これらは**商をシンボルが担う**形であり、シンボルの大域一意性がスコープの役割を果たすため、大域規則でも他の型に漏れない (trigger filter が原子で局所化する)。
+`Eval.expandCasQuotientDecls` は、環境構築より前にこの宣言を通常の Egison 定義へ展開する。
+型名 `Mod7` は内部では `TInductive Mod7 []` に対応し、同名の型とだけ単一化する。
 
-本機構が対象にするのは、**シンボルが商を担えないケース = 係数領域の商**のみ: 表現が既存型 (`CASInteger` / `CASPoly`) とそのまま重なり、関係式を担う専用原子が存在しないもの。
-
-## 3. 宣言形
+現在生成される主な定義は次のとおりである。
 
 ```egison
-declare cas-quotient Zmod5 := Integer by (\n -> modulo n 5)
-declare cas-quotient Series5 := Poly Integer [x] by (truncateAbove 5)
+def reduceMod7 := \n -> modulo n 7
+def projMod7 (x : MathValue) : Mod7 := casQuotientCast (reduceMod7 x)
+def reprMod7 (v : Mod7) : MathValue := casQuotientCast v
 ```
 
-構成要素:
+宣言に書いた基底型は構文と型能力の検査を受けるが、生成される境界関数の静的な型は現在
+`MathValue -> Q` と `Q -> MathValue` に統一されている。このため基底型は説明情報であり、
+境界をその型だけに制限する機能はまだない。
 
-- **base 型** `T` — タワー内の任意の型
-- **reduce : T → T** — 冪等な代表元選択関数 (射影)。宣言と同時に登録
-- 宣言された型は**新しい nominal 型**として導入される (base の透明エイリアスではない)。表現が base と同一なので透明では unsound — 例: `Zmod5` が `Integer` の透明エイリアスだと `x ^ (a : Zmod5)` のように mod 値を `Integer` 文脈 (冪指数) へ流用できてしまう (3 ≡ 8 (mod 5) だが x³ ≠ x⁸)。nominal 性は本機構に内在し、タワー側 cas-type (透明エイリアスのみ、tower.md §8 D3) とは独立
+`casQuotientCast` は生成コードだけが使う表現保存の型変換である。利用者が商を横断するときは
+`projQ` と `reprQ` を使う。
 
-## 4. 順序との関係: 参加しない
+## 3. 自動生成する演算
 
-- `⊂` 辺は張らない。`MathValue` との間にも暗黙の関係を作らない (表現上は `CASValue` を共有するが、**意味領域が異なる**)
-- `join` に参加しない → `(3 : Zmod5) + (4 : Integer)` は**型エラー** (タワー版旧設計の「`MathValue` に退化」より強い防壁)
-- 横断は明示関数のみ:
-  - `proj : T → Q` — reduce して包む (`coerce` の商版)
-  - `repr : Q → T` — 代表元の取り出し (表現は保つが商の意味は失う)
+処理系は次の instance を生成する。
 
-## 5. 演算と等価性
+- `Eq`
+- `AddSemigroup`, `AddMonoid`, `AddGroup`
+- `MulSemigroup`, `MulMonoid`
+- `Ring`
 
-**準同型演算は自動導出**: reduce が環準同型の核による射影である限り、`+` / `*` / `neg` / `^` は商の普遍性により base へ委譲できる:
+加法と乗法は、代表元を `reprQ` で取り出して `MathValue` の演算を行い、結果を `projQ` で
+再び簡約する。
 
 ```egison
-instance Ring Zmod5 where
-  (+) a b := proj (repr a + repr b)   -- base の演算 + 出口で reduce
-  (*) a b := proj (repr a * repr b)
-  ...
+instance AddSemigroup Mod7 where
+  (+) a b := projMod7 (reprMod7 a +' reprMod7 b)
 ```
 
-**演算ごとに reduce が走る**ため代表元は常に正規に保たれ、タワー内で扱った場合に問題だった表示乖離 (`inspect (a*b)` が未簡約の 12 を返す) や中間肥大 (`(x+1)^100` の係数が C(100,50) ≈ 10²⁹ に膨れる、Series5 の全次数展開) は構造的に生じない。tower.md 旧 D2 の「発火点」ジレンマは商側ではこれで解消される。
-
-**準同型でない演算は商上に直接実装** (type-cas.md のパターン2): `inv` (mod 5 の `inv 2 = 3` は ℤ に存在しない)、`gcd`、大小比較、整除など。base への委譲を機械的に適用してはならない。
-
-**等価性は型 dispatch**:
+したがって、各演算の出口で `reduceQ` が実行され、代表元が正規化される。等値性は差を簡約して
+0 になるかで判定する。
 
 ```egison
-instance Eq Zmod5 where
-  (==) a b := reduce (repr a - repr b) == 0
+instance Eq Mod7 where
+  (==) a b := reduceMod7 (reprMod7 a -' reprMod7 b) = 0
 ```
 
-`Eq MathValue` への sibling fallback を**禁止**する (型依存の等価性)。matcher の `#x` 照合や rule エンジンが商値に触れる経路では、この instance に dispatch できることが実装上の要件。
+逆元、最大公約数、順序比較など、基底表現の演算をそのまま商へ移せない演算は自動生成しない。
+必要な場合は商型上に直接定義する。
 
-## 6. 法則 (合同性)
+## 4. `reduce` に要求する法則
 
-lifted 演算が同値類上 well-defined であるための条件。宣言時 PBT (tower.md §8 D5 と同じ機構) で検査可能:
+生成した演算が代表元の選び方に依存しないため、`reduce` には少なくとも次を要求する。
 
-- 冪等: `reduce (reduce x) = reduce x`
-- 合同 (∘ = `+`, `*`): `reduce (x ∘ y) = reduce (reduce x ∘ reduce y)`
-- 符号: `reduce (- x) = reduce (- (reduce x))`
+- 冪等性: `reduce (reduce x) = reduce x`
+- 加法との整合: `reduce (x +' y) = reduce (reduce x +' reduce y)`
+- 乗法との整合: `reduce (x *' y) = reduce (reduce x *' reduce y)`
 
-## 7. 合成: GF(p^k)
+宣言の展開は、固定された標本集合に対する `assertEqual` を三本生成する。これは一般の値すべてを
+証明する検査ではない。標本を通過しても法則が成り立つ責任は宣言者に残る。
 
-係数商とシンボル担持商の合成で有限体が表現できる:
+## 5. 利用例
 
 ```egison
-declare cas-quotient Zmod2 := Integer by (\n -> modulo n 2)
+declare cas-quotient Mod7 := Integer by (\n -> modulo n 7)
+
+def a : Mod7 := projMod7 5
+def b : Mod7 := projMod7 4
+
+assertEqual "addition" (a + b) (projMod7 2)
+assertEqual "multiplication" (a * b) (projMod7 6)
+assertEqual "equality" (projMod7 12 == projMod7 5) True
+```
+
+基底表現と商値を一つの演算で暗黙に混ぜない。必要な方向を `reprMod7` または `projMod7` で
+明示する。
+
+## 6. 有限体と商の合成
+
+有限体 GF(p^k) は、タワーの多項式係数に商型を追加するのではなく、`MathValue` 全体を一つの
+商として簡約する。
+
+```egison
 declare symbol α
-declare rule auto term α^2 = α + 1    -- GF(4) の既約多項式 (シンボル担持)
--- Poly Zmod2 [α] = GF(4)
-```
-
-(係数型スロット `Poly a atoms` の `a` に cas-quotient 型を許す拡張が必要 — 下表 q5)
-
-## 8. 実装フェーズ (タワー α–γ′ とは独立; q1–q4 完了)
-
-| 要素 | 内容 | 依存 |
-|---|---|---|
-| q1 | nominal 型導入機構 (本機構専用 — タワー側 cas-type は透明エイリアスのみのため共用しない) | なし (tower α と独立) |
-| q2 | `declare cas-quotient` 構文 + 登録 (実装はマクロ展開 — §10) | q1 |
-| q3 | 準同型 instance (Ring 等) の自動導出 + `Eq` の型 dispatch | q2 |
-| q4 | PBT による合同律検査 | q2 |
-| q5 | `Poly (商型) atoms` の係数拡張 (GF(p^k) 用、optional)。**2026-07-07 に「合成」で実質解決** — GF(p^k) = `declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α²+α+1]` (下記 q5 の結論)。タワー係数スロット拡張そのものは**不採用のまま** (D4/Thm1 と衝突: reshape は値保存、Integer→商は射影) | q3 |
-
-## 9. 論文上の位置づけ
-
-これで CAS 型システムは **3 つの直交機構**に整理される:
-
-| 機構 | 対象 | メタ定理 |
-|---|---|---|
-| タワー (単射埋め込み + canonical form 選択) | 部分環の束、表現の選択 | coherence・保守性 |
-| シンボル担持商 (`declare symbol` + 大域規則) | 原子が関係式を担う代数拡大 | 合流性・停止性の基準 |
-| 係数商 (`declare cas-quotient` + reduce) | 表現を共有する商 | 合同律 ⟹ well-definedness (普遍性) |
-
-## 10. 実装ノート (2026-07-04、q1–q4 実装完了)
-
-実装 (mini-test/129 が検収) は本構想を**マクロ展開**として実現した — 「理論をできるだけ単純に」を実装にも適用した形:
-
-- **展開**: `declare cas-quotient Q := T by f` は評価パイプライン冒頭 (`Eval.expandCasQuotientDecls`、環境構築より前) で通常の TopExpr 列に展開される: `def reduceQ := f` (ユーザ AST を直接接ぎ木)、`projQ`/`reprQ` (型シグネチャ付き def)、準同型 instance 群 (`Eq`/`AddSemigroup`/…/`Ring`、本体は `projQ (reprQ a ∘' reprQ b)`)、q4 の合同律 assertion 3 本 (冪等・`+'` 合同・`*'` 合同、整数サンプルバッテリ)。生成コードはテンプレート文字列を既存パーサで再パースするだけの**素朴なマクロ**
-- **q1 (nominal) の実現**: 新しい Type コンストラクタは足さず、Q を `Q → TInductive Q []` として **cas-type alias 環境に登録**する。全注釈 seam が alias 展開で名前を不透明型に写すため、同名同士しか単一化せず、`declare cas-subtype` は「CAS 型ではない」として拒否 (D4 の順序不参加が自動で成立)。重複宣言・alias/inductive との衝突も alias 環境の検査に相乗り
-- **横断は明示** (§4 の open question を確定): `projQ : MathValue → Q` / `reprQ : Q → MathValue`。注釈による暗黙 proj は導入せず将来の糖衣候補。static な橋渡しは専用の unsafe cast primitive `casQuotientCast : ∀ a b. a → b` (生成コード専用、ユーザ非公開) 1 個
-- **混在演算**: instance 不一致で dispatch 不成立。gradual typing では Warning + 未解決シンボリック値として**可視的に**失敗し、strict モードでは型エラー。§4 の「型エラーにする」は strict モードで満たされる
-- q5 は「タワー係数スロットの拡張」としては**不採用**、「商どうしの合成」として**解決** (2026-07-07、下記)
-
-## q5 の結論 (2026-07-07): GF(p^k) は商の合成で足りる
-
-**鍵となる観察**: `declare cas-quotient` の base を **MathValue 全体**にすると、
-商型は「係数規律つきの数式の世界」を丸ごと含む。GF(p^k) に必要なのは
-
-1. 係数の mod p (係数商)
-2. α の最小多項式による冪の簡約 (シンボル担持商)
-
-の合成規律であり、両方を 1 つの reduce に畳める — グレブナー機構 (G8) の
-`polyNFField` がまさにそれを計算する:
-
-```egison
-declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α^2 + α + 1]
+declare cas-quotient GF4 := MathValue by
+  finiteFieldReduce 2 [α^2 + α + 1]
 
 def a : GF4 := projGF4 α
-(a + projGF4 1)^2 = a           -- (α+1)² = α、per-op reduce で維持
+def oneGF4 : GF4 := projGF4 1
+
+assertEqual "(α+1)^2 = α"
+  (reprGF4 ((a + oneGF4) * (a + oneGF4)))
+  α
 ```
 
-`finiteFieldReduce p gens` (lib/math/algebra/groebner.egi) は宣言時に一度
-GB を計算し、`\v -> polyNFField red fdiv [] gb v` を返す (p は素数限定 —
-体除算が Fermat 逆元)。**x の多項式も型の中に最初から入っている**
-(base = MathValue なので): `projGF4 (x² + 3x + α²) = x² + x + α + 1`、
-標数 2 の新入生の夢 `(αx + y)² = α²x² + y²` が Eq ディスパッチで True。
-検収 = test/lib/math/quotient-field.egi (committed) + mini-test 142。
+`finiteFieldReduce` は係数の法 p と生成多項式による剰余を一つの `reduce` にまとめる。この方法は
+CAS タワーの値保存規則や join を変更しない。
 
-**タワー係数スロット案 (`Poly GF4 [x]` を昇格タワーの型にする) を退けた理由**:
-タワーの核 (Thm1) は reshape の値保存で、Integer → 商 は射影 (非単射)。
-係数スロットに商を入れると `Poly Integer [x]` との関係が埋め込みでなくなり、
-join・吸収律・観察型の前提が全て崩れる — D4 の「商はタワーの外」の判断が
-係数位置でもそのまま正しい。合成アプローチは既存機構 (cas-quotient q1–q4 +
-G8) の関数受け渡しだけで成立し、新しい型規則をひとつも要求しない
-(設計指針「理論をできるだけ単純に」)。
+## 7. 現在の制限
 
-**残る任意の精密化**: (i) GF4 スカラーと GF4[x] を静的に区別したければ
-観察型スタイルの細分が別途可能 (未着手・必要が出てから)。
-(ii) 表示は repr 経由の素の MathValue (現状で可読)。
-(iii) ⚠ footgun: 実験中、ユーザー定義 `def one : GF4` がクラスメソッド
-`one` (MulMonoid) を上書きして全体の型推論を壊した — メソッド名衝突の
-警告は処理系側の別課題として記録。
-- **底が多項式環の商は動作する** (2026-07-06 実測): `declare cas-quotient Series3 := Poly Integer [x] by (\p -> ...)` で ℤ[x]/(x³) の打ち切りが正しく機能する (`reprSeries3 (projSeries3 ((1+x)^4)) = 6x² + 4x + 1`)。reduce ラムダは各項の走査に `poly $ts` + map を使うこと (`term` は単項式にしかマッチしない)。書籍 casdetail 章に採録済み
+- 商型の境界関数は宣言した基底型ではなく `MathValue` を使う。
+- 法則検査は有限個の標本による実行時検査であり、証明ではない。
+- 商型と基底型の混在は strict 型検査では拒否される。警告を許す通常モードでは、未解決の
+  記号的な式として残る場合がある。
+- 商型専用の逆元や比較は利用者が定義する。
 
-## 11. 改訂履歴
-
-- 2026-07-04: 初版。tower.md §8 D4 の分離判断を受けて切り出し。
-- 2026-07-04 (2): q1 の nominal をタワー D3 から独立化 (タワー側 cas-type は透明エイリアスのみの方針を受けて)。§3 に型混同を静的に弾く例 (`x ^ (a : Zmod5)`) を tower.md 旧 D3 から移設。
-- 2026-07-04 (3): **q1–q4 実装完了** — 実装ノートを追加 (マクロ展開方式、nominal は alias 環境登録、横断は明示 projQ/reprQ で確定、casQuotientCast primitive)。
-- 2026-07-06: 実装完了を反映してヘッダを更新、節番号の乱れ (11→10→履歴) を修正、q5 の現状挙動と多項式底の商の実測結果を追記。
+検収例は [07-modular.egi](./cas-tower-usecases/07-modular.egi)、有限体の回帰テストは
+`test/lib/math/quotient-field.egi` に置く。

@@ -1,0 +1,18 @@
+-- Shape capability: distinct general clauses that reach the same result slot must
+-- agree exactly after already-justified substitutions.
+
+inductive CapabilityWrap a := CapabilityWrap a
+
+inductive pattern CapabilityWrap a :=
+  | capabilityWrap a
+
+def mismatchedClauses :=
+  matcher
+    | capabilityWrap $ as list integer with
+      | CapabilityWrap $xs -> [xs]
+      | _ -> []
+    | capabilityWrap $ as something with
+      | CapabilityWrap $xs -> [xs]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]

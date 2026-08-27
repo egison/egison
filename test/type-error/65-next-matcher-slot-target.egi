@@ -4,11 +4,8 @@
 --
 -- Expected: Type error (slot target-index mismatch)
 
--- A top-level annotation places the complete slot type in the lookup
--- environment before the matcher definition is inferred.
-def wrongTargetSlot : MatcherSlot Any String := undefined
-
-def bad : Matcher [Any] [Integer] :=
+def bad {p} (wrongTargetSlot : MatcherSlot p String)
+  : Matcher [p] [Integer] :=
   matcher
     | $ :: _ as wrongTargetSlot with
       | $x :: _ -> [x]

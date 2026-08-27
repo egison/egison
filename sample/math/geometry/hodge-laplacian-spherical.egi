@@ -32,7 +32,7 @@ def Δ (A: DiffForm MathValue) : DiffForm MathValue :=
   match dfOrder A as integer with
     | #0 -> δ (d A)
     | #N -> d (δ A)
-    | _ -> d (δ A) + δ (d A)
+    else d (δ A) + δ (d A)
 
 -- Apply to scalar function
 def f := function (r, θ, φ)

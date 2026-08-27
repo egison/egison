@@ -74,7 +74,7 @@ def move s := matchAllDFS s as state with
 def add x xs := matchDFS xs as list (integer, integer) with
   | $hs ++ (#x, $n) :: $ts -> hs ++ (x, n + 1) :: ts
   | $hs ++ (!((?(\y -> x > y), _) :: _) & $ts) -> hs ++ (x, 1) :: ts
-  | _ -> (x, 1) :: xs
+  else (x, 1) :: xs
 
 
 assertEqual "move (player 1)"

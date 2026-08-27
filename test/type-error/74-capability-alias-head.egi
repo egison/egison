@@ -1,0 +1,7 @@
+-- TypePM capability name elaboration.
+-- Expected: Type error / Capability kind error: a transparent surface type
+-- alias cannot be used as a capability head.
+
+declare cas-type AliasCapability := Integer
+
+def aliasHead : Matcher AliasCapability AliasCapability := integer

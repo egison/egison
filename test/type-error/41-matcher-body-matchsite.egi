@@ -11,4 +11,4 @@ def badInner : Matcher Any [Integer] :=
       | $tgt ->
         match tgt as integer with
           | $x :: $xs -> [tgt]
-          | _ -> [tgt]
+          else [tgt]

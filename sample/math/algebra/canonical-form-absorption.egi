@@ -4,7 +4,7 @@
 -- One value, several canonical forms: annotations select among the flat
 -- form over Z[i, x] and nested forms with Z[i] (or Z[x]) coefficients.
 -- Promotion/reshape is path-independent (the absorption law of the
--- extensible-tower design, design/type-cas-tower.md D5):
+-- extensible-tower design, design/type-cas-tower-implementation.md section 4):
 --
 --   reshape_C (reshape_B v) = reshape_C v
 --

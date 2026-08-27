@@ -1,7 +1,7 @@
 -- GF(p^k) as a first-class quotient type: the composition of the
 -- coefficient quotient (mod p) and the symbol-carried quotient (the
 -- minimal polynomial of α), through finiteFieldReduce
--- (design/cas-simplification.md 3.8, design/type-cas-quotient.md q5).
+-- (design/cas-simplification.md, design/type-cas-quotient.md section 6).
 declare symbol α, x, y
 
 declare cas-quotient GF4 := MathValue by finiteFieldReduce 2 [α^2 + α + 1]

@@ -73,7 +73,7 @@ instance {Eq a} Eq [a] where
     match (xs, ys) as (list something, list something) with
       | ([], []) -> True
       | ($x :: $xs', $y :: $ys') -> x == y && xs' == ys'
-      | _ -> False
+      else False
   (/=) xs ys := not (xs == ys)
 
 instance {Ord a} Ord [a] where
@@ -112,7 +112,7 @@ def sort {Ord a} (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $x :: [] -> [x]
-    | _ ->
+    else
         let n := length xs
             p := nth (i.quotient n 2) xs
             (ys1, ys2, ys3) := splitByOrdering p xs
@@ -210,7 +210,7 @@ def unsnoc {a} (xs: [a]) : ([a], a) :=
 def isEmpty {a} (xs: [a]) : Bool :=
   match xs as list something with
     | [] -> True
-    | _  -> False
+    else False
 
 def length {a} (xs: [a]) : Integer := foldl (\acc _ -> acc + 1) 0 xs
 
@@ -302,12 +302,12 @@ def intercalate {a} (sep: [a]) (ws: [[a]]) : [a] := concat (intersperse sep ws)
 def split {Eq a} (sep: [a]) (ls: [a]) : [[a]] :=
   match ls as list something with
     | $xs ++ #sep ++ $rs -> xs :: split sep rs
-    | _ -> [ls]
+    else [ls]
 
 def splitAs {a} (m: MatcherSlot p a) (sep: [a]) (ls: [a]) : [[a]] :=
   match ls as list m with
     | $xs ++ #sep ++ $rs -> xs :: splitAs m sep rs
-    | _ -> [ls]
+    else [ls]
 
 def splitAt {a} (n: Integer) (ls: [a]) : ([a], [a]) := (take n ls, drop n ls)
 
@@ -361,7 +361,7 @@ def multiset {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
           | loop $i (1, length pxs, _)
               {($x_i :: @, #x_i :: @), ...}
               ([], $rs) -> [rs]
-          | _ -> []
+          else []
     | $ ++ $ as (multiset m, multiset m) with
       | $tgt ->
         matchAll tgt as list m with
@@ -374,7 +374,7 @@ def multiset {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
         match (val, tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
-          | (_, _) -> []
+          else []
     | $ as (something) with
       | $tgt -> [tgt]
 
@@ -397,13 +397,13 @@ def delete {Eq a} (x: a) (xs: [a]) : [a] :=
   match xs as list something with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ delete x ts
-    | _ -> xs
+    else xs
 
 def deleteAs {a} (m: MatcherSlot p a) (x: a) (xs: [a]) : [a] :=
   match xs as list m with
     | [] -> []
     | $hs ++ #x :: $ts -> hs ++ deleteAs m x ts
-    | _ -> xs
+    else xs
 
 def difference {Eq a} (xs: [a]) (ys: [a]) : [a] :=
   match ys as list something with
@@ -449,12 +449,12 @@ def intersectAs {a} (m: MatcherSlot p a) (xs: [a]) (ys: [a]) : [a] :=
 def member {Eq a} (x: a) (ys: [a]) : Bool :=
   match ys as list something with
     | _ ++ #x :: _ -> True
-    | _ -> False
+    else False
 
 def memberAs {a} (m: MatcherSlot p a) (x: a) (ys: [a]) : Bool :=
   match ys as list m with
     | _ ++ #x :: _ -> True
-    | _ -> False
+    else False
 
 --
 -- Counting
@@ -508,7 +508,7 @@ def set {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
         match (pxs, tgt) as (list m, set m) with
           | ( loop $i (1, $n) ($x_i :: ...) []
             , loop $i (1, n)  (#x_i :: ...) _ ) -> [tgt]
-          | _ -> []
+          else []
     | $ ++ $ as (set m, set m) with
       | $tgt ->
         matchAll tgt as list m with
@@ -520,7 +520,7 @@ def set {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
         match (uniqueAs m val, uniqueAs m tgt) as (list m, multiset m) with
           | ([], []) -> [()]
           | ($x :: $xs, #x :: #xs) -> [()]
-          | (_, _) -> []
+          else []
     | $ as (something) with
       | $tgt -> [tgt]
 

@@ -1,317 +1,123 @@
-# Egisonのテンソルの添字記法の型付け
+# Egison のテンソル型と添字記法
 
-## 概要
+この文書は、現在のテンソル型、添字記法、スカラー関数の自動的な tensor-lift の境界をまとめる。
+テンソル計算のアルゴリズムそのものではなく、型推論と型に基づく変換を対象とする。
 
-Egisonでは、テンソル計算においてアインシュタインの縮約記法をサポートしています。
-このドキュメントでは、テンソル型システムの設計と実装について説明します。
+## 1. テンソル型
 
-## テンソルとスカラーの型付け
-
-すべてのテンソルは `Tensor a` 型（a 型のテンソル）として型付けされます。
-テンソルの形状（次元）は型レベルでは区別しません。
-
-例えば、テンソル同士の内積演算子である `.` には以下のように型がつきます：
+テンソルは `Tensor a` と型付けし、`a` は要素型を表す。次元数、各軸の大きさ、添字名、
+共変・反変は型には含めない。
 
 ```egison
-def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
-  foldl1 (+) (contract (t1 * t2))
+def v : Tensor Integer := [| 1, 2, 3 |]
+def m : Tensor Integer := [| [| 1, 0 |], [| 0, 1 |] |]
 ```
 
-### 型規則
+入れ子の `Tensor` 型は正規化で一つにまとめる。
 
-`.` の返り値はスカラーである場合もあります。
-例えば、ベクトル同士の内積を `v1~i . v2_i` のように表現するとその評価値はスカラーになります。
-しかし、型推論で `.` の返り値がスカラーかテンソルか判断することはできません。
+```text
+Tensor (Tensor a)  =  Tensor a
+```
 
-この問題を解決するために、以下の型規則を採用しています：
+実行時には、階数 0 のテンソルをスカラーそのものとして表す。例えば
+`generateTensor f []` はテンソル容器ではなく `f []` を返す。大きさ 1 のベクトルは
+階数 1 なので `Tensor a` のままである。
 
-1. **通常のunify**: `Tensor a` 型と `a` 型をunifyすると `Tensor a` 型になる
-   - `a` 型は0階のテンソルと考えることができるため、この解釈で実行時エラーになることはない
+## 2. 添字記法
 
-2. **トップレベル定義**: トップレベル定義においては、`Tensor a` 型が `a` 型とunifyすると `a` 型になる
-   - ユーザーが型注釈で `a` 型と指定した場合、その型が優先される
-
-実行時にもrank 0のテンソルはスカラーそのものとして表現する。したがって、
-`generateTensor f []`は空の添字リストに対する唯一の成分`f []`を直接返す。
-shape `[1]`の1要素ベクトルやshape `[0]`の空ベクトルはrank 1なのでテンソルのままである。
+添字はテンソル値の各軸に付く実行時情報であり、`Tensor a` の型引数には入らない。
 
 ```egison
-1 : Tensor Integer  -- Integer型になる。Integerは0階のIntegerのテンソルと考えると問題ない
-[| 1, 2 |] : Integer  -- 型検査は通るが、実行時エラーになる可能性あり
+def g_i_j : Tensor MathValue := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
+def g~i~j : Tensor MathValue := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
 ```
 
-## シンボル宣言 (declare symbol)
+同じ名前の共変添字と反変添字は、`contract` や添字つき演算によって縮約される。縮約後が
+スカラーかテンソルかは型だけからは決まらないため、次節の限定的な Tensor とスカラーの
+整合規則を使う。
 
-テンソル計算では、シンボリック変数（a11, a12 など）を使うことが多いです。
-これらの変数に対する「未定義変数」警告を抑制するため、`declare symbol` 構文を用意しています。
+## 3. 三つの単一化モード
 
-### 構文
+テンソルの単一化は、利用目的ごとに次の三モードを使い分ける。
+
+### 通常の推論: `TensorConstraintAware`
+
+型クラス制約を考慮する。制約付き変数 `a` と `Tensor t` を合わせるとき、
+`Tensor t` がそのクラスのインスタンスでなければ `a = t` とし、値の側は後続の
+tensor-lift に任せる。
+
+例えば `+ : {AddSemigroup a} a -> a -> a` に `Tensor Integer` を渡す場合、
+`AddSemigroup (Tensor Integer)` を要求せず、要素型 `Integer` の制約を保つ。
+
+### 厳密な判定: `TensorStrict`
+
+`Tensor a` と `a` を同一視しない。スカラー関数とテンソル引数を区別し、
+`tensorMap` を挿入する必要があるかを判定するときに使う。
+
+### トップレベルの期待型: `TensorTopLevel`
+
+トップレベル定義の型注釈と推論型を合わせる境界では、`Tensor a` と `a` の外側を
+取り除いて照合できる。縮約結果が実行時に階数 0 となる式へスカラー型を注釈するための規則である。
+この規則は値の階数を静的に証明しないため、実際には階数 1 以上の値へスカラー注釈を付けると、
+実行時の利用箇所で不整合が現れうる。
+
+## 4. スカラー関数の tensor-lift
+
+型推論の後、`Type/TensorMapInsertion.hs` がスカラー関数へ渡されたテンソル引数を検出し、
+関数をテンソル上へ持ち上げる。tensor-lift とは、スカラー関数を各テンソル成分へ適用する
+`tensorMap` または `tensorMap2` に変換することである。
 
 ```egison
-declare symbol <name1>, <name2>, ... : <Type>
+def inc (x: Integer) : Integer := x + 1
+inc [| 1, 2, 3 |]
+
+-- 概念上の変換
+tensorMap (\x -> inc x) [| 1, 2, 3 |]
 ```
 
-型を省略した場合、デフォルトで `Integer`（= MathExpr）型になります。
+二つのテンソル引数を持ち上げる場合は `tensorMap2` を使う。片方がスカラーでも
+`tensorMap2` が通常適用として扱えるため、縮約や反復の途中でスカラーからテンソルへ変わる場合も
+同じ変換を使える。
 
-### 使用例
+高階関数に渡す callback では、期待 callback 型のどの引数がテンソルかを調べてイータ展開する。
+イータ展開とは、関数を `\x -> f x` の形へ明示的に包み直す変換である。`foldl` のように
+callback の返り値が次回の accumulator 引数へ戻る場合は、その引数にも lift を伝播する。
+詳細は [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md) を参照する。
+
+期待型だけでは lift 位置が分からない、ちょうど二引数のスカラー関数には、互換経路として
+`tensorMap2` で包む規則を残している。全挿入規則は
+[tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md) にまとめる。
+
+`IO`、`IORef`、`Port`、関数型など、制御や資源を表す型は tensor-lift の対象にしない。
+
+## 5. Wedge 適用
+
+`!` を伴う Wedge 適用では、スカラー二項関数なら `tensorMap2` の Wedge 版へ変換し、
+微分形式の添字を補ってから成分ごとに適用する。関数自身がテンソルを受け取る場合は、
+通常の Wedge 適用を保つ。この処理も `TensorMapInsertion.hs` が担当する。
+
+## 6. シンボル宣言
+
+テンソル成分に使う自由な数式シンボルは、未束縛変数ではなく `declare symbol` で宣言する。
 
 ```egison
--- シンボルを宣言
-declare symbol a1, a2, b1, b2 : Integer
-  
-def v1 : Tensor Integer := [| a1, a2 |]
-def v2 : Tensor Integer := [| b1, b2 |]
-
-v1~i . v2_i  -- a1 * b1 + a2 * b2
-v1_i . v2_j  -- [| [| a1 * b1, a1 * b2 |], [| a2 * b1, a2 * b2 |] |]_i_j
-
--- 行列用のシンボル
-declare symbol a11, a12, a21, a22, b11, b12, b21, b22 : Integer
-
-def m1 : Tensor Integer := [| [| a11, a12 |], [| a21, a22 |] |]
-def m2 : Tensor Integer := [| [| b11, b12 |], [| b21, b22 |] |]
-
-m1~i~j . m2_j_k  -- 行列積の結果
--- [| [| a11 * b11 + a12 * b21, a11 * b12 + a12 * b22 |], 
---    [| a21 * b11 + a22 * b21, a21 * b12 + a22 * b22 |] |]~i_k
+declare symbol a11, a12, a21, a22
+declare symbol x, y, z : Float
 ```
 
-### 実装
+型を省略した場合は `Integer` を使う。宣言は型環境へ登録されるため、参照時に未束縛変数の
+警告を出さない。CAS のシンボル値としての構築と型環境への登録は評価の前に行う。
 
-`declare symbol` の実装は以下のファイルで行われています：
+## 7. 処理順と実装
 
-1. **AST** (`Language/Egison/AST.hs`)
-   ```haskell
-   data TopExpr = ... | DeclareSymbol [String] (Maybe TypeExpr)
-   ```
+テンソルに関係する型処理は次の順で行う。
 
-2. **IExpr** (`Language/Egison/IExpr.hs`)
-   ```haskell
-   data ITopExpr = ... | IDeclareSymbol [String] (Maybe Type)
-   data TITopExpr = ... | TIDeclareSymbol [String] Type
-   ```
+1. `Type/Infer.hs` が制約を考慮して型を推論し、型付き内部表現 `TIExpr` を生成する。
+2. `Type/TensorMapInsertion.hs` が tensor-lift と Wedge 用の変換を挿入する。
+3. `Type/TypeClassExpand.hs` が確定した要素型を使って型クラス辞書を選ぶ。
+4. `Tensor.hs` と評価器が添字操作、縮約、実際の成分計算を行う。
 
-3. **パーサー** (`Language/Egison/Parser/NonS.hs`)
-   - `declare` を予約語として追加
-   - `declareSymbolExpr` パーサーを追加
+型の正規化は `Type/Tensor.hs`、三モードの単一化は `Type/Unify.hs` にある。
+処理全体の対応は [FILE_MAPPING.md](./FILE_MAPPING.md) を参照する。
 
-4. **型推論** (`Language/Egison/Type/Infer.hs`)
-   ```haskell
-   data InferState = InferState
-     { ...
-     , declaredSymbols :: Map.Map String Type  -- 宣言されたシンボルと型のマッピング
-     }
-   ```
-   - `lookupVar` で型環境に変数がない場合、`declaredSymbols` をチェック
-   - 登録されている場合は警告なしでその型を返す
-
-## スカラー関数へのテンソル適用時の自動 tensorMap 挿入
-
-仮引数の型が `Tensor a` 型とunifyできない場合、`Tensor a` 型のデータが引数に渡されると、
-自動的に `tensorMap` が挿入されます。
-
-### 例
-
-```egison
-class Num a where
-  (+) (x: a) (y: a) : a
-
-instance Num Integer where
-  (+) x y := (i.+ x y)
-
-def double {Num a} (x: a) : a := x + x
-
-double t1  -- テンソル t1 に対して double を適用
-```
-
-上記のコードは以下の順序で変換されます：
-
-1. **型推論（Infer.hs）**: 型情報を収集し、TIExpr（型付き内部表現）を生成
-   ```egison
-   double t1  -- double : {Num a} a -> a, t1 : Tensor Integer
-   ```
-
-2. **tensorMap 挿入（TensorMapInsertion.hs）**: 型情報を使って必要な箇所に tensorMap を挿入
-
-3. **型クラス展開（TypeClassExpand.hs）**: 型情報に基づいて型クラスを処理
-
-この順序が重要です。tensorMap挿入後に引数の型（スカラー vs テンソル）が確定するため、
-型クラス展開でunifyStrictを使ったインスタンス選択が正しく動作します。
-
-### 型クラス展開の詳細
-
-型クラスの展開は一貫して辞書渡しスタイルで実装されています。
-
-#### ケース1: 型が具体的に決まっている場合
-
-呼び出し時に型が具体的に決まっている場合、具体的な辞書へのアクセスに変換されます：
-
-```egison
-double (1 : Integer)
--- 型推論で a = Integer と決定
--- (+) が numInteger_"plus" に展開される（辞書アクセス形式）
--- 結果: (numInteger_"plus") 1 1
-```
-
-`numInteger` は `Num Integer` インスタンスの辞書で、
-`{ "plus": numIntegerPlus, "times": numIntegerTimes, ... }` のようなハッシュです。
-
-#### ケース2: 型が多相的なまま残っている場合
-
-関数定義自体など、型が多相的なまま残っている場合は、辞書パラメータを受け取る形に変換されます：
-
-```egison
--- 元の定義
-def double {Num a} (x: a) : a := x + x
-
--- 辞書パラメータを追加した形に変換
-def double (dict_Num_a) (x: a) : a :=
-  (dict_Num_a_"plus") x x
-```
-
-呼び出し側では、具体的な型に応じた辞書が渡されます：
-
-```egison
-double numInteger 1
--- numInteger 辞書を渡して呼び出し
-```
-
-#### tensorMap 挿入との組み合わせ
-
-tensorMap挿入の後、TypeClassExpand.hs で型クラス展開が行われます：
-
-```egison
-double t1  -- t1 : Tensor Integer
--- 1. tensorMap が挿入される
--- 2. (+) が (numInteger_"plus") に展開される
--- 結果: tensorMap (\te1 -> (numInteger_"plus") te1 te1) t1
-```
-
-多相的な関数の場合も同様です：
-
-```egison
-double numInteger t1
--- 1. tensorMap が挿入される
--- 2. 辞書パラメータ付きの形に変換
--- 結果: tensorMap (\te1 -> (numInteger_"plus") te1 te1) t1
-```
-
-### tensorMap 挿入の条件
-
-以下の条件を満たす場合、`tensorMap` が挿入されます：
-
-- 仮引数の型が `Tensor a` 型とunifyできない
-  - 例：`Integer`, `Float`, `Bool` など具体的な型
-  - 例：型クラス制約付きの型変数 `Num a => a`（`Tensor` は `Num` のインスタンスでないため）
-
-以下の場合は `tensorMap` は挿入されません：
-
-- 仮引数の型が `Tensor a` 型とunifyできる
-  - 例：型変数 `a`（任意の型を受け入れる）
-  - 例：`Tensor a` 型
-- `foldr` などの高階関数
-
-## テンソルの宣言
-
-テンソルは添字付きで宣言できます：
-
-```egison
-def g_i_j : Tensor MathExpr := [| [| 1, 0 |], [| 0, r^2 |] |]_i_j
-
-def g~i~j : Tensor MathExpr := [| [| 1, 0 |], [| 0, 1 / r^2 |] |]~i~j
-```
-
-トップレベルで型注釈が `MathExpr` 型で、型推論された型が `Tensor MathExpr` 型の場合、
-unifyすると `MathExpr` 型になります：
-
-```egison
-g_i_j . g~i~j : MathExpr  -- contract されてスカラーになる場合
-```
-
-この仕様は、`contract` の結果がスカラーになるかテンソルのままなのか、
-型システムでは推論できないためです。
-
-## 高階関数とテンソル
-
-高階関数にテンソル操作を渡す場合も正しく動作します：
-
-```egison
-def foldl {a, b} (fn : b -> a -> b) (init : b) (ls : [a]) : b :=
-  match ls as list something with
-    | [] -> init
-    | $x :: $xs ->
-      let z := fn init x
-       in seq z (foldl fn z xs)
-  
-def foldl1 {a, b} (fn : b -> a -> b) (ls : [a]) : b := foldl fn (head ls) (tail ls)
-
-def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
-  foldl1 (+) (contract (t1 * t2))
-```
-
-関数が関数の引数に渡された場合、引数の関数の引数型が `Tensor` 型とunifyできない場合は、
-eta展開して `tensorMap` でラップします。
-
-## 実装ファイル
-
-テンソル型システムに関連する主要なファイル：
-
-| ファイル | 役割 |
-|---------|------|
-| `Language/Egison/Type/Infer.hs` | 型推論、tensorMap 挿入 |
-| `Language/Egison/Type/TensorMapInsertion.hs` | tensorMap 挿入のヘルパー |
-| `Language/Egison/Type/TypeClassExpand.hs` | 型クラスの展開 |
-| `Language/Egison/Type/Unify.hs` | 型のunification |
-| `Language/Egison/AST.hs` | AST定義（DeclareSymbol含む） |
-| `Language/Egison/IExpr.hs` | 内部表現（IDeclareSymbol含む） |
-| `Language/Egison/Parser/NonS.hs` | パーサー（declare symbol） |
-| `Language/Egison/EnvBuilder.hs` | 環境構築 |
-| `Language/Egison/Desugar.hs` | デシュガー |
-| `Language/Egison/Eval.hs` | 評価器 |
-
-## テストファイル
-
-- `mini-test/91-index-notation.egi` - テンソル添字記法とシンボル宣言のテスト
-- `mini-test/91-index-notation-with-declare.egi` - declare symbol のテスト
-
-
-## 高階関数の型推論の流れ その1
-
-```
-foldl1 (+) [t1, t2]
-```
-
-foldl1 : (a -> a -> a) -> [a] -> a
-+ : {Num b} b -> b -> b
-[t1, t2] : [Tensor Integer]
-
-まずfoldl1の第一引数と+をunifyすると
-foldl1 : {Num b} (b -> b -> b) -> [b] -> b
-となる。
-次に第二引数と[t1, t2]をunifyすると
-unify [b] [Tensor Integer]
-の結果で
-foldl1 : {Num (Tensor Integer)} (Tensor Integer -> Tensor Integer -> Tensor Integer) -> [Tensor Integer] -> Tensor Integer
-となる。
-ただし、ここでTensor IntegerはNumのインスタンではないが、IntegerはNumのインスタンスであるので、クラス制限だけテンソルの要素を取り出し、
-foldl1 : {Num Integer} (Tensor Integer -> Tensor Integer -> Tensor Integer) -> [Tensor Integer] -> Tensor Integer
-と型推論するようにしたい。
-
-## 高階関数の型推論の流れ その2
-
-```
-def (.) {Num a} (t1: Tensor a) (t2: Tensor a) : Tensor a := 
-  foldl1 (+) (contract (t1 * t2))
-```
-
-t1, t2: Tensor b
-とするとt1 * t2の型はTensor b
-またcontract後の型は[Tensor b]となるはずである。
-（現在contract後の型が[result7]でないといけないのに[result8]となっている。）
-
-## 高階関数の型推論の流れ その3
-
-def Ric__ : MathExpr := (withSymbols [i, j] (transpose ([(i : MathExpr), (j : MathExpr)] : [MathExpr])
- (withSymbols [m] ((sum : [MathExpr] -> MathExpr) 
- (contract ((R : Tensor MathExpr)~(m : MathExpr)_(i : MathExpr)_(m : MathExpr)_(j : MathExpr) : Tensor MathExpr) : [Tensor MathExpr])
-  : MathExpr) : MathExpr) : MathExpr) : MathExpr)
+主な回帰テストは `test/lib/math/tensor.egi` と、`sample/math/geometry/` のテンソル計算例である。

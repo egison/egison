@@ -84,7 +84,7 @@ def mathValue : Matcher MathValue MathValue :=
         | $tgt ->
             match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
-              | _ -> []
+              else []
     | mult $ $ as (mathValue, multExpr) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) ->
             [(n, product' (map (\(x, n) -> x ^' n) xs))]
@@ -140,7 +140,7 @@ def multExpr : Matcher MathValue MathValue :=
         | $tgt ->
             match tgt as mathValue with
               | term _ (($x, $n) :: []) -> [(x, n)]
-              | _ -> []
+              else []
     | $ * $ as (mathValue, multExpr) with
         -- First slot is `x ^' n` — for n > 1 this is no longer a Factor, so keep mathValue.
         | $tgt ->
@@ -373,7 +373,7 @@ def mathExpr : Matcher MathValue MathValue := mathValue
 def isSymbol (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
     | symbol _ _ -> True
-    | _ -> False
+    else False
 
 def isApply (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
@@ -381,7 +381,7 @@ def isApply (mexpr: MathValue) : Bool :=
     | apply2 _ _ _ -> True
     | apply3 _ _ _ _ -> True
     | apply4 _ _ _ _ _ -> True
-    | _ -> False
+    else False
 
 def isSimpleTerm (mexpr: MathValue) : Bool := isSymbol mexpr || isApply mexpr
 
@@ -389,19 +389,19 @@ def isTerm (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
     | term _ _ -> True
     | #0 -> True
-    | _ -> False
+    else False
 
 def isPolynomial (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
     | poly _ -> True
     | #0 -> True
-    | _ -> False
+    else False
 
 def isMonomial (mexpr: MathValue) : Bool :=
   match mexpr as mathValue with
     | poly [term _ _] / poly [term _ _] -> True
     | #0 -> True
-    | _ -> False
+    else False
 
 --
 -- Accessor
@@ -483,7 +483,7 @@ def mapSymbols (fn: MathValue -> MathValue) (mexpr: MathValue) : MathValue :=
 def scanAllTerms (mexpr: MathValue) (f: MathValue -> Bool) : Bool :=
   match mexpr as mathValue with
     | poly $ts1 / poly $ts2 -> any f (ts1 ++ ts2)
-    | _ -> not ((debug2 "scanAllTerms" mexpr) = mexpr) -- TODO: if tensorMap is inserted correctly, we canremove this
+    else not ((debug2 "scanAllTerms" mexpr) = mexpr) -- TODO: if tensorMap is inserted correctly, we canremove this
 
 def containSymbol (x: MathValue) (mexpr: MathValue) : Bool :=
   scanAllTerms mexpr
@@ -496,9 +496,9 @@ def containSymbol (x: MathValue) (mexpr: MathValue) : Bool :=
               | apply2 _ $a1 $a2 -> containSymbol x a1 || containSymbol x a2
               | apply3 _ $a1 $a2 $a3 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3
               | apply4 _ $a1 $a2 $a3 $a4 -> containSymbol x a1 || containSymbol x a2 || containSymbol x a3 || containSymbol x a4
-              | _ -> False)
+              else False)
             xs
-      | _ -> False)
+      else False)
 
 --
 -- Substitute
@@ -514,7 +514,7 @@ def substitute' (x: MathValue) (a: MathValue) (mexpr: MathValue) : MathValue :=
 def rewriteSymbol (x: MathValue) (a: MathValue) (sexpr: MathValue) : MathValue :=
   match sexpr as mathValue with
     | #x -> a
-    | _ -> sexpr
+    else sexpr
 
 def V.substitute (xs: Vector MathValue) (ys: Vector MathValue) (mexpr: MathValue) : MathValue :=
   substitute (zip (tensorToList xs) (tensorToList ys)) mexpr

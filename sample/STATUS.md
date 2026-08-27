@@ -42,7 +42,7 @@ gtimeout -k 10 60 cabal run -v0 egison -- -t sample/<file>.egi 2>&1 | head -20
 | `bellman-ford.egi` | ⚠️ 実行時エラー | 1s | 実行時エラー: `Expected CASData, but found: "plus"`(typeclass 展開系) |
 | `binary-counter.egi` | ✅ | 1s |  |
 | `bipartite-graph.egi` | ✅ | 2s | `inductive Edge` + `inductive pattern Edge` 宣言を追加して修復(2026-06。auto-generated ファイルに宣言が欠落していた) |
-| `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11+(タプル/リスト不一致など既存の不一致に加え、ローカル assocMultiset の element-view clause `#$x :: $` が型付け不能 — stdlib 側は 2026-06-13 に同 clause を削除。design/paper-compliance-roadmap.md §4) |
+| `chopsticks.egi` | ❌ 型エラー | 1s | 型エラー×11（タプル/リスト不一致など既存の不一致に加え、ローカル `assocMultiset` の element-view clause `#$x :: $` が現行 matcher capability を満たさない。標準ライブラリ側では同じ clause を削除済み） |
 | `chopsticks2.egi` | ❌ 型エラー | 2s | 型エラー(`[[Integer]]` 不一致) |
 | `demo1-ja.egi` | ✅ | 1s |  |
 | `demo1.egi` | ✅ | 1s |  |
@@ -468,7 +468,7 @@ gtimeout 60 cabal run egison -- -t sample/math/<...>.egi
 ### 関連ドキュメント
 
 - [type-cas.md](../design/type-cas.md) — CAS 型システム設計と既知の制限
-- [type-cas-tower.md](../design/type-cas-tower.md) — 拡張可能 CAS タワー (将来)
+- [type-cas-tower-implementation.md](../design/type-cas-tower-implementation.md) — 拡張可能 CAS タワーの現行仕様
 - [function-symbol.md](../design/function-symbol.md) — 関数シンボル機構
 
 EMR paper の Thurston 計算は `/Users/egisatoshi/PL/EMR-Paper-Computation/` に元実装。

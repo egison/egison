@@ -42,7 +42,7 @@ def tsubst :=
     | ($σ, var $n) ->
       match σ as multiset (integer, term) with
         | cons (#n, $t) _ -> t
-        | _ -> Var n
+        else Var n
     | ($σ, compound $f $xs) -> Compound f (map 1#(tsubst σ $1) xs)
 
 def unify :=

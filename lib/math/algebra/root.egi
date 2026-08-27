@@ -22,7 +22,7 @@ declare apply rt n x :=
                     yd := reduce gcdForMathValue ys
                     d := rtMonomial n (xd / yd)
                  in d *' rt'' n (sum' (map (/' xd) xs) /' sum' (map (/' yd) ys))
-            | _ -> rt'' n x
+            else rt'' n x
     else rt'' n x
 
 def rtMonomial (n: MathValue) (x: MathValue) : MathValue :=
@@ -35,7 +35,7 @@ def rtTerm (n: MathValue) (x: MathValue) : MathValue :=
                     | #1 -> -1
                     | #2 -> i
                     | ?isOdd -> -1
-                    | _ -> undefined
+                    else undefined
        in if a < 0 then rtm1 n *' rtPositiveTerm n (- x) else rtPositiveTerm n x
 
 def rtPositiveTerm (n: MathValue) (x: MathValue) : MathValue :=
@@ -43,7 +43,7 @@ def rtPositiveTerm (n: MathValue) (x: MathValue) : MathValue :=
     | (#3, $a * #i * $r) -> (- i) * rt 3 (a *' r)
     | (_, $a * (apply1 #sqrt $b) * $r) -> rt (n * 2) (a ^' 2 *' b) *' rt n r
     | (_, $a * (apply2 #rt $n' $b) * $r) -> rt (n * n') (a ^' n' *' b) *' rt n r
-    | (_, _) -> rtPositiveTerm1 n x
+    else rtPositiveTerm1 n x
   where
     rtPositiveTerm1 (n: MathValue) (x: MathValue) : MathValue :=
       let f (xs: [(MathValue, MathValue)]) : (MathValue, MathValue) :=
@@ -76,7 +76,7 @@ def rt'' (n: MathValue) (x: MathValue) : MathValue :=
         if signOfConst x = "neg"
           then i *' sqrt (- x)
           else sqrtDenest x
-    | (_, _) -> 'rt n x
+    else 'rt n x
 
 -- Depth-2 denesting (design/cas-simplification.md 3.6; the classic
 -- Borodin-Fagin-Hopcroft-Tompa condition):
@@ -97,7 +97,7 @@ def sqrtDenest (x: MathValue) : MathValue :=
                   then sqrtDenest' x a b r
                   else 'sqrt x
           else 'sqrt x
-    | _ -> 'sqrt x
+    else 'sqrt x
 
 def sqrtDenest' (x: MathValue) (a: MathValue) (b: MathValue) (r: MathValue) : MathValue :=
   let facs := toAssoc (pF r)
@@ -127,7 +127,7 @@ declare apply rtu n :=
       | #2 -> -1
       | #3 -> w
       | #4 -> i
-      | _ -> 'rtu n
+      else 'rtu n
     else 'rtu n
 
 def rtOfUnity : MathValue -> MathValue := rtu

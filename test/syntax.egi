@@ -145,7 +145,7 @@ def findFactor :=
   memoizedLambda n ->
     match takeWhile (<= floor (f.sqrt (itof n))) primes as list integer with
     | _ ++ (?(\m -> divisor n m) & $x) :: _ -> x
-    | _ -> n
+    else n
 
 assertEqual "memoized lambda"
   (map findFactor [1..10])
@@ -261,8 +261,7 @@ assertEqual "match-all-lambda-multi"
 
 assert "nested pattern match"
   (match [1, 2, 3] as list integer with
-   | #2 :: $x -> match x as multiset integer with
-                | _ -> False
+   | #2 :: $x -> False
    | #1 :: $x -> match x as multiset integer with
                 | #1 :: _ -> False
                 | #2 :: _ -> True)
@@ -298,7 +297,48 @@ assert "and pattern"
 assert "and pattern"
   (match [1, 2, 3] as list integer with
    | #1 :: _ & #3 :: _ -> False
-   | _ -> True)
+   else True)
+
+def rejectingWildcardMatcher :=
+  matcher
+    | _ as () with
+      | _ -> []
+    | $ as (something) with
+      | $tgt -> [tgt]
+
+assertEqual "match else runs after an empty wildcard arm"
+  (let outer := 42
+    in match 1 as rejectingWildcardMatcher with
+       | _ -> 0
+       else outer)
+  42
+
+assertEqual "matchDFS else runs after an empty wildcard arm"
+  (let outer := 43
+    in matchDFS 1 as rejectingWildcardMatcher with
+       | _ -> 0
+       else outer)
+  43
+
+assertEqual "match takes an ordinary arm before else"
+  (match [1] as list integer with
+   | $x :: _ -> x
+   else 0)
+  1
+
+assertEqual "match does not evaluate else after an ordinary match"
+  (match 1 as integer with
+   | #1 -> 1
+   else undefined)
+  1
+
+assertEqual "match else remains inside an enclosing if branch"
+  (if False
+    then match 1 as integer with
+      | #1 -> 1
+      else 2
+    else 3)
+  3
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
@@ -325,7 +365,7 @@ assert "predicate pattern"
 assert "predicate pattern"
   (match [1, 2, 3] as list integer with
    | ?(= 2) :: _ -> False
-   | _ -> True)
+   else True)
 
 assertEqual "indexed pattern variable"
   (match 23 as mod 10 with
