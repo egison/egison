@@ -114,6 +114,15 @@ cliWarningFlagParsingTests =
         "match without else warning flag"
         "--match-without-else-warnings"
         (False, False, False, True)
+    , TestLabel "TypePM metrics flag" . TestCase $
+        case execParserPure (prefs mempty) cmdParser ["--type-pm-metrics"] of
+          Success options ->
+            assertBool "the TypePM metrics flag is enabled"
+              (optTypePMMetrics options)
+          Failure _ ->
+            assertFailure "the CLI parser rejected --type-pm-metrics"
+          CompletionInvoked _ ->
+            assertFailure "the CLI parser requested completion for --type-pm-metrics"
     ]
   where
     parses label flag expected =

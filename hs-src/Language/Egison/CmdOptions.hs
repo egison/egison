@@ -49,7 +49,8 @@ data EgisonOpts = EgisonOpts {
                                                    -- ^ Warn when a primitive-pattern hole precedes a primitive value pattern
     optNestedStructuredPrimitivePatternPatternWarnings :: Bool,
                                                    -- ^ Warn about nested structured primitive-pattern patterns
-    optMatchWithoutElseWarnings :: Bool             -- ^ Warn when match/matchDFS omits else
+    optMatchWithoutElseWarnings :: Bool,            -- ^ Warn when match/matchDFS omits else
+    optTypePMMetrics    :: Bool                      -- ^ Report TypePM inference counters
     }
 
 defaultOption :: EgisonOpts
@@ -84,6 +85,7 @@ defaultOption = EgisonOpts
   , optPatternHoleBeforePrimitiveValuePatternWarnings = False
   , optNestedStructuredPrimitivePatternPatternWarnings = False
   , optMatchWithoutElseWarnings = False
+  , optTypePMMetrics = False
   }
 
 cmdParser :: ParserInfo EgisonOpts
@@ -203,6 +205,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "match-without-else-warnings"
                   <> help "Warn when match or matchDFS omits its optional final else branch")
+            <*> switch
+                  (long "type-pm-metrics"
+                  <> help "Report explicit eager slot boundaries and multi-demand capability combinations")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

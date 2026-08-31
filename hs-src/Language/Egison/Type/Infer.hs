@@ -212,6 +212,11 @@ data InferState = InferState
                                           --   harvested at IDefine. Consulted by the production
                                           --   use-site safeguard for outside-core primitive-pattern
                                           --   clauses to resolve matcher clause shapes statically.
+  , inferEagerSlotBoundaryCount :: Int
+                                          -- ^ Number of explicit MatcherSlot checking boundaries
+                                          --   reached by the eager production checker.
+  , inferMultiDemandCombineCount :: Int
+                                          -- ^ Number of binary capability-demand combinations.
   } deriving (Show)
 
 -- | Complete inferred type of one next-matcher component, captured before
@@ -304,6 +309,8 @@ initialInferStateWithConfig cfg = InferState
   , inferBatchDefNames = Set.empty
   , inferDataConstructorNames = Set.empty
   , inferMatcherShapes = Map.empty
+  , inferEagerSlotBoundaryCount = 0
+  , inferMultiDemandCombineCount = 0
   }
 
 -- | Inference monad (with IO for potential future extensions)
@@ -1962,6 +1969,8 @@ solveAtSlot
   -> TypeErrorContext
   -> Infer (Subst, Bool)
 solveAtSlot classEnv constraints inferred expected ctx = do
+  modify $ \state -> state
+    { inferEagerSlotBoundaryCount = inferEagerSlotBoundaryCount state + 1 }
   case (inferred, expected) of
     (TAny, TMatcherSlot _ _) -> do
       warnOutsideEgisonCore
@@ -4846,6 +4855,8 @@ alignPatternCapabilities ctx left right = do
 capabilityCombine
   :: TypeErrorContext -> Capability -> Capability -> Infer Capability
 capabilityCombine ctx left right = do
+  modify $ \state -> state
+    { inferMultiDemandCombineCount = inferMultiDemandCombineCount state + 1 }
   substitution <- alignPatternCapabilities ctx left right
   applyCapabilityM substitution left
 

@@ -126,10 +126,12 @@ data PipelineAccum = PipelineAccum
   , accumTypedExprs     :: [Maybe TITopExpr]
   , accumTiExprs        :: [Maybe TITopExpr]
   , accumTcExprs        :: [Maybe TITopExpr]
+  , accumEagerSlotBoundaries :: Int
+  , accumMultiDemandCombines :: Int
   }
 
 emptyAccum :: PipelineAccum
-emptyAccum = PipelineAccum [] [] [] [] [] []
+emptyAccum = PipelineAccum [] [] [] [] [] [] 0 0
 
 -- | Classify an ITopExpr into one of the accumulator bins.
 classifyITopExpr :: ITopExpr -> Bool -> PipelineAccum -> PipelineAccum
@@ -187,6 +189,13 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
                            DefineWithType tv _            -> Just (typedVarName tv)
                            _                              -> Nothing] ]
   accum <- foldM (processOneExpr opts permissive printValues batchDefNames) emptyAccum exprs'
+
+  when (optTypePMMetrics opts) $
+    liftIO $ hPutStrLn stderr $
+      "TypePM metrics: eager-slot-boundaries=" ++
+      show (accumEagerSlotBoundaries accum) ++
+      ", multi-demand-combines=" ++
+      show (accumMultiDemandCombines accum)
 
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
@@ -460,11 +469,19 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
 
         Right (Nothing, _subst) -> do
           persistSuccessfulInferState finalState
-          return acc
+          return (addInferMetrics finalState acc)
 
         Right (Just tiTopExpr, _subst) -> do
           persistSuccessfulInferState finalState
-          runTypedDesugaring opts acc tiTopExpr printValues
+          runTypedDesugaring opts (addInferMetrics finalState acc) tiTopExpr printValues
+
+addInferMetrics :: InferState -> PipelineAccum -> PipelineAccum
+addInferMetrics finalState acc = acc
+  { accumEagerSlotBoundaries =
+      accumEagerSlotBoundaries acc + inferEagerSlotBoundaryCount finalState
+  , accumMultiDemandCombines =
+      accumMultiDemandCombines acc + inferMultiDemandCombineCount finalState
+  }
 
 -- | Commit inference environments only after the complete top-level item has
 -- type-checked.  A failed inference state may still contain a monomorphic
