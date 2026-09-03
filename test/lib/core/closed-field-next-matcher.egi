@@ -29,7 +29,7 @@ assertEqual "closed field: list-capable hole producer"
     | closedFieldBox ($head :: _) -> head)
   [1]
 
--- An untyped parameter is committed to a MatcherSlot by Step 3a'.  The
+-- An untyped parameter is committed to a Matcher by Step 3a'.  The
 -- closed field skeleton constrains that consumer slot to Collection p without
 -- strengthening any matcher producer; application then supplies the leaf
 -- capability carried by `list integer`.

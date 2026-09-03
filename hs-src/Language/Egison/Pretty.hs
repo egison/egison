@@ -287,8 +287,6 @@ instance Pretty TypeExpr where
     prettyTypeExprAtomDoc t1 <+> pretty "->" <+> pretty t2
   pretty (TEMatcher capability t) =
     pretty "Matcher" <+> prettyCapabilityExprAtomDoc capability <+> prettyTypeExprAtomDoc t
-  pretty (TEMatcherSlot capability t) =
-    pretty "MatcherSlot" <+> prettyCapabilityExprAtomDoc capability <+> prettyTypeExprAtomDoc t
   pretty (TEPattern t) = pretty "Pattern" <+> prettyTypeExprAtomDoc t
   pretty (TEIO t) = pretty "IO" <+> prettyTypeExprAtomDoc t
   pretty (TETensor t) = pretty "Tensor" <+> prettyTypeExprAtomDoc t
@@ -327,7 +325,6 @@ prettyTypeExprAtomDoc typeExpr = case typeExpr of
   TEApp _ _     -> parens (pretty typeExpr)
   TEConstrained _ _ -> parens (pretty typeExpr)
   TEMatcher _ _ -> parens (pretty typeExpr)
-  TEMatcherSlot _ _ -> parens (pretty typeExpr)
   TETerm _ _    -> parens (pretty typeExpr)
   TEFrac _      -> parens (pretty typeExpr)
   TEPoly _ _    -> parens (pretty typeExpr)
@@ -1020,8 +1017,6 @@ prettyTypeDoc (Types.THash k v) =
     prettyHashValueTypeDoc t = prettyTypeDoc t
 prettyTypeDoc (Types.TMatcher capability t) =
   pretty "Matcher" <+> prettyCapabilityAtomDoc capability <+> prettyTypeAtomDoc t
-prettyTypeDoc (Types.TMatcherSlot capability t) =
-  pretty "MatcherSlot" <+> prettyCapabilityAtomDoc capability <+> prettyTypeAtomDoc t
 prettyTypeDoc (Types.TIO t) = pretty "IO" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TIORef t) = pretty "IORef" <+> prettyTypeDoc t
 prettyTypeDoc (Types.TTensor t) = pretty "Tensor" <+> prettyTypeDoc t
@@ -1063,7 +1058,6 @@ prettyTypeAtomDoc ty = case ty of
   Types.TTensor _        -> parens (prettyTypeDoc ty)
   Types.THash _ _        -> parens (prettyTypeDoc ty)
   Types.TMatcher _ _     -> parens (prettyTypeDoc ty)
-  Types.TMatcherSlot _ _ -> parens (prettyTypeDoc ty)
   Types.TIO _            -> parens (prettyTypeDoc ty)
   Types.TIORef _         -> parens (prettyTypeDoc ty)
   Types.TTerm _ _        -> parens (prettyTypeDoc ty)

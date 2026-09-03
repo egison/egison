@@ -69,10 +69,9 @@ match 式と matcher literal のパターンマッチ処理そのものは、こ
 Forall [CapVar] [TyVar] [Constraint] Type
 ```
 
-capability 変数と通常型変数は異なる sort、つまり別種の変数として代入する。通常型変数には
-引数由来の A 変数と返り値由来の R 変数という用途の印があり、R 変数には
-`MatcherSlot` を返り値位置へ含む型を代入できない。返された関数の仮引数位置にある
-`MatcherSlot` は許される。
+capability 変数と通常型変数は異なる sort、つまり別種の変数として代入する。通常型変数に
+用途の印はなく、matcher の型は `Matcher capability target` の一種類だけである
+（2026-09-03 に旧 `MatcherSlot`・A/R 設計を廃止、`design/matcher-capability.md` 参照）。
 
 再帰定義では、自己参照へ fresh な R 変数を含む単相型を与え、本体の推論結果と単一化する。
 循環する値定義の根は lambda または matcher literal に限る。

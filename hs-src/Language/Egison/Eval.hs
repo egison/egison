@@ -126,12 +126,15 @@ data PipelineAccum = PipelineAccum
   , accumTypedExprs     :: [Maybe TITopExpr]
   , accumTiExprs        :: [Maybe TITopExpr]
   , accumTcExprs        :: [Maybe TITopExpr]
-  , accumEagerSlotBoundaries :: Int
-  , accumMultiDemandCombines :: Int
+  , accumMatchSites :: Int
+  , accumMatcherLiterals :: Int
+  , accumMatcherClauses :: Int
+  , accumProductNextMatchers :: Int
+  , accumCapabilityCombines :: Int
   }
 
 emptyAccum :: PipelineAccum
-emptyAccum = PipelineAccum [] [] [] [] [] [] 0 0
+emptyAccum = PipelineAccum [] [] [] [] [] [] 0 0 0 0 0
 
 -- | Classify an ITopExpr into one of the accumulator bins.
 classifyITopExpr :: ITopExpr -> Bool -> PipelineAccum -> PipelineAccum
@@ -192,10 +195,16 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
 
   when (optTypePMMetrics opts) $
     liftIO $ hPutStrLn stderr $
-      "TypePM metrics: eager-slot-boundaries=" ++
-      show (accumEagerSlotBoundaries accum) ++
-      ", multi-demand-combines=" ++
-      show (accumMultiDemandCombines accum)
+      "TypePM metrics: match-sites=" ++
+      show (accumMatchSites accum) ++
+      ", matcher-literals=" ++
+      show (accumMatcherLiterals accum) ++
+      ", matcher-clauses=" ++
+      show (accumMatcherClauses accum) ++
+      ", product-next-matchers=" ++
+      show (accumProductNextMatchers accum) ++
+      ", capability-combines=" ++
+      show (accumCapabilityCombines accum)
 
   -- Dump typed ASTs before evaluation
   when (optDumpTyped opts && shouldDumpTyped) $
@@ -477,10 +486,16 @@ processOneExpr opts permissive printValues batchDefNames acc expr = do
 
 addInferMetrics :: InferState -> PipelineAccum -> PipelineAccum
 addInferMetrics finalState acc = acc
-  { accumEagerSlotBoundaries =
-      accumEagerSlotBoundaries acc + inferEagerSlotBoundaryCount finalState
-  , accumMultiDemandCombines =
-      accumMultiDemandCombines acc + inferMultiDemandCombineCount finalState
+  { accumMatchSites =
+      accumMatchSites acc + inferMatchSiteCount finalState
+  , accumMatcherLiterals =
+      accumMatcherLiterals acc + inferMatcherLiteralCount finalState
+  , accumMatcherClauses =
+      accumMatcherClauses acc + inferMatcherClauseCount finalState
+  , accumProductNextMatchers =
+      accumProductNextMatchers acc + inferProductNextMatcherCount finalState
+  , accumCapabilityCombines =
+      accumCapabilityCombines acc + inferCapabilityCombineCount finalState
   }
 
 -- | Commit inference environments only after the complete top-level item has

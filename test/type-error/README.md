@@ -15,12 +15,21 @@
 ```sh
 fail=0
 for f in test/type-error/*.egi; do
-  o=$(gtimeout -k 10 60 cabal run -v0 egison -- -t "$f" 2>&1)
-  echo "$o" | grep -q "Type error:" || { echo "MISSING ERROR: $f"; fail=1; }
-  echo "$o" | grep -q "Parse error" && { echo "PARSE ERROR: $f"; fail=1; }
+  o=$(gtimeout -k 10 60 cabal run -v0 egison -- --type-check-strict -t "$f" 2>&1)
+  printf '%s\n' "$o" | grep -q -E "Type error:|^Error:" || { echo "MISSING ERROR: $f"; fail=1; }
+  printf '%s\n' "$o" | grep -q "Parse error" && { echo "PARSE ERROR: $f"; fail=1; }
 done
 [ $fail -eq 0 ] && echo "all rejected as expected"
 ```
+
+(`printf` を使うのは、zsh の `echo` がメッセージ中の `\x` を解釈してしまうため。
+`93`–`96` のシグネチャ境界エラーは環境構築時に `Error:` として報告される。)
+
+かつての 57・64(積 matcher 型の application／変数を 2 hole に渡す)は、
+matcher 型と matcher のタプル型を同一視する正準化のもとで受理されるのが正しく、
+`test/lib/core/next-matcher-components.egi` の受理側回帰に移した。68(節の欠けた
+構築子)は根の網羅性が `--matcher-consistency-warnings` の警告で報告される事項に
+なったため削除した。
 
 ## ケース一覧
 
@@ -55,18 +64,15 @@ done
 | 54-something-structured-hole | PP-Con 遅延判定 | 結果注釈を capability evidence に使わず，list tail hole への `something` を拒否 |
 | 55-multisite-target-conflict | Algorithm W Step 3a(複数 match site) | λ束縛 matcher を `[Integer]` と `[String]` の2 site で使用(単相なので拒否) |
 | 56-multisite-structural-join | 同(capability 要求の join) | site 1 の cons 要求が commit 済み slot に残り、`g something` が適用点で拒否 |
-| 57-next-matcher-nontuple | T-MATCHER / R12 成分境界 | 2 hole に積を返す非 tuple application |
 | 58-next-matcher-slot-structural | Algorithm W Step 3a / R12 | target は一致するが capability が不一致の既存 slot |
 | 59-next-matcher-bare-variable | COERCE-MATCHER-TO-SLOT / R12 | 変数形の `Any` matcher を構造 hole へ渡す |
 | 60-next-matcher-bare-application | 同 / 構文非依存 | application 形の同じ `Any` capability を構造 hole へ渡す |
 | 61-next-matcher-bare-lambda | 同 / 構文非依存 | lambda application 形の同じ `Any` capability を構造 hole へ渡す |
 | 62-next-matcher-nested-rename | nested capability equality | `Maybe [p]` の入れ子骨格を欠く matcher |
 | 63-next-matcher-zero-hole | T-MATCHER / R12 成分境界 | 0 hole に `()` 以外の next matcher |
-| 64-next-matcher-product-variable | T-MATCHER / R12 成分境界 | 積 matcher 型の変数を2 holeへ暗黙分解 |
 | 65-next-matcher-slot-target | Algorithm W Step 3a / R12 | capability は一致するが target 添字が不一致の既存 slot |
 | 66-next-matcher-repeated-slot | exact merge / R12 | 同一 target の反復 slot に `Choice` と `Any` が届く不一致 |
 | 67-target-specialization-cons | capability/target separation | target を list へ特殊化した `Any` matcher で cons を拒否 |
-| 68-unseen-observable-parameter | shape-capability finalization | `None` 型の節だけでは observable parameter を確定できない |
 | 69-exact-clause-mismatch | exact evidence merge | 同じ result slot へ異なる clause capability が届く |
 | 72-capability-unknown-former | capability name elaboration | 未宣言 head を `Capability kind error` で拒否 |
 | 73-capability-arity-mismatch | capability kind elaboration | user inductive head の arity 不一致を `Capability kind error` で拒否 |

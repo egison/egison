@@ -16,10 +16,8 @@ module Language.Egison.Type.Unify
   , unifyStrictWithConstraints
   , unifyWithTopLevel
   , unifyWithConstraints
-  , alignAtSlotWithConstraints
   , unifyMany
   , unifyCapability
-  , matchCapability
   , matchOneWay
   , UnifyError(..)
   ) where
@@ -29,16 +27,14 @@ import qualified Data.Set                    as Set
 
 import           Language.Egison.Type.Subst  (Subst(..), applySubst, composeSubst,
                                               emptySubst, singletonSubst,
-                                              strengtheningSubst,
                                               singletonCapSubst, applyCapSubst,
                                               applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (Capability (..), CapVar (..),
-                                              TypeFormer (..), TyClass (..),
+                                              TypeFormer (..),
                                               TyVar (..), Type (..),
                                               freeCapVars, freeCapVarsCapability,
-                                              freeTyVars, resultDemands,
-                                              tyVarClass, typeDemands,
+                                              freeTyVars,
                                               normalizeInductiveTypes,
                                               Constraint(..), SymbolSet(..))
 import           Language.Egison.Type.Env    (ClassEnv, lookupInstances, emptyClassEnv)
@@ -100,25 +96,6 @@ unifyWithTopLevel t1 t2 =
 unifyWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 unifyWithConstraints = unifyNormalized TensorConstraintAware
 
--- | TypePM-style producer-to-consumer alignment at an explicit MatcherSlot
--- use site.  Generic equality deliberately does not perform this coercion.
--- The first operand is the inferred producer and the second is the expected
--- consumer.  Source-tuple checking is syntax-directed in Infer and therefore
--- does not appear in this raw-type API.
-alignAtSlotWithConstraints
-  :: ClassEnv
-  -> [Constraint]
-  -> Type
-  -> Type
-  -> Either UnifyError (Subst, Bool)
-alignAtSlotWithConstraints classEnv constraints inferred expected =
-  let inferred' =
-        normalizeInductiveTypes (normalizeTensorType inferred)
-      expected' =
-        normalizeInductiveTypes (normalizeTensorType expected)
-  in alignAtSlotG
-       TensorConstraintAware classEnv constraints inferred' expected'
-
 -- | Unify a list of type pairs.
 unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
 unifyMany ts1 ts2 =
@@ -166,13 +143,6 @@ unifyCapability cap1 cap2
           let s = singletonCapSubst v cap
           in go rest (composeSubst s acc)
 
--- | Capability demand at a matcher-to-slot use.  A literal consumer 'Any'
--- contributes no equation; every other consumer is related to the producer
--- by ordinary capability unification.  Directionality belongs to choosing
--- the Matcher-to-MatcherSlot conversion, not to the unifier itself.
-matchCapability :: Capability -> Capability -> Either UnifyError Subst
-matchCapability _ CapAny = Right emptySubst
-matchCapability producer consumer = unifyCapability producer consumer
 
 -- | Capability component matching used only inside type-class
 -- 'matchOneWay'.  It keeps the quantified-instance domain stable and is not
@@ -296,69 +266,8 @@ alignRootG
   -> Type
   -> Type
   -> Either UnifyError (Subst, Bool)
-alignRootG _ _ _ left@(TMatcher _ _) right@(TTuple _) =
-  Left (CapabilityMismatch left right)
-alignRootG _ _ _ left@(TTuple _) right@(TMatcher _ _) =
-  Left (CapabilityMismatch left right)
-alignRootG _ _ _ left@(TMatcherSlot _ _) right@(TTuple _) =
-  Left (CapabilityMismatch left right)
-alignRootG _ _ _ left@(TTuple _) right@(TMatcherSlot _ _) =
-  Left (CapabilityMismatch left right)
-alignRootG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
-  capSubst <- unifyCapability cap1 cap2
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNestedNormalized mode ce cs'
-      (applySubst capSubst target1)
-      (applySubst capSubst target2)
-  Right (composeSubst targetSubst capSubst, flag)
-alignRootG mode ce cs (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) = do
-  capSubst <- unifyCapability cap1 cap2
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNestedNormalized mode ce cs'
-      (applySubst capSubst target1)
-      (applySubst capSubst target2)
-  Right (composeSubst targetSubst capSubst, flag)
-alignRootG _ _ _ left@(TMatcher _ _) right@(TMatcherSlot _ _) =
-  Left (CapabilityMismatch left right)
-alignRootG _ _ _ left@(TMatcherSlot _ _) right@(TMatcher _ _) =
-  Left (CapabilityMismatch left right)
-alignRootG mode ce cs t1 t2 =
-  unifyG mode ce cs t1 t2
+alignRootG = unifyG
 
--- | Role-aware counterpart of TypePM's @alignAtSlot@.  Only this boundary
--- admits producer-to-slot coercion; all other pairs fall back to core root
--- equality.  In particular, reversing Matcher and MatcherSlot is rejected.
-alignAtSlotG
-  :: TensorHandling
-  -> ClassEnv
-  -> [Constraint]
-  -> Type
-  -> Type
-  -> Either UnifyError (Subst, Bool)
-alignAtSlotG mode ce cs
-             (TMatcher producerCap producerTarget)
-             (TMatcherSlot consumerCap consumerTarget) =
-  coerceMatcherToSlot
-    mode ce cs producerCap producerTarget consumerCap consumerTarget
--- 'Any' carries no evidence that its value is a matcher.  Letting the
--- catch-all rule in 'unifyG' accept it here would silently manufacture the
--- Matcher/MatcherSlot head (and therefore a capability witness).  Production
--- Egison may retain that gradual behavior only through the warned extension
--- solver used by Infer.
-alignAtSlotG _ _ _ inferred@TAny expected@(TMatcherSlot _ _) =
-  Left (CapabilityMismatch inferred expected)
-alignAtSlotG mode ce cs inferred expected =
-  alignRootG mode ce cs inferred expected
-
---------------------------------------------------------------------------------
--- Generic Core Unification
---------------------------------------------------------------------------------
-
--- | Target-only core unification parametrized by TensorHandling mode.
--- Recursive calls remain below the root alignment boundary, so capability
--- annotations nested in ordinary type structure are compared rigidly.
 unifyG :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 
 -- Same types unify trivially
@@ -450,26 +359,10 @@ unifyG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
       (applySubst capSubst target1)
       (applySubst capSubst target2)
   Right (composeSubst targetSubst capSubst, flag)
-unifyG mode ce cs (TMatcherSlot cap1 target1) (TMatcherSlot cap2 target2) = do
-  capSubst <- unifyCapability cap1 cap2
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNestedNormalized mode ce cs'
-      (applySubst capSubst target1)
-      (applySubst capSubst target2)
-  Right (composeSubst targetSubst capSubst, flag)
-unifyG _ _ _ left@(TMatcher _ _) right@(TMatcherSlot _ _) =
-  Left (CapabilityMismatch left right)
-unifyG _ _ _ left@(TMatcherSlot _ _) right@(TMatcher _ _) =
-  Left (CapabilityMismatch left right)
-unifyG TensorConstraintAware _ _ left@(TMatcher _ _) right@(TTuple _) =
-  Left (CapabilityMismatch left right)
-unifyG TensorConstraintAware _ _ left@(TTuple _) right@(TMatcher _ _) =
-  Left (CapabilityMismatch left right)
-unifyG TensorConstraintAware _ _ left@(TMatcherSlot _ _) right@(TTuple _) =
-  Left (CapabilityMismatch left right)
-unifyG TensorConstraintAware _ _ left@(TTuple _) right@(TMatcherSlot _ _) =
-  Left (CapabilityMismatch left right)
+unifyG mode ce cs (TMatcher cap target) (TTuple components) =
+  unifyMatcherProductG mode ce cs cap target components
+unifyG mode ce cs (TTuple components) (TMatcher cap target) =
+  unifyMatcherProductG mode ce cs cap target components
 
 -- Function types (two components with substitution threading)
 unifyG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
@@ -577,6 +470,51 @@ unifyManyG mode ce cs (t1:ts1) (t2:ts2) = do
   Right (composeSubst s2 s1, f1 || f2)
 unifyManyG _ _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
 
+-- | The matcher/product head expansion of the canonical equality: a matcher
+-- equal to a tuple of @n@ components has a tuple capability and a tuple
+-- target of arity @n@, and its components are the component matchers.
+-- Variable indices are decomposed into fresh components named after the
+-- variable; the rigid capability @Any@ and constructor capabilities never
+-- distribute.
+unifyMatcherProductG
+  :: TensorHandling
+  -> ClassEnv
+  -> [Constraint]
+  -> Capability
+  -> Type
+  -> [Type]
+  -> Either UnifyError (Subst, Bool)
+unifyMatcherProductG mode ce cs cap target components = do
+  let arity = length components
+      mismatch = Left (CapabilityMismatch (TMatcher cap target) (TTuple components))
+  (capSubst, caps) <-
+    case cap of
+      CapTuple caps
+        | length caps == arity -> Right (emptySubst, caps)
+        | otherwise -> mismatch
+      CapVar (MkCapVar name) ->
+        let caps = [ CapVar (MkCapVar (name ++ "." ++ show i)) | i <- [1 .. arity] ]
+        in Right (singletonCapSubst (MkCapVar name) (CapTuple caps), caps)
+      _ -> mismatch
+  let target' = applySubst capSubst target
+  (targetSubst, targets) <-
+    case target' of
+      TTuple targets
+        | length targets == arity -> Right (emptySubst, targets)
+        | otherwise -> mismatch
+      TVar (TyVar name) ->
+        let targets = [ TVar (TyVar (name ++ "." ++ show i)) | i <- [1 .. arity] ]
+        in Right (singletonSubst (TyVar name) (TTuple targets), targets)
+      _ -> mismatch
+  let headSubst = composeSubst targetSubst capSubst
+      cs' = map (applySubstConstraint headSubst) cs
+      componentMatchers = zipWith TMatcher caps targets
+  (componentSubst, flag) <-
+    unifyManyG mode ce cs'
+      (map (applySubst headSubst) componentMatchers)
+      (map (applySubst headSubst) components)
+  Right (composeSubst componentSubst headSubst, flag)
+
 --------------------------------------------------------------------------------
 -- Variable Unification (mode-specific dispatch)
 --------------------------------------------------------------------------------
@@ -631,22 +569,10 @@ unifyVarConstraintAware classEnv constraints v t
 
 -- | Occurs check and variable binding (shared helper).
 occursCheckAndBind :: TyVar -> Type -> Either UnifyError Subst
-occursCheckAndBind variable ty = do
-  demands <-
-    case tyVarClass variable of
-      ArgumentClass ->
-        maybe (Left $ TypeMismatch (TVar variable) ty) Right
-          (typeDemands ty)
-      ResultClass ->
-        maybe (Left $ TypeMismatch (TVar variable) ty) Right
-          (resultDemands ty)
-  let strengthening = strengtheningSubst demands
-      ty' = applySubst strengthening ty
-  if TVar variable == ty'
-    then Right strengthening
-    else if variable `Set.member` freeTyVars ty'
-      then Left $ OccursCheck variable ty'
-      else Right $ composeSubst (singletonSubst variable ty') strengthening
+occursCheckAndBind variable ty
+  | TVar variable == ty = Right emptySubst
+  | variable `Set.member` freeTyVars ty = Left $ OccursCheck variable ty
+  | otherwise = Right $ singletonSubst variable ty
 
 --------------------------------------------------------------------------------
 -- Tensor-Specific Helpers (ConstraintAware mode only)
@@ -678,27 +604,6 @@ hasInstanceForTensorType classEnv elemType (Constraint className _) =
 -- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)
 --------------------------------------------------------------------------------
 
--- | Coerce a matcher producer into a complete consumer slot.  Capability
--- demand is solved first in the capability sort; target equality is then
--- solved independently in the ordinary type sort.  A consumer @Any@ adds no
--- capability equation; every other demand uses the ordinary capability MGU.
-coerceMatcherToSlot
-  :: TensorHandling
-  -> ClassEnv
-  -> [Constraint]
-  -> Capability
-  -> Type
-  -> Capability
-  -> Type
-  -> Either UnifyError (Subst, Bool)
-coerceMatcherToSlot mode ce cs matcherCap matcherTarget slotCap slotTarget = do
-  capSubst <- matchCapability matcherCap slotCap
-  let cs' = map (applySubstConstraint capSubst) cs
-  (targetSubst, flag) <-
-    unifyNestedNormalized mode ce cs'
-      (applySubst capSubst matcherTarget)
-      (applySubst capSubst slotTarget)
-  Right (composeSubst targetSubst capSubst, flag)
 
 -- | One-way matching: is there a substitution over @slot@'s type variables making
 -- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
@@ -795,20 +700,6 @@ matchOneWayWithDomain bindable bindableCapabilities slot0 matcher0 =
     matchStruct provenance
                 (TMatcher consumerCap consumerTarget)
                 (TMatcher producerCap producerTarget)
-                rest acc =
-      case matchCapabilityOneWayWithDomain
-             provenance
-             bindableCapabilities
-             producerCap
-             consumerCap
-             acc of
-        Right acc' ->
-          descend provenance [(consumerTarget, producerTarget)] rest acc'
-        Left _ ->
-          Nothing
-    matchStruct provenance
-                (TMatcherSlot consumerCap consumerTarget)
-                (TMatcherSlot producerCap producerTarget)
                 rest acc =
       case matchCapabilityOneWayWithDomain
              provenance

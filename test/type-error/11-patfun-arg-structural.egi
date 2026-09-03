@@ -4,7 +4,7 @@
 -- argument's list capability flows through to the application;
 -- `something` fails the capability check.
 --
--- Expected: Type error (Matcher Any a vs MatcherSlot [p] [Integer])
+-- Expected: Type error (Matcher Any a vs Matcher [p] [Integer])
 --
 
 def pattern idp {a} (p: [a]) : [a] := ~p

@@ -1,5 +1,6 @@
--- R12 next-matcher component checks: complete inferred types, recursive
--- capability renaming, and the explicit-tuple component boundary.
+-- Next-matcher component checks: the next matcher expression of a clause
+-- has exactly the matcher type demanded by its holes (one matcher for one
+-- hole, a tuple of matchers for several holes, the empty tuple for none).
 
 def keep {a} (x : a) : a := x
 
@@ -74,9 +75,8 @@ assertEqual "next matcher: zero-hole empty tuple"
   (matchAll UnitBox as unitBoxMatcher with unitBox -> True)
   [True]
 
--- A function parameter supplies an already complete MatcherSlot.  Slot may
--- occur only in parameter positions, so it is not exposed as a returned
--- top-level value.
+-- A function parameter supplies an already complete matcher; the literal
+-- demands exactly its type at the hole.
 def headSlotWith integerSlot :=
   matcher
     | $ :: _ as integerSlot with
@@ -91,15 +91,30 @@ assertEqual "next matcher: complete existing slot"
   (matchAll [1, 2] as headSlot with $x :: _ -> x)
   [1]
 
--- Literal consumer Any is a wildcard only at the explicit MatcherSlot
--- boundary, including when it occurs below a fixed capability head.
-def acceptAnyListSlot (m : MatcherSlot Any [Integer]) : Bool := True
-def acceptNestedAnySlot (m : MatcherSlot [Any] [[Integer]]) : Bool := True
+-- A tuple-typed matcher expression fills several holes at once: its type is
+-- canonically the tuple of the component matcher types, so an application or
+-- a variable of that type is the next matcher of a two-hole clause.
+def consFromApplication : Matcher [Any] [Integer] :=
+  matcher
+    | $ :: $ as keep (integer, list integer) with
+      | $x :: $xs -> [(x, xs)]
+      | _ -> []
+    | $ as something with
+      | $tgt -> [tgt]
 
-assertEqual "slot coercion: literal consumer Any"
-  (acceptAnyListSlot (list integer))
-  True
+assertEqual "next matcher: application of product matcher type"
+  (matchAll [1, 2, 3] as consFromApplication with $x :: $xs -> (x, xs))
+  [(1, [2, 3])]
 
-assertEqual "slot coercion: nested literal consumer Any"
-  (acceptNestedAnySlot (list (list integer)))
-  True
+def consFromVariable : Matcher [Any] [Integer] :=
+  let ms := (integer, list integer)
+   in matcher
+        | $ :: $ as ms with
+          | $x :: $xs -> [(x, xs)]
+          | _ -> []
+        | $ as something with
+          | $tgt -> [tgt]
+
+assertEqual "next matcher: variable of product matcher type"
+  (matchAll [1, 2, 3] as consFromVariable with $x :: $xs -> (x, xs))
+  [(1, [2, 3])]

@@ -1,6 +1,6 @@
 --
 -- Match-site dual check through a function parameter (paper Appendix B, Case 3).
--- The cons pattern commits `m` to MatcherSlot [p] [Integer]; supplying
+-- The cons pattern commits `m` to Matcher [p] [Integer]; supplying
 -- `something` at the application site fails the capability check there.
 --
 -- Expected: Type error at `f something` (capability check fails at the

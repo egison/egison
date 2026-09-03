@@ -46,10 +46,13 @@ def tsubst :=
     | ($σ, compound $f $xs) -> Compound f (map 1#(tsubst σ $1) xs)
 
 def unify :=
-  \match as unorderedPair term with
+  \match as (term, term) with
     | (var $x, var #x) -> Just []
     | ( var $x
       , AndPat (PatVar "t") (NotPat (PApplyPat (VarExpr "occur") [ValuePat (VarExpr "x")])) ) ->
+      Just [(x, t)]
+    | ( AndPat (PatVar "t") (NotPat (PApplyPat (VarExpr "occur") [ValuePat (VarExpr "x")]))
+      , var $x ) ->
       Just [(x, t)]
     | (compound $f $xs, compound #f $ys) -> unifyList xs ys
     | _ -> Nothing

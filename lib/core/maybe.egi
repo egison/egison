@@ -12,7 +12,7 @@ inductive Maybe a :=
   | Nothing
   | Just a
 
-def maybe {a} (m: MatcherSlot p a) : Matcher (Maybe p) (Maybe a) :=
+def maybe {a} (m: Matcher p a) : Matcher (Maybe p) (Maybe a) :=
   matcher
     | nothing as () with
       | Nothing -> [()]

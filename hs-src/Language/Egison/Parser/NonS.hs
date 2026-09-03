@@ -868,7 +868,6 @@ typeAtomSimple =
   <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
-  <|> try matcherSlotTypeExpr
   <|> try matcherTypeExpr
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -895,7 +894,6 @@ typeAtom =
   <|> try termTypeExpr
   <|> try fracTypeExpr
   <|> try polyTypeExpr
-  <|> try matcherSlotTypeExpr
   <|> try matcherTypeExpr
   <|> TEPattern <$> (reserved "Pattern" >> typeAtomOrParenType)
   <|> TEVar     <$> typeVarIdent      -- lowercase type variables (a, b, etc.)
@@ -913,7 +911,7 @@ typeNameIdent = lexeme $ do
     then fail $ "Reserved type keyword: " ++ name
     else return name
   where
-    typeReservedKeywords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "MatcherSlot", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
+    typeReservedKeywords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "IO", "Factor", "Frac", "Poly"]
 
 tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
@@ -977,15 +975,6 @@ matcherTypeExpr = do
   capability <- capabilityAtomOrParenExpr
   target <- typeAtomOrParenType
   return $ TEMatcher capability target
-
--- | Parse a MatcherSlot type. Both indices are mandatory, just as for
--- 'matcherTypeExpr'; there is deliberately no one-index compatibility form.
-matcherSlotTypeExpr :: Parser TypeExpr
-matcherSlotTypeExpr = do
-  _ <- reserved "MatcherSlot"
-  capability <- capabilityAtomOrParenExpr
-  target <- typeAtomOrParenType
-  return $ TEMatcherSlot capability target
 
 -- | Parse an atomic capability index, or a parenthesized capability
 -- application/product. Keeping application behind parentheses gives the
@@ -1065,7 +1054,7 @@ typeVarIdent = lexeme $ do
     then fail $ "Reserved word: " ++ name
     else return name
   where
-    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "MatcherSlot", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Term", "Frac", "Poly"]
+    typeReservedWords = ["Integer", "MathValue", "Float", "Bool", "Char", "String", "Matcher", "Pattern", "Tensor", "Vector", "Matrix", "DiffForm", "Factor", "Term", "Frac", "Poly"]
 
 expr :: Parser Expr
 expr = do

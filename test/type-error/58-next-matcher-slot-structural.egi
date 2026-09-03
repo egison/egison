@@ -1,10 +1,10 @@
--- Algorithm W Step 3a / R12: an existing MatcherSlot component must have
+-- Algorithm W Step 3a / R12: an existing Matcher component must have
 -- both indices checked.  Its target Integer fits the head hole, but its
 -- capability `[Any]` does not.
 --
 -- Expected: Type error (slot capability mismatch)
 
-def bad (wrongStructuralSlot : MatcherSlot [Any] Integer)
+def bad (wrongStructuralSlot : Matcher [Any] Integer)
   : Matcher [Any] [Integer] :=
   matcher
     | $ :: $ as (wrongStructuralSlot, list integer) with

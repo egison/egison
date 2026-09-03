@@ -49,20 +49,18 @@ import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   applySubst,
                                                   applyTypeSubst,
                                                   emptySubst,
-                                                  makeResult,
                                                   singletonCapSubst,
                                                   singletonSubst)
 import           Language.Egison.Type.Types     (CapVar (..),
                                                   Capability (..),
                                                   Dual (..), DualScheme (..),
                                                   TypeScheme (..),
-                                                  TyClass (..), TyVar (..), Type (..),
+                                                  TyVar (..), Type (..),
                                                   dualSchemeTargetScheme,
-                                                  mkTypeFormer, tyVarClass,
+                                                  mkTypeFormer,
+                                                  normalizeMatcherProducts,
                                                   tyVarName)
-import           Language.Egison.Type.Unify     (alignAtSlotWithConstraints,
-                                                  matchCapability, matchOneWay,
-                                                  unify, unifyCapability,
+import           Language.Egison.Type.Unify     (unify, unifyCapability,
                                                   unifyWithConstraints)
 
 main :: IO ()
@@ -72,16 +70,13 @@ main = do
   mapM_ (\(f, why) -> putStrLn ("Skipping " ++ f ++ " (" ++ why ++ ")"))
         skippedLibTests
   flip defaultMainWithArgs args . hUnitTestToTests . test $
-    matcherCapabilityTests
-      ++ [ matcherOneWayTests
-         , arClassTests
-         , arInferenceTests
+    canonicalMatcherTests
+      ++ [ recursiveRootTests
          , coreConservativeExtensionTests
          , cliWarningFlagParsingTests
          , matchWithoutElseWarningTests
          , primitivePatternWarningTests
          , matcherStaticConditionTests
-         , outsideEgisonCoreWarningTests
          , patternFunctionDualSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
@@ -273,10 +268,14 @@ primitivePatternWarningTests =
     ]
   where
     demoType = TInductive "NestedPPatDemo" []
+    -- Every field has the declared pattern type, so every hole demands the
+    -- matcher `demoMatcher : Matcher NestedPPatDemo NestedPPatDemo`.
+    demoMatcherType =
+      TMatcher (CapCon (mkTypeFormer "NestedPPatDemo" 0) []) demoType
     constructorScheme =
-      Forall [] [] [] (TFun TInt (TFun demoType demoType))
+      Forall [] [] [] (TFun demoType (TFun demoType demoType))
     pairScheme =
-      Forall [] [] [] (TFun TInt (TFun TInt demoType))
+      Forall [] [] [] (TFun demoType (TFun demoType demoType))
     patternEnv =
       extendPatternEnv "pair" pairScheme $
         extendPatternEnv "join" constructorScheme $
@@ -290,7 +289,10 @@ primitivePatternWarningTests =
               { cfgPatternHoleBeforePrimitiveValuePatternWarnings = orderWarnings
               , cfgNestedStructuredPrimitivePatternPatternWarnings = nestedWarnings
               })
-          { inferPatternEnv = patternEnv })
+          { inferPatternEnv = patternEnv
+          , declaredSymbols =
+              Map.fromList [("demoMatcher", demoMatcherType)]
+          })
 
     matcherExpression pattern =
       IMatcherExpr
@@ -307,9 +309,9 @@ primitivePatternWarningTests =
           )
         ]
 
-    nextMatchers 1 = IConstantExpr SomethingExpr
+    nextMatchers 1 = IVarExpr "demoMatcher"
     nextMatchers count =
-      ITupleExpr (replicate count (IConstantExpr SomethingExpr))
+      ITupleExpr (replicate count (IVarExpr "demoMatcher"))
 
     patternHoleCount pattern =
       case pattern of
@@ -437,58 +439,6 @@ matcherStaticConditionTests =
           )
         ]
 
-outsideEgisonCoreWarningTests :: Test
-outsideEgisonCoreWarningTests =
-  TestLabel "outside-Egison-core warnings" $ TestCase $ do
-    let slotExpression =
-          IApplyExpr
-            (IVarExpr "slotConsumer")
-            [IVarExpr "rawUnknownValue"]
-        slotState enabled =
-          (initialInferStateWithConfig
-            defaultInferConfig
-              { cfgOutsideEgisonCoreWarnings = enabled })
-            { declaredSymbols = Map.fromList
-                [ ( "slotConsumer"
-                  , TFun (TMatcherSlot CapAny TInt) TInt
-                  )
-                , ("rawUnknownValue", TAny)
-                ]
-            }
-
-    (slotResultOff, slotWarningsOff) <-
-      runInferWithWarnings
-        (inferIExpr slotExpression)
-        (slotState False)
-    (slotResultOn, slotWarningsOn) <-
-      runInferWithWarnings
-        (inferIExpr slotExpression)
-        (slotState True)
-
-    assertEqual
-      "slot warning reporting must not change inference"
-      (show slotResultOff)
-      (show slotResultOn)
-    case slotResultOn of
-      Right _ -> return ()
-      Left err ->
-        assertFailure
-          ("the raw ordinary TAny-to-slot path should remain accepted: " ++ show err)
-    assertEqual
-      "the raw ordinary TAny-to-slot extension is silent when disabled"
-      []
-      slotWarningsOff
-    case slotWarningsOn of
-      [OutsideEgisonCoreWarning detail _] ->
-        assertBool
-          "the raw ordinary TAny-to-slot extension is reported at its explicit boundary"
-          ("explicit slot use `_ <= MatcherSlot Any Integer`"
-            `isInfixOf` detail)
-      other ->
-        assertFailure
-          ("expected exactly one raw TAny-to-slot outside-core warning, got " ++
-           show other)
-
 -- | On the TypePM grammar, production equality must be exactly the
 -- synchronized core relation.  Enabling extension diagnostics cannot turn a
 -- core rejection into a warned success or change the core substitution.
@@ -500,19 +450,15 @@ coreConservativeExtensionTests =
     listCapability = CapCon (mkTypeFormer "Collection" 1) [CapAny]
     cases =
       [ ( "nested target refinement"
-        , TCollection (TMatcher CapAny (TVar (ResultTyVar "target")))
+        , TCollection (TMatcher CapAny (TVar (TyVar "target")))
         , TCollection (TMatcher CapAny TInt)
-        )
-      , ( "nested matcher-to-slot crossing"
-        , TCollection (TMatcher CapAny TInt)
-        , TCollection (TMatcherSlot CapAny TInt)
         )
       , ( "nested capability mismatch"
         , TCollection (TMatcher CapAny TInt)
         , TCollection (TMatcher listCapability TInt)
         )
       , ( "function result refinement"
-        , TFun TInt (TVar (ResultTyVar "result"))
+        , TFun TInt (TVar (TyVar "result"))
         , TFun TInt TBool
         )
       ]
@@ -1418,11 +1364,11 @@ patternFunctionDualSchemeTests =
                   (leftCapability, rightCapability, leftTarget, rightTarget)
         _ -> Nothing
 
--- | Pure regressions for the two-sort matcher-capability representation and evidence
--- calculus.  Language-level acceptance/rejection cases live in
--- test/lib/core/matcher-capability.egi and test/type-error respectively.
-matcherCapabilityTests :: [Test]
-matcherCapabilityTests =
+-- | Unit regressions for the single matcher type of the paper: ordinary and
+-- capability substitution, canonical matcher--tuple normalization, and the
+-- head expansion of the two-sorted equality unifier.
+canonicalMatcherTests :: [Test]
+canonicalMatcherTests =
   [ TestLabel "TypePM: type substitution does not enter capability" . TestCase $ do
       let typeVariable = TyVar "a"
           capabilityVariable = MkCapVar "p"
@@ -1465,698 +1411,53 @@ matcherCapabilityTests =
               (TInductive "Maybe" [TInt]))))
         substituted
 
-  , TestLabel "TypePM: exact evidence preserves variable identity" . TestCase $ do
-      let p = CapVar (MkCapVar "p")
-          q = CapVar (MkCapVar "q")
-      assertEqual
-        "the same producer variable is exact evidence"
-        (Right (Capability.CapKnown p))
-        (Capability.mergeCapEvidence
-          (Capability.CapKnown p)
-          (Capability.CapKnown p))
-      case Capability.mergeCapEvidence
-             (Capability.CapKnown p)
-             (Capability.CapKnown q) of
-        Left _  -> return ()
-        Right _ ->
-          assertFailure "different producer variables must not be unified by exact merge"
-
-  , TestLabel "TypePM: observability uses the least declaration fixpoint" . TestCase $ do
-      let a = TyVar "a"
-          tree = TInductive "Tree" [TVar a]
-          nodeOnly =
-            extendPatternEnv "node"
-              (Forall [] [a] [] (TFun tree tree))
-              emptyPatternEnv
-          withLeaf =
-            extendPatternEnv "leaf"
-              (Forall [] [a] [] (TFun (TVar a) tree))
-              nodeOnly
-          treeFormer = mkTypeFormer "Tree" 1
-      nodeLookup <-
-        either assertFailure return
-          (Capability.observabilityLookup nodeOnly)
-      leafLookup <-
-        either assertFailure return
-          (Capability.observabilityLookup withLeaf)
-      assertEqual
-        "a recursive-only occurrence is not an observability seed"
-        (Just [False])
-        (nodeLookup treeFormer)
-      assertEqual
-        "a direct field occurrence seeds the recursive parameter"
-        (Just [True])
-        (leafLookup treeFormer)
-
-  , TestLabel "TypePM: signature projection follows result-slot order" . TestCase $ do
-      let a = TyVar "a"
-          b = TyVar "b"
-          p = CapVar (MkCapVar "p")
-          q = CapVar (MkCapVar "q")
-          former = mkTypeFormer "Swap" 2
-          observable requested
-            | requested == former = Just [True, True]
-            | otherwise           = Nothing
-      projected <-
-        either assertFailure return
-          (Capability.projectConstructorEvidence
-            observable
-            [TVar a, TVar b]
-            (TInductive "Swap" [TVar b, TVar a])
-            [Capability.CapKnown p, Capability.CapKnown q])
-      assertEqual
-        "field order a,b must project into result order b,a"
-        (Capability.CapConEvidence former
-          [Capability.CapKnown q, Capability.CapKnown p])
-        projected
-
-  , TestLabel "TypePM: closed fields validate actual producer evidence" .
+  , TestLabel "TypePM: a matcher over a product normalizes to a product of matchers" .
       TestCase $ do
-        let collectionFormer = mkTypeFormer "Collection" 1
-            boxFormer = mkTypeFormer "ClosedFieldBox" 0
-            observable former
-              | former == collectionFormer = Just [True]
-              | former == boxFormer = Just []
-              | otherwise = Nothing
-            fieldType = TCollection TInt
-            resultType = TInductive "ClosedFieldBox" []
-            listEvidence =
-              Capability.CapConEvidence collectionFormer
-                [Capability.CapKnown CapAny]
-            nestedListEvidence =
-              Capability.CapConEvidence collectionFormer [listEvidence]
-            anyCapability = Capability.CapKnown CapAny
-            flexibleCapability =
-              Capability.CapKnown
-                (CapVar (MkCapVar "closedFieldProducer"))
+        let original =
+              TMatcher
+                (CapTuple [CapAny, listAny])
+                (TTuple [TInt, TCollection TInt])
         assertEqual
-          "wildcard/value evidence carries no field-head obligation"
-          (Right ())
-          (Capability.validateFieldEvidence
-            observable fieldType Capability.CapUnseen)
-        assertEqual
-          "a list-capable next matcher satisfies the closed field skeleton"
-          (Right ())
-          (Capability.validateFieldEvidence
-            observable fieldType listEvidence)
-        assertEqual
-          "nested visible heads remain part of the field skeleton"
-          (Right ())
-          (Capability.validateFieldEvidence
-            observable (TCollection fieldType) nestedListEvidence)
-        case Capability.validateFieldEvidence
-               observable (TCollection fieldType) listEvidence of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "an outer-only list producer filled a nested list field"
-        case Capability.validateFieldEvidence
-               observable fieldType anyCapability of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "an Any-capability producer filled a closed list-headed field"
-        case Capability.validateFieldEvidence
-               observable fieldType flexibleCapability of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "a closed field target manufactured a flexible producer head"
-        assertEqual
-          "closed field evidence is not projected into a nullary result"
-          (Right (Capability.CapConEvidence boxFormer []))
-          (Capability.projectConstructorEvidence
-            observable [fieldType] resultType [anyCapability])
+          "Matcher (Any, [Any]) (Integer, [Integer]) is the product of its components"
+          (TTuple [TMatcher CapAny TInt, TMatcher listAny (TCollection TInt)])
+          (normalizeMatcherProducts original)
 
-  , TestLabel "TypePM: CapTargetOK is canonical and context-relative" . TestCase $ do
-      let p = CapVar (MkCapVar "p")
-          a = TVar (TyVar "a")
-          collectionP =
-            CapCon (mkTypeFormer "Collection" 1) [p]
-      assertBool
-        "an actual input matcher/slot supplies the open correspondence"
-        (Capability.capTargetOK
-          [(p, a)]
-          collectionP
-          (TCollection a))
-      assertBool
-        "a bare open pair has no correspondence without an input value"
-        (not (Capability.capTargetOK
-          []
-          collectionP
-          (TCollection a)))
-      assertBool
-        "CAS ground equivalence must not change canonical capability heads"
-        (not (Capability.capTargetOK
-          []
-          (CapCon (mkTypeFormer "MathValue" 0) [])
-          TFactor))
-
-  , TestLabel "TypePM: malformed capability arity is rejected internally" .
+  , TestLabel "TypePM: Matcher Any over a product does not distribute" .
       TestCase $ do
-        let malformed =
-              CapCon (mkTypeFormer "Collection" 1) []
-        case unifyCapability malformed malformed of
-          Left _ ->
-            return ()
-          Right _ ->
-            assertFailure
-              "identical malformed capabilities bypassed the kind invariant"
+        let original = TMatcher CapAny (TTuple [TInt, TInt])
+        assertEqual
+          "a non-product capability keeps the matcher form"
+          original
+          (normalizeMatcherProducts original)
 
-  , TestLabel "TypePM: capability matching returns an ordinary MGU" .
+  , TestLabel "TypePM: unification expands a matcher head against a product" .
       TestCase $ do
-        let producerVariable = MkCapVar "producer"
-            consumerVariable = MkCapVar "consumer"
-            collection capability =
-              CapCon (mkTypeFormer "Collection" 1) [capability]
-            producer = collection (CapVar producerVariable)
-            consumer = collection (CapVar consumerVariable)
+        let p = MkCapVar "p"
+            t = TyVar "t"
+            head' = TMatcher (CapVar p) (TVar t)
+            matcherProduct =
+              TTuple [TMatcher CapAny TInt, TMatcher listAny (TCollection TInt)]
         substitution <-
-          either (assertFailure . show) return
-            (matchCapability producer consumer)
+          either (assertFailure . show) return (unify head' matcherProduct)
         assertEqual
-          "both capability images agree after the MGU"
-          (applyCapSubst substitution producer)
-          (applyCapSubst substitution consumer)
+          "the expanded head is the product"
+          matcherProduct
+          (applySubst substitution head')
 
-  , TestLabel "TypePM: literal consumer Any is a one-way wildcard" .
-      TestCase $ do
-        let producer =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-        case matchCapability producer CapAny of
-          Left err ->
-            assertFailure
-              ("literal consumer Any rejected a producer: " ++ show err)
-          Right substitution ->
-            assertEqual
-              "a ground wildcard introduces no producer substitution"
-              producer
-              (applyCapSubst substitution producer)
-
-  , TestLabel "TypePM: symmetric unification keeps Any rigid" .
-      TestCase $ do
-        let structured =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-        case unifyCapability CapAny structured of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "symmetric equality treated ground Any as a wildcard"
-
-  , TestLabel "TypePM: a variable bound to Any is strict on reuse" .
-      TestCase $ do
-        let shared = MkCapVar "shared-consumer"
-            structured =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producer = CapTuple [CapAny, structured]
-            consumer = CapTuple [CapVar shared, CapVar shared]
-        case matchCapability producer consumer of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "a repeated consumer variable forgot its first Any binding"
-
-  , TestLabel "TypePM: capability matching may specialize a producer" .
-      TestCase $ do
-        let producer = CapVar (MkCapVar "producer")
-            consumer =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-        case matchCapability producer consumer of
-          Left err ->
-            assertFailure
-              ("ordinary capability specialization failed: " ++ show err)
-          Right substitution ->
-            assertEqual
-              "the producer is specialized to the demanded structure"
-              consumer
-              (applyCapSubst substitution producer)
-
-  , TestLabel "TypePM: capability occurs check rejects a cyclic equality" .
-      TestCase $ do
-        let shared = MkCapVar "shared"
-            producer =
-              CapCon (mkTypeFormer "Collection" 1) [CapVar shared]
-            consumer = CapVar shared
-        case matchCapability producer consumer of
-          Left _ ->
-            return ()
-          Right _ ->
-            assertFailure
-              "a cyclic capability equation was unexpectedly accepted"
-
-  , TestLabel "TypePM: target equality uses ordinary capability MGU" .
-      TestCase $ do
-        let producerVar = MkCapVar "producer"
-            consumerVar = MkCapVar "consumer"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producer =
-              TMatcher
-                (CapVar producerVar)
-                (TMatcher (CapVar producerVar) TInt)
-            consumer =
-              TMatcherSlot
-                (CapVar consumerVar)
-                (TMatcher listAny TInt)
-        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
-          Left err ->
-            assertFailure
-              ("target capability specialization was rejected: " ++ show err)
-          Right _ -> return ()
-
-  , TestLabel "TypePM: target capability variables may be specialized" .
-      TestCase $ do
-        let targetVar = MkCapVar "target-only"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producer =
-              TMatcher CapAny (TMatcher (CapVar targetVar) TInt)
-            consumer =
-              TMatcherSlot CapAny (TMatcher listAny TInt)
-        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
-          Left err ->
-            assertFailure
-              ("target capability variable was not specialized: " ++ show err)
-          Right _ -> return ()
-
-  , TestLabel "TypePM: target ordinary variables remain specializable" .
-      TestCase $ do
-        let targetVar = TyVar "target"
-            producer = TMatcher CapAny (TVar targetVar)
-            consumer = TMatcherSlot CapAny TInt
-        case alignAtSlotWithConstraints emptyClassEnv [] producer consumer of
-          Left err ->
-            assertFailure
-              ("ordinary target specialization was rejected: " ++ show err)
-          Right _ ->
-            return ()
-
-  , TestLabel "TypePM: generic equality does not perform slot coercion" .
-      TestCase $ do
-        case unify
-          (TMatcher CapAny TInt)
-          (TMatcherSlot CapAny TInt) of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "generic equality accepted a producer-to-slot coercion"
-
-  , TestLabel "TypePM: tuple matcher coercion requires an explicit slot use" .
-      TestCase $ do
-        let tupleMatcher =
-              TTuple [TMatcher CapAny TInt, TMatcher CapAny TInt]
-            productMatcher =
-              TMatcher
-                (CapTuple [CapAny, CapAny])
-                (TTuple [TInt, TInt])
-        case unify tupleMatcher productMatcher of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "generic equality performed tuple-to-matcher coercion"
-
-  , TestLabel "TypePM: core tuple coercion does not synthesize untracked duals" .
-      TestCase $ do
-        let unknownProducer = TTuple [TVar (TyVar "unknownProducer")]
-            openConsumer =
-              TMatcherSlot
-                (CapVar (MkCapVar "openConsumerCap"))
-                (TVar (TyVar "openConsumerTarget"))
-        case alignAtSlotWithConstraints
-          emptyClassEnv [] unknownProducer openConsumer of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "core tuple coercion manufactured a dual outside InferState"
-
-  , TestLabel "TypePM: Any cannot silently invent a matcher slot head" .
-      TestCase $ do
-        let consumer = TMatcherSlot CapAny TInt
-        case alignAtSlotWithConstraints emptyClassEnv [] TAny consumer of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "core slot alignment accepted Any as matcher evidence"
-
-  , TestLabel "TypePM: tuple Any cannot silently invent a matcher slot head" .
-      TestCase $ do
-        let producers =
-              TTuple [TAny, TMatcher CapAny TInt]
-            consumer =
-              TMatcherSlot
-                (CapTuple [CapAny, CapAny])
-                (TTuple [TInt, TInt])
-        case alignAtSlotWithConstraints
-          emptyClassEnv [] producers consumer of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "core product-slot alignment accepted Any as matcher evidence"
-
-  , TestLabel "TypePM: raw product does not receive tuple-slot checking" .
-      TestCase $ do
-        let listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producers =
-              TTuple
-                [ TMatcher listAny TInt
-                , TMatcher listAny TInt
-                ]
-            consumer =
-              TMatcherSlot
-                (CapTuple [CapAny, CapAny])
-                (TTuple [TInt, TInt])
-        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "raw product alignment bypassed the source-tuple checking boundary"
-
-  , TestLabel "TypePM: product slot keeps an Any binding strict" .
-      TestCase $ do
-        let shared = MkCapVar "product-consumer"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producers =
-              TTuple
-                [ TMatcher CapAny TInt
-                , TMatcher listAny TInt
-                ]
-            consumer =
-              TMatcherSlot
-                (CapTuple [CapVar shared, CapVar shared])
-                (TTuple [TInt, TInt])
-        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
-          Left _ ->
-            return ()
-          Right _ ->
-            assertFailure
-              "product validation treated a saved Any as a literal wildcard"
-
-  , TestLabel "TypePM: product slot coercion retains one shared witness" .
-      TestCase $ do
-        let shared = MkCapVar "shared"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            producers =
-              TTuple
-                [ TMatcher (CapVar shared) TInt
-                , TMatcher listAny TInt
-                ]
-            consumer =
-              TMatcherSlot
-                (CapTuple [CapVar shared, CapVar shared])
-                (TTuple [TInt, TInt])
-        case alignAtSlotWithConstraints emptyClassEnv [] producers consumer of
-          Left _ ->
-            return ()
-          Right _ ->
-            assertFailure
-              "a later product component changed an earlier producer"
-
-  , TestLabel "TypePM: one-way type matching keeps shared matcher variables rigid" .
-      TestCase $ do
-        let shared = TyVar "shared"
-            slot = TTuple [TVar shared, TVar shared]
-            matcher = TTuple [TVar shared, TInt]
-        case matchOneWay slot matcher of
-          Nothing ->
-            return ()
-          Just _ ->
-            assertFailure
-              "a slot occurrence rebound a variable shared with the matcher"
-
-  , TestLabel "TypePM: one-way type matching shares one capability domain" .
-      TestCase $ do
-        let shared = MkCapVar "shared-capability"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            slot =
-              TTuple
-                [ TMatcher (CapVar shared) TInt
-                , TMatcher (CapVar shared) TInt
-                ]
-            matcher =
-              TTuple
-                [ TMatcher (CapVar shared) TInt
-                , TMatcher listAny TInt
-                ]
-        case matchOneWay slot matcher of
-          Nothing ->
-            return ()
-          Just _ ->
-            assertFailure
-              "a later component rebound a shared matcher capability"
-
-  , TestLabel "TypePM: one-way type matching preserves Any provenance" .
-      TestCase $ do
-        let shared = MkCapVar "consumer-only-capability"
-            listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            slot =
-              TTuple
-                [ TMatcher (CapVar shared) TInt
-                , TMatcher (CapVar shared) TInt
-                ]
-            matcher =
-              TTuple
-                [ TMatcher CapAny TInt
-                , TMatcher listAny TInt
-                ]
-        case matchOneWay slot matcher of
-          Nothing ->
-            return ()
-          Just _ ->
-            assertFailure
-              "a substituted Any became a wildcard at the second component"
-
-  , TestLabel "TypePM: one-way type matching keeps literal Any wild" .
-      TestCase $ do
-        let listAny =
-              CapCon (mkTypeFormer "Collection" 1) [CapAny]
-            slot =
-              TTuple
-                [ TMatcher CapAny TInt
-                , TMatcher CapAny TInt
-                ]
-            matcher =
-              TTuple
-                [ TMatcher listAny TInt
-                , TMatcher listAny TInt
-                ]
-        case matchOneWay slot matcher of
-          Nothing ->
-            assertFailure
-              "literal Any provenance was lost during tuple decomposition"
-          Just _ ->
-            return ()
-
+  , TestLabel "TypePM: capabilities unify by equality only" . TestCase $
+      case unify (TMatcher CapAny TInt) (TMatcher listAny TInt) of
+        Left _ -> return ()
+        Right _ -> assertFailure "Any and [Any] were unified"
   ]
+  where
+    listAny = CapCon (mkTypeFormer "Collection" 1) [CapAny]
 
--- | The substitution domain belongs to the structural slot only.  In
--- particular, resolving a repeated slot variable to a matcher variable must
--- not make that matcher variable bindable at the next occurrence.
-matcherOneWayTests :: Test
-matcherOneWayTests =
-  TestLabel "matchOneWay keeps matcher variables rigid" . TestCase $ do
-    let slotVar = TyVar "slot"
-        matcherLeft = TyVar "matcherLeft"
-        matcherRight = TyVar "matcherRight"
-        repeatedSlot = TTuple [TVar slotVar, TVar slotVar]
-    case matchOneWay repeatedSlot
-           (TTuple [TVar matcherLeft, TVar matcherRight]) of
-      Nothing -> return ()
-      Just _ ->
-        assertFailure
-          "a matcher-side variable was rebound while checking a repeated slot"
-    case matchOneWay repeatedSlot
-           (TTuple [TVar matcherLeft, TVar matcherLeft]) of
-      Just _ -> return ()
-      Nothing ->
-        assertFailure
-          "a consistently repeated rigid matcher variable should be accepted"
-
--- | A variables may denote slots, whereas R variables are restricted to
--- result-admissible types.  Equal textual names make strengthening observable
--- without introducing a separate role environment.
-arClassTests :: Test
-arClassTests =
-  TestLabel "A/R type-variable classes" . TestList $
-    [ TestLabel "A variable accepts a matcher slot" . TestCase $ do
-        case unify
-          (TVar (TyVar "a"))
-          (TMatcherSlot CapAny TInt) of
-          Right _ -> return ()
-          Left err ->
-            assertFailure ("A variable rejected a matcher slot: " ++ show err)
-    , TestLabel "R variable rejects a matcher slot" . TestCase $ do
-        case unify
-          (TVar (ResultTyVar "r"))
-          (TMatcherSlot CapAny TInt) of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure "R variable accepted a matcher slot"
-    , TestLabel "A/R equality strengthens the A occurrence" . TestCase $ do
-        let argument = TyVar "shared"
-            result = ResultTyVar "shared"
-        case unify (TVar argument) (TVar result) of
-          Left err ->
-            assertFailure ("A/R variables did not unify: " ++ show err)
-          Right substitution ->
-            assertEqual
-              "the A occurrence is represented by its R form"
-              (TVar result)
-              (applySubst substitution (TVar argument))
-    , TestLabel "makeResult strengthens shared identity schemes" . TestCase $ do
-        let variable = TyVar "identity"
-            identityType = TFun (TVar variable) (TVar variable)
-            strengthened =
-              TFun
-                (TVar (ResultTyVar "identity"))
-                (TVar (ResultTyVar "identity"))
-        case makeResult emptySubst identityType of
-          Nothing -> assertFailure "identity type was not result-admissible"
-          Just (_, ty) -> assertEqual "identity role" strengthened ty
-    , TestLabel "slot is allowed only below a function argument" . TestCase $ do
-        let valid = TFun (TMatcherSlot CapAny TInt) TBool
-            invalid = TFun TInt (TMatcherSlot CapAny TInt)
-        case (makeResult emptySubst valid, makeResult emptySubst invalid) of
-          (Just _, Nothing) -> return ()
-          result ->
-            assertFailure ("unexpected result classification: " ++ show result)
-    ]
-
-arInferenceTests :: Test
-arInferenceTests =
-  TestLabel "A/R expression inference" . TestList $
-    [ TestLabel "identity lambda strengthens its shared variable" . TestCase $ do
-        result <- inferExpression $
-          ILambdaExpr Nothing [Var "x" []] (IVarExpr "x")
-        case result of
-          Right (typed, substitution) ->
-            case applySubst substitution (tiExprType typed) of
-              TFun (TVar domain) (TVar codomain) -> do
-                assertEqual "shared variable identity"
-                  (tyVarName domain) (tyVarName codomain)
-                assertEqual "domain class" ResultClass (tyVarClass domain)
-                assertEqual "codomain class" ResultClass (tyVarClass codomain)
-              ty -> assertFailure ("unexpected identity type: " ++ show ty)
-          Left err -> assertFailure ("identity inference failed: " ++ show err)
-    , TestLabel "unused lambda parameter remains A" . TestCase $ do
-        result <- inferExpression $
-          ILambdaExpr Nothing [Var "x" []]
-            (IConstantExpr (IntegerExpr 1))
-        case result of
-          Right (typed, substitution) ->
-            case applySubst substitution (tiExprType typed) of
-              TFun (TVar domain) TInt ->
-                assertEqual "domain class" ArgumentClass (tyVarClass domain)
-              ty -> assertFailure ("unexpected constant-function type: " ++ show ty)
-          Left err -> assertFailure ("constant-function inference failed: " ++ show err)
-    , TestLabel "R variable becomes a matcher at a slot use" . TestCase $ do
-        let ordering = CapCon (mkTypeFormer "Ordering" 0) []
-            state =
-              initialInferState
-                { declaredSymbols = Map.fromList
-                    [ ( "slotConsumer"
-                      , TFun (TMatcherSlot ordering TInt) TInt
-                      )
-                    , ("recursiveMatcher", TVar (ResultTyVar "self"))
-                    ]
-                }
-            expression =
-              IApplyExpr (IVarExpr "slotConsumer")
-                [IVarExpr "recursiveMatcher"]
-        (result, _) <- runInferWithWarnings (inferIExpr expression) state
-        case result of
-          Right (_, substitution) ->
-            assertEqual
-              "R variable is refined to the demanded matcher"
-              (TMatcher ordering TInt)
-              (applySubst substitution (TVar (ResultTyVar "self")))
-          Left err -> assertFailure ("R-to-matcher checking failed: " ++ show err)
-    , TestLabel "source tuple receives component slot checking" . TestCase $ do
-        let state =
-              initialInferState
-                { declaredSymbols = Map.singleton
-                    "pairConsumer"
-                    (TFun
-                      (TMatcherSlot
-                        (CapTuple [CapAny, CapAny])
-                        (TTuple [TInt, TBool]))
-                      TInt)
-                }
-            expression =
-              IApplyExpr (IVarExpr "pairConsumer")
-                [ ITupleExpr
-                    [ IConstantExpr SomethingExpr
-                    , IConstantExpr SomethingExpr
-                    ]
-                ]
-        (result, _) <- runInferWithWarnings (inferIExpr expression) state
-        case result of
-          Right _ -> return ()
-          Left err -> assertFailure ("source tuple checking failed: " ++ show err)
-    , TestLabel "raw tuple value receives no tuple-to-slot conversion" . TestCase $ do
-        let state =
-              initialInferState
-                { declaredSymbols = Map.fromList
-                    [ ( "pairConsumer"
-                      , TFun
-                          (TMatcherSlot
-                            (CapTuple [CapAny, CapAny])
-                            (TTuple [TInt, TBool]))
-                          TInt
-                      )
-                    , ( "storedPair"
-                      , TTuple
-                          [ TMatcher CapAny TInt
-                          , TMatcher CapAny TBool
-                          ]
-                      )
-                    ]
-                }
-            expression =
-              IApplyExpr (IVarExpr "pairConsumer") [IVarExpr "storedPair"]
-        (result, _) <- runInferWithWarnings (inferIExpr expression) state
-        case result of
-          Left _ -> return ()
-          Right _ -> assertFailure "a non-source tuple was converted to a slot"
-    , TestLabel "application arguments close in source order" . TestCase $ do
-        let consumerFunction =
-              TFun (TMatcherSlot CapAny TInt) TInt
-            state =
-              initialInferState
-                { declaredSymbols =
-                    Map.singleton
-                      "use"
-                      (TFun consumerFunction TInt)
-                }
-            applyUse =
-              IApplyExpr (IVarExpr "use") [IVarExpr "f"]
-            applyF =
-              IApplyExpr (IVarExpr "f")
-                [IConstantExpr SomethingExpr]
-            useFirst =
-              ILambdaExpr Nothing [Var "f" []]
-                (ITupleExpr [applyUse, applyF])
-            applicationFirst =
-              ILambdaExpr Nothing [Var "f" []]
-                (ITupleExpr [applyF, applyUse])
-        (accepted, _) <-
-          runInferWithWarnings (inferIExpr useFirst) state
-        case accepted of
-          Right _ -> return ()
-          Left err ->
-            assertFailure ("use-first application failed: " ++ show err)
-        (rejected, _) <-
-          runInferWithWarnings (inferIExpr applicationFirst) state
-        case rejected of
-          Left _ -> return ()
-          Right _ ->
-            assertFailure
-              "a later argument changed an earlier checking conversion"
-    , TestLabel "recursive data root is rejected" . TestCase $ do
+-- | Recursive top-level roots: a recursive lambda is accepted, a recursive
+-- data root is rejected.
+recursiveRootTests :: Test
+recursiveRootTests =
+  TestLabel "recursive definition roots" . TestList $
+    [ TestLabel "recursive data root is rejected" . TestCase $ do
         let definition =
               IDefine
                 (Var "cycle" [])
@@ -2179,9 +1480,6 @@ arInferenceTests =
           Right _ -> return ()
           Left err -> assertFailure ("recursive lambda failed: " ++ show err)
     ]
-  where
-    inferExpression expression =
-      fst <$> runInferWithWarnings (inferIExpr expression) initialInferState
 
 -- | Strict type checking must not silently feed an ill-typed definition to
 -- the untyped evaluator.  Permissive mode retains that fallback for gradual
@@ -2379,28 +1677,28 @@ signatureBoundaryTypeErrorTests =
             assertFailure
               ("an invalid public signature was accepted: " ++ file)
 
--- | Closed constructor fields do not project into a nullary result
--- capability, but an actual primitive-pattern hole still has to expose the
--- field's visible head.  Require the field-evidence diagnostic so these cases
+-- | A hole of a declared list field demands the list capability; an
+-- Any-capability next matcher, whatever its syntactic form, is rejected by
+-- the capability equation.  Require the capability diagnostic so these cases
 -- cannot pass because of an unrelated target or parser error.
 closedFieldTypeErrorTests :: Test
 closedFieldTypeErrorTests =
   TestLabel "closed constructor-field next-matcher rejection" . TestList $
     map rejects
       [ ( "test/type-error/24-patfun-nested-matcher-slot.egi"
-        , "expected evidence headed by Collection/1"
+        , "matcher capabilities do not unify"
         )
       , ( "test/type-error/59-next-matcher-bare-variable.egi"
-        , "expected evidence headed by Collection/1"
+        , "matcher capabilities do not unify"
         )
       , ( "test/type-error/60-next-matcher-bare-application.egi"
-        , "expected evidence headed by Collection/1"
+        , "matcher capabilities do not unify"
         )
       , ( "test/type-error/61-next-matcher-bare-lambda.egi"
-        , "expected evidence headed by Collection/1"
+        , "matcher capabilities do not unify"
         )
       , ( "test/type-error/90-closed-field-slot-application.egi"
-        , "MatcherSlot"
+        , "matcher capabilities do not unify"
         )
       ]
   where
@@ -2476,13 +1774,13 @@ annotationRigidityTests =
 capabilityMguTests :: Test
 capabilityMguTests =
   TestLabel "TypePM: ordinary capability MGU" . TestList $
-    [ TestLabel "matcher-to-slot may specialize a producer variable" .
+    [ TestLabel "a capability variable is bound by the capability MGU" .
         TestCase $ do
           let producerVariable = MkCapVar "producer"
               required = CapCon (mkTypeFormer "Collection" 1) [CapAny]
           substitution <-
             either (assertFailure . show) return
-              (matchCapability (CapVar producerVariable) required)
+              (unifyCapability (CapVar producerVariable) required)
           assertEqual
             "the ordinary MGU specializes the producer capability"
             required

@@ -527,8 +527,6 @@ data TypeExpr
   | TEFun TypeExpr TypeExpr            -- ^ Function type, e.g., a -> b
   | TEMatcher CapabilityExpr TypeExpr
                                       -- ^ Matcher type, e.g., Matcher (List p) [a]
-  | TEMatcherSlot CapabilityExpr TypeExpr
-                                      -- ^ Matcher consumer position, e.g., MatcherSlot p a
   | TEPattern TypeExpr                 -- ^ Pattern type, e.g., Pattern a
   | TEIO TypeExpr                      -- ^ IO type, e.g., IO ()
   | TETensor TypeExpr                  -- ^ Tensor type, e.g., Tensor a

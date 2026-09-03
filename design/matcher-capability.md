@@ -1,107 +1,101 @@
 # Matcher capability 実装契約
 
-> 状態：2026-08-27
+> 状態：2026-09-03（単一 `Matcher` 型と等式単一化への再実装後）
 
-本文書は，Egison 本体における matcher capability 実装の要点を記す．形式規則と証明の
-正本は `type-pm-mech3` であり，Haskell 実装との詳しい適合条件は
-[type-pm-conformance.md](./type-pm-conformance.md)，Egison 固有拡張との境界は
-[type-pm-compatibility.md](./type-pm-compatibility.md)を参照すること．
+本文書は，Egison 本体における matcher の型付けの要点を記す．形式規則と証明の正本は
+`type-pm-mech4`（統合 core，推論の健全性・主要性・完全性，実行時安全性）であり，
+Haskell 実装は論文（type-pm-paper 論文1）§4–§5 の規則をそのまま実装する．
+[type-pm-conformance.md](./type-pm-conformance.md) と
+[type-pm-compatibility.md](./type-pm-compatibility.md) は旧 slot 設計
+（`MatcherSlot`，A/R 変数，一方向 checking）に基づく記述であり，歴史的参照として残す．
 
 ## 1. 型と変数
 
-内部型は次の二つを区別する．
+matcher の内部型は一つだけである．
 
 ```haskell
-TMatcher     Capability Type
-TMatcherSlot Capability Type
+TMatcher Capability Type      -- Matcher κ τ
 ```
 
-capability と ordinary type（通常の値の型）は別の sort であり，それぞれ別の代入を
-持つ．ordinary type 変数は一つの構文のまま A/R の用途フラグを持つ．A 変数は
-`MatcherSlot` を含む任意の `TypeOK` 型へ置換でき，R 変数は `ResultOK` 型だけへ置換
-できる．関数型では仮引数だけが `MatcherSlot` を含められる．
+capability κ と ordinary type（通常の値の型）τ は別の sort であり，別の代入を持つ．
 
-capability 変数には A/R，producer／consumer origin，rigidity のフラグを付けない．
-明示注釈を検査するための skolem（特殊化できない定数）は別であり，通常の推論変数と
-混同しない．
+```haskell
+Capability = CapAny | CapVar CapVar | CapSkolem CapVar
+           | CapCon TypeFormer [Capability] | CapTuple [Capability]
+```
 
-## 2. 単一化
+ordinary type 変数に A/R などの用途フラグはない．明示注釈の検査には両 sort の
+skolem（特殊化できない定数）を使う．
 
-capability 等式は，変数の由来に依存しない通常の最汎単一化で解く．推論状態には
-capability origin ledger，protected producer 集合，過去の生成場所を保持しない．
+## 2. 正準形と単一化
 
-`Matcher producer target` を `MatcherSlot consumer expectedTarget` に対して checking
-するときは，次を行う．
+`applySubst` は代入の後に `normalizeMatcherProducts` を適用する．
+`Matcher (κ1,…,κn) (τ1,…,τn)`（n ≥ 2）は `(Matcher κ1 τ1, …, Matcher κn τn)` へ正規化
+する．`Matcher Any (τ1, τ2)` は積ではないので正規化しない．
 
-1. `target = expectedTarget` を A/R 制約付き ordinary unification で解く．
-2. `consumer` が literal `Any` なら capability 等式を加えない．
-3. それ以外なら `producer = consumer` を通常の capability MGU で解く．
-
-方向性があるのは `Matcher` から `MatcherSlot` への変換を選ぶ点だけであり，変数を
-解く向きではない．したがって fresh な producer 変数も利用地点の要求で構造化できる．
-一方，一般の型等式は `Matcher` と `MatcherSlot` を相互変換しない．
-
-source tuple を一つの slot に渡す構文では，各成分を個別の slot に checking する．
-成分 target の fresh 変数は A である．成分 target 自体が `MatcherSlot` になり得るため，
-ここで R を使ってはならない．
-
-型クラス instance の選択に使う `matchOneWay` は，量化された instance 側だけを具体化
-する別の通常機能である．matcher-to-slot checking の capability MGU とは区別する．
+型等式は両 sort の通常の最汎単一化（`unifyG`）で解く．方向性のある変換や subsumption
+はない．`Matcher κ τ ≐ (σ1,…,σn)` は head expansion（`unifyMatcherProductG`）で解く：
+κ が変数なら `(κ.1,…,κ.n)`，τ が変数なら `(τ.1,…,τ.n)` へ展開し，成分ごとに
+`Matcher κ.i τ.i ≐ σi` を解く．κ が `Any` などの非積なら失敗する．capability の等式は
+`unifyCapability` で解き，`Any` は定数であって wildcard ではない．
 
 ## 3. matcher literal
 
-matcher literal は clause の primitive-pattern pattern と実際の next-matcher 値から
-capability evidence を作り，すべての clause で同じ target 型を共有する．target 型だけ
-から capability を生成しない．
+`matcher | pp_1 as e_1 with arms_1 | …` の推論（論文の G-Literal／Q-* 規則，
+`Infer.hs` の `IMatcherExpr` 節と `inferPatternDef`）．
 
-静的条件は TypePM と同じである．
+- literal 全体で一つの target 型 τ と一つの capability κ を共有する．
+- header pp の推論（`inferHeader`）：
+  - hole `$`：fresh な (χ, α) を hole の要求として返す．
+  - wildcard／value pattern `#$x`：fresh な header capability．hole はない．
+  - tuple `(pp_1,…,pp_n)`：capability `(κ_1,…,κ_n)`，target `(τ_1,…,τ_n)`．
+  - 宣言済み pattern constructor `c pp_1 … pp_n`：constructor scheme を instantiate して
+    field 型と result 型を得る．capability は宣言を fresh な capability 変数へ射影した
+    もの（`capabilityTemplates`／`capabilitySkeleton`）：型変数 ↦ fresh χ，pattern 宣言を
+    持つ型 `T τ̄` ↦ `T κ̄`，pattern 宣言を持たない閉じた型（`Integer`，`Char` など）↦
+    `Any`．各 sub-header の matched 型と capability を field の target・capability と単一化
+    する．
+- header の matched 型を共有 target と，constructor／tuple header の capability を共有
+  capability と単一化する．
+- next matcher 式 e は通常の式として推論し，その型を hole が要求する型
+  `Matcher χ_1 α_1`（1 hole）または `(Matcher χ_1 α_1, …, Matcher χ_n α_n)`（n hole）と
+  単一化する．正準形により，積 matcher 型を持つ変数や application が複数の hole を
+  同時に埋められる．
+- data arm は target 型 τ の値を受け取り，hole の target の組のリスト `[(α_1,…,α_n)]` を
+  返す（`inferDataClauseWithCheck`）．
+- literal の型は `Matcher κ τ`．
 
-- CatchAllLast：bare hole header の clause がちょうど一つあり，最後にある．
-- ArmCoverage：最後の arm が変数／wildcard であるか，言及した data former の全
-  constructor を general arm で網羅する．
-- RootCoverage：言及した pattern former の全 pattern constructor を general clause
-  で網羅する．
+静的条件：CatchAllLast（bare hole header の clause がちょうど一つ，最後）と ArmCoverage
+（最後の arm が変数／wildcard であるか，言及した data former の全 constructor を general
+arm で網羅）は型エラー．RootCoverage（言及した pattern former の全 pattern constructor に
+general clause）は論文の CoverageOK に対応するが，production の部分 matcher（CAS view，
+`string` の regex clause）を維持するため `--matcher-consistency-warnings` のときだけ
+警告する．
 
-CatchAllLast と ArmCoverage は通常の型エラーである．RootCoverage は production
-Egison の部分 matcher を維持するため，`--matcher-consistency-warnings` のときだけ警告
-する．catch-all clause の arm を一つの変数 armへ限定しない．
+### legacy CAS pattern view（core 外）
 
-## 4. match の検査順
+`MathValue`，`IndexExpr` などの pattern 宣言は数式の実行時 view を名付けるもので，
+field と result の宣言型は target の証拠ではない（`legacyCasLeafFormer`）．この header では
+matched 型と各 hole の (capability, target) を fresh にし，header capability だけを宣言
+から取る．`--outside-egison-core-warnings` で報告する．
 
-`matchAll`／`matchAllDFS` の core arm は次の順で調べる．
+## 4. match の検査
 
-```text
-target -> pattern -> matcher checking -> body
-```
-
-`match`／`matchDFS` は target の後に matcher 式を一度 synthesize し，各 arm を次の順で
-完了してから次へ進む．
-
-```text
-pattern -> matcher-slot checking -> body
-```
-
-pattern を適合性検査と arm 推論で二度調べたり，全 arm の pattern を先読みしたりしない．
-すべての body と fallback は一つの fresh R 結果型を共有する．fallback は最後に arm
-束縛の外で調べる．
-
-TypePM では first-result match の `else` は必須だが，Egison では省略可能なままとする．
-`--match-without-else-warnings` は省略を報告するだけで，型推論や実行結果を変えない．
+`matchAll`／`match` は target 式，matcher 式，各 arm の pattern，本体を推論し，pattern の
+要求 `Matcher κ_p τ_p` を matcher 式の型と等式で結ぶ（`checkMatcherAtSlot`；名前は旧設計
+の名残で，現在は等式単一化）．`match` の `else` は arm 束縛の外で検査し，本体と同じ
+結果型を持つ．TypePM では `else` は必須だが，Egison では省略可能なままとし，
+`--match-without-else-warnings` で報告する．
 
 ## 5. 公開 signature
 
 data constructor，pattern constructor，pattern function の scheme は閉じていなければ
-ならない．すなわち，出現する変数は明示された型パラメータまたは量化された capability
-変数でなければならない．宣言済みの名前付き型は，閉性検査より前に型変数表現から
-具体的な型 former へ正規化する．
+ならず，field に現れる型／capability parameter は result から決定できなければならない
+（`ensureDeclaredTypeVariables`，`ensureParametersDetermined`）．
 
-constructor field に現れる型／capability parameter は result から決定できなければ
-ならない．field にだけ現れる変数は TypePM の `ParametersDetermined` を満たさないため
-拒否する．
+## 6. 診断と計測
 
-## 6. 警告と保証範囲
-
-次の option は診断だけを変更する．
+診断 option は動作を変えない．
 
 ```text
 --matcher-consistency-warnings
@@ -111,20 +105,16 @@ constructor field に現れる型／capability parameter は result から決定
 --outside-egison-core-warnings
 ```
 
-pattern hole より後に primitive value pattern があるかどうかは，TypePM の
-`CaptureDisciplined` と同じ深さ優先・左から右の順序で判定する．CAS，tensor，ordinary
-`TAny`，legacy pattern view などは明示的な Egison 拡張であり，core 規則の失敗を契機に
-選ぶ代替 solver ではない．
-
-Haskell 実装全体と Lean 実装の対応定理は要件としない．TypePM の no-stuck 定理を
-Egison 全体へそのまま主張することもない．core の対応は source-level 回帰と公開 solver
-の回帰で維持する．
+`--type-pm-metrics` は推論のカウンタを出力する：`match-sites`（match／matchAll 式），
+`matcher-literals`，`matcher-clauses`，`product-next-matchers`（複数 hole を一つの積型式
+で埋めた clause），`capability-combines`（and／or／forall／loop pattern の子同士の
+capability 等式）．
 
 主な実装箇所は次のとおりである．
 
-- `Type/Types.hs`：二添字型，A/R 用途，scheme．
-- `Type/Subst.hs`：二 sort の代入．
-- `Type/Unify.hs`：A/R 制約付き ordinary MGU と capability MGU．
-- `Type/Infer.hs`：matcher-to-slot checking，matcher literal，match の source 順．
+- `Type/Types.hs`：二添字型，`normalizeMatcherProducts`，`capabilitySkeleton`．
+- `Type/Subst.hs`：二 sort の代入と正準化．
+- `Type/Unify.hs`：`unifyG`，`unifyMatcherProductG`，`unifyCapability`．
+- `Type/Infer.hs`：`IMatcherExpr`，`inferHeader`，`checkMatcherAtSlot`，match の検査順．
 - `EnvBuilder.hs`：公開 signature の閉性と parameters-determined 検査．
-- `CmdOptions.hs`／`Eval.hs`：診断 option．
+- `CmdOptions.hs`／`Eval.hs`：診断 option と計測．

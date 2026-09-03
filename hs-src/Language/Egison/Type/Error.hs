@@ -28,7 +28,7 @@ import           Language.Egison.Type.Types (CapVar (..), Capability (..), Tenso
                                              TyVar (..), Type (..), TypeFormer (..),
                                              TypeFormerId (..), SymbolSet(..), prettyTypeAtomValue,
                                              Constraint (..), constraintClass, constraintTypes,
-                                             TyClass(..), tyVarClass, tyVarName)
+                                             tyVarName)
 
 -- | Source location information
 data SourceLocation = SourceLocation
@@ -392,12 +392,7 @@ renameVarsForDisplay ty = mapVars ty
       zipWith rename
         (nub (collect ty))
         ([ [c] | c <- ['a'..'z']] ++ ['a' : show i | i <- [1 :: Int ..]])
-    rename variable name =
-      ( variable
-      , case tyVarClass variable of
-          ArgumentClass -> TyVar name
-          ResultClass   -> ResultTyVar name
-      )
+    rename variable name = (variable, TyVar name)
     sub v = case lookup v mapping of
       Just v' -> v'
       Nothing -> v
@@ -410,7 +405,6 @@ renameVarsForDisplay ty = mapVars ty
       TTensor t1         -> TTensor (mapVars t1)
       THash t1 t2        -> THash (mapVars t1) (mapVars t2)
       TMatcher cap t1        -> TMatcher cap (mapVars t1)
-      TMatcherSlot cap t1    -> TMatcherSlot cap (mapVars t1)
       TFun t1 t2         -> TFun (mapVars t1) (mapVars t2)
       TIO t1             -> TIO (mapVars t1)
       TIORef t1          -> TIORef (mapVars t1)
@@ -427,7 +421,6 @@ renameVarsForDisplay ty = mapVars ty
       TTensor t1         -> collect t1
       THash t1 t2        -> collect t1 ++ collect t2
       TMatcher _ t1        -> collect t1
-      TMatcherSlot _ t1    -> collect t1
       TFun t1 t2         -> collect t1 ++ collect t2
       TIO t1             -> collect t1
       TIORef t1          -> collect t1
@@ -458,8 +451,6 @@ prettyType (TTensor t) = "Tensor " ++ prettyType t
 prettyType (THash k v) = "Hash " ++ prettyType k ++ " " ++ prettyType v
 prettyType (TMatcher capability t) =
   "Matcher " ++ prettyCapabilityAtom capability ++ " " ++ prettyType t
-prettyType (TMatcherSlot capability t) =
-  "MatcherSlot " ++ prettyCapabilityAtom capability ++ " " ++ prettyType t
 prettyType (TFun t1 t2) = prettyType t1 ++ " -> " ++ prettyType t2
 prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t

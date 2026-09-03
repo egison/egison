@@ -64,7 +64,6 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              freeTyVars, freshCapVar,
                                              freshTyVarLike,
                                              substCapVarInType, substTyVar)
-import           Language.Egison.Type.Subst (makeResultScheme)
 
 -- | Type environment: uses same data structure as evaluation environment
 -- Maps base variable names to all bindings with that name
@@ -300,12 +299,7 @@ skolemizeAnnotationWith requireResult sourceScheme counter =
           (zip tyFresh tyVars)
   in (constraints, ty, skolems, finalCounter)
   where
-    scheme@(Forall capVars tyVars _ _) =
-      if requireResult
-        then case makeResultScheme sourceScheme of
-          Just normalized -> normalized
-          Nothing         -> sourceScheme
-        else sourceScheme
+    scheme@(Forall capVars tyVars _ _) = sourceScheme
 
 instantiateWith
   :: (CapVar -> Capability)

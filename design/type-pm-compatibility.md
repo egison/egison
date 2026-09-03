@@ -1,5 +1,16 @@
 # Egison Core Boundary
 
+> **Note (2026-09-03).** This document describes the retired slot design
+> (`MatcherSlot`, A/R type variables, one-way matcher-to-slot checking).  The
+> checker was reimplemented with the single matcher type `Matcher κ τ` and
+> two-sorted equality unification (with the canonical identification of a
+> matcher over a product and a tuple of matchers), mechanized in
+> `type-pm-mech4`.  The current contract is
+> [matcher-capability.md](./matcher-capability.md); this document is kept as
+> a historical reference.  The legacy CAS pattern-view boundary of §4.5 is
+> still implemented as an explicit outside-core path.
+
+
 > **Status (2026-08-27).** This document defines the integration boundary
 > between Egison's production type checker and the executable two-sorted core
 > mechanized in `type-pm-mech3`. It is an implementation contract, not a claim

@@ -54,7 +54,7 @@ inductive pattern CapabilityList a :=
   | capabilityNil
   | capabilityCons a (CapabilityList a)
 
-def capabilityList {a} (m : MatcherSlot p a)
+def capabilityList {a} (m : Matcher p a)
   : Matcher (CapabilityList p) (CapabilityList a) :=
   matcher
     | capabilityNil as () with
@@ -82,7 +82,7 @@ inductive pattern CapabilityChoice a :=
 
 -- A partial matcher keeps its structured capability.  Coverage remains an
 -- independent optional warning.
-def capabilityLeftOnly {a} (m : MatcherSlot p a)
+def capabilityLeftOnly {a} (m : Matcher p a)
   : Matcher (CapabilityChoice p) (CapabilityChoice a) :=
   matcher
     | capabilityLeft $ as m with
@@ -103,7 +103,7 @@ inductive CapabilityWrapped a :=
 inductive pattern CapabilityWrapped a :=
   | capabilityWrapped [a]
 
--- The argument starts with a flexible MatcherSlot capability.  The
+-- The argument starts with a flexible Matcher capability.  The
 -- constructor field signature [a] constrains that capability to [p], and
 -- projection carries p to the result without using the target annotation as
 -- evidence.

@@ -148,7 +148,6 @@ containsNonLiftableType ty = case ty of
   TTensor t -> containsNonLiftableType t
   THash k v -> containsNonLiftableType k || containsNonLiftableType v
   TMatcher _ t -> containsNonLiftableType t
-  TMatcherSlot _ t -> containsNonLiftableType t
   TTerm t _ -> containsNonLiftableType t
   TFrac t -> containsNonLiftableType t
   TPoly t _ -> containsNonLiftableType t

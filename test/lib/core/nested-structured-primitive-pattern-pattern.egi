@@ -12,7 +12,7 @@ inductive pattern NestedPPatWarningDemo :=
 
 def nestedPPatWarningMatcher :=
   matcher
-    | nestedPPatWarningJoin $ (nestedPPatWarningCons #$val $) as (something, something) with
+    | nestedPPatWarningJoin $ (nestedPPatWarningCons #$val $) as (something, nestedPPatWarningMatcher) with
       | $tgt -> []
     | $ as something with
       | $tgt -> [tgt]

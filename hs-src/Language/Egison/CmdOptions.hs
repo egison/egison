@@ -207,7 +207,7 @@ cmdArgParser = EgisonOpts
                   <> help "Warn when match or matchDFS omits its optional final else branch")
             <*> switch
                   (long "type-pm-metrics"
-                  <> help "Report explicit eager slot boundaries and multi-demand capability combinations")
+                  <> help "Report TypePM inference counters: match sites, matcher literals and clauses, product-typed next matchers, capability combinations")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

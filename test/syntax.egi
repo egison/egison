@@ -250,7 +250,7 @@ assertEqual "match-all-lambda"
 -- Uses `multiset integer` (not `multiset something`): the value patterns `#(x + 1)` /
 -- `#(x + 2)` require element structure that a ground-Any
 -- matcher (`something`) has capability `Any`, so it is not admissible at a
--- structured MatcherSlot
+-- structured Matcher
 -- (paper's per-use-site capability admissibility); an element matcher with
 -- the required capability is needed.
 assertEqual "match-all-lambda-multi"

@@ -1,10 +1,10 @@
--- Algorithm W Step 3a / R12: an existing MatcherSlot component must have
+-- Algorithm W Step 3a / R12: an existing Matcher component must have
 -- both indices checked.  Its capability `Any` fits the head hole,
 -- but its target String does not fit the hole's Integer target.
 --
 -- Expected: Type error (slot target-index mismatch)
 
-def bad {p} (wrongTargetSlot : MatcherSlot p String)
+def bad {p} (wrongTargetSlot : Matcher p String)
   : Matcher [p] [Integer] :=
   matcher
     | $ :: _ as wrongTargetSlot with

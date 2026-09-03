@@ -12,10 +12,6 @@ module Language.Egison.Type.Subst
   , emptySubst
   , singletonSubst
   , singletonCapSubst
-  , strengtheningSubst
-  , makeType
-  , makeResult
-  , makeResultScheme
   , composeSubst
   , applySubst
   , applyTypeSubst
@@ -33,17 +29,15 @@ module Language.Egison.Type.Subst
 import           Data.Map.Strict            (Map)
 import qualified Data.Map.Strict            as Map
 import qualified Data.Set                   as Set
-import           Data.List                  (nub)
 import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
-import           Language.Egison.Type.Types (Capability (..), CapVar, TyClass (..), TyVar,
+import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Type (..), TypeScheme (..),
                                              Dual (..),
                                              Constraint (..), SymbolSet (..),
-                                             asResultTyVar, mapTypeCapabilities,
-                                             resultDemands, tyVarClass,
-                                             typeDemands)
+                                             mapTypeCapabilities,
+                                             normalizeMatcherProducts)
 
 -- | A pair of independent substitutions, one for each sort.
 --
@@ -69,56 +63,6 @@ singletonSubst v t = Subst (Map.singleton v t) Map.empty
 singletonCapSubst :: CapVar -> Capability -> Subst
 singletonCapSubst v cap = Subst Map.empty (Map.singleton v cap)
 
--- | Strengthen argument-class variables to result-class variables while
--- preserving their textual identities.  Duplicate demands are harmless.
-strengtheningSubst :: [TyVar] -> Subst
-strengtheningSubst variables =
-  Subst
-    (Map.fromList
-      [ (variable, TVar (asResultTyVar variable))
-      | variable <- variables
-      , tyVarClass variable == ArgumentClass
-      ])
-    Map.empty
-
--- | Refine a type until it is admissible in an ordinary type position.
--- The returned substitution records every A-to-R strengthening required by
--- nested result positions.
-makeType :: Subst -> Type -> Maybe (Subst, Type)
-makeType substitution ty = do
-  let normalized = applySubst substitution ty
-  demands <- typeDemands normalized
-  let strengthening = strengtheningSubst demands
-      substitution' = composeSubst strengthening substitution
-  pure (substitution', applySubst strengthening normalized)
-
--- | Refine a type until it is admissible in a result position.
--- A matcher slot in such a position makes the request inconsistent.
-makeResult :: Subst -> Type -> Maybe (Subst, Type)
-makeResult substitution ty = do
-  let normalized = applySubst substitution ty
-  demands <- resultDemands normalized
-  let strengthening = strengtheningSubst demands
-      substitution' = composeSubst strengthening substitution
-  pure (substitution', applySubst strengthening normalized)
-
--- | Normalize a public type scheme so its body is result-admissible.  A
--- quantified A binder demanded by the result becomes the corresponding R
--- binder everywhere, including constraints.
-makeResultScheme :: TypeScheme -> Maybe TypeScheme
-makeResultScheme (Forall capVariables typeVariables constraints ty) = do
-  (strengthening, resultType) <- makeResult emptySubst ty
-  let strengthenBinder variable =
-        case applySubst strengthening (TVar variable) of
-          TVar variable' -> variable'
-          _ -> variable
-  pure $
-    Forall
-      capVariables
-      (nub (map strengthenBinder typeVariables))
-      (map (applySubstConstraint strengthening) constraints)
-      resultType
-
 -- | Compose two substitutions (s2 after s1)
 -- (s2 `composeSubst` s1) x = s2 (s1 x)
 composeSubst :: Subst -> Subst -> Subst
@@ -133,7 +77,7 @@ composeSubst s2@(Subst tys2 caps2) (Subst tys1 caps1) =
 -- in a substituted type range are subsequently reached by the capability
 -- component.
 applySubst :: Subst -> Type -> Type
-applySubst s = applyCapSubstToType s . applyTypeSubst s
+applySubst s = normalizeMatcherProducts . applyCapSubstToType s . applyTypeSubst s
 
 -- | Apply only the ordinary type component of a substitution.
 --
@@ -164,8 +108,6 @@ applyTypeSubst substitution@(Subst types _) = go Set.empty
         THash (go seen key) (go seen value)
       TMatcher capability target ->
         TMatcher capability (go seen target)
-      TMatcherSlot capability target ->
-        TMatcherSlot capability (go seen target)
       TFun argument result ->
         TFun (go seen argument) (go seen result)
       TIO value ->

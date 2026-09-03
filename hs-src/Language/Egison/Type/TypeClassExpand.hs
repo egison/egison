@@ -107,7 +107,6 @@ extractTypeSubstitutions instTy actualTy = go instTy actualTy
     go (THash instK instV) (THash actualK actualV) =
       go instK actualK ++ go instV actualV
     go (TMatcher _ instT) (TMatcher _ actualT) = go instT actualT
-    go (TMatcherSlot _ instT) (TMatcherSlot _ actualT) = go instT actualT
     go (TIO instT) (TIO actualT) = go instT actualT
     go (TIORef instT) (TIORef actualT) = go instT actualT
     go TPort TPort = []

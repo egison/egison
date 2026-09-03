@@ -42,8 +42,7 @@ import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..)
                                              freeCapVars, freeTyVars,
                                              sanitizeMethodName, typeExprToType,
                                              capitalizeFirst, lowerFirst)
-import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst,
-                                              makeResultScheme)
+import           Language.Egison.Type.Subst (emptySubst, singletonSubst, composeSubst, applySubst)
 import qualified Data.Set as Set
 
 -- | Result of environment building phase
@@ -700,9 +699,6 @@ validateTypeExprCapabilities arities aliases context typeExpr =
     TEMatcher capability target -> do
       validateCapabilityExpr arities aliases context capability
       validate target
-    TEMatcherSlot capability target -> do
-      validateCapabilityExpr arities aliases context capability
-      validate target
     TEPattern target ->
       validate target
     TEIO target ->
@@ -1040,12 +1036,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         rawTypeScheme = Types.Forall (Set.toList (freeCapVars funType))
                                      freeVars constraints funType
 
-    typeScheme <-
-      case makeResultScheme rawTypeScheme of
-        Just scheme -> return scheme
-        Nothing -> throwError $ Default $
-          "def " ++ name ++
-          ": a matcher slot may occur only in a function parameter type"
+    let typeScheme = rawTypeScheme
 
     let typeEnv = ebrTypeEnv result
         typeEnv' = extendEnv var typeScheme typeEnv
@@ -1097,12 +1088,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
 
     ensureDeclaredTypeVariables
       ("pattern function " ++ name) typeParams patternFuncType
-    typeScheme <-
-      case makeResultScheme rawTypeScheme of
-        Just scheme -> return scheme
-        Nothing -> throwError $ Default $
-          "pattern function " ++ name ++
-          ": a matcher slot may occur only in a function parameter type"
+    let typeScheme = rawTypeScheme
 
     let patternEnv = ebrPatternTypeEnv result
         patternEnv' = extendPatternEnv name typeScheme patternEnv
@@ -1245,12 +1231,7 @@ registerConstructor aliasEnv declaredTypes typeName typeParams resultType (typeE
     ("data constructor " ++ ctorName) typeParams constructorType
   ensureParametersDetermined
     ("data constructor " ++ ctorName) argTypes resultType
-  typeScheme <-
-    case makeResultScheme rawTypeScheme of
-      Just scheme -> return scheme
-      Nothing -> throwError $ Default $
-        "data constructor " ++ ctorName ++
-        ": a matcher slot may occur only in a function parameter type"
+  let typeScheme = rawTypeScheme
 
   let
       -- Add to type environment
@@ -1428,12 +1409,7 @@ registerPatternConstructor aliasEnv declaredTypes _typeName typeParams resultTyp
     ("pattern constructor " ++ ctorName) typeParams patternCtorType
   ensureParametersDetermined
     ("pattern constructor " ++ ctorName) argTypes resultType
-  typeScheme <-
-    case makeResultScheme rawTypeScheme of
-      Just scheme -> return scheme
-      Nothing -> throwError $ Default $
-        "pattern constructor " ++ ctorName ++
-        ": a matcher slot may occur only in a function parameter type"
+  let typeScheme = rawTypeScheme
 
   let
       -- Add to pattern constructor environment (same format as PatternTypeEnv)
@@ -1482,10 +1458,7 @@ ensureParametersDetermined label fields result = do
 -- source boundary.  Normalize their quantified A/R flags before exposing the
 -- scheme to expression inference.
 normalizePublicScheme :: TypeScheme -> TypeScheme
-normalizePublicScheme scheme =
-  case makeResultScheme scheme of
-    Just normalized -> normalized
-    Nothing         -> scheme
+normalizePublicScheme scheme = scheme
 
 -- | Convert TypedParam to Type (cas-type aliases expanded)
 typedParamToType :: HashMap.HashMap String Type -> TypedParam -> Type

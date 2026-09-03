@@ -214,7 +214,7 @@ def factor : Matcher MathValue Factor :=
 -- This keeps `match (3 * x) as poly integer with | term $c _ -> c` working
 -- without requiring callers to coerce manually.
 
-def term {a} (m: MatcherSlot p a) : Matcher MathValue (Term a [..]) :=
+def term {a} (m: Matcher p a) : Matcher MathValue (Term a [..]) :=
   matcher
     | term $ $ as (m, assocMultiset mathValue) with
         | Frac (Plus [Term $n $xs]) (Plus [Term 1 []]) -> [(n, xs)]
@@ -261,7 +261,7 @@ def term {a} (m: MatcherSlot p a) : Matcher MathValue (Term a [..]) :=
     | $ as something with
         | $tgt -> [tgt]
 
-def poly {a} (m: MatcherSlot p a) : Matcher MathValue MathValue :=
+def poly {a} (m: Matcher p a) : Matcher MathValue MathValue :=
   matcher
     | poly $ as (multiset (term m)) with
         | Frac (Plus $ts) (Plus [Term 1 []]) -> [ts]
@@ -320,7 +320,7 @@ def poly {a} (m: MatcherSlot p a) : Matcher MathValue MathValue :=
     | $ as something with
         | $tgt -> [tgt]
 
-def frac {a} (m: MatcherSlot p a) : Matcher MathValue MathValue :=
+def frac {a} (m: Matcher p a) : Matcher MathValue MathValue :=
   matcher
     | frac $ $ as (m, m) with
         | Frac $p1 $p2 -> [(p1, p2)]

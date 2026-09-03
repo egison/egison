@@ -23,15 +23,8 @@ module Language.Egison.Type.Types
   , Dual(..)
   , DualScheme(..)
   , TyVar(..)
-  , TyClass(..)
-  , tyVarClass
   , tyVarName
-  , asResultTyVar
   , freshTyVarLike
-  , typeDemands
-  , resultDemands
-  , typeOK
-  , resultOK
   , TensorShape(..)
   , ShapeDimType(..)
   , Constraint(..)
@@ -73,6 +66,7 @@ module Language.Egison.Type.Types
   , sanitizeMethodName
   , typeExprToType
   , normalizeInductiveTypes
+  , normalizeMatcherProducts
   , dualSchemeTargetType
   , dualSchemeTargetScheme
   , expandTypeAliases
@@ -96,31 +90,14 @@ import           Language.Egison.Type.Index ()
 -- | The admissible images of an ordinary type variable.  Result variables
 -- are more constrained: a value returned by a function may not contain a
 -- matcher slot, except in a parameter position of a returned function.
-data TyClass
-  = ArgumentClass
-  | ResultClass
-  deriving (Eq, Ord, Show, Generic, Hashable)
-
--- | Type variable.  The two constructors are flags on one variable syntax,
--- not separate type languages.  The string is the variable identity, so
--- @TyVar "a"@ and @ResultTyVar "a"@ are the argument/result forms of the
--- same inference name.
+-- | Ordinary type variable.  There is one sort of ordinary variables; the
+-- string is the variable identity.
 data TyVar
   = TyVar String
-  | ResultTyVar String
   deriving (Eq, Ord, Show, Generic, Hashable)
 
-tyVarClass :: TyVar -> TyClass
-tyVarClass (TyVar _)       = ArgumentClass
-tyVarClass (ResultTyVar _) = ResultClass
-
 tyVarName :: TyVar -> String
-tyVarName (TyVar name)       = name
-tyVarName (ResultTyVar name) = name
-
--- | Strengthen a variable while preserving its identity.
-asResultTyVar :: TyVar -> TyVar
-asResultTyVar = ResultTyVar . tyVarName
+tyVarName (TyVar name) = name
 
 -- | Capability variable.  Its constructor is intentionally distinct from
 -- the flexible 'CapVar' node of 'Capability'.
@@ -231,7 +208,6 @@ data Type
   | TTensor Type                      -- ^ Tensor type (only element type is kept). Vector and Matrix are aliases for Tensor
   | THash Type Type                   -- ^ Hash map type
   | TMatcher Capability Type          -- ^ Matcher type, e.g., Matcher (List p) [a]
-  | TMatcherSlot Capability Type      -- ^ Matcher consumer position, e.g., MatcherSlot p a
   | TFun Type Type                    -- ^ Function type, e.g., a -> b
   | TIO Type                          -- ^ IO type (for IO actions)
   | TIORef Type                       -- ^ IORef type
@@ -367,80 +343,9 @@ instType ii = case instTypes ii of
 freshTyVar :: String -> Int -> TyVar
 freshTyVar prefix n = TyVar (prefix ++ show n)
 
--- | Generate a fresh variable with the same A/R class as a quantified
--- binder.  Scheme instantiation must preserve the binder's class.
+-- | Generate a fresh variable for a quantified binder.
 freshTyVarLike :: TyVar -> String -> Int -> TyVar
-freshTyVarLike binder prefix n =
-  case tyVarClass binder of
-    ArgumentClass -> TyVar name
-    ResultClass   -> ResultTyVar name
-  where
-    name = prefix ++ show n
-
--- | Collect the argument-class variables that must be strengthened for a
--- type to be valid in an ordinary position.  Failure means that a matcher
--- slot occurs in the result of a nested function.
-typeDemands :: Type -> Maybe [TyVar]
-typeDemands ty = case ty of
-  TVar _ -> Just []
-  TSkolem _ -> Just []
-  TTuple items -> demandsMany typeDemands items
-  TCollection item -> typeDemands item
-  TInductive _ items -> demandsMany typeDemands items
-  TTensor item -> typeDemands item
-  THash key value -> appendDemands (typeDemands key) (typeDemands value)
-  TMatcher _ target -> typeDemands target
-  TMatcherSlot _ target -> typeDemands target
-  TFun domain codomain ->
-    appendDemands (typeDemands domain) (resultDemands codomain)
-  TIO item -> typeDemands item
-  TIORef item -> typeDemands item
-  TTerm coefficient _ -> typeDemands coefficient
-  TFrac coefficient -> typeDemands coefficient
-  TPoly coefficient _ -> typeDemands coefficient
-  _ -> Just []
-
--- | Collect the strengthening required for a type to be valid in a result
--- position.  A slot at such a position is inconsistent.
-resultDemands :: Type -> Maybe [TyVar]
-resultDemands ty = case ty of
-  TVar variable ->
-    case tyVarClass variable of
-      ArgumentClass -> Just [variable]
-      ResultClass   -> Just []
-  TSkolem variable ->
-    case tyVarClass variable of
-      ArgumentClass -> Nothing
-      ResultClass   -> Just []
-  TTuple items -> demandsMany resultDemands items
-  TCollection item -> resultDemands item
-  TInductive _ items -> demandsMany resultDemands items
-  TTensor item -> resultDemands item
-  THash key value -> appendDemands (resultDemands key) (resultDemands value)
-  TMatcher _ target -> resultDemands target
-  TMatcherSlot _ _ -> Nothing
-  TFun domain codomain ->
-    appendDemands (typeDemands domain) (resultDemands codomain)
-  TIO item -> resultDemands item
-  TIORef item -> resultDemands item
-  TTerm coefficient _ -> resultDemands coefficient
-  TFrac coefficient -> resultDemands coefficient
-  TPoly coefficient _ -> resultDemands coefficient
-  _ -> Just []
-
-appendDemands :: Maybe [TyVar] -> Maybe [TyVar] -> Maybe [TyVar]
-appendDemands first second = (++) <$> first <*> second
-
-demandsMany :: (Type -> Maybe [TyVar]) -> [Type] -> Maybe [TyVar]
-demandsMany demand = fmap concat . mapM demand
-
-typeOK :: Type -> Bool
-typeOK = maybe False (const True) . typeDemands
-
-resultOK :: Type -> Bool
-resultOK ty = case resultDemands ty of
-  Just [] -> True
-  _       -> False
+freshTyVarLike _ prefix n = TyVar (prefix ++ show n)
 
 -- | Generate a fresh capability variable with a given prefix.
 freshCapVar :: String -> Int -> CapVar
@@ -466,7 +371,6 @@ freeTyVars (TInductive _ ts) = Set.unions (map freeTyVars ts)
 freeTyVars (TTensor t)      = freeTyVars t
 freeTyVars (THash k v)      = freeTyVars k `Set.union` freeTyVars v
 freeTyVars (TMatcher _ t)     = freeTyVars t
-freeTyVars (TMatcherSlot _ t) = freeTyVars t
 freeTyVars (TFun t1 t2)     = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
@@ -503,7 +407,6 @@ freeTySkolems (TInductive _ ts)  = Set.unions (map freeTySkolems ts)
 freeTySkolems (TTensor t)        = freeTySkolems t
 freeTySkolems (THash k v)        = freeTySkolems k `Set.union` freeTySkolems v
 freeTySkolems (TMatcher _ t)     = freeTySkolems t
-freeTySkolems (TMatcherSlot _ t) = freeTySkolems t
 freeTySkolems (TFun t1 t2)       = freeTySkolems t1 `Set.union` freeTySkolems t2
 freeTySkolems (TIO t)            = freeTySkolems t
 freeTySkolems (TIORef t)         = freeTySkolems t
@@ -552,8 +455,6 @@ freeCapVars (TTensor t)        = freeCapVars t
 freeCapVars (THash k v)        = freeCapVars k `Set.union` freeCapVars v
 freeCapVars (TMatcher cap t) =
   freeCapVarsCapability cap `Set.union` freeCapVars t
-freeCapVars (TMatcherSlot cap t) =
-  freeCapVarsCapability cap `Set.union` freeCapVars t
 freeCapVars (TFun t1 t2)       = freeCapVars t1 `Set.union` freeCapVars t2
 freeCapVars (TIO t)            = freeCapVars t
 freeCapVars (TIORef t)         = freeCapVars t
@@ -595,8 +496,6 @@ freeCapSkolems (TTensor t)        = freeCapSkolems t
 freeCapSkolems (THash k v)        = freeCapSkolems k `Set.union` freeCapSkolems v
 freeCapSkolems (TMatcher cap t) =
   freeCapSkolemsCapability cap `Set.union` freeCapSkolems t
-freeCapSkolems (TMatcherSlot cap t) =
-  freeCapSkolemsCapability cap `Set.union` freeCapSkolems t
 freeCapSkolems (TFun t1 t2)       = freeCapSkolems t1 `Set.union` freeCapSkolems t2
 freeCapSkolems (TIO t)            = freeCapSkolems t
 freeCapSkolems (TIORef t)         = freeCapSkolems t
@@ -629,7 +528,6 @@ mapTypeCapabilities f = go
     go (TTensor t)          = TTensor (go t)
     go (THash k v)          = THash (go k) (go v)
     go (TMatcher cap t)     = TMatcher (mapCapability f cap) (go t)
-    go (TMatcherSlot cap t) = TMatcherSlot (mapCapability f cap) (go t)
     go (TFun a b)           = TFun (go a) (go b)
     go (TIO t)              = TIO (go t)
     go (TIORef t)           = TIORef (go t)
@@ -676,7 +574,6 @@ mapType f = go
     descend (TTensor t)        = TTensor (go t)
     descend (THash k v)        = THash (go k) (go v)
     descend (TMatcher cap t)       = TMatcher cap (go t)
-    descend (TMatcherSlot cap t)   = TMatcherSlot cap (go t)
     descend (TFun a b)         = TFun (go a) (go b)
     descend (TIO t)            = TIO (go t)
     descend (TIORef t)         = TIORef (go t)
@@ -756,7 +653,6 @@ hasAmbiguousOpenTower ty = case ty of
       TTensor t1       -> hasAmbiguousOpenTower t1
       THash k v        -> hasAmbiguousOpenTower k || hasAmbiguousOpenTower v
       TMatcher _ t1      -> hasAmbiguousOpenTower t1
-      TMatcherSlot _ t1  -> hasAmbiguousOpenTower t1
       TFun a b         -> hasAmbiguousOpenTower a || hasAmbiguousOpenTower b
       TIO t1           -> hasAmbiguousOpenTower t1
       TIORef t1        -> hasAmbiguousOpenTower t1
@@ -825,7 +721,6 @@ typeConstructorName (TTuple _) = "Tuple"
 typeConstructorName (TTensor _) = "Tensor"
 typeConstructorName (THash _ _) = "Hash"
 typeConstructorName (TMatcher _ _) = "Matcher"
-typeConstructorName (TMatcherSlot _ _) = "MatcherSlot"
 typeConstructorName (TFun _ _) = "Fun"
 typeConstructorName (TIO _) = "IO"
 typeConstructorName (TIORef _) = "IORef"
@@ -898,8 +793,9 @@ typeFormerOf _                 = Nothing
 
 -- | Build a structural capability template from a core result type.
 --
--- The caller supplies the mapping for ordinary type variables, making the
--- boundary between the two sorts explicit.  The helper is conservative:
+-- The caller supplies the mapping for ordinary type variables and the set of
+-- type constructors with declared pattern constructors, making the boundary
+-- between the two sorts explicit.  The helper is conservative:
 -- effectful, function, matcher, gradual, and CAS-view types are opaque and
 -- return 'Nothing'.  In particular it never invokes ordinary type equality or
 -- CAS ground equivalence.  Its input must already be a matcher-independent
@@ -907,8 +803,9 @@ typeFormerOf _                 = Nothing
 -- Consequently a closed argument such as @Atom@ in @Collection Atom@ is retained:
 -- it is evidence contributed by a nested constructor pattern, not structure
 -- manufactured by target specialization.
-capabilitySkeleton :: (TyVar -> Capability) -> Type -> Maybe Capability
-capabilitySkeleton onVar = go
+capabilitySkeleton
+  :: (TyVar -> Capability) -> (TypeFormer -> Bool) -> Type -> Maybe Capability
+capabilitySkeleton onVar declared = go
   where
     go (TVar v)         = Just (onVar v)
     -- A target annotation is a consumer constraint, never producer evidence.
@@ -924,9 +821,15 @@ capabilitySkeleton onVar = go
     go TTerm {}         = Nothing
     go TFrac {}         = Nothing
     go TPoly {}         = Nothing
+    -- A declared pattern type projects to its own capability constructor
+    -- applied to the projections of its parameters.  A type without declared
+    -- pattern constructors admits no constructor pattern, so every matcher for
+    -- it has capability Any and a field of that type demands exactly Any.
     go ty = do
       (former, args) <- typeFormerOf ty
-      CapCon former <$> mapM go args
+      if declared former
+        then CapCon former <$> mapM go args
+        else Just CapAny
 
 -- | Convert a source capability expression to the internal capability sort.
 --
@@ -978,8 +881,6 @@ typeExprToType (TEMatrix elemT) = TTensor (typeExprToType elemT)  -- Matrix is a
 typeExprToType (TEDiffForm elemT) = TTensor (typeExprToType elemT)  -- DiffForm is an alias for Tensor
 typeExprToType (TEMatcher cap t) =
   TMatcher (capExprToCapability cap) (typeExprToType t)
-typeExprToType (TEMatcherSlot cap t) =
-  TMatcherSlot (capExprToCapability cap) (typeExprToType t)
 typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
@@ -1003,8 +904,35 @@ reservedCasTypeNames :: Set String
 reservedCasTypeNames = Set.fromList
   [ "Integer", "MathValue", "Float", "Bool", "Char", "String"
   , "Factor", "Term", "Frac", "Poly", "Tensor", "Vector", "Matrix"
-  , "DiffForm", "Matcher", "MatcherSlot", "Pattern", "IO", "Symbol"
+  , "DiffForm", "Matcher", "Pattern", "IO", "Symbol"
   , "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr" ]
+
+-- | Canonical matcher--tuple normalization: a matcher whose capability and
+-- target are both tuples of the same arity is the tuple of the component
+-- matchers (the definitional equality of the paper).  Applied bottom-up
+-- after every substitution.
+normalizeMatcherProducts :: Type -> Type
+normalizeMatcherProducts = go
+  where
+    go ty = case ty of
+      TMatcher cap target ->
+        case (cap, go target) of
+          (CapTuple caps, TTuple targets)
+            | length caps == length targets, length caps >= 2 ->
+                TTuple (zipWith (\c t -> go (TMatcher c t)) caps targets)
+          (_, target') -> TMatcher cap target'
+      TTuple ts -> TTuple (map go ts)
+      TCollection t -> TCollection (go t)
+      TInductive n ts -> TInductive n (map go ts)
+      TTensor t -> TTensor (go t)
+      THash k v -> THash (go k) (go v)
+      TFun a b -> TFun (go a) (go b)
+      TIO t -> TIO (go t)
+      TIORef t -> TIORef (go t)
+      TTerm t ss -> TTerm (go t) ss
+      TFrac t -> TFrac (go t)
+      TPoly t ss -> TPoly (go t) ss
+      leaf -> leaf
 
 -- | Expand `declare cas-type` transparent aliases inside a Type (Phase alpha
 -- of the extensible CAS tower; see
@@ -1026,7 +954,6 @@ expandTypeAliases aliases ty
     go (TTensor t)         = TTensor (go t)
     go (THash k v)         = THash (go k) (go v)
     go (TMatcher cap t)       = TMatcher cap (go t)
-    go (TMatcherSlot cap t)   = TMatcherSlot cap (go t)
     go (TFun a b)          = TFun (go a) (go b)
     go (TIO t)             = TIO (go t)
     go (TIORef t)          = TIORef (go t)
@@ -1060,8 +987,6 @@ normalizeInductiveTypes (TCollection t) = TCollection (normalizeInductiveTypes t
 normalizeInductiveTypes (THash k v) = THash (normalizeInductiveTypes k) (normalizeInductiveTypes v)
 normalizeInductiveTypes (TMatcher cap t) =
   TMatcher cap (normalizeInductiveTypes t)
-normalizeInductiveTypes (TMatcherSlot cap t) =
-  TMatcherSlot cap (normalizeInductiveTypes t)
 normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (normalizeInductiveTypes ret)
 normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)

@@ -1,5 +1,5 @@
 -- PP-Con gives the closed list field a list-headed consumer slot.  An
--- untyped parameter retains that MatcherSlot demand, so rejection of
+-- untyped parameter retains that Matcher demand, so rejection of
 -- `something` is delayed to this function's application site.
 --
 -- Expected: Type error (a bare `Any` matcher cannot fill the list slot)

@@ -15,7 +15,6 @@ module Language.Egison.Type.Check
 
 import           Language.Egison.IExpr      (stringToVar)
 import           Language.Egison.Type.Env
-import           Language.Egison.Type.Subst (makeResultScheme)
 import           Language.Egison.Type.Types
 
 -- | Built-in type environment with primitive functions
@@ -25,10 +24,7 @@ builtinEnv =
     (map (\(name, scheme) -> (stringToVar name, normalize scheme)) builtinTypes)
     emptyEnv
   where
-    normalize scheme =
-      case makeResultScheme scheme of
-        Just resultScheme -> resultScheme
-        Nothing           -> scheme
+    normalize scheme = scheme
 
 -- | Names whose schemes come from the runtime primitive signature table.
 builtinNames :: [String]

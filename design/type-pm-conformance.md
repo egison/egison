@@ -1,5 +1,12 @@
 # TypePM 適合条件
 
+> **注意（2026-09-03）**：本文書は旧 slot 設計（`MatcherSlot`，A/R 変数，一方向の
+> matcher-to-slot checking）を前提に書かれている．現行実装は単一の `Matcher κ τ` と
+> 両 sort の等式単一化（正準形による matcher／タプルの同一視）へ再実装され，
+> `type-pm-mech4` を正本とする．現行の契約は [matcher-capability.md](./matcher-capability.md)
+> を参照．本文書は歴史的参照として残す．
+
+
 この文書は，`type-pm-mech3` の形式仕様と Egison 本体の型推論器を照合した結果を，
 現行実装が満たすべき条件としてまとめる．形式規則と証明の正本は
 `type-pm-mech3` にあり，ここでは Haskell 実装との対応だけを定める．

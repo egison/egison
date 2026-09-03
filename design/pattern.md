@@ -166,7 +166,7 @@ primitive value patternを含むmatcher節は、mがvalue patternを処理でき
 aがEqクラスに属することは要求していない。
 
 ```
-def multiset {p, a} (m: MatcherSlot p a) : Matcher [p] [a] :=
+def multiset {a} (m: Matcher p a) : Matcher [p] [a] :=
   matcher
     | [] as () with
       | [] -> [()]

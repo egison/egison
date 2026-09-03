@@ -8,7 +8,7 @@
 -- Expected: Type error (`Any` at the list-capable tail hole)
 --
 
-def weird {a} (m: MatcherSlot p a) : Matcher [p] [a] :=
+def weird {a} (m: Matcher p a) : Matcher [p] [a] :=
   matcher
     | [] as () with
       | [] -> [()]

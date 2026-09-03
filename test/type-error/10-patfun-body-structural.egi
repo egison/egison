@@ -4,7 +4,7 @@
 -- application requires list capability; `something` supplies `Any`.
 -- Before the PAT-APP fix this was well-typed and stuck at runtime.
 --
--- Expected: Type error (Matcher Any a vs MatcherSlot [p] [Integer])
+-- Expected: Type error (Matcher Any a vs Matcher [p] [Integer])
 --
 
 def pattern pair {a} (pat1: a) (pat2: [a]) : [a] := ($pat & ~pat1) :: #pat :: ~pat2

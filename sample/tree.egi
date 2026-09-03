@@ -1,7 +1,7 @@
 inductive Tree a := Leaf a | Node a [Tree a]
 inductive pattern Tree a := leaf a | node a [Tree a]
 
-def tree {a, b} (a: MatcherSlot p b) : Matcher (Tree p) (Tree b) := matcher
+def tree {a, b} (a: Matcher p b) : Matcher (Tree p) (Tree b) := matcher
   | leaf $ as a with
     | Leaf $x -> [x]
     | Node _ _ -> []

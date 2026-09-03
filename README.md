@@ -102,27 +102,24 @@ def poker (cs: [Card]) : String :=
 We can pattern-match against graphs.
 We can write a program to solve the travelling salesman problem in a single pattern-matching expression.
 
-Matcher types have two indices: `Matcher capability target` (and,
-for matcher-consuming parameters, `MatcherSlot capability target`).
-The capability describes the pattern-constructor structure that the matcher
-can safely consume, independently of its ordinary target type. The ground
-capability `Any` promises no constructor shape. A literal consumer `Any` is a
-wildcard only for the one-way `Matcher`-to-`MatcherSlot` check; producer `Any`
-and symmetric capability equality remain rigid. A structured capability uses
-a canonical declared type former with its exact arity, such as `[p]` or
-`Maybe p`; transparent surface type aliases may still be used in the target
-index, but not as capability heads.
-Egison's additional typing rules form a conservative extension of this core:
-for a program using core syntax and types and satisfying the core's static side
-conditions, the production checker uses the synchronized type-pm-mech3
-relation without retrying a rejected type equality in a wider matcher solver.
-An Egison-specific rule is selected only by an explicit non-core form, such as
-ordinary `TAny`, a CAS or tensor type, production-only pattern syntax, or a
-diagnosed relaxation of a core surface side condition.
-The project maintains this synchronization through an implementation contract
-and regression tests; a formal correspondence theorem between the complete
-Haskell implementation and the Lean implementation is intentionally out of
-scope.
+Matcher types have two indices: `Matcher capability target`.  The
+capability describes the pattern constructors that the matcher supports,
+independently of its ordinary target type; the ground capability `Any`
+supports value patterns and wildcards only, and a structured capability uses
+a declared pattern type with the capabilities of its parameters, such as
+`[p]` or `Maybe p`.  There is one matcher type for definitions, parameters,
+and pattern requirements alike: a pattern's requirement and the matcher
+expression it is matched with are related by an ordinary type equality,
+solved by unification over both sorts.  A matcher over a product type is
+canonically the tuple of its component matchers, so a tuple of matchers
+fills several pattern holes.  The checker follows the rules of the core
+calculus of the type-pm paper, mechanized in `type-pm-mech4`.
+Egison-specific extensions (gradual `TAny` values, computer-algebra pattern
+views, tensor types, and production-only pattern syntax) are selected only
+by explicit non-core forms and can be reported with
+`--outside-egison-core-warnings`.  A formal correspondence theorem between
+the complete Haskell implementation and the Lean implementation is
+intentionally out of scope.
 The implemented guarantees, the A/R-constrained recursion rule, and the current
 D5-CAS boundary are
 documented in [design/matcher-capability.md](design/matcher-capability.md).

@@ -483,7 +483,6 @@ isObservabilityBarrier TFun {} = True
 isObservabilityBarrier TIO {} = True
 isObservabilityBarrier TIORef {} = True
 isObservabilityBarrier TMatcher {} = True
-isObservabilityBarrier TMatcherSlot {} = True
 isObservabilityBarrier TAny = True
 isObservabilityBarrier _ = False
 
