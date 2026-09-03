@@ -177,7 +177,7 @@ data InferState = InferState
                                           --   substitutions merged with the left-biased 'composeSubst',
                                           --   which on a conflicting binding silently keeps one side
                                           --   (e.g. two match sites committing the same lambda-bound
-                                          --   matcher parameter to different slot types).  Zonking
+                                          --   matcher parameter to different matcher types).  Zonking
                                           --   makes the later unification see the earlier commitment,
                                           --   so the conflict is unified — and reported — instead of
                                           --   shadowed.  Reset per top-level item (a fresh InferState
@@ -664,8 +664,7 @@ freshVar prefix = do
   put st { inferCounter = n + 1 }
   return $ TVar $ TyVar $ prefix ++ show n
 
--- | Generate a fresh result-class type variable.  Such a variable can never
--- be solved by a type containing a matcher slot in a result position.
+-- | Generate a fresh type variable for a result position.
 freshResultVar :: String -> Infer Type
 freshResultVar prefix = do
   st <- get
@@ -1445,9 +1444,9 @@ deskolemizeAnnotationState skolems =
       }
 
 -- | Extend the environment temporarily
--- | The slot design's deferred hole checks are gone: every clause of a
--- matcher literal is checked by equality when it is inferred.  The two
--- hooks remain as no-ops at the top-level expression boundaries.
+-- | Every clause of a matcher literal is checked by equality when it is
+-- inferred; there are no deferred hole checks.  The two hooks remain as
+-- no-ops at the top-level expression boundaries.
 clearDeferredHoleChecks :: Infer ()
 clearDeferredHoleChecks = return ()
 
@@ -1611,10 +1610,10 @@ recursiveCycleMembers bindings =
             (Set.toList
               (Map.findWithDefault Set.empty name adjacency) ++ rest)
 
--- | T-MATCHER checking mode for an annotated matcher-literal definition
--- (possibly parameterized, i.e. lambda-wrapped).  Function parameters are
--- checked at explicit slot positions; the final matcher result uses ordinary
--- equality, including ordinary capability unification.
+-- | Checking of an annotated matcher-literal definition (possibly
+-- parameterized, i.e. lambda-wrapped): the parameter types and the final
+-- matcher result use ordinary equality, including ordinary capability
+-- unification.
 unifyMatcherDefType :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
 unifyMatcherDefType cs (TFun a1 r1) (TFun a2 r2) ctx = do
   s1 <- unifyTypesWithConstraints cs a1 a2 ctx
@@ -1682,24 +1681,6 @@ solveTypes classEnv constraints left right ctx = do
     commit result@(substitution, _) = do
       recordGlobalSubst ctx substitution
       return result
-
-unifyTypesAtSlotWithContext
-  :: Type
-  -> Type
-  -> TypeErrorContext
-  -> Infer Subst
-unifyTypesAtSlotWithContext inferred expected ctx = do
-  constraints <- getConstraints
-  unifyTypesAtSlotWithConstraints constraints inferred expected ctx
-
-unifyTypesAtSlotWithConstraints
-  :: [Constraint]
-  -> Type
-  -> Type
-  -> TypeErrorContext
-  -> Infer Subst
-unifyTypesAtSlotWithConstraints constraints inferred expected ctx =
-  unifyTypesWithConstraints constraints inferred expected ctx
 
 -- | Egison's production numeric, CAS, and tensor typing predates rigid
 -- reconstruction.  These representation-level equalities are not core
@@ -2098,8 +2079,8 @@ applySubstToTIExprNodeWithClassEnv env s node = case node of
 
 -- | Apply a substitution throughout a typed pattern, including the ordinary
 -- expressions embedded in value/predicate/application patterns.  Matcher
--- literals can occur in those expressions and their delayed slot checks may
--- refine types after the pattern node was first constructed.
+-- literals can occur in those expressions and their checks may refine types
+-- after the pattern node was first constructed.
 applySubstToTIPatternWithClassEnv :: ClassEnv -> Subst -> TIPattern -> TIPattern
 applySubstToTIPatternWithClassEnv env s (TIPattern scheme node) =
   TIPattern
@@ -3154,25 +3135,25 @@ inferIExprWithContext expr ctx = case expr of
     commonResult <- freshResultVar "matchResult"
 
     -- T-MATCH: target, matcher, then each arm in source order.  An arm is
-    -- checked exactly once as pattern -> matcher-slot conversion -> body.
+    -- checked exactly once as pattern -> matcher equality -> body.
     case clauses of
       [] -> do
         -- Surface syntax requires an ordinary arm, but keep the internal form
         -- total for generated expressions.
-        sSlot <-
-          checkMatcherAtSlot
+        sPattern <-
+          checkMatcherAtPattern
             exprCtx matcher matcherTI matcherType targetType CapAny s12
         case fallback of
           Nothing -> do
-            targetTI' <- applySubstToTIExprM sSlot targetTI
-            matcherTI' <- applySubstToTIExprM sSlot matcherTI
-            resultTy' <- applySubstWithConstraintsM sSlot commonResult
+            targetTI' <- applySubstToTIExprM sPattern targetTI
+            matcherTI' <- applySubstToTIExprM sPattern matcherTI
+            resultTy' <- applySubstWithConstraintsM sPattern commonResult
             return (mkTIExpr resultTy'
-                      (TIMatchExpr mode targetTI' matcherTI' [] Nothing), sSlot)
+                      (TIMatchExpr mode targetTI' matcherTI' [] Nothing), sPattern)
           Just fallbackExpr -> do
             (fallbackTI, fallbackSubst) <-
               inferIExprWithContext fallbackExpr exprCtx
-            let preUnifyS = composeSubst fallbackSubst sSlot
+            let preUnifyS = composeSubst fallbackSubst sPattern
             expectedType <- applySubstWithConstraintsM preUnifyS commonResult
             fallbackType <-
               applySubstWithConstraintsM preUnifyS (tiExprType fallbackTI)
@@ -3229,7 +3210,7 @@ inferIExprWithContext expr ctx = case expr of
         let matcherType = tiExprType matcherTI
             s12 = composeSubst s2 s1
         finalS <-
-          checkMatcherAtSlot
+          checkMatcherAtPattern
             exprCtx matcher matcherTI matcherType targetType CapAny s12
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
@@ -4078,9 +4059,11 @@ capabilityFromCtor ctx argumentTypes resultType children
         (zip children expectedArguments)
       applyCapabilityM substitution resultTemplate
 
--- | Check the already-inferred matcher expression at the slot demanded by
--- one pattern.  This is the only Matcher-to-Slot decision for that use site.
-checkMatcherAtSlot
+-- | Check the already-inferred matcher expression against the matcher type
+-- demanded by one pattern: the pattern's capability and the target type are
+-- related to the type of the matcher expression by an ordinary type
+-- equality (rule G-Match of the paper).
+checkMatcherAtPattern
   :: TypeErrorContext
   -> IExpr
   -> TIExpr
@@ -4089,7 +4072,7 @@ checkMatcherAtSlot
   -> Capability
   -> Subst
   -> Infer Subst
-checkMatcherAtSlot
+checkMatcherAtPattern
     ctx matcherSource matcherTyped matcherTy targetTy patternCap s0 = do
   matcherTy' <- applySubstWithConstraintsM s0 matcherTy
   patternCap' <- applyCapabilityM s0 patternCap
@@ -4097,7 +4080,7 @@ checkMatcherAtSlot
   rejectAnyMatcherCapabilityBypass ctx matcherTy' patternCap'
   classEnv <- getClassEnv
   constraints <- getConstraints
-  (sSlot, _) <-
+  (sPattern, _) <-
     solveApplicationArgument
       classEnv constraints matcherSource matcherTyped matcherTy'
       (TMatcher patternCap' targetTy') ctx
@@ -4113,11 +4096,11 @@ checkMatcherAtSlot
                  ++ TP.prettyCapability patternCap')
                 errCtx
           _ -> throwError err
-  return (composeSubst sSlot s0)
+  return (composeSubst sPattern s0)
 
 -- | 'Any' is a gradual escape hatch for ordinary values, not evidence that a
 -- matcher supports a constructor or tuple pattern.  Keep unconstraining
--- variable/value-pattern slots gradual, but reject every structured duty
+-- variable/value-pattern requirements gradual, but reject every structured duty
 -- before the ordinary unifier's catch-all TAny rule can erase it.
 rejectAnyMatcherCapabilityBypass
   :: TypeErrorContext
@@ -4204,7 +4187,7 @@ stripLambdasForShape e = e
 data VpShape
   = VpClauses [PrimitivePatPattern]  -- ^ a matcher with these clause pps
   | VpTuple [VpShape]                -- ^ a product matcher, componentwise
-  | VpUnknown                        -- ^ opaque (e.g. a slot-typed parameter)
+  | VpUnknown                        -- ^ opaque (e.g. a matcher-typed parameter)
 
 -- | Resolve a match site's matcher expression to its clause shapes, when
 -- statically known: a matcher literal, a tuple of matchers, or a (possibly
@@ -4743,20 +4726,20 @@ finishMatchClause
   checkVpScope
     ctx matcherSource
     [(matchPatternSource inferredPattern, matchPatternBody inferredPattern)]
-  slotSubst <-
-    checkMatcherAtSlot
+  patternSubst <-
+    checkMatcherAtPattern
       ctx matcherSource matcherTyped matcherType matchedType
       (matchPatternCapability inferredPattern) initSubst
   bindings <-
     mapM
       (\(name, ty) -> do
-        ty' <- applySubstWithConstraintsM slotSubst ty
+        ty' <- applySubstWithConstraintsM patternSubst ty
         return (name, Forall [] [] [] ty'))
       (matchPatternBindings inferredPattern)
   (bodyTI, s2) <-
     withEnv bindings $
       inferIExprWithContext (matchPatternBody inferredPattern) ctx
-  let preResultSubst = composeSubst s2 slotSubst
+  let preResultSubst = composeSubst s2 patternSubst
   bodyType <-
     applySubstWithConstraintsM preResultSubst (tiExprType bodyTI)
   expectedType <-
@@ -5495,10 +5478,8 @@ inferIApplication funcName funcType args initSubst = do
   let funcTI = mkTIExpr funcType (TIVarExpr funcName)
   inferIApplicationWithContext funcTI funcType args initSubst emptyContext
 
--- | Check one already-synthesized application argument.  Source tuples are
--- the sole syntax-directed checking case: at a product-slot boundary their
--- components are checked left-to-right against component slots.  A raw tuple
--- type produced by any other expression does not receive this conversion.
+-- | Check one already-synthesized application argument against its expected
+-- type by ordinary equality.
 solveApplicationArgument
   :: ClassEnv
   -> [Constraint]
@@ -6291,18 +6272,17 @@ inferITopExpr topExpr = case topExpr of
             currentConstraints = map (applySubstConstraint subst1) instConstraints
         exprType' <- applySubstWithConstraintsM subst1 exprType
         expectedType' <- applySubstWithConstraintsM subst1 expectedType
-        -- An annotated matcher literal (possibly behind lambdas) uses
-        -- T-MATCHER checking: parameter positions are checked as slots and
-        -- the final Matcher result by ordinary equality.
+        -- An annotated matcher literal (possibly behind lambdas) is checked
+        -- by 'unifyMatcherDefType': parameter positions and the final
+        -- Matcher result by ordinary equality.
         subst2 <- case rhsCore checkedExpr of
           IMatcherExpr _ ->
             unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
           _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
         let preHoleSubst = composeSubst subst2 subst1
 
-        -- Matcher-definition component checks may learn ordinary equality
-        -- constraints from existing MatcherSlot values.  Compose those
-        -- constraints before elaboration and generalization.
+        -- The deferred-hole hook is a no-op; compose its substitution
+        -- before elaboration and generalization.
         holeSubst <- flushDeferredHoleChecks preHoleSubst
         let finalSubst0 = composeSubst holeSubst preHoleSubst
         finalSubst <-
@@ -6399,9 +6379,9 @@ inferITopExpr topExpr = case topExpr of
         subst2 <- unifyTypesWithContext selfTy' exprType' recCtx
         let preHoleSubst = composeSubst subst2 subst1
 
-        -- Deferred matcher-hole checks can refine slot-typed parameters.
-        -- Compose their constraints only after every ordinary constraint on
-        -- the definition, including monomorphic recursion, has been solved.
+        -- The deferred-hole hook is a no-op; compose its substitution only
+        -- after every ordinary constraint on the definition, including
+        -- monomorphic recursion, has been solved.
         holeSubst <- flushDeferredHoleChecks preHoleSubst
         let subst = composeSubst holeSubst preHoleSubst
 

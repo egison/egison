@@ -82,8 +82,7 @@ matched 型と各 hole の (capability, target) を fresh にし，header capabi
 ## 4. match の検査
 
 `matchAll`／`match` は target 式，matcher 式，各 arm の pattern，本体を推論し，pattern の
-要求 `Matcher κ_p τ_p` を matcher 式の型と等式で結ぶ（`checkMatcherAtSlot`；名前は旧設計
-の名残で，現在は等式単一化）．`match` の `else` は arm 束縛の外で検査し，本体と同じ
+要求 `Matcher κ_p τ_p` を matcher 式の型と等式で結ぶ（`checkMatcherAtPattern`）．`match` の `else` は arm 束縛の外で検査し，本体と同じ
 結果型を持つ．TypePM では `else` は必須だが，Egison では省略可能なままとし，
 `--match-without-else-warnings` で報告する．
 
@@ -115,6 +114,6 @@ capability 等式）．
 - `Type/Types.hs`：二添字型，`normalizeMatcherProducts`，`capabilitySkeleton`．
 - `Type/Subst.hs`：二 sort の代入と正準化．
 - `Type/Unify.hs`：`unifyG`，`unifyMatcherProductG`，`unifyCapability`．
-- `Type/Infer.hs`：`IMatcherExpr`，`inferHeader`，`checkMatcherAtSlot`，match の検査順．
+- `Type/Infer.hs`：`IMatcherExpr`，`inferHeader`，`checkMatcherAtPattern`，match の検査順．
 - `EnvBuilder.hs`：公開 signature の閉性と parameters-determined 検査．
 - `CmdOptions.hs`／`Eval.hs`：診断 option と計測．

@@ -1,8 +1,9 @@
--- PP-Con gives the closed list field a list-headed consumer slot.  An
--- untyped parameter retains that Matcher demand, so rejection of
+-- The list field's hole demands a matcher type with the list capability
+-- (G-Literal).  An untyped parameter carries that demand, so rejection of
 -- `something` is delayed to this function's application site.
 --
--- Expected: Type error (a bare `Any` matcher cannot fill the list slot)
+-- Expected: Type error (a bare `Any` matcher does not have the list matcher
+-- type)
 
 inductive Box := Box [Integer]
 inductive pattern Box := box [Integer]

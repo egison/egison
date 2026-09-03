@@ -1,5 +1,5 @@
 --
--- Matcher-target mismatch (paper Appendix B.2.1).  The pattern constructor
+-- Matcher-target mismatch (paper rule G-Match, target equation).  The pattern constructor
 -- `num` belongs to Tile, but the matcher and target are [Integer].
 --
 -- Expected: Type error (Tile vs Integer)

@@ -1,4 +1,4 @@
--- R12 component checking must not skip applications.  keep mPoly has the
+-- The hole demand check must not skip applications.  keep mPoly has the
 -- same complete inferred type `Matcher Any a` as mPoly itself.
 --
 -- Expected: Type error (`Any` capability at a list-headed hole)

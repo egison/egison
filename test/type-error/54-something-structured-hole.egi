@@ -1,4 +1,4 @@
--- Deferred hole admissibility (paper PP-Con, Def 4.2(1a)): the tail hole of
+-- Hole admissibility (paper rules G-Literal and Q-Cons): the tail hole of
 -- the cons clause requires list capability at its tail hole, where
 -- `something` supplies `Any`.  The result annotation does not create
 -- capability evidence.

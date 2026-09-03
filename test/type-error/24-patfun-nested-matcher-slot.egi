@@ -1,6 +1,6 @@
 -- Pattern-function declarations can infer arbitrary expressions inside value
--- patterns.  A nested matcher literal must therefore flush its deferred R12
--- next-matcher checks before the declaration is recorded.
+-- patterns.  A nested matcher literal is therefore checked there as well:
+-- its holes demand the matcher type of the next matcher (G-Literal).
 --
 -- Expected: Type error (`Any` capability at the Box hole)
 

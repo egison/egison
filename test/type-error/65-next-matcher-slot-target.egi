@@ -1,13 +1,13 @@
--- Algorithm W Step 3a / R12: an existing Matcher component must have
--- both indices checked.  Its capability `Any` fits the head hole,
+-- G-Literal: a next matcher supplied by a parameter must have both indices
+-- of the matcher type demanded by the hole.  Its capability `Any` fits the head hole,
 -- but its target String does not fit the hole's Integer target.
 --
--- Expected: Type error (slot target-index mismatch)
+-- Expected: Type error (target mismatch at the hole)
 
-def bad {p} (wrongTargetSlot : Matcher p String)
+def bad {p} (wrongTargetMatcher : Matcher p String)
   : Matcher [p] [Integer] :=
   matcher
-    | $ :: _ as wrongTargetSlot with
+    | $ :: _ as wrongTargetMatcher with
       | $x :: _ -> [x]
       | _ -> []
     | $ as something with

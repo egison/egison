@@ -1,4 +1,4 @@
--- T-MATCHER / R12 component boundary: a clause with no pattern holes requires
+-- G-Literal: a clause with no pattern holes requires
 -- the explicit empty next-matcher tuple ().  A matcher value is not an
 -- alternative spelling of that zero-component boundary.
 --

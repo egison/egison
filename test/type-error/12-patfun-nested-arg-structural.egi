@@ -1,6 +1,5 @@
 --
--- Pattern function structural propagation into a nested argument (paper
--- Appendix B, "Propagation through pattern functions").  Supplying
+-- Pattern function structural propagation into a nested argument (PAT-APP).  Supplying
 -- `num $n` for pair's first parameter drives Tile into the element
 -- position of the recorded scheme, so the application requires `[Tile]`
 -- capability and `multiset something` supplies only `[Any]`.

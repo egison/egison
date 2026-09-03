@@ -77,18 +77,18 @@ assertEqual "next matcher: zero-hole empty tuple"
 
 -- A function parameter supplies an already complete matcher; the literal
 -- demands exactly its type at the hole.
-def headSlotWith integerSlot :=
+def headWith integerMatcher :=
   matcher
-    | $ :: _ as integerSlot with
+    | $ :: _ as integerMatcher with
       | $x :: _ -> [x]
       | _ -> []
     | $ as something with
       | $tgt -> [tgt]
 
-def headSlot : Matcher [Any] [Integer] := headSlotWith integer
+def headMatcher : Matcher [Any] [Integer] := headWith integer
 
-assertEqual "next matcher: complete existing slot"
-  (matchAll [1, 2] as headSlot with $x :: _ -> x)
+assertEqual "next matcher: complete existing matcher parameter"
+  (matchAll [1, 2] as headMatcher with $x :: _ -> x)
   [1]
 
 -- A tuple-typed matcher expression fills several holes at once: its type is

@@ -1,5 +1,5 @@
 --
--- Non-linear pattern type mismatch (paper Appendix B.1.1).  `#x` has type
+-- Non-linear pattern type mismatch (paper rule P-Value with a bound variable).  `#x` has type
 -- Pattern Integer (x is bound by $x), but the tail of `::` requires
 -- Pattern [Integer].  The correct pattern is `$x :: #x :: _`.
 --

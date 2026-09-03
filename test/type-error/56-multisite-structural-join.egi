@@ -1,9 +1,9 @@
 --
--- Multi-site matcher parameter, joint capability demand (paper Appendix C,
--- Step 3a): site 1's cons pattern makes the committed slot list-capable;
--- the value-pattern-only site 2 adds no demand but does
--- not erase it.  Supplying `something` at the application then fails the
--- capability half of COERCE-MATCHER-TO-SLOT.
+-- Multi-site matcher parameter, joint capability demand (a lambda-bound
+-- matcher is monomorphic): site 1's cons pattern fixes the parameter's
+-- capability to a list capability; the value-pattern-only site 2 adds no
+-- demand but does not erase it.  Supplying `something` at the application
+-- then fails the capability equation.
 --
 -- Expected: Type error at `g something` (`Any` against a list head)
 --

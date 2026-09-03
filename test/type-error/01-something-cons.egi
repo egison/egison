@@ -1,7 +1,7 @@
 --
--- Match-site dual check, direct supply (paper Appendix B, Case 2).
--- `something : Matcher Any b` cannot fill the cons pattern's slot
--- `Matcher [p] [Integer]`: `Any` does not provide list capability.
+-- Match-site capability equality, direct supply (paper rules G-Match and
+-- P-Cons).  `something : Matcher Any b` does not have the cons pattern's
+-- matcher type `Matcher [p] [Integer]`: `Any` is not the list capability.
 --
 -- Expected: Type error (Matcher Any b vs Matcher [p] [Integer])
 --

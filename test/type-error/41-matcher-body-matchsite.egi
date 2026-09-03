@@ -1,8 +1,9 @@
 --
 -- Match site nested inside a matcher body is genuinely checked: `integer`
--- cannot fill the cons pattern's slot in the inner match.
+-- does not have the cons pattern's matcher type in the inner match.
 --
--- Expected: Type error (integer vs a cons-headed slot in the inner match)
+-- Expected: Type error (integer vs the cons pattern's matcher type in the
+-- inner match)
 --
 
 def badInner : Matcher Any [Integer] :=

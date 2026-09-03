@@ -87,9 +87,6 @@ import           Language.Egison.AST        (CapabilityExpr(..), TypeExpr(..),
                                              SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Index ()
 
--- | The admissible images of an ordinary type variable.  Result variables
--- are more constrained: a value returned by a function may not contain a
--- matcher slot, except in a parameter position of a returned function.
 -- | Ordinary type variable.  There is one sort of ordinary variables; the
 -- string is the variable identity.
 data TyVar
@@ -122,9 +119,8 @@ data TypeFormer = TypeFormer
 
 -- | Structural capability carried by a matcher.
 --
--- 'CapAny' is a ground capability.  It is rigid under symmetric capability
--- equality, but a literal 'CapAny' in a consumer position is the one-way
--- catch-all accepted by matcher-to-slot checking.
+-- 'CapAny' is a ground capability: a constant under capability equality,
+-- not a wildcard.
 --
 -- Flexible variables and rigid skolems are separate constructors so an
 -- annotation can be checked without its quantified capability being seeded

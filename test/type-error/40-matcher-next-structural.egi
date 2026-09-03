@@ -1,6 +1,5 @@
 --
--- Capability-inadmissible next matcher (paper Appendix B, the `weird`
--- matcher; Definition 4.2(1a) / PP-Con).  The tail hole of the cons
+-- Capability-inadmissible next matcher (paper rules G-Literal and Q-Cons).  The tail hole of the cons
 -- clause requires list capability, which `something` cannot fill; the
 -- runtime counterpart would route a cons sub-pattern to something and
 -- get stuck.

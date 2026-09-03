@@ -1,5 +1,5 @@
 --
--- Match-site dual check through a function parameter (paper Appendix B, Case 3).
+-- Match-site capability equality through a function parameter (G-Match, P-Cons).
 -- The cons pattern commits `m` to Matcher [p] [Integer]; supplying
 -- `something` at the application site fails the capability check there.
 --

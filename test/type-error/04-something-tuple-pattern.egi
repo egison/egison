@@ -1,9 +1,8 @@
 --
--- Tuple pattern at a ground-Any matcher (paper Lemma "MS Progress",
--- tuple case).  The tuple pattern requires product capability, so
+-- Tuple pattern at a ground-Any matcher (paper rule P-Pair).  The tuple pattern requires product capability, so
 -- `something : Matcher Any b` fails the capability check.
 --
--- Expected: Type error (something vs a product-headed slot)
+-- Expected: Type error (something vs a product capability requirement)
 --
 
 def t := matchAll (1, 2) as something with ($x, $y) -> x

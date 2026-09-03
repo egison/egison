@@ -1,5 +1,5 @@
--- Shape capability: distinct general clauses that reach the same result slot must
--- agree exactly after already-justified substitutions.
+-- Shared capability (G-Literal): the header capabilities of distinct
+-- constructor clauses of one literal must be equal.
 
 inductive CapabilityWrap a := CapabilityWrap a
 

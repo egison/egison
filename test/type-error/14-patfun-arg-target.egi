@@ -1,5 +1,5 @@
 --
--- Pattern function argument target type (paper Appendix B.1.2).  `seqp`
+-- Pattern function argument target type (PAT-APP, argument target).  `seqp`
 -- expects Pattern Tile as its first argument, but `#1` has type
 -- Pattern Integer.  Before the PAT-APP fix this silently failed at runtime.
 --

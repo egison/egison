@@ -900,7 +900,7 @@ resolveCasTypeAliases priorAliases = go (0 :: Int)
 -- class method declarations.  Without it, an explicit signature
 -- @nat : Matcher p Nat@ is generalized to @forall a. Matcher p a@, so a
 -- recursive matcher's self-reference instantiates to a fresh target type and
--- fails the MatcherSlot capability/target check.
+-- fails the capability/target equality of the recursive use.
 -- Only names declared via @inductive@ in this batch are rewritten; undeclared
 -- capitalized names (e.g. a stale @MathExpr@) stay type variables.
 concretizeDeclaredTypes :: Set.Set String -> Type -> Type

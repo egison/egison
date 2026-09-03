@@ -1,4 +1,5 @@
--- R12 component checking is based on the complete inferred type.  A
+-- The hole demand (G-Literal) is checked against the complete inferred type
+-- of the next matcher expression.  A
 -- variable whose type is `Matcher Any a` has the same ground capability as the
 -- literal in 40-matcher-next-structural.egi.
 --

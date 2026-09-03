@@ -1,8 +1,7 @@
--- The single hole has target (a, a), so signature-directed projection
--- assigns both tuple leaves to the same capability parameter.  The two
--- producers have the same target type but disagree exactly on capability:
--- Choice versus Any.  Only `unseen`, not `Any`, is neutral during evidence
--- merge, so the repeated assignment must be rejected.
+-- The single hole has target (a, a), so the declared signature projects both
+-- tuple leaves to the same capability parameter.  The two next matchers have
+-- the same target type but different capabilities, Choice versus Any, so the
+-- capability equation fails.
 inductive Same a := Same (a, a)
 inductive pattern Same a := same (a, a)
 

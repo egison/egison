@@ -146,7 +146,7 @@ unifyCapability cap1 cap2
 
 -- | Capability component matching used only inside type-class
 -- 'matchOneWay'.  It keeps the quantified-instance domain stable and is not
--- the matcher-to-slot capability rule.  The Boolean
+-- the symmetric capability unification of type equality.  The Boolean
 -- records whether literal 'CapAny' nodes come from the original consumer
 -- shape.  It is false for a type obtained by expanding an earlier consumer
 -- variable binding, because an @Any@ stored in that binding is a rigid value,
@@ -232,9 +232,9 @@ ok :: Either UnifyError (Subst, Bool)
 ok = Right (emptySubst, False)
 
 -- | Normalize types and align the two outermost types.  Capability variables
--- are solved symmetrically only when both outer constructors are 'TMatcher'
--- or both are 'TMatcherSlot'.  Capability equations at every nested occurrence
--- use the same ordinary capability MGU.
+-- are solved symmetrically when both outer constructors are 'TMatcher';
+-- capability equations at every nested occurrence use the same ordinary
+-- capability MGU.
 unifyNormalized :: TensorHandling -> ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 unifyNormalized mode classEnv constraints t1 t2 =
   let t1' = normalizeInductiveTypes (normalizeTensorType t1)
@@ -242,8 +242,7 @@ unifyNormalized mode classEnv constraints t1 t2 =
   in alignRootG mode classEnv constraints t1' t2'
 
 -- | Normalize a type component below the outer alignment boundary.  Generic
--- equality recurses through nested matcher/slot types without introducing the
--- Matcher-to-MatcherSlot conversion.
+-- equality recurses through nested matcher types with the same rules.
 unifyNestedNormalized
   :: TensorHandling
   -> ClassEnv
@@ -256,9 +255,9 @@ unifyNestedNormalized mode classEnv constraints t1 t2 =
       t2' = normalizeInductiveTypes (normalizeTensorType t2)
   in unifyG mode classEnv constraints t1' t2'
 
--- | Root equality corresponding to TypePM's @alignTypesCore@.  Slot-use
--- coercion and product matcher conveniences live exclusively in
--- 'alignAtSlotG'.
+-- | Root equality corresponding to TypePM's @alignTypesCore@.  It is
+-- ordinary equality; the matcher/product head expansion lives in
+-- 'unifyMatcherProductG'.
 alignRootG
   :: TensorHandling
   -> ClassEnv
@@ -348,9 +347,8 @@ unifyG mode ce cs (THash k1 v1) (THash k2 v2) = do
       (applySubst s1 v2)
   Right (composeSubst s2 s1, f1 || f2)
 
--- Matcher and slot constructors use ordinary equality recursively: both the
--- capability and target components contribute equations.  The special
--- Matcher-to-MatcherSlot conversion is still selected only by 'alignAtSlotG'.
+-- Matcher types use ordinary equality recursively: both the capability and
+-- target components contribute equations.
 unifyG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
   capSubst <- unifyCapability cap1 cap2
   let cs' = map (applySubstConstraint capSubst) cs
@@ -601,48 +599,49 @@ hasInstanceForTensorType classEnv elemType (Constraint className _) =
          ) instances
 
 --------------------------------------------------------------------------------
--- COERCE-MATCHER-TO-SLOT (paper: one-way Matcher -> MatcherSlot coercion)
+-- One-way matching for type-class instance selection
 --------------------------------------------------------------------------------
 
 
--- | One-way matching: is there a substitution over @slot@'s type variables making
--- @slot == matcher@, with @matcher@ rigid (its variables are never bound)?
--- A variable-headed @slot@ admits any matcher (bind the variable); a constructor- or
--- concrete-headed @slot@ rejects a bare-variable matcher (e.g. @something@). Repeated
--- slot variables are matched consistently (resolved via the accumulated substitution).
+-- | One-way matching: is there a substitution over the first type's variables
+-- making it equal to the second, with the second rigid (its variables are
+-- never bound)?  A variable-headed first type admits anything (bind the
+-- variable); a constructor- or concrete-headed one rejects a bare variable.
+-- Repeated variables are matched consistently (resolved via the accumulated
+-- substitution).  Used for type-class instance selection only.
 matchOneWay :: Type -> Type -> Maybe Subst
-matchOneWay slot0 matcher0 =
+matchOneWay quantified0 rigid0 =
   matchOneWayWithDomain
-    (freeTyVars slot0 `Set.difference` freeTyVars matcher0)
-    (freeCapVars slot0 `Set.difference` freeCapVars matcher0)
-    slot0 matcher0
+    (freeTyVars quantified0 `Set.difference` freeTyVars rigid0)
+    (freeCapVars quantified0 `Set.difference` freeCapVars rigid0)
+    quantified0 rigid0
 
 -- | One-way matching with an explicit, stable binding domain.  The domain is
--- captured from the original structural slot and must be preserved across a
--- recursively decomposed product coercion.  Variables introduced by the
--- matcher side therefore remain rigid even if an earlier equality substitutes
--- one of them into a later slot position.  Worklist entries retain the raw
--- consumer node plus a provenance bit; expanding a saved type-variable image
--- clears that bit so capability Any inside the image is checked strictly.
+-- captured from the original quantified type and must be preserved across a
+-- recursively decomposed product.  Variables introduced by the rigid side
+-- therefore remain rigid even if an earlier equality substitutes one of them
+-- into a later position.  Worklist entries retain the raw quantified node
+-- plus a provenance bit; expanding a saved type-variable image clears that
+-- bit so capability Any inside the image is checked strictly.
 matchOneWayWithDomain
   :: Set.Set TyVar
   -> Set.Set CapVar
   -> Type
   -> Type
   -> Maybe Subst
-matchOneWayWithDomain bindable bindableCapabilities slot0 matcher0 =
-  go [(True, slot0, matcher0)] emptySubst
+matchOneWayWithDomain bindable bindableCapabilities quantified0 rigid0 =
+  go [(True, quantified0, rigid0)] emptySubst
   where
     go [] acc
-      | applySubst acc matcher0 == matcher0
+      | applySubst acc rigid0 == rigid0
       , Map.keysSet (unSubst acc) `Set.isSubsetOf` bindable
       , Map.keysSet (unCapSubst acc)
           `Set.isSubsetOf` bindableCapabilities =
           Just acc
       | otherwise =
           Nothing
-    go ((fromOriginalConsumer, slot, matcher) : rest) acc =
-      case slot of
+    go ((fromOriginalConsumer, quantified, rigid) : rest) acc =
+      case quantified of
         TVar variable
           | variable `Set.member` bindable ->
               case Map.lookup variable (unSubst acc) of
@@ -653,28 +652,28 @@ matchOneWayWithDomain bindable bindableCapabilities slot0 matcher0 =
                   matchStruct
                     False
                     (applySubst acc (TVar variable))
-                    matcher
+                    rigid
                     rest
                     acc
                 Nothing
-                  | TVar variable == matcher ->
+                  | TVar variable == rigid ->
                       go rest acc
-                  | variable `Set.member` freeTyVars matcher ->
+                  | variable `Set.member` freeTyVars rigid ->
                       Nothing
                   | otherwise ->
                       go rest
                         (composeSubst
-                          (singletonSubst variable matcher)
+                          (singletonSubst variable rigid)
                           acc)
           | otherwise ->
               matchStruct
                 fromOriginalConsumer
                 (TVar variable)
-                matcher
+                rigid
                 rest
                 acc
         _ ->
-          matchStruct fromOriginalConsumer slot matcher rest acc
+          matchStruct fromOriginalConsumer quantified rigid rest acc
 
     descend provenance pairs rest acc =
       go
@@ -722,9 +721,9 @@ matchOneWayWithDomain bindable bindableCapabilities slot0 matcher0 =
 
 -- | CAS ground-type equivalence: the closed, ClassEnv-free subtype/widening
 -- rules of 'unifyG' (Integer, MathValue, Factor, Term, Frac, Poly are mutually
--- equivalent at the ground level).  This lets 'matchOneWay' admit a concrete CAS
--- matcher at a concrete CAS slot — e.g. @integer : Matcher Integer@ filling the
--- @MatcherSlot MathValue MathValue@ that the body of @term@/@poly@/@frac@ pins.
+-- equivalent at the ground level).  This lets 'matchOneWay' identify the CAS
+-- ground types, e.g. @Integer@ against @MathValue@ in the bodies of
+-- @term@/@poly@/@frac@.
 groundEquiv :: Type -> Type -> Bool
 groundEquiv a b = isCASGround a && isCASGround b
   where

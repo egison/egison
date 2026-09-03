@@ -1,6 +1,6 @@
 --
--- Nested constructor sub-pattern (paper Appendix B, "Nested constructor
--- sub-patterns").  The element position of the cons is pinned to Tile by
+-- Nested constructor sub-pattern (paper rule P-Cons applied to the nested
+-- constructor).  The element position of the cons is pinned to Tile by
 -- `num`, so the element requires Tile capability; `multiset something`
 -- provides only `[Any]`.
 --
