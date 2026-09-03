@@ -256,18 +256,16 @@ data AnnotationSkolems = AnnotationSkolems
   } deriving (Eq, Show)
 
 -- | Instantiate every quantified capability of an explicit scheme as a rigid
--- skolem.  Type binders use protected fresh A/R variables: inference may
--- strengthen an A binder to R, but the annotation boundary later rejects any
--- other image.  Thus source annotations may omit inferred A/R flags without
--- permitting ordinary type specialization.
+-- skolem, and every quantified type variable as a protected fresh variable
+-- whose only admissible image is itself: the annotation boundary rejects
+-- any other image, so an annotation cannot be specialized.
 skolemizeAnnotation
   :: TypeScheme
   -> Int
   -> ([Constraint], Type, AnnotationSkolems, Int)
 skolemizeAnnotation = skolemizeAnnotationWith True
 
--- | Pattern targets are inputs to matching rather than returned values, so
--- their quantified variables retain the source A/R classes.
+-- | Pattern targets are inputs to matching rather than returned values.
 skolemizePatternAnnotation
   :: TypeScheme
   -> Int

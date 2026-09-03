@@ -1453,10 +1453,7 @@ ensureParametersDetermined label fields result = do
          else "; undetermined matcher capability variable(s): " ++
               unwords (map show undeterminedCapVars))
 
--- | Internal declarations are constructed from result types, so failure here
--- indicates a malformed declaration that will be diagnosed at its explicit
--- source boundary.  Normalize their quantified A/R flags before exposing the
--- scheme to expression inference.
+-- | Public schemes are exposed to expression inference as declared.
 normalizePublicScheme :: TypeScheme -> TypeScheme
 normalizePublicScheme scheme = scheme
 

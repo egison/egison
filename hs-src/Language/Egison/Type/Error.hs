@@ -15,7 +15,6 @@ module Language.Egison.Type.Error
   , formatTypeError
   , formatTypeWarning
   , emptyContext
-  , withLocation
   , withExpr
   , withContext
   ) where
@@ -47,10 +46,6 @@ data TypeErrorContext = TypeErrorContext
 -- | Empty error context
 emptyContext :: TypeErrorContext
 emptyContext = TypeErrorContext Nothing Nothing Nothing
-
--- | Add location to a context
-withLocation :: SourceLocation -> TypeErrorContext -> TypeErrorContext
-withLocation loc ctx = ctx { errorLocation = Just loc }
 
 -- | Add expression to a context
 withExpr :: String -> TypeErrorContext -> TypeErrorContext

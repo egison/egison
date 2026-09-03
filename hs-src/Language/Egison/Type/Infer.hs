@@ -31,30 +31,24 @@ module Language.Egison.Type.Infer
   , initialInferStateWithConfig
   , defaultInferConfig
   , permissiveInferConfig
-  , runInfer
   , runInferWithWarnings
   , runInferWithWarningsAndState
     -- * Running inference
-  , runInferI
-  , runInferIWithEnv
     -- * Helper functions
   , freshVar
-  , freshResultVar
   , instantiateDualSchemeInState
   , getEnv
   , setEnv
   , withEnv
-  , lookupVar
   , unifyTypes
   , generalize
   , inferConstant
   , addWarning
-  , clearWarnings
   ) where
 
 import           Control.Monad              (foldM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
-import           Control.Monad.State.Strict (StateT, evalStateT, runStateT, get, gets, modify, put)
+import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
 import           Data.List                  (isPrefixOf, nub, intercalate, zip4)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -70,7 +64,6 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , tiExprType, mapIExprTypes, mapIPatternTypes,
                                               mapTIExprChildren)
 import           Language.Egison.Pretty     (prettyStr)
-import qualified Language.Egison.Type.Capability as Cap
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
 import           Language.Egison.Type.Error (TypeError(..), TypeErrorContext(..), TypeWarning(..),
@@ -253,10 +246,6 @@ initialInferStateWithConfig cfg = InferState
 
 -- | Inference monad (with IO for potential future extensions)
 type Infer a = ExceptT TypeError (StateT InferState IO) a
-
--- | Run type inference
-runInfer :: Infer a -> InferState -> IO (Either TypeError a)
-runInfer m st = evalStateT (runExceptT m) st
 
 -- | Run type inference and also return warnings
 runInferWithWarnings :: Infer a -> InferState -> IO (Either TypeError a, [TypeWarning])
@@ -608,10 +597,6 @@ warnUnboundVariable name ctx = do
     then addWarning (ForwardReferenceWarning name ctx)
     else addWarning (UnboundVariableWarning name ctx)
 
--- | Clear all accumulated warnings
-clearWarnings :: Infer ()
-clearWarnings = modify $ \st -> st { inferWarnings = [] }
-
 -- | Add type class constraints (with deduplication and superclass propagation)
 -- When adding a constraint like "Ord a", this also adds superclass constraints
 -- (e.g., "Eq a") recursively, so that superclass methods are available.
@@ -663,21 +648,6 @@ freshVar prefix = do
   let n = inferCounter st
   put st { inferCounter = n + 1 }
   return $ TVar $ TyVar $ prefix ++ show n
-
--- | Generate a fresh type variable for a result position.
-freshResultVar :: String -> Infer Type
-freshResultVar prefix = do
-  st <- get
-  let n = inferCounter st
-  put st { inferCounter = n + 1 }
-  return $ TVar $ TyVar $ prefix ++ show n
-
--- | Refine a synthesized type at a result boundary and commit the resulting
--- A-to-R strengthening to the global substitution.
-makeResultWithContext :: Type -> TypeErrorContext -> Infer (Type, Subst)
-makeResultWithContext ty _ = do
-  normalized <- applySubstWithConstraintsM emptySubst ty
-  return (normalized, emptySubst)
 
 -- | Generate a fresh flexible capability variable.
 freshCapability :: String -> Infer Capability
@@ -1110,7 +1080,7 @@ skolemizeNestedAnnotations skolems =
 
 -- | Orient unconstrained inference aliases back toward the protected fresh
 -- variable of an annotation.  This is only alpha-renaming: concrete images
--- are left for 'strengthenAnnotatedScheme' to reject.
+-- are left for 'checkAnnotationIdentity' to reject.
 closeAnnotatedTypeVariables
   :: AnnotationSkolems
   -> Subst
@@ -1131,20 +1101,18 @@ closeAnnotatedTypeVariables skolems initialSubstitution ctx =
                   return (composeSubst renaming substitution)
         _ -> return substitution
 
--- | Validate the protected type variables of an explicit annotation and
--- reflect every permitted A-to-R strengthening in its public scheme.  A
--- concrete image, an unrelated variable, or R-to-A weakening is still an
--- annotation-rigidity error.
-strengthenAnnotatedScheme
+-- | Validate the protected type variables of an explicit annotation: each
+-- annotation skolem must retain its identity in the final substitution.  A
+-- concrete image or an unrelated variable is an annotation-rigidity error,
+-- unless an explicit Egison extension is in use.
+checkAnnotationIdentity
   :: AnnotationSkolems
   -> Subst
-  -> TypeScheme
   -> Bool
   -> TypeErrorContext
-  -> Infer TypeScheme
-strengthenAnnotatedScheme skolems substitution scheme allowExtension ctx = do
+  -> Infer ()
+checkAnnotationIdentity skolems substitution allowExtension ctx =
   mapM_ inspect (annotationTySkolems skolems)
-  return scheme
   where
     inspect (fresh, _declared) = do
       let image = applySubst substitution (TVar fresh)
@@ -1444,15 +1412,6 @@ deskolemizeAnnotationState skolems =
       }
 
 -- | Extend the environment temporarily
--- | Every clause of a matcher literal is checked by equality when it is
--- inferred; there are no deferred hole checks.  The two hooks remain as
--- no-ops at the top-level expression boundaries.
-clearDeferredHoleChecks :: Infer ()
-clearDeferredHoleChecks = return ()
-
-flushDeferredHoleChecks :: Subst -> Infer Subst
-flushDeferredHoleChecks _ = return emptySubst
-
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
 withEnv bindings action = do
   oldEnv <- getEnv
@@ -1474,30 +1433,6 @@ restoreInferStateAfter restore action = do
 primitivePatternNames :: IPrimitiveDataPattern -> [String]
 primitivePatternNames =
   foldr (\var names -> extractNameFromVar var : names) []
-
--- | Look up a variable's type
-lookupVar :: String -> Infer Type
-lookupVar name = do
-  env <- getEnv
-  case lookupEnv (stringToVar name) env of
-    Just scheme -> do
-      (constraints, t) <- instantiateSchemeInState scheme
-      -- Track constraints for type class resolution
-      addConstraints constraints
-      return t
-    Nothing -> do
-      -- Check if this is a declared symbol
-      st <- get
-      case Map.lookup name (declaredSymbols st) of
-        Just ty -> return ty  -- Return the declared type without warning
-        Nothing -> do
-          permissive <- isPermissive
-          if permissive
-            then do
-              -- In permissive mode, treat as a warning and return a fresh type variable
-              warnUnboundVariable name emptyContext
-              freshVar "unbound"
-            else throwError $ UnboundVariable name emptyContext
 
 -- | Lookup variable and return type with constraints
 lookupVarWithConstraints :: String -> Infer (Type, [Constraint])
@@ -1609,21 +1544,6 @@ recursiveCycleMembers bindings =
             (Set.insert name seen)
             (Set.toList
               (Map.findWithDefault Set.empty name adjacency) ++ rest)
-
--- | Checking of an annotated matcher-literal definition (possibly
--- parameterized, i.e. lambda-wrapped): the parameter types and the final
--- matcher result use ordinary equality, including ordinary capability
--- unification.
-unifyMatcherDefType :: [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
-unifyMatcherDefType cs (TFun a1 r1) (TFun a2 r2) ctx = do
-  s1 <- unifyTypesWithConstraints cs a1 a2 ctx
-  r1' <- applySubstWithConstraintsM s1 r1
-  r2' <- applySubstWithConstraintsM s1 r2
-  s2 <- unifyMatcherDefType (map (applySubstConstraint s1) cs) r1' r2' ctx
-  return (composeSubst s2 s1)
-unifyMatcherDefType cs t1@(TMatcher _ _) t2@(TMatcher _ _) ctx =
-  unifyTypesWithConstraints cs t1 t2 ctx
-unifyMatcherDefType cs t1 t2 ctx = unifyTypesWithConstraints cs t1 t2 ctx
 
 unifyTypesWithContext :: Type -> Type -> TypeErrorContext -> Infer Subst
 unifyTypesWithContext t1 t2 ctx = do
@@ -1775,7 +1695,7 @@ inferConstant c = case c of
   FloatExpr _   -> return TFloat
   -- something : Matcher Any a
   SomethingExpr -> do
-    elemType <- freshResultVar "a"
+    elemType <- freshVar "a"
     return (TMatcher CapAny elemType)
   -- undefined has a fresh type variable (bottom-like, can be any type)
   UndefinedExpr -> freshVar "undefined"
@@ -2301,9 +2221,8 @@ inferIExprWithContext expr ctx = case expr of
                        return (composeSubst sT sAcc)
                      else return sAcc)
                 s (zip params argTypes)
-    (resultBodyType, resultSubst) <-
-      makeResultWithContext bodyType exprCtx
-    let finalSubst = composeSubst resultSubst s'
+    resultBodyType <- applySubstWithConstraintsM emptySubst bodyType
+    let finalSubst = s'
     finalArgTypes <- mapM (applySubstWithConstraintsM finalSubst) argTypes
     finalBodyType <- applySubstWithConstraintsM finalSubst resultBodyType
     let funType = foldr TFun finalBodyType finalArgTypes
@@ -2354,7 +2273,7 @@ inferIExprWithContext expr ctx = case expr of
     let condType = tiExprType condTI
     s2 <- unifyTypesWithContext condType TBool exprCtx
     let s12 = composeSubst s2 s1
-    commonType <- freshResultVar "ifResult"
+    commonType <- freshVar "ifResult"
     (thenTI, s3) <- inferIExprWithContext thenExpr exprCtx
     thenType <- applySubstWithConstraintsM s3 (tiExprType thenTI)
     commonThen <- applySubstWithConstraintsM s3 commonType
@@ -3132,7 +3051,7 @@ inferIExprWithContext expr ctx = case expr of
     let targetType = tiExprType targetTI
         matcherType = tiExprType matcherTI
         s12 = composeSubst s2 s1
-    commonResult <- freshResultVar "matchResult"
+    commonResult <- freshVar "matchResult"
 
     -- T-MATCH: target, matcher, then each arm in source order.  An arm is
     -- checked exactly once as pattern -> matcher equality -> body.
@@ -3200,7 +3119,7 @@ inferIExprWithContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     (targetTI, s1) <- inferIExprWithContext target exprCtx
     let targetType = tiExprType targetTI
-    commonResult <- freshResultVar "matchAllElem"
+    commonResult <- freshVar "matchAllElem"
 
     -- T-MATCHALL reads the first pattern before the matcher expression.  For
     -- the multi-arm Egison extension, later arms continue in source order.
@@ -3251,8 +3170,8 @@ inferIExprWithContext expr ctx = case expr of
       withEnv schemes $
         inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
-    (resultType, resultSubst) <- makeResultWithContext bodyType exprCtx
-    let finalSubst = composeSubst resultSubst s
+    resultType <- applySubstWithConstraintsM emptySubst bodyType
+    let finalSubst = s
     finalArgTypes <- mapM (applySubstWithConstraintsM finalSubst) argTypes
     finalResultType <- applySubstWithConstraintsM finalSubst resultType
     let funType = foldr TFun finalResultType finalArgTypes
@@ -3274,7 +3193,7 @@ inferIExprWithContext expr ctx = case expr of
         finalS = composeSubst s2 s1
         
     -- Verify that body type is IO a
-    bodyResultType <- freshResultVar "ioResult"
+    bodyResultType <- freshVar "ioResult"
     bodyType' <- applySubstWithConstraintsM finalS bodyType
     s3 <- unifyTypesWithContext bodyType' (TIO bodyResultType) exprCtx
     resultType <- applySubstWithConstraintsM s3 (TIO bodyResultType)
@@ -3287,8 +3206,8 @@ inferIExprWithContext expr ctx = case expr of
     argType <- freshVar "cambdaArg"
     (bodyTI, s) <- inferIExprWithContext body exprCtx
     let bodyType = tiExprType bodyTI
-    (resultType, resultSubst) <- makeResultWithContext bodyType exprCtx
-    let finalSubst = composeSubst resultSubst s
+    resultType <- applySubstWithConstraintsM emptySubst bodyType
+    let finalSubst = s
     argType' <- applySubstWithConstraintsM finalSubst argType
     resultType' <- applySubstWithConstraintsM finalSubst resultType
     return
@@ -5545,7 +5464,7 @@ inferIApplicationSequential
 inferIApplicationSequential funcTIExpr funcType args initSubst ctx = do
   paramVars <-
     mapM (\index -> freshVar ("param" ++ show index)) [1 .. length args]
-  resultType <- freshResultVar "result"
+  resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType paramVars
       Forall _ _ funcConstraints _ = tiScheme funcTIExpr
   appliedFuncType <- applySubstWithConstraintsM initSubst funcType
@@ -5669,7 +5588,7 @@ inferIApplicationUnifyPhase :: TIExpr -> Type -> [IExpr] -> [TIExpr] -> [Type] -
 inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubst ctx = do
   -- Create fresh type variables for parameters and result
   paramVars <- mapM (\i -> freshVar ("param" ++ show i)) [1..length argTypes]
-  resultType <- freshResultVar "result"
+  resultType <- freshVar "result"
   let expectedFuncType = foldr TFun resultType paramVars
   appliedFuncType <- applySubstWithConstraintsM argSubst funcType
 
@@ -5819,13 +5738,13 @@ inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- Infer the type of the expression
   (exprTI, s1) <- inferIExprWithContext expr ctx
-  (exprType, resultSubst) <- case pat of
+  exprType <- case pat of
     -- This is the core let form.  Wildcard and destructuring bindings are
     -- also used internally to elaborate function-parameter patterns; their
-    -- RHS is an incoming parameter and therefore remains TypeOK.
-    PDPatVar _ -> makeResultWithContext (tiExprType exprTI) ctx
-    _ -> return (tiExprType exprTI, emptySubst)
-  let s1' = composeSubst resultSubst s1
+    -- RHS type is taken as it is.
+    PDPatVar _ -> applySubstWithConstraintsM emptySubst (tiExprType exprTI)
+    _ -> return (tiExprType exprTI)
+  let s1' = s1
 
   -- Create expected type from pattern and unify with expression type
   -- This helps resolve type variables in the expression type
@@ -6064,7 +5983,7 @@ inferIRecBindingsWithContext bindings _env s ctx = do
       t <- freshVar "wild"
       return (t, emptySubst)
     inferPatternType (PDPatVar _) = do
-      t <- freshResultVar "rec"
+      t <- freshVar "rec"
       return (t, emptySubst)
     inferPatternType (PDTuplePat pats) = do
       results <- mapM inferPatternType pats
@@ -6233,7 +6152,6 @@ inferITopExpr topExpr = case topExpr of
         -- This is crucial for constraint-aware unification inside the definition body
         -- e.g., when (.) has {Num a}, this constraint must be visible when type-checking t1 * t2
         clearConstraints  -- Start fresh
-        clearDeferredHoleChecks
         addConstraints instConstraints
         -- Recursive uses of an annotated definition are monomorphic within
         -- the definition.  Shadow the polymorphic declaration with this
@@ -6272,19 +6190,10 @@ inferITopExpr topExpr = case topExpr of
             currentConstraints = map (applySubstConstraint subst1) instConstraints
         exprType' <- applySubstWithConstraintsM subst1 exprType
         expectedType' <- applySubstWithConstraintsM subst1 expectedType
-        -- An annotated matcher literal (possibly behind lambdas) is checked
-        -- by 'unifyMatcherDefType': parameter positions and the final
-        -- Matcher result by ordinary equality.
-        subst2 <- case rhsCore checkedExpr of
-          IMatcherExpr _ ->
-            unifyMatcherDefType currentConstraints exprType' expectedType' exprCtx
-          _ -> unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
+        subst2 <-
+          unifyTypesWithConstraints currentConstraints exprType' expectedType' exprCtx
         let preHoleSubst = composeSubst subst2 subst1
-
-        -- The deferred-hole hook is a no-op; compose its substitution
-        -- before elaboration and generalization.
-        holeSubst <- flushDeferredHoleChecks preHoleSubst
-        let finalSubst0 = composeSubst holeSubst preHoleSubst
+        let finalSubst0 = preHoleSubst
         finalSubst <-
           closeAnnotatedTypeVariables
             annotationSkolems finalSubst0 exprCtx
@@ -6301,9 +6210,8 @@ inferITopExpr topExpr = case topExpr of
           baselineGlobalSubst env finalSubst
           usesExtension
           exprCtx
-        strengthenedScheme <-
-          strengthenAnnotatedScheme
-            annotationSkolems finalSubst existingScheme usesExtension exprCtx
+        checkAnnotationIdentity
+          annotationSkolems finalSubst usesExtension exprCtx
 
         -- Apply final substitution to exprTI to resolve all type variables
         -- IMPORTANT: Use applySubstToTIExprM to adjust substitution based on constraints
@@ -6323,7 +6231,7 @@ inferITopExpr topExpr = case topExpr of
         -- (with substitutions applied) as the final type, not the inferred type.
         -- This ensures that Tensor types are preserved when explicitly annotated.
         let Forall declaredCapVars declaredTyVars declaredConstraints declaredType =
-              strengthenedScheme
+              existingScheme
             updatedScheme =
               Forall declaredCapVars declaredTyVars
                 (expandSuperclasses classEnv declaredConstraints)
@@ -6344,7 +6252,6 @@ inferITopExpr topExpr = case topExpr of
       Nothing -> do
         -- No explicit type signature: infer and generalize as before
         clearConstraints  -- Start with fresh constraints for this expression
-        clearDeferredHoleChecks
         -- Monomorphic recursion: bind the definition's own name to a fresh
         -- type variable before inferring the body, so recursive calls
         -- constrain it.  (Previously the name was unbound in its own body:
@@ -6353,7 +6260,7 @@ inferITopExpr topExpr = case topExpr of
         -- its own name up in the METHOD's scheme.)  The body's type is
         -- unified with the placeholder below, so polymorphic recursion
         -- still needs an explicit signature, as in ML.
-        selfTy <- freshResultVar "rec"
+        selfTy <- freshVar "rec"
         modify $ \s -> s { inferEnv = extendEnv var (Forall [] [] [] selfTy) (inferEnv s) }
         let owner = extractNameFromVar var
         case var of
@@ -6378,12 +6285,7 @@ inferITopExpr topExpr = case topExpr of
               (withExpr (prettyStr expr) emptyContext)
         subst2 <- unifyTypesWithContext selfTy' exprType' recCtx
         let preHoleSubst = composeSubst subst2 subst1
-
-        -- The deferred-hole hook is a no-op; compose its substitution only
-        -- after every ordinary constraint on the definition, including
-        -- monomorphic recursion, has been solved.
-        holeSubst <- flushDeferredHoleChecks preHoleSubst
-        let subst = composeSubst holeSubst preHoleSubst
+        let subst = preHoleSubst
 
         -- Apply the complete substitution to the stored expression, exactly
         -- as the signature branch does.  Without this, node schemes inside
@@ -6425,20 +6327,14 @@ inferITopExpr topExpr = case topExpr of
   
   ITest expr -> do
     clearConstraints  -- Start with fresh constraints
-    clearDeferredHoleChecks
-    (exprTI, subst) <- inferIExpr expr
-    holeSubst <- flushDeferredHoleChecks subst
-    let finalSubst = composeSubst holeSubst subst
+    (exprTI, finalSubst) <- inferIExpr expr
     exprTI' <- applySubstToTIExprM finalSubst exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (TITest exprTI'), finalSubst)
   
   IExecute expr -> do
     clearConstraints  -- Start with fresh constraints
-    clearDeferredHoleChecks
-    (exprTI, subst) <- inferIExpr expr
-    holeSubst <- flushDeferredHoleChecks subst
-    let finalSubst = composeSubst holeSubst subst
+    (exprTI, finalSubst) <- inferIExpr expr
     exprTI' <- applySubstToTIExprM finalSubst exprTI
     -- Constraints are now in state, will be retrieved by Eval.hs
     return (Just (TIExecute exprTI'), finalSubst)
@@ -6486,10 +6382,7 @@ inferITopExpr topExpr = case topExpr of
       -- literal against it.)
       inferBindingInScope _env (var, IHashExpr pairs@(_:_)) = do
         clearConstraints
-        clearDeferredHoleChecks
-        (pairTIs, s) <- foldM dictPair ([], emptySubst) pairs
-        holeSubst <- flushDeferredHoleChecks s
-        let finalSubst = composeSubst holeSubst s
+        (pairTIs, finalSubst) <- foldM dictPair ([], emptySubst) pairs
         v <- freshVar "dictVal"
         let exprTI = TIExpr (Forall [] [] [] (THash TString v)) (TIHashExpr (reverse pairTIs))
         exprTI' <- applySubstToTIExprM finalSubst exprTI
@@ -6516,7 +6409,6 @@ inferITopExpr topExpr = case topExpr of
             modify $ \s -> s { inferCounter = newCounter }
 
             clearConstraints
-            clearDeferredHoleChecks
             -- Make the signature's constraints visible while checking the
             -- body (parity with the IDefine signature branch)
             addConstraints instCsMany
@@ -6533,15 +6425,14 @@ inferITopExpr topExpr = case topExpr of
             let exprType = tiExprType exprTI
             exprType' <- applySubstWithConstraintsM subst1 exprType
             expectedType' <- applySubstWithConstraintsM subst1 expectedType
-            -- Annotated matcher-literal checking, possibly lambda-wrapped
-            -- (see the IDefine signature branch).
+            -- An annotated matcher literal (possibly lambda-wrapped) is
+            -- checked by ordinary equality with the signature's constraints
+            -- not yet in scope; other definitions use the top-level unifier.
             subst2 <- case rhsCore checkedExpr of
               IMatcherExpr _ ->
-                unifyMatcherDefType [] exprType' expectedType' emptyContext
+                unifyTypesWithConstraints [] exprType' expectedType' emptyContext
               _ -> unifyTypesWithTopLevel exprType' expectedType' emptyContext
-            let preHoleSubst = composeSubst subst2 subst1
-            holeSubst <- flushDeferredHoleChecks preHoleSubst
-            let finalSubst0 = composeSubst holeSubst preHoleSubst
+            let finalSubst0 = composeSubst subst2 subst1
             finalSubst <-
               closeAnnotatedTypeVariables
                 annotationSkolems finalSubst0 emptyContext
@@ -6556,15 +6447,14 @@ inferITopExpr topExpr = case topExpr of
               baselineGlobalSubst env finalSubst
               usesExtension
               emptyContext
-            strengthenedScheme <-
-              strengthenAnnotatedScheme
-                annotationSkolems finalSubst existingScheme usesExtension emptyContext
+            checkAnnotationIdentity
+              annotationSkolems finalSubst usesExtension emptyContext
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             -- The monomorphic entry above is scoped to checking this body.
             -- Restore the declared polymorphic scheme for later definitions
             -- and for dictionary elaboration of this IDefineMany batch.
             let Forall declaredCapVars declaredTyVars declaredConstraints declaredType =
-                  strengthenedScheme
+                  existingScheme
                 updatedScheme =
                   Forall declaredCapVars declaredTyVars
                     (expandSuperclasses classEnvForSig declaredConstraints)
@@ -6585,13 +6475,7 @@ inferITopExpr topExpr = case topExpr of
           Nothing -> do
             -- Without type signature: infer and generalize
             clearConstraints
-            clearDeferredHoleChecks
-            (exprTI, subst0) <- inferIExpr expr
-            (_, resultSubst) <-
-              makeResultWithContext (tiExprType exprTI) emptyContext
-            let subst = composeSubst resultSubst subst0
-            holeSubst <- flushDeferredHoleChecks subst
-            let finalSubst = composeSubst holeSubst subst
+            (exprTI, finalSubst) <- inferIExpr expr
             -- Apply the substitution to the stored expression (same as the
             -- IDefine no-signature branch): node schemes must not keep stale
             -- type variables in their constraints, or TypeClassExpand emits
@@ -6656,7 +6540,6 @@ inferITopExpr topExpr = case topExpr of
     modify $ \state -> state { inferCounter = newCounter }
 
     clearConstraints  -- Start fresh
-    clearDeferredHoleChecks
 
     let ctx = TypeErrorContext
                 { errorLocation = Nothing
@@ -6719,11 +6602,7 @@ inferITopExpr topExpr = case topExpr of
       state { inferPatfunParamDuals = previousParameterDuals }
     (typedBody, _bodyBindings, bodySubst, bodyCapability) <-
       either throwError return bodyOutcome
-
-    -- Pattern bodies may contain arbitrary expressions and nested matcher
-    -- literals.  Discharge their queued checks before freezing the scheme.
-    holeSubst <- flushDeferredHoleChecks bodySubst
-    let finalSubst0 = composeSubst holeSubst bodySubst
+    let finalSubst0 = bodySubst
     finalSubst <-
       closeAnnotatedTypeVariables annotationSkolems finalSubst0 ctx
     typedBody' <- applySubstToTIPatternM finalSubst typedBody
@@ -6735,10 +6614,9 @@ inferITopExpr topExpr = case topExpr of
       baselineGlobalSubst outerEnv finalSubst
       (typeSchemeUsesEgisonExtension typeScheme)
       ctx
-    strengthenedTypeScheme <-
-      strengthenAnnotatedScheme
-        annotationSkolems finalSubst typeScheme
-          (typeSchemeUsesEgisonExtension typeScheme) ctx
+    checkAnnotationIdentity
+      annotationSkolems finalSubst
+      (typeSchemeUsesEgisonExtension typeScheme) ctx
 
     let parameterDuals =
           map
@@ -6752,7 +6630,7 @@ inferITopExpr topExpr = case topExpr of
           deskolemizeAnnotationSubst annotationSkolems finalSubst
     deskolemizeAnnotationState annotationSkolems
 
-    let Forall _ strengthenedTyVars _ _ = strengthenedTypeScheme
+    let Forall _ strengthenedTyVars _ _ = typeScheme
     dualScheme <-
       generalizeDualSchemeInState
         declaredCapVars strengthenedTyVars parameterDuals resultDual
@@ -6807,35 +6685,3 @@ inferITopExprs (e:es) = do
 -- * Running Inference
 --------------------------------------------------------------------------------
 
--- | Run type inference on IExpr
-runInferI :: InferConfig -> TypeEnv -> IExpr -> IO (Either TypeError (Type, Subst, [TypeWarning]))
-runInferI cfg env expr = do
-  let initState = (initialInferStateWithConfig cfg) { inferEnv = env }
-      inferComplete = do
-        clearDeferredHoleChecks
-        (tiExpr, subst) <- inferIExpr expr
-        holeSubst <- flushDeferredHoleChecks subst
-        let finalSubst = composeSubst holeSubst subst
-        tiExpr' <- applySubstToTIExprM finalSubst tiExpr
-        return (tiExpr', finalSubst)
-  (result, warnings) <- runInferWithWarnings inferComplete initState
-  return $ case result of
-    Left err -> Left err
-    Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, warnings)
-
--- | Run type inference on IExpr with initial environment
-runInferIWithEnv :: InferConfig -> TypeEnv -> IExpr -> IO (Either TypeError (Type, Subst, TypeEnv, [TypeWarning]))
-runInferIWithEnv cfg env expr = do
-  let initState = (initialInferStateWithConfig cfg) { inferEnv = env }
-      inferComplete = do
-        clearDeferredHoleChecks
-        (tiExpr, subst) <- inferIExpr expr
-        holeSubst <- flushDeferredHoleChecks subst
-        let finalSubst = composeSubst holeSubst subst
-        tiExpr' <- applySubstToTIExprM finalSubst tiExpr
-        return (tiExpr', finalSubst)
-  (result, warnings, finalState) <-
-    runInferWithWarningsAndState inferComplete initState
-  return $ case result of
-    Left err -> Left err
-    Right (tiExpr, subst) -> Right (tiExprType tiExpr, subst, inferEnv finalState, warnings)

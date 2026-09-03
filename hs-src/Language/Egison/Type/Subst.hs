@@ -20,10 +20,6 @@ module Language.Egison.Type.Subst
   , applySubstScheme
   , applySubstDual
   , applySubstConstraint
-  , SubstIndex
-  , emptySubstIndex
-  , singletonSubstIndex
-  , applySubstIndex
   ) where
 
 import           Data.Map.Strict            (Map)
@@ -181,21 +177,3 @@ applySubstDual substitution (Dual capability target) =
 applySubstConstraint :: Subst -> Constraint -> Constraint
 applySubstConstraint s (Constraint cls tys) = Constraint cls (map (applySubst s) tys)
 
--- | Index substitution: mapping from index variables to indices
-newtype SubstIndex = SubstIndex { unSubstIndex :: Map IndexTyVar Index }
-  deriving (Eq, Show, Generic)
-
--- | Empty index substitution
-emptySubstIndex :: SubstIndex
-emptySubstIndex = SubstIndex Map.empty
-
--- | Create an index substitution with a single binding
-singletonSubstIndex :: IndexTyVar -> Index -> SubstIndex
-singletonSubstIndex v i = SubstIndex $ Map.singleton v i
-
--- | Apply an index substitution to an index specification
-applySubstIndex :: SubstIndex -> IndexSpec -> IndexSpec
-applySubstIndex (SubstIndex m) = map apply
-  where
-    apply i@(IndexVar s) = Map.findWithDefault i (IndexTyVar s) m
-    apply i = i

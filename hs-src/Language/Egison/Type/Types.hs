@@ -33,7 +33,6 @@ module Language.Egison.Type.Types
   , classParam
   , InstanceInfo(..)
   , instType
-  , freshTyVar
   , freshCapVar
   , freeTyVars
   , freeTySkolems
@@ -47,16 +46,12 @@ module Language.Egison.Type.Types
   , freeCapSkolemsCapability
   , mapCapability
   , mapTypeCapabilities
-  , substCapVar
   , substCapVarInType
   , mkTypeFormer
   , typeFormerOf
   , capabilitySkeleton
   , capExprToCapability
   , isTensorType
-  , isScalarType
-  , isCASType
-  , isSubsetSymbolSet
   , hasAmbiguousOpenTower
   , mapType
   , substTyVar
@@ -335,10 +330,6 @@ instType ii = case instTypes ii of
   (t:_) -> t
   []    -> error "instType: instance with no types"
 
--- | Generate a fresh type variable with a given prefix
-freshTyVar :: String -> Int -> TyVar
-freshTyVar prefix n = TyVar (prefix ++ show n)
-
 -- | Generate a fresh variable for a quantified binder.
 freshTyVarLike :: TyVar -> String -> Int -> TyVar
 freshTyVarLike _ prefix n = TyVar (prefix ++ show n)
@@ -532,15 +523,6 @@ mapTypeCapabilities f = go
     go (TPoly t ss)         = TPoly (go t) ss
     go leaf                 = leaf
 
--- | Substitute one flexible capability variable.
---
--- Skolems are rigid and are never replaced.
-substCapVar :: CapVar -> Capability -> Capability -> Capability
-substCapVar old new = mapCapability replace
-  where
-    replace (CapVar v) | v == old = new
-    replace cap                    = cap
-
 -- | Substitute one capability variable throughout the matcher occurrences of
 -- a type, without changing any ordinary type variable.
 substCapVarInType :: CapVar -> Capability -> Type -> Type
@@ -591,31 +573,6 @@ isTensorType :: Type -> Bool
 isTensorType (TTensor _) = True
 isTensorType _           = False
 
--- | Check if a type is a scalar (non-tensor) type
-isScalarType :: Type -> Bool
-isScalarType = not . isTensorType
-
--- | Check if a type is a CAS type (Factor, Term, Frac, or Poly)
-isCASType :: Type -> Bool
-isCASType TFactor     = True
-isCASType (TTerm _ _) = True
-isCASType (TFrac _)    = True
-isCASType (TPoly _ _) = True
-isCASType _           = False
-
--- | Check if one symbol set is a subset of another
--- Used for coercive subtyping: Poly a [x] can be embedded into Poly a [x, y]
-isSubsetSymbolSet :: SymbolSet -> SymbolSet -> Bool
--- Open is a superset of everything
-isSubsetSymbolSet _ SymbolSetOpen = True
--- Open is only subset of itself
-isSubsetSymbolSet SymbolSetOpen _ = False
--- Closed is subset if all elements are contained
-isSubsetSymbolSet (SymbolSetClosed s1) (SymbolSetClosed s2) =
-  all (`elem` s2) s1
--- Variables require unification
-isSubsetSymbolSet (SymbolSetVar _) _ = False
-isSubsetSymbolSet _ (SymbolSetVar _) = False
 
 -- | Restriction on open atom sets: a nested Poly tower — the chain of
 -- Poly/Term coefficient nesting, descending through Frac — may contain at

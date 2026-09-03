@@ -20,7 +20,6 @@ import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
                                                   ITopExpr (..),
                                                   TITopExpr (..),
                                                   Var (..), tiExprType)
-import qualified Language.Egison.Type.Capability as Capability
 import qualified Language.Egison.Type.Env       as TypeEnv
 import           Language.Egison.Type.Env       (emptyEnv,
                                                   emptyClassEnv,

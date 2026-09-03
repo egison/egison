@@ -16,7 +16,6 @@ module Language.Egison.Type.Unify
   , unifyStrictWithConstraints
   , unifyWithTopLevel
   , unifyWithConstraints
-  , unifyMany
   , unifyCapability
   , matchOneWay
   , UnifyError(..)
@@ -95,11 +94,6 @@ unifyWithTopLevel t1 t2 =
 -- Returns (Subst, Bool) where Bool indicates if Tensor was unwrapped.
 unifyWithConstraints :: ClassEnv -> [Constraint] -> Type -> Type -> Either UnifyError (Subst, Bool)
 unifyWithConstraints = unifyNormalized TensorConstraintAware
-
--- | Unify a list of type pairs.
-unifyMany :: [Type] -> [Type] -> Either UnifyError Subst
-unifyMany ts1 ts2 =
-  fmap fst $ unifyManyRootG TensorConstraintAware emptyClassEnv [] ts1 ts2
 
 --------------------------------------------------------------------------------
 -- Capability unification
