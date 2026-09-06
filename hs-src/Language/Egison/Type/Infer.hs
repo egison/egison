@@ -49,7 +49,7 @@ module Language.Egison.Type.Infer
 import           Control.Monad              (foldM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
-import           Data.List                  (isPrefixOf, nub, intercalate, zip4)
+import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..))
@@ -75,6 +75,7 @@ import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstCo
                                               applySubstScheme, composeSubst, emptySubst,
                                               singletonSubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
+import           Language.Egison.Type.TensorMapInsertion (typeDirectedTensorLiftType)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
@@ -5420,12 +5421,14 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
 -- This function now only performs type inference and unification
 -- When a Tensor argument is passed to a scalar parameter, the result type is wrapped in Tensor
 --
--- The ordinary path fixes the function spine first and closes arguments in
--- source order.  CAS joining remains a separately marked extension retry.
+-- The ordinary path fixes the function spine first and synthesizes arguments
+-- in source order. Tensor data is then checked before scalar callbacks so
+-- their expected input and result types describe the later tensorMap wrapper.
+-- CAS joining remains a separately marked extension retry.
 inferIApplicationWithContext :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
   snapshot <- saveConstraintState
-  inferIApplicationSequential funcTIExpr funcType args initSubst ctx
+  inferIApplicationArguments funcTIExpr funcType args initSubst ctx
     `catchError` \e -> case e of
       UnificationError t1 t2 _
         | Subtype.isCasType t1, Subtype.isCasType t2 -> do
@@ -5451,17 +5454,17 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
               Nothing -> throwError e
       _ -> throwError e
 
--- | The ordinary application path fixes the A-parameter/R-result spine
--- before visiting any argument, then closes each argument check before
--- synthesizing the next source argument.
-inferIApplicationSequential
+-- | Synthesize each source argument once, then align its application type.
+-- Matching a scalar callback before tensor data would prematurely specialize
+-- the consumer's variables and hide the evidence needed for tensor lifting.
+inferIApplicationArguments
   :: TIExpr
   -> Type
   -> [IExpr]
   -> Subst
   -> TypeErrorContext
   -> Infer (TIExpr, Subst)
-inferIApplicationSequential funcTIExpr funcType args initSubst ctx = do
+inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
   paramVars <-
     mapM (\index -> freshVar ("param" ++ show index)) [1 .. length args]
   resultType <- freshVar "result"
@@ -5477,19 +5480,16 @@ inferIApplicationSequential funcTIExpr funcType args initSubst ctx = do
       `catchError` \_ -> return Nothing
   case initialUnifier of
     Just (shapeSubst, shapeFlag) -> do
-      let initial =
-            ( []
-            , composeSubst shapeSubst initSubst
-            , shapeFlag
-            )
-      (reversedArgs, finalSubst, tensorFlag) <-
-        foldM
-          (inferAndCheck classEnv constraints)
-          initial
-          (zip args paramVars)
+      argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
+      let argTIExprs = map fst argResults
+          argSubst = foldr composeSubst
+            (composeSubst shapeSubst initSubst) (map snd argResults)
+      (finalSubst, tensorFlag) <-
+        checkApplicationArguments classEnv constraints funcType args
+          argTIExprs paramVars argSubst shapeFlag ctx
       finishApplication
         classEnv funcConstraints resultType funcTIExpr
-        (reverse reversedArgs) finalSubst tensorFlag
+        argTIExprs finalSubst tensorFlag
     Nothing ->
       case appliedFuncType of
         TMathValue -> do
@@ -5510,31 +5510,91 @@ inferIApplicationSequential funcTIExpr funcType args initSubst ctx = do
             , finalSubst
             )
         _ -> throwError $ UnificationError appliedFuncType expectedFuncType ctx
+
+-- | Check tensor-bearing data first, then callbacks, then remaining data.
+-- Delaying a scalar fold/scan initializer lets the callback's tensor result
+-- determine the accumulator type; the initializer is admitted at rank zero.
+-- Applications without both tensor data and a callback retain source order.
+checkApplicationArguments
+  :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
+  -> Subst -> Bool -> TypeErrorContext -> Infer (Subst, Bool)
+checkApplicationArguments classEnv constraints funcType sources typedArgs params initialSubst initialFlag ctx = do
+  rankedArgs <- mapM rankArgument (zip4 [0..] sources typedArgs params)
+  let hasTensorData = any ((== 0) . fst) rankedArgs
+      hasCallback = any ((== 1) . fst) rankedArgs
+      orderedArgs
+        | hasTensorData && hasCallback = map snd (sortOn fst rankedArgs)
+        | otherwise = map snd rankedArgs
+  foldM checkArgument (initialSubst, initialFlag) orderedArgs
   where
-    inferAndCheck classEnv constraints
-                  (typedArgs, substitution, flag)
-                  (sourceArg, paramType) = do
-      (typedArg, argSubst) <- inferIExprWithContext sourceArg ctx
-      let substitution' = composeSubst argSubst substitution
+    rankArgument argument@(_, _, typedArg, paramType) = do
+      actual <- applySubstWithConstraintsM initialSubst (tiExprType typedArg)
+      expected <- applySubstWithConstraintsM initialSubst paramType
+      let rank
+            | isFunction actual || isFunction expected = 1 :: Int
+            | containsTensorData actual = 0
+            | otherwise = 2
+      return (rank, argument)
+
+    isFunction TFun{} = True
+    isFunction _ = False
+
+    checkArgument (substitution, flag) (index, sourceArg, typedArg, paramType) = do
+      updatedArg <- applySubstToTIExprM substitution typedArg
       inferredType <-
-        applySubstWithConstraintsM substitution' (tiExprType typedArg)
+        applySubstWithConstraintsM substitution (tiExprType updatedArg)
       expectedType <-
-        applySubstWithConstraintsM substitution' paramType
+        applySubstWithConstraintsM substitution paramType
+      outerType <- applySubstWithConstraintsM substitution funcType
       let outerConstraints =
-            map (applySubstConstraint substitution') constraints
-          Forall _ _ argConstraints _ = tiScheme typedArg
+            map (applySubstConstraint substitution) constraints
+          Forall _ _ argConstraints _ = tiScheme updatedArg
           allConstraints =
             outerConstraints ++
-            map (applySubstConstraint substitution') argConstraints
+            map (applySubstConstraint substitution) argConstraints
+          checkedType =
+            case typeDirectedTensorLiftType classEnv allConstraints
+                   outerType index expectedType updatedArg of
+              Just liftedType -> liftedType
+              Nothing -> inferredType
       (checkingSubst, argumentFlag) <-
         solveApplicationArgument
-          classEnv allConstraints sourceArg typedArg
-          inferredType expectedType ctx
-      return
-        ( typedArg : typedArgs
-        , composeSubst checkingSubst substitution'
-        , flag || argumentFlag
-        )
+          classEnv allConstraints sourceArg updatedArg
+          checkedType expectedType ctx
+      let finalSubst = composeSubst checkingSubst substitution
+      actualAfter <- applySubstWithConstraintsM finalSubst checkedType
+      expectedAfter <- applySubstWithConstraintsM finalSubst expectedType
+      return (finalSubst,
+        flag || (argumentFlag && erasesTensor actualAfter expectedAfter))
+
+-- | Tensor evidence in a data argument, including list and tuple elements.
+-- Function signatures and resource types are not tensor-valued data.
+containsTensorData :: Type -> Bool
+containsTensorData TTensor{} = True
+containsTensorData (TCollection element) = containsTensorData element
+containsTensorData (TTuple elements) = any containsTensorData elements
+containsTensorData (TInductive _ elements) = any containsTensorData elements
+containsTensorData (THash key value) = any containsTensorData [key, value]
+containsTensorData _ = False
+
+-- | Distinguish mapping a tensor to a scalar parameter from admitting a
+-- scalar at rank zero. Only the former can tensorize an application's result.
+erasesTensor :: Type -> Type -> Bool
+erasesTensor (TTensor actual) (TTensor expected) = erasesTensor actual expected
+erasesTensor TTensor{} _ = True
+erasesTensor actual (TTensor expected) = erasesTensor actual expected
+erasesTensor (TCollection actual) (TCollection expected) = erasesTensor actual expected
+erasesTensor (TTuple actual) (TTuple expected) = or (zipWith erasesTensor actual expected)
+erasesTensor (TInductive _ actual) (TInductive _ expected) = or (zipWith erasesTensor actual expected)
+erasesTensor (THash ak av) (THash ek ev) = erasesTensor ak ek || erasesTensor av ev
+erasesTensor (TFun aa ar) (TFun ea er) = erasesTensor aa ea || erasesTensor ar er
+erasesTensor (TIO actual) (TIO expected) = erasesTensor actual expected
+erasesTensor (TIORef actual) (TIORef expected) = erasesTensor actual expected
+erasesTensor (TMatcher _ actual) (TMatcher _ expected) = erasesTensor actual expected
+erasesTensor (TFrac actual) (TFrac expected) = erasesTensor actual expected
+erasesTensor (TPoly actual _) (TPoly expected _) = erasesTensor actual expected
+erasesTensor (TTerm actual _) (TTerm expected _) = erasesTensor actual expected
+erasesTensor _ _ = False
 
 -- | Build the typed application after all argument checks have closed.
 finishApplication
@@ -5582,7 +5642,7 @@ finishApplication classEnv funcConstraints resultType funcTIExpr
 
 -- | The unification half of application inference: fresh parameter/result
 -- variables, function-shape unification, then argument/parameter
--- unification in source order. Factored out so the
+-- unification with the same tensor-data ordering as the ordinary path, so the
 -- CAS-join retry above can re-run it with reshaped arguments.
 inferIApplicationUnifyPhase :: TIExpr -> Type -> [IExpr] -> [TIExpr] -> [Type] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubst ctx = do
@@ -5607,27 +5667,9 @@ inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubs
       `catchError` \_ -> return Nothing
   case initialUnifier of
     Just (s1, flag1) -> do
-      -- Check arguments in source order.  This is part of the inference
-      -- relation: each argument's constraints are closed before the next
-      -- argument is checked.
-      paramTypesRaw <- mapM (applySubstWithConstraintsM s1) paramVars
-      let indexedArgs = zip4 args argTIExprs argTypes paramTypesRaw
-      (s3, flag3) <- foldM (\(s, flagAcc) (sourceArg, typedArg, at, pt) -> do
-                     at' <- applySubstWithConstraintsM s at
-                     pt' <- applySubstWithConstraintsM s pt
-                     let -- Get constraints from both the outer function and the argument itself
-                         outerCs = map (applySubstConstraint s) constraints
-                         argScheme = tiScheme typedArg
-                         (Forall _ _ argConstraints _) = argScheme
-                         argCs = map (applySubstConstraint s) argConstraints
-                         allCs = outerCs ++ argCs
-                     (s', flag') <-
-                       solveApplicationArgument
-                         classEnv allCs sourceArg typedArg at' pt' ctx
-                     return (composeSubst s' s, flagAcc || flag')
-                  ) (s1, flag1) indexedArgs
-
-      let finalS = composeSubst s3 argSubst
+      (finalS, flag3) <- checkApplicationArguments
+        classEnv constraints funcType args argTIExprs paramVars
+        (composeSubst s1 argSubst) flag1 ctx
       finishApplication
         classEnv funcConstraints resultType funcTIExpr
         argTIExprs finalS flag3

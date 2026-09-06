@@ -44,6 +44,7 @@ Example:
 
 module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
+  , typeDirectedTensorLiftType
   ) where
 
 import           Data.List                  (nub)
@@ -388,6 +389,18 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
           lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
       in Just $ TIExpr lambdaScheme lambdaNode
+
+-- | Predict the type of the same wrapper during application inference.
+-- No expression is inserted here: inference checks this type against the
+-- consumer before fixing its result variables, and insertion uses the same
+-- plan after all substitutions have been applied.
+typeDirectedTensorLiftType :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe Type
+typeDirectedTensorLiftType classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr = do
+  (callbackParams, _, resultType) <-
+    buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr
+  return $ buildFunctionType
+    (map callbackParamOuterType callbackParams)
+    (normalizeTensorType (TTensor resultType))
 
 -- | Build the body of a generated callback wrapper.
 buildTypeDirectedTensorLiftBody ::

@@ -14,6 +14,7 @@ import           System.IO                      (hFlush, stdout)
 import           Test.Framework                 (defaultMainWithArgs)
 import           Test.Framework.Providers.HUnit (hUnitTestToTests)
 import           Test.HUnit
+import           TensorInference                (tensorInferenceTests)
 
 import           Language.Egison
 import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
@@ -86,6 +87,7 @@ main = do
          , annotationRigidityTests
          , capabilityMguTests
          , failedInferAtomicityTests
+         , tensorInferenceTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
 

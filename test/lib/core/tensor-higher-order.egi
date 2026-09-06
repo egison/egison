@@ -1,0 +1,50 @@
+-- Constant callbacks expose missing tensorMap insertion at runtime.
+def regressionTensorOne (x : Integer) : Integer := 1
+def regressionTensorTwo (x : Integer) (y : Integer) : Integer := 1
+def regressionTensorThree (x : Integer) (y : Integer) (z : Integer) : Integer := 1
+def regressionTensorWhole (x : Tensor Integer) : Integer := 1
+def regressionTensorDataFirst xs f := map f xs
+def regressionTensorPair f p :=
+  let (x, y) := p
+   in (f x, f y)
+def regressionTensorSum xs := foldl1 (+) xs
+
+assertEqual "unary constant over tensor elements"
+  (map regressionTensorOne [[|1, 2|]]) [[|1, 1|]]
+assertEqual "explicit and implicit unary lifting agree"
+  (map regressionTensorOne [[|1, 2|]])
+  (map (\t -> tensorMap regressionTensorOne t) [[|1, 2|]])
+assertEqual "data-first higher-order application"
+  (regressionTensorDataFirst [[|1, 2|]] regressionTensorOne) [[|1, 1|]]
+assertEqual "tensor information inside tuple arguments"
+  (regressionTensorPair regressionTensorOne ([|1, 2|], [|3, 4|]))
+  ([|1, 1|], [|1, 1|])
+assertEqual "binary constant fold"
+  (foldl1 regressionTensorTwo [[|1, 2|], [|10, 20|]]) [|1, 1|]
+assertEqual "fold admits a scalar initializer"
+  (foldl regressionTensorTwo 0 [[|1, 2|], [|10, 20|]]) [|1, 1|]
+assertEqual "scan keeps tensor results inside the list"
+  (scanl regressionTensorTwo 0 [[|1, 2|], [|10, 20|]])
+  [0, [|1, 1|], [|1, 1|]]
+assertEqual "mixed scalar and tensor callback arguments"
+  (map2 regressionTensorTwo [[|1, 2|]] [3]) [[|1, 1|]]
+assertEqual "ternary callback with mixed arguments"
+  (map3 regressionTensorThree [[|1, 2|]] [3] [[|4, 5|]])
+  (map3 (\x y z -> tensorMap2 (\xe ze -> regressionTensorThree xe y ze) x z)
+    [[|1, 2|]] [3] [[|4, 5|]])
+assertEqual "partially applied scalar callback"
+  (map (regressionTensorTwo 7) [[|1, 2|]]) [[|1, 1|]]
+assertEqual "ordinary scalar list"
+  (map regressionTensorOne [1, 2]) [1, 1]
+assertEqual "polymorphic identity consumes whole tensor elements"
+  (map id [[|1, 2|]]) [[|1, 2|]]
+assertEqual "explicit tensor function consumes whole tensor elements"
+  (map regressionTensorWhole [[|1, 2|]]) [1]
+assertEqual "let-polymorphic higher-order function"
+  (let applyMap f xs := map f xs
+    in (applyMap regressionTensorOne [1, 2],
+        applyMap regressionTensorOne [[|1, 2|]]))
+  ([1, 1], [[|1, 1|]])
+assertEqual "polymorphic sum on scalars" (regressionTensorSum [1, 2, 3]) 6
+assertEqual "polymorphic sum on tensors"
+  (regressionTensorSum [[|1, 2|], [|10, 20|]]) [|11, 22|]
