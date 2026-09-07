@@ -7,7 +7,7 @@ def dotProduct {Ring a} (v1: Tensor a) (v2: Tensor a) : Tensor a :=
 
 def V.* {Ring a} : Tensor a -> Tensor a -> Tensor a := dotProduct
 
-def crossProductWithFun {Ring a} (fn: a -> a -> a) (a: Vector a) (b: Vector a) : Vector a :=
+def crossProductWithFun {Ring a} (fn: Tensor a -> Tensor a -> Tensor a) (a: Vector a) (b: Vector a) : Vector a :=
   [|fn a_2 b_3 - fn a_3 b_2, fn a_3 b_1 - fn a_1 b_3, fn a_1 b_2 - fn a_2 b_1|]
 
 def crossProduct {Ring a} (a: Vector a) (b: Vector a) : Vector a := 

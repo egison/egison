@@ -22,11 +22,11 @@ def multForMathValue (x: MathValue) (y: MathValue) : MathValue :=
 def divForMathValue (x: MathValue) (y: MathValue) : MathValue :=
   x /' y
 
-def sum {AddMonoid a} (xs: [a]) : a := foldl (+) zero xs
-def sum' (xs: [MathValue]) : MathValue := foldl (+') 0 xs
+def sum {AddMonoid a} (xs: [Tensor a]) : Tensor a := foldl (+) zero xs
+def sum' (xs: [Tensor MathValue]) : Tensor MathValue := foldl (+') 0 xs
 
-def product {MulMonoid a} (xs: [a]) : a := foldl (*) one xs
-def product' (xs: [MathValue]) : MathValue := foldl (*') 1 xs
+def product {MulMonoid a} (xs: [Tensor a]) : Tensor a := foldl (*) one xs
+def product' (xs: [Tensor MathValue]) : Tensor MathValue := foldl (*') 1 xs
 
 def power (x: MathValue) (n: MathValue) : MathValue := mathNormalize (power' x n)
 -- power' must avoid any operator that dispatches through mathNormalize so it

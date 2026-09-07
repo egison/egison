@@ -16,21 +16,22 @@ Four implementation forms:
 3. Feedback-aware higher-order lifting: when a lifted callback result feeds
    back into a callback parameter, e.g. the accumulator in foldl, lift that
    parameter too.
-4. Derived binary-map compatibility: when a binary scalar function is passed as
-   a value, e.g. `foldl1 (+) xs`, use tensorMap2 so reduction accumulators can
-   become tensors without rebuilding the nested maps by hand.
+4. Definition-time completion: inference establishes Tensor domains for open
+   higher-order parameters before generalization, at arbitrary arity. Insertion
+   reconstructs those wrappers from the recorded consumer type.
 
-According to tensor-map-insertion-simple.md:
-- tensorMap2 is semantically equivalent to nested tensorMap
-- tensorMap/tensorMap2 act as identity for scalar values, so wrapping is safe regardless of whether the actual argument is a tensor or scalar
+Tensor maps apply the function normally to scalar inputs. For multiple Tensor
+operands, tensorMap2 aligns shared indices; arbitrary nesting of unary maps
+does not in general preserve that alignment.
 
 Example:
   def f (x : Integer) : Integer := x
   def t1 := [| 1, 2 |]
   f t1  --=>  tensorMap (\t1e -> f t1e) t1
 
-  def sum {AddMonoid a} (xs: [a]) : a := foldl1 (+) xs
-  --=>  def sum {AddMonoid a} (xs: [a]) : a := foldl1 (tensorMap2 (+)) xs
+  def sumElements xs := foldl1 (+) xs
+  -- Inferred: {AddSemigroup a} [Tensor a] -> Tensor a
+  -- Body: foldl1 (\x y -> tensorMap2 (+) x y) xs
 
   map inc [t1]
   --=>  map (\x -> tensorMap inc x) [t1]
@@ -45,9 +46,11 @@ Example:
 module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
   , typeDirectedTensorLiftType
+  , isTensorLiftableScalarType
   ) where
 
 import           Data.List                  (nub)
+import           Language.Egison.AST        (PDPatternBase(..))
 import           Language.Egison.Data       (EvalM)
 import           Language.Egison.EvalState  (MonadEval(..))
 import           Language.Egison.IExpr      (TIExpr(..), TIExprNode(..),
@@ -202,8 +205,10 @@ sameNormalizedType :: Type -> Type -> Bool
 sameNormalizedType ty1 ty2 =
   normalizeTensorType ty1 == normalizeTensorType ty2
 
--- | A callback parameter is a direct lift seed when the higher-order function
--- expects a tensor argument there but the supplied function consumes a scalar.
+-- | A scalar callback can receive a known Tensor, or acquire the common
+-- Tensor domain while its consumer parameter is still unconstrained.
+-- Inference records this domain before generalizing a surrounding definition;
+-- insertion subsequently reconstructs the same wrapper from the final types.
 isDirectLiftSeed :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
 isDirectLiftSeed classEnv constraints expectedParam actualParam =
   case expectedParam of
@@ -236,7 +241,19 @@ callbackLiftMask ::
     -> Type
     -> [Bool]
 callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedResult actualParams actualResult =
-  let initialMask = zipWith (isDirectLiftSeed classEnv constraints) expectedParams actualParams
+  let directMask = zipWith (isDirectLiftSeed classEnv constraints) expectedParams actualParams
+      unresolvedScalar expected actual = case expected of
+        TVar _ -> not (isPotentialScalarType classEnv constraints expected)
+          && isTensorLiftableScalarType classEnv constraints actual
+        _ -> False
+      resultAdmitsCompletion = case expectedResult of
+        TVar _ -> not (isPotentialScalarType classEnv constraints expectedResult)
+        TTensor _ -> True
+        _ -> False
+      initialMask
+        | any id directMask = directMask
+        | resultAdmitsCompletion = zipWith unresolvedScalar expectedParams actualParams
+        | otherwise = map (const False) expectedParams
       resultCanBecomeTensor mask =
         any id mask && isTensorLiftableScalarType classEnv constraints actualResult
       step mask =
@@ -293,55 +310,6 @@ buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expect
               then Nothing
               else Just (callbackParams, liftedParams, resultType)
 
--- | Check if a binary scalar function can use the compatibility tensorMap2
--- wrapper. This keeps polymorphic scalar callbacks such as `foldl (*)` working
--- even when the callback type itself does not mention Tensor yet.
-shouldUseTensorMap2Fallback :: ClassEnv -> [Constraint] -> Type -> Bool
-shouldUseTensorMap2Fallback classEnv constraints ty =
-  case collectFunctionType ty of
-    ([param1, param2], _result) ->
-      isTensorLiftableScalarType classEnv constraints param1 &&
-      isTensorLiftableScalarType classEnv constraints param2
-    _ -> False
-
--- | Compatibility wrapper for binary scalar callbacks.  The wrapper term is
--- always inserted unchanged: besides accommodating tensors that may flow in
--- at run time, its saturated application also shields class-method values
--- from unsupported partial application.  Only the recorded types follow the
--- call site (see fallbackLiftDecisions); annotating a rigidly scalar
--- position with its scalar type is semantically accurate because tensorMap2
--- is the identity on scalars.
-wrapWithTensorMap2Fallback :: Maybe Type -> TIExpr -> TIExpr
-wrapWithTensorMap2Fallback expectedArgType funcExpr =
-  case tiExprType funcExpr of
-    TFun param1 (TFun param2 result) ->
-      let (lift1, lift2, liftResult) = fallbackLiftDecisions expectedArgType
-          outer1 = if lift1 then TTensor param1 else param1
-          outer2 = if lift2 then TTensor param2 else param2
-          innerType = if liftResult
-                        then normalizeTensorType (TTensor result)
-                        else result
-          varName1 = "tmap2_arg1"
-          varName2 = "tmap2_arg2"
-          var1 = Var varName1 []
-          var2 = Var varName2 []
-          var1TI = mkVarTIExpr varName1 outer1
-          var2TI = mkVarTIExpr varName2 outer2
-          innerExpr = TIExpr (Forall [] [] [] innerType) (TITensorMap2Expr funcExpr var1TI var2TI)
-          lambdaType = TFun outer1 (TFun outer2 innerType)
-          lambdaScheme = Forall [] [] [] lambdaType
-      in TIExpr lambdaScheme (TILambdaExpr Nothing [var1, var2] innerExpr)
-    _ -> funcExpr
-
--- | Check if a lambda already has a tensorMap/tensorMap2 body.
-isAlreadyWrappedWithTensorMap :: TIExprNode -> Bool
-isAlreadyWrappedWithTensorMap (TILambdaExpr _ _ body) =
-  case tiExprNode body of
-    TITensorMapExpr _ _ -> True
-    TITensorMap2Expr _ _ _ -> True
-    _ -> False
-isAlreadyWrappedWithTensorMap _ = False
-
 -- | Recognize the eta-expanded form produced for a wedge-operator section,
 -- such as @(!+)@: @\x y -> ! (+) x y@.  When that section is immediately
 -- applied to tensors, preserving this marker lets the outer application use
@@ -384,11 +352,18 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
   case buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
     Nothing -> Nothing
     Just (callbackParams, liftedParams, resultType) ->
-      let body = buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams liftedParams []
+      -- Bind the supplied expression outside generated parameters. This is a
+      -- non-recursive let: even a source variable named tmap_function or
+      -- tmap_packed keeps its original binding in the right-hand side.
+      let functionName = "tmap_function"
+          functionVar = Var functionName []
+          functionRef = mkVarTIExpr functionName (tiExprType funcExpr)
+          body = buildTypeDirectedTensorLiftBody functionRef resultType callbackParams liftedParams []
           lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
           lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
-      in Just $ TIExpr lambdaScheme lambdaNode
+          wrapper = TIExpr lambdaScheme lambdaNode
+      in Just $ TIExpr lambdaScheme (TILetExpr [(PDPatVar functionVar, funcExpr)] wrapper)
 
 -- | Predict the type of the same wrapper during application inference.
 -- No expression is inserted here: inference checks this type against the
@@ -432,6 +407,41 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [param] scala
       lambdaExpr = TIExpr (Forall [] [] [] lambdaType) (TILambdaExpr Nothing [scalarVar] inner)
       mappedType = normalizeTensorType (TTensor (tiExprType inner))
   in TIExpr (Forall [] [] [] mappedType) (TITensorMapExpr lambdaExpr (callbackParamOuterExpr param))
+buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (first:rest@(_:_:_)) scalarArgs =
+  -- Align all operands before applying the scalar function. Mapping the
+  -- remaining operands inside an outer pair loses shared-index alignment
+  -- when one of that pair is scalar, and incorrectly builds a product axis.
+  let packedName = "tmap_packed"
+      packedVar = Var packedName []
+      element param =
+        let name = "tmap_elem" ++ show (callbackParamIndex param + 1)
+        in (PDPatVar (Var name []),
+            (callbackParamIndex param, mkVarTIExpr name (callbackParamActualType param)))
+      (firstPattern, firstScalar) = element first
+      seed = (callbackParamOuterExpr first, callbackParamActualType first,
+              firstPattern, [firstScalar])
+      combine (packed, packedType, pattern, arguments) param =
+        let nextType = callbackParamActualType param
+            nextName = "tmap_pack_next"
+            nextVar = Var nextName []
+            pairType = TTuple [packedType, nextType]
+            pair = TIExpr (Forall [] [] [] pairType) (TITupleExpr
+              [mkVarTIExpr packedName packedType, mkVarTIExpr nextName nextType])
+            pairFn = TIExpr (Forall [] [] [] (TFun packedType (TFun nextType pairType)))
+              (TILambdaExpr Nothing [packedVar, nextVar] pair)
+            mapped = TIExpr (Forall [] [] [] (TTensor pairType))
+              (TITensorMap2Expr pairFn packed (callbackParamOuterExpr param))
+            (nextPattern, nextScalar) = element param
+        in (mapped, pairType, PDTuplePat [pattern, nextPattern], nextScalar : arguments)
+      (packed, packedType, pattern, arguments) = foldl combine seed rest
+      applied = buildTypeDirectedTensorLiftBody
+        funcExpr resultType callbackParams [] (arguments ++ scalarArgs)
+      unpacked = TIExpr (Forall [] [] [] resultType)
+        (TILetExpr [(pattern, mkVarTIExpr packedName packedType)] applied)
+      applyFn = TIExpr (Forall [] [] [] (TFun packedType resultType))
+        (TILambdaExpr Nothing [packedVar] unpacked)
+      mappedType = normalizeTensorType (TTensor resultType)
+  in TIExpr (Forall [] [] [] mappedType) (TITensorMapExpr applyFn packed)
 buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param2:restParams) scalarArgs =
   let index1 = callbackParamIndex param1
       index2 = callbackParamIndex param2
@@ -457,90 +467,18 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param
        (Forall [] [] [] mappedType)
        (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
 
--- | Per-component annotation decisions for the binary fallback wrapper.
--- A component of the expected callback type that can still stand for a
--- tensor (a type variable, possibly a rigid skolem from an annotation, or
--- an explicit tensor) keeps the tensor-lifted annotation; a rigidly scalar
--- component keeps its scalar annotation instead, because tensorMap2 is the
--- identity on scalars and the tensor-lifted annotation would otherwise
--- place a Tensor-typed term where a scalar type is expected.  Class
--- constraints are deliberately not consulted: the fallback exists exactly
--- for element types whose constraints forbid a direct tensor
--- instantiation, and discharges them pointwise inside the wrapper.
-fallbackLiftDecisions :: Maybe Type -> (Bool, Bool, Bool)
-fallbackLiftDecisions Nothing = (True, True, True)
-fallbackLiftDecisions (Just expected) =
-  case collectFunctionType expected of
-    ([param1, param2], result) ->
-      (componentAdmits param1, componentAdmits param2, componentAdmits result)
-    _ -> (True, True, True)
-  where
-    componentAdmits ty = case ty of
-      TVar _ -> True
-      TSkolem _ -> True
-      TTensor _ -> True
-      _ -> False
-
--- | The fallback wrapper is worthwhile only when some component of the
--- expected callback type can still carry a tensor at run time: a type
--- variable (possibly a rigid skolem from an annotation), an explicit
--- tensor, or a CAS scalar type, whose positions may receive tensors under
--- the pervasive rank-0 reading.  When every component is a rigidly
--- non-CAS scalar (e.g. Integer), no tensor can flow through the callback,
--- the wrapper would be the runtime identity, and the bare callback is
--- passed unchanged instead.  (Bare class-method values are safe to pass
--- since the eta-expansion in type class expansion clears their discharged
--- constraints.)
-fallbackWrapWorthwhile :: Maybe Type -> Bool
-fallbackWrapWorthwhile Nothing = True
-fallbackWrapWorthwhile (Just expected) =
-  case collectFunctionType expected of
-    ([param1, param2], result) -> any mayCarryTensor [param1, param2, result]
-    _ -> True
-  where
-    mayCarryTensor ty = case ty of
-      TVar _ -> True
-      TSkolem _ -> True
-      TTensor _ -> True
-      TMathValue -> True
-      TFrac _ -> True
-      TPoly _ _ -> True
-      TTerm _ _ -> True
-      _ -> False
-
--- | Wrap a higher-order function argument with tensorMap/tensorMap2 if needed.
--- Type-directed callback lifting is tried first; the binary fallback preserves
--- older reduction behavior when no tensor seed is visible in the expected
--- type, provided the expected type can carry tensors at all.  The wrapper
--- term is uniform; only its type annotations follow the expected callback
--- type.
-tensorMap2FallbackIfNeeded :: ClassEnv -> [Constraint] -> Maybe Type -> TIExpr -> Maybe TIExpr
-tensorMap2FallbackIfNeeded classEnv constraints expectedArgType tiExpr =
-  case tiExprNode tiExpr of
-    TIApplyExpr {} -> Nothing
-    _ | shouldUseTensorMap2Fallback classEnv constraints (tiExprType tiExpr)
-      , fallbackWrapWorthwhile expectedArgType ->
-          Just (wrapWithTensorMap2Fallback expectedArgType tiExpr)
-      | otherwise -> Nothing
-
+-- | Adapt only from the inferred consumer type. Definition-time completion
+-- is performed by the shared type calculation during inference, so there is
+-- no insertion-only fallback with an unrelated recorded type.
 wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Type -> Int -> Maybe Type -> TIExpr -> TIExpr
-wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expectedArgType tiExpr =
-  let node = tiExprNode tiExpr
-      mTypeDirected =
-        case expectedArgType of
-          Just expectedType ->
-            wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType argIndex expectedType tiExpr
-          Nothing -> Nothing
-      mBinaryFallback = tensorMap2FallbackIfNeeded classEnv constraints expectedArgType tiExpr
-  in if isAlreadyWrappedWithTensorMap node
-       then tiExpr
-       else
-         case mTypeDirected of
-           Just wrappedExpr -> wrappedExpr
-           Nothing ->
-             case mBinaryFallback of
-               Just binaryFallback -> binaryFallback
-               Nothing -> tiExpr
+wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expectedArgType tiExpr
+  = case expectedArgType of
+      Just expectedType ->
+        case wrapWithTypeDirectedTensorLift
+               classEnv constraints outerFuncType argIndex expectedType tiExpr of
+          Just wrapped -> wrapped
+          Nothing -> tiExpr
+      Nothing -> tiExpr
 
 -- | Insert tensorMap in a TIExpr with type scheme information
 insertTensorMapsInExpr :: ClassEnv -> TypeScheme -> TIExpr -> EvalM TIExpr

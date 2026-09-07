@@ -49,6 +49,7 @@ module Language.Egison.Type.Infer
 import           Control.Monad              (foldM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
+import           Data.Graph                 (SCC(..), stronglyConnComp)
 import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
@@ -75,7 +76,8 @@ import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstCo
                                               applySubstScheme, composeSubst, emptySubst,
                                               singletonSubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
-import           Language.Egison.Type.TensorMapInsertion (typeDirectedTensorLiftType)
+import           Language.Egison.Type.TensorMapInsertion
+                   (typeDirectedTensorLiftType, isTensorLiftableScalarType)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
@@ -2196,56 +2198,9 @@ inferIExprWithContext expr ctx = case expr of
   -- Lambda
   ILambdaExpr mVar params body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    argTypes <- mapM (\_ -> freshVar "arg") params
-    let bindings = zipWith makeBinding params argTypes
-    -- Index-pattern bindings (tensor-paper5 "Pattern Matching for Tensor
-    -- Indices"): a parameter written `T~(a_1)...~(a_r)_(b_1)..._(b_k)` binds,
-    -- at application time (pmIndices), the hash `a`/`b` (position -> index
-    -- symbol) and the counts `r`/`k`; a name index such as the `c` of
-    -- `def ∇_c T... := ...` binds an index symbol.  Bring these variables
-    -- into scope for the body so they do not surface as unbound-variable
-    -- warnings (or hard errors in strict mode).
-    let indexBindings = concatMap paramIndexBindings params
-                     ++ maybe [] fnNameIndexBindings mVar
-    (bodyTIExpr, s) <-
-      withEnv (map toScheme (bindings ++ indexBindings)) $
-        inferIExprWithContext body exprCtx
-    let bodyType = tiExprType bodyTIExpr
-    -- A parameter that carries index patterns is necessarily a tensor
-    -- (makeBindings forces the argument to TensorData at runtime).
-    s' <- foldM (\sAcc (param, argTy) ->
-                   if hasIndexPattern param
-                     then do
-                       argTy' <- applySubstWithConstraintsM sAcc argTy
-                       elemTy <- freshVar "idxParamElem"
-                       sT <- unifyTypesWithContext argTy' (TTensor elemTy) exprCtx
-                       return (composeSubst sT sAcc)
-                     else return sAcc)
-                s (zip params argTypes)
-    resultBodyType <- applySubstWithConstraintsM emptySubst bodyType
-    let finalSubst = s'
-    finalArgTypes <- mapM (applySubstWithConstraintsM finalSubst) argTypes
-    finalBodyType <- applySubstWithConstraintsM finalSubst resultBodyType
-    let funType = foldr TFun finalBodyType finalArgTypes
-    return (mkTIExpr funType (TILambdaExpr mVar params bodyTIExpr), finalSubst)
-    where
-      makeBinding var t = (extractNameFromVar var, t)
-      toScheme (name, t) = (name, Forall [] [] [] t)
-      hasIndexPattern (Var _ is) = not (null is)
-      fnNameIndexBindings (Var _ is) = concatMap namedIndexBinding is
-      paramIndexBindings (Var _ is) = concatMap indexPatternBinding is
-      namedIndexBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
-      namedIndexBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
-      namedIndexBinding (SupSub (Just (Var n []))) = [(n, TMathValue)]
-      namedIndexBinding _ = []
-      indexPatternBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
-      indexPatternBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
-      indexPatternBinding (MultiSub (Just (Var a [])) _ (Just (Var e []))) =
-        [(a, THash TInt TMathValue), (e, TInt)]
-      indexPatternBinding (MultiSup (Just (Var a [])) _ (Just (Var e []))) =
-        [(a, THash TInt TMathValue), (e, TInt)]
-      indexPatternBinding _ = []
-  
+    argTypes <- mapM (const (freshVar "arg")) params
+    inferLambdaWithArgumentTypes mVar params argTypes body exprCtx
+
   -- Function Application
   IApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
@@ -3381,61 +3336,14 @@ inferIExprWithContext expr ctx = case expr of
 
     return (mkTIExpr resultType (TITensorContractExpr updatedTensorTI), finalS)
   
-  -- Tensor map expression
-  ITensorMapExpr func tensorExpr -> do
-    let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    (tensorTI, s2) <- inferIExprWithContext tensorExpr exprCtx
-    let funcType = tiExprType funcTI
-        tensorType = tiExprType tensorTI
-        s12 = composeSubst s2 s1
-    -- Function maps elements: a -> b, tensor is Tensor a, result is Tensor b
-    case tensorType of
-      TTensor elemType -> do
-        resultElemType <- freshVar "tmapElem"
-        funcType' <- applySubstWithConstraintsM s12 funcType
-        s3 <- unifyTypesWithContext funcType' (TFun elemType resultElemType) exprCtx
-        let finalS = composeSubst s3 s12
-        resultElemType' <- applySubstWithConstraintsM finalS resultElemType
-        let resultType = normalizeTensorType (TTensor resultElemType')
-        updatedFuncTI <- applySubstToTIExprM finalS funcTI
-        updatedTensorTI <- applySubstToTIExprM finalS tensorTI
-        return (mkTIExpr resultType (TITensorMapExpr updatedFuncTI updatedTensorTI), finalS)
-      _ -> do
-        updatedFuncTI <- applySubstToTIExprM s12 funcTI
-        updatedTensorTI <- applySubstToTIExprM s12 tensorTI
-        return (mkTIExpr tensorType (TITensorMapExpr updatedFuncTI updatedTensorTI), s12)
-  
-  -- Tensor map2 expression (binary map)
-  ITensorMap2Expr func tensor1 tensor2 -> do
-    let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    (tensor1TI, s2) <- inferIExprWithContext tensor1 exprCtx
-    (tensor2TI, s3) <- inferIExprWithContext tensor2 exprCtx
-    let funcType = tiExprType funcTI
-        t1Type = tiExprType tensor1TI
-        t2Type = tiExprType tensor2TI
-        s123 = foldr composeSubst emptySubst [s3, s2, s1]
-    -- Function: a -> b -> c, tensors are Tensor a and Tensor b, result is Tensor c
-    case (t1Type, t2Type) of
-      (TTensor elem1, TTensor elem2) -> do
-        resultElemType <- freshVar "tmap2Elem"
-        funcType' <- applySubstWithConstraintsM s123 funcType
-        s4 <- unifyTypesWithContext funcType'
-                (TFun elem1 (TFun elem2 resultElemType)) exprCtx
-        let finalS = composeSubst s4 s123
-        resultElemType' <- applySubstWithConstraintsM finalS resultElemType
-        let resultType = normalizeTensorType (TTensor resultElemType')
-        updatedFuncTI <- applySubstToTIExprM finalS funcTI
-        updatedTensor1TI <- applySubstToTIExprM finalS tensor1TI
-        updatedTensor2TI <- applySubstToTIExprM finalS tensor2TI
-        return (mkTIExpr resultType (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), finalS)
-      _ -> do
-        updatedFuncTI <- applySubstToTIExprM s123 funcTI
-        updatedTensor1TI <- applySubstToTIExprM s123 tensor1TI
-        updatedTensor2TI <- applySubstToTIExprM s123 tensor2TI
-        return (mkTIExpr t1Type (TITensorMap2Expr updatedFuncTI updatedTensor1TI updatedTensor2TI), s123)
-  
+  -- Explicit maps use the same argument/result discipline for scalar,
+  -- tensor, and mixed inputs. Their result always comes from the function.
+  ITensorMapExpr func operand ->
+    inferTensorMapApplication func [operand] (withExpr (prettyStr expr) ctx)
+
+  ITensorMap2Expr func left right ->
+    inferTensorMapApplication func [left, right] (withExpr (prettyStr expr) ctx)
+
   -- Transpose expression
   -- ITransposeExpr takes (permutation, tensor) to match tTranspose signature
   ITransposeExpr permExpr tensorExpr -> do
@@ -5391,6 +5299,117 @@ inferIPattern pat expectedType ctx = case pat of
       in (arg : args, result)
     extractFunctionArgs t = ([], t)
 
+-- | Supply declared lambda domains before inferring the body. Otherwise a
+-- concrete annotated parameter can look unresolved to callback completion.
+inferAnnotatedExpression :: Type -> IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferAnnotatedExpression expected expression ctx = case expression of
+  ILambdaExpr owner parameters body ->
+    case domains (length parameters) expected of
+      Just parameterTypes ->
+        inferLambdaWithArgumentTypes owner parameters parameterTypes body ctx
+      Nothing -> inferIExprWithContext expression ctx
+  _ -> inferIExprWithContext expression ctx
+  where
+    domains 0 _ = Just []
+    domains n (TFun domain rest) = (domain :) <$> domains (n - 1) rest
+    domains _ _ = Nothing
+
+inferLambdaWithArgumentTypes
+  :: Maybe Var -> [Var] -> [Type] -> IExpr -> TypeErrorContext
+  -> Infer (TIExpr, Subst)
+inferLambdaWithArgumentTypes mVar params argTypes body exprCtx = do
+  let bindings = zipWith makeBinding params argTypes
+  -- Index-pattern bindings (tensor-paper5 "Pattern Matching for Tensor
+  -- Indices"): a parameter written `T~(a_1)...~(a_r)_(b_1)..._(b_k)` binds,
+  -- at application time (pmIndices), the hash `a`/`b` (position -> index
+  -- symbol) and the counts `r`/`k`; a name index such as the `c` of
+  -- `def ∇_c T... := ...` binds an index symbol.  Bring these variables
+  -- into scope for the body so they do not surface as unbound-variable
+  -- warnings (or hard errors in strict mode).
+  let indexBindings = concatMap paramIndexBindings params
+                   ++ maybe [] fnNameIndexBindings mVar
+  (bodyTIExpr, s) <-
+    withEnv (map toScheme (bindings ++ indexBindings)) $
+      inferIExprWithContext body exprCtx
+  let bodyType = tiExprType bodyTIExpr
+  -- A parameter that carries index patterns is necessarily a tensor
+  -- (makeBindings forces the argument to TensorData at runtime).
+  s' <- foldM (\sAcc (param, argTy) ->
+                 if hasIndexPattern param
+                   then do
+                     argTy' <- applySubstWithConstraintsM sAcc argTy
+                     elemTy <- freshVar "idxParamElem"
+                     sT <- unifyTypesWithContext argTy' (TTensor elemTy) exprCtx
+                     return (composeSubst sT sAcc)
+                   else return sAcc)
+              s (zip params argTypes)
+  resultBodyType <- applySubstWithConstraintsM emptySubst bodyType
+  let finalSubst = s'
+  finalArgTypes <- mapM (applySubstWithConstraintsM finalSubst) argTypes
+  finalBodyType <- applySubstWithConstraintsM finalSubst resultBodyType
+  let funType = foldr TFun finalBodyType finalArgTypes
+  return (mkTIExpr funType (TILambdaExpr mVar params bodyTIExpr), finalSubst)
+  where
+    makeBinding var t = (extractNameFromVar var, t)
+    toScheme (name, t) = (name, Forall [] [] [] t)
+    hasIndexPattern (Var _ is) = not (null is)
+    fnNameIndexBindings (Var _ is) = concatMap namedIndexBinding is
+    paramIndexBindings (Var _ is) = concatMap indexPatternBinding is
+    namedIndexBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
+    namedIndexBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
+    namedIndexBinding (SupSub (Just (Var n []))) = [(n, TMathValue)]
+    namedIndexBinding _ = []
+    indexPatternBinding (Sub (Just (Var n []))) = [(n, TMathValue)]
+    indexPatternBinding (Sup (Just (Var n []))) = [(n, TMathValue)]
+    indexPatternBinding (MultiSub (Just (Var a [])) _ (Just (Var e []))) =
+      [(a, THash TInt TMathValue), (e, TInt)]
+    indexPatternBinding (MultiSup (Just (Var a [])) _ (Just (Var e []))) =
+      [(a, THash TInt TMathValue), (e, TInt)]
+    indexPatternBinding _ = []
+
+
+-- | Infer an explicit unary/binary tensor map. Unknown operands receive the
+-- common Tensor domain, which also admits scalars at rank zero; known scalar
+-- operands retain the function's precise scalar result type.
+inferTensorMapApplication :: IExpr -> [IExpr] -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferTensorMapApplication function operands ctx = do
+  (functionTI, functionSubst) <- inferIExprWithContext function ctx
+  operandResults <- mapM (`inferIExprWithContext` ctx) operands
+  parameters <- mapM (const (freshVar "mapParam")) operands
+  result <- freshVar "mapResult"
+  let initialSubst = foldr composeSubst functionSubst (map snd operandResults)
+      operandTIs = map fst operandResults
+  functionType <- applySubstWithConstraintsM initialSubst (tiExprType functionTI)
+  shapeSubst <- unifyTypesWithContext functionType (foldr TFun result parameters) ctx
+  classEnv <- getClassEnv
+  constraints <- getConstraints
+  (finalSubst, mapped) <- foldM (checkOperand classEnv constraints)
+    (composeSubst shapeSubst initialSubst, False)
+    (zip3 operands operandTIs parameters)
+  scalarResult <- applySubstWithConstraintsM finalSubst result
+  let finalType = normalizeTensorType $
+        if mapped then TTensor scalarResult else scalarResult
+  updatedFunction <- applySubstToTIExprM finalSubst functionTI
+  updatedOperands <- mapM (applySubstToTIExprM finalSubst) operandTIs
+  case updatedOperands of
+    [operand] -> return
+      (mkTIExpr finalType (TITensorMapExpr updatedFunction operand), finalSubst)
+    [left, right] -> return
+      (mkTIExpr finalType (TITensorMap2Expr updatedFunction left right), finalSubst)
+    _ -> throwError (UnificationError functionType (foldr TFun result parameters) ctx)
+  where
+    checkOperand classEnv constraints (substitution, mapped) (source, operand, parameter) = do
+      actual <- normalizeTensorType <$> applySubstWithConstraintsM substitution (tiExprType operand)
+      expected <- normalizeTensorType <$> applySubstWithConstraintsM substitution parameter
+      let (input, required, mapsTensor) = case actual of
+            TTensor element -> (element, expected, True)
+            TVar _ -> (actual, normalizeTensorType (TTensor expected), True)
+            _ -> (actual, expected, False)
+          currentConstraints = map (applySubstConstraint substitution) constraints
+      (checkingSubst, _) <- solveApplicationArgument
+        classEnv currentConstraints source operand input required ctx
+      return (composeSubst checkingSubst substitution, mapped || mapsTensor)
+
 -- | Infer application (helper)
 -- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
 inferIApplication :: String -> Type -> [IExpr] -> Subst -> Infer (TIExpr, Subst)
@@ -5398,8 +5417,9 @@ inferIApplication funcName funcType args initSubst = do
   let funcTI = mkTIExpr funcType (TIVarExpr funcName)
   inferIApplicationWithContext funcTI funcType args initSubst emptyContext
 
--- | Check one already-synthesized application argument against its expected
--- type by ordinary equality.
+-- | Check an argument by equality, rank-zero admission, or a map at this
+-- argument's root. A Tensor inside a list/tuple cannot be erased and replaced
+-- by a Tensor around the application's result: no such map is generated.
 solveApplicationArgument
   :: ClassEnv
   -> [Constraint]
@@ -5410,7 +5430,44 @@ solveApplicationArgument
   -> TypeErrorContext
   -> Infer (Subst, Bool)
 solveApplicationArgument classEnv constraints _source _typed inferred expected ctx =
-  solveTypes classEnv constraints inferred expected ctx
+  align True inferred expected
+  where
+    align allowMap actual0 expected0 = do
+      actual <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst actual0
+      expectedType <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst expected0
+      global <- gets inferGlobalSubst
+      let currentConstraints = map (applySubstConstraint global) constraints
+      case TU.unifyStrictWithConstraints classEnv currentConstraints actual expectedType of
+        Right substitution -> do
+          recordGlobalSubst ctx substitution
+          return (substitution, False)
+        Left strictError -> case (actual, expectedType) of
+          (TTensor element, TTensor required) -> align False element required
+          (_, TTensor required) -> align False actual required
+          (TTensor element, _)
+            | allowMap && isTensorLiftableScalarType classEnv currentConstraints expectedType -> do
+                (substitution, _) <- align False element expectedType
+                return (substitution, True)
+            | otherwise -> throwUnifyError ctx strictError
+          (TCollection element, TCollection required) -> align False element required
+          (TTuple elements, TTuple required)
+            | length elements == length required -> alignMany (zip elements required)
+          (TInductive name elements, TInductive name' required)
+            | name == name', length elements == length required -> alignMany (zip elements required)
+          (TFun domain codomain, TFun requiredDomain requiredCodomain) ->
+            -- Function domains are contravariant; results are covariant.
+            alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
+          _ -> do
+            -- Retain ordinary matcher/CAS equality and annotation handling,
+            -- but never admit an unaccounted-for Tensor erasure below them.
+            result@(_, erased) <- solveTypes classEnv currentConstraints actual expectedType ctx
+            if erased then throwUnifyError ctx strictError else return result
+
+    alignMany = foldM step (emptySubst, False)
+      where
+        step (substitution, _) (actual, required) = do
+          (next, _) <- align False actual required
+          return (composeSubst next substitution, False)
 
 -- TensorMap insertion logic has been moved to Language.Egison.Type.TensorMapInsertion
 -- This keeps type inference focused on type checking only
@@ -5511,10 +5568,12 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
             )
         _ -> throwError $ UnificationError appliedFuncType expectedFuncType ctx
 
--- | Check tensor-bearing data first, then callbacks, then remaining data.
+-- | Check tensor-bearing or unresolved data first, then callbacks, then
+-- remaining scalar data. This also covers definitions such as map constant xs.
 -- Delaying a scalar fold/scan initializer lets the callback's tensor result
 -- determine the accumulator type; the initializer is admitted at rank zero.
--- Applications without both tensor data and a callback retain source order.
+-- With fully known scalar data, check data before callbacks to retain precise
+-- scalar types. Applications without callbacks retain source order.
 checkApplicationArguments
   :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
   -> Subst -> Bool -> TypeErrorContext -> Infer (Subst, Bool)
@@ -5522,8 +5581,10 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
   rankedArgs <- mapM rankArgument (zip4 [0..] sources typedArgs params)
   let hasTensorData = any ((== 0) . fst) rankedArgs
       hasCallback = any ((== 1) . fst) rankedArgs
+      hasTensorCallback = any (containsTensorSignature . tiExprType) typedArgs
       orderedArgs
-        | hasTensorData && hasCallback = map snd (sortOn fst rankedArgs)
+        | (hasTensorData || hasTensorCallback) && hasCallback = map snd (sortOn fst rankedArgs)
+        | hasCallback = map snd (sortOn (\(rank, _) -> rank == 1) rankedArgs)
         | otherwise = map snd rankedArgs
   foldM checkArgument (initialSubst, initialFlag) orderedArgs
   where
@@ -5532,9 +5593,15 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
       expected <- applySubstWithConstraintsM initialSubst paramType
       let rank
             | isFunction actual || isFunction expected = 1 :: Int
-            | containsTensorData actual = 0
+            | containsTensorData actual || not (Set.null (freeTyVars actual)) = 0
             | otherwise = 2
       return (rank, argument)
+
+    containsTensorSignature (TFun domain result) =
+      isTensorHead domain || isTensorHead result || containsTensorSignature result
+    containsTensorSignature _ = False
+    isTensorHead TTensor{} = True
+    isTensorHead _ = False
 
     isFunction TFun{} = True
     isFunction _ = False
@@ -5562,10 +5629,7 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
           classEnv allConstraints sourceArg updatedArg
           checkedType expectedType ctx
       let finalSubst = composeSubst checkingSubst substitution
-      actualAfter <- applySubstWithConstraintsM finalSubst checkedType
-      expectedAfter <- applySubstWithConstraintsM finalSubst expectedType
-      return (finalSubst,
-        flag || (argumentFlag && erasesTensor actualAfter expectedAfter))
+      return (finalSubst, flag || argumentFlag)
 
 -- | Tensor evidence in a data argument, including list and tuple elements.
 -- Function signatures and resource types are not tensor-valued data.
@@ -5576,25 +5640,6 @@ containsTensorData (TTuple elements) = any containsTensorData elements
 containsTensorData (TInductive _ elements) = any containsTensorData elements
 containsTensorData (THash key value) = any containsTensorData [key, value]
 containsTensorData _ = False
-
--- | Distinguish mapping a tensor to a scalar parameter from admitting a
--- scalar at rank zero. Only the former can tensorize an application's result.
-erasesTensor :: Type -> Type -> Bool
-erasesTensor (TTensor actual) (TTensor expected) = erasesTensor actual expected
-erasesTensor TTensor{} _ = True
-erasesTensor actual (TTensor expected) = erasesTensor actual expected
-erasesTensor (TCollection actual) (TCollection expected) = erasesTensor actual expected
-erasesTensor (TTuple actual) (TTuple expected) = or (zipWith erasesTensor actual expected)
-erasesTensor (TInductive _ actual) (TInductive _ expected) = or (zipWith erasesTensor actual expected)
-erasesTensor (THash ak av) (THash ek ev) = erasesTensor ak ek || erasesTensor av ev
-erasesTensor (TFun aa ar) (TFun ea er) = erasesTensor aa ea || erasesTensor ar er
-erasesTensor (TIO actual) (TIO expected) = erasesTensor actual expected
-erasesTensor (TIORef actual) (TIORef expected) = erasesTensor actual expected
-erasesTensor (TMatcher _ actual) (TMatcher _ expected) = erasesTensor actual expected
-erasesTensor (TFrac actual) (TFrac expected) = erasesTensor actual expected
-erasesTensor (TPoly actual _) (TPoly expected _) = erasesTensor actual expected
-erasesTensor (TTerm actual _) (TTerm expected _) = erasesTensor actual expected
-erasesTensor _ _ = False
 
 -- | Build the typed application after all argument checks have closed.
 finishApplication
@@ -5917,7 +5962,21 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   -- Extract bindings from placeholders
   let placeholderBindings = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders placeholderTypes
       cycleMembers = recursiveCycleMembers bindings
-      inferRecursiveBinding (pat, expr) =
+      indexedBindings = zip [0 :: Int ..] bindings
+      owners = Map.fromList
+        [(name, index) | (index, (pat, _)) <- indexedBindings,
+                         name <- primitivePatternNames pat]
+      vertices =
+        [(index, index, [dependency | name <- Set.toList (iexprFreeVarRefs expr),
+                                      Just dependency <- [Map.lookup name owners]])
+        | (index, (_, expr)) <- indexedBindings]
+      flatten (AcyclicSCC index) = [index]
+      flatten (CyclicSCC indices) = sortOn id indices
+      orderedIndices = concatMap flatten (stronglyConnComp vertices)
+      inferRecursiveBinding index =
+        let (pat, expr) = bindings !! index
+        in inferOne index pat expr
+      inferOne index pat expr =
         let boundNames = primitivePatternNames pat
             owner = case boundNames of
               [name] -> Just name
@@ -5929,14 +5988,20 @@ inferIRecBindingsWithContext bindings _env s ctx = do
                   checkRecursiveGroupValueRoot
                     name cycleMembers expr ctx
             _ -> return ()
-          inferIExprWithContext expr ctx
+          (typed, substitution) <- inferIExprWithContext expr ctx
+          -- Make each completed definition visible before its dependents are
+          -- checked. Otherwise a known scalar function remains a placeholder
+          -- during definition-time completion in another local binding.
+          placeholder <- applySubstWithConstraintsM substitution (placeholderTypes !! index)
+          actual <- applySubstWithConstraintsM substitution (tiExprType typed)
+          tied <- unifyTypesWithContext actual placeholder ctx
+          return (index, (typed, composeSubst tied substitution))
   
-  -- Infer expressions in extended environment
-  results <-
-    withEnv placeholderBindings $
-      mapM inferRecursiveBinding bindings
-  
-  let exprTIs = map fst results
+  -- Dependencies are inferred first; keep source order in the generated AST.
+  orderedResults <- withEnv placeholderBindings $
+    mapM inferRecursiveBinding orderedIndices
+  let results = map snd (sortOn fst orderedResults)
+      exprTIs = map fst results
       exprTypes = map (tiExprType . fst) results
       substList = map snd results
       s1 = foldr composeSubst s0 substList
@@ -6221,7 +6286,7 @@ inferITopExpr topExpr = case topExpr of
           -- indexed reference to an earlier overload is not a self-reference
           -- to this exact binding.
           Var _ _ -> return ()
-        (exprTI, subst1) <- inferIExpr checkedExpr
+        (exprTI, subst1) <- inferAnnotatedExpression expectedType checkedExpr emptyContext
         let exprType = tiExprType exprTI
 
         -- Unify inferred type with expected type using constraint-aware unification
@@ -6463,7 +6528,7 @@ inferITopExpr topExpr = case topExpr of
                 }
             let checkedExpr =
                   skolemizeNestedAnnotations annotationSkolems expr
-            (exprTI, subst1) <- inferIExpr checkedExpr
+            (exprTI, subst1) <- inferAnnotatedExpression expectedType checkedExpr emptyContext
             let exprType = tiExprType exprTI
             exprType' <- applySubstWithConstraintsM subst1 exprType
             expectedType' <- applySubstWithConstraintsM subst1 expectedType
@@ -6726,4 +6791,3 @@ inferITopExprs (e:es) = do
 --------------------------------------------------------------------------------
 -- * Running Inference
 --------------------------------------------------------------------------------
-

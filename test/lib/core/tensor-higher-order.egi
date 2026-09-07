@@ -48,3 +48,74 @@ assertEqual "let-polymorphic higher-order function"
 assertEqual "polymorphic sum on scalars" (regressionTensorSum [1, 2, 3]) 6
 assertEqual "polymorphic sum on tensors"
   (regressionTensorSum [[|1, 2|], [|10, 20|]]) [|11, 22|]
+
+-- Definitions must record the same Tensor domains as their generated wrappers.
+def regressionTensorOnes xs := map regressionTensorOne xs
+def regressionTensorBinary xs := foldl1 regressionTensorTwo xs
+def regressionTensorInitial xs := foldl regressionTensorTwo 0 xs
+def regressionTensorScan xs := scanl regressionTensorTwo 0 xs
+def regressionTensorTernary xs ys zs := map3 regressionTensorThree xs ys zs
+def regressionTensorPartial xs := map (regressionTensorTwo 7) xs
+def regressionTensorList (x : Integer) : [Integer] := [x]
+def regressionTensorLists xs := map regressionTensorList xs
+def regressionTensorToBool (x : Integer) : Bool := True
+def regressionTensorToBool2 (x : Integer) (y : Integer) : Bool := True
+def regressionTensorExplicit x := tensorMap regressionTensorToBool x
+
+assertEqual "definition-time unary completion on scalars"
+  (regressionTensorOnes [1, 2]) [1, 1]
+assertEqual "definition-time unary completion on tensors"
+  (regressionTensorOnes [[|1, 2|]]) [[|1, 1|]]
+assertEqual "definition-time binary completion"
+  (regressionTensorBinary [[|1, 2|], [|3, 4|]]) [|1, 1|]
+assertEqual "definition-time scalar initial accumulator"
+  (regressionTensorInitial [[|1, 2|], [|3, 4|]]) [|1, 1|]
+assertEqual "definition-time scan keeps Tensor inside list"
+  (regressionTensorScan [[|1, 2|]]) [0, [|1, 1|]]
+assertEqual "definition-time ternary completion with mixed inputs"
+  (regressionTensorTernary [[|1, 2|]] [3] [[|4, 5|]])
+  (map3 regressionTensorThree [[|1, 2|]] [3] [[|4, 5|]])
+assertEqual "definition-time partially applied function"
+  (regressionTensorPartial [[|1, 2|]]) [[|1, 1|]]
+assertEqual "definition-time list result stays inside Tensor"
+  (regressionTensorLists [[|1, 2|]]) [[|[1], [2]|]]
+assertEqual "explicit map checks its scalar result"
+  (tensorMap regressionTensorToBool 1) True
+assertEqual "explicit binary map checks its scalar result"
+  (tensorMap2 regressionTensorToBool2 1 2) True
+assertEqual "explicit binary map accepts scalar then tensor"
+  (tensorMap2 regressionTensorToBool2 1 [|2, 3|]) [|True, True|]
+assertEqual "explicit binary map accepts tensor then scalar"
+  (tensorMap2 regressionTensorToBool2 [|2, 3|] 1) [|True, True|]
+assertEqual "explicit map definition accepts a scalar"
+  (regressionTensorExplicit 1) True
+assertEqual "explicit map definition accepts a tensor"
+  (regressionTensorExplicit [|1, 2|]) [|True, True|]
+
+-- Four arguments exercise repeated pairing, shared indices, and rank zero.
+def regressionTensorFour (w : Integer) (x : Integer) (y : Integer) (z : Integer) : Integer := w + x + y + z
+def regressionTensorQuaternary ws xs ys zs := map4 regressionTensorFour ws xs ys zs
+withSymbols [i, j]
+  assertEqual "four-argument completion aligns shared indices"
+    (regressionTensorQuaternary [[|1, 2|]_i] [3] [[|4, 5|]_i] [6]) [[|14, 16|]_i]
+withSymbols [i, j]
+  assertEqual "four-argument completion preserves distinct indices"
+    (regressionTensorQuaternary [[|1, 2|]_i] [3] [[|4, 5|]_j] [6])
+    [[|[|14, 15|], [|15, 16|]|]_i_j]
+assertEqual "tensor callback admits a scalar iterate initializer"
+  (take 2 (iterate (\x -> tensorMap regressionTensorOne x) 0)) [0, 1]
+
+-- A map over a scalar inside the function is not its Tensor-domain wrapper.
+def regressionTensorInnerMap xs :=
+  map (\x -> tensorMap (\y -> regressionTensorOne x) 0) xs
+assertEqual "an inner scalar map does not suppress completion"
+  (regressionTensorInnerMap [[|1,2|]]) [[|1,1|]]
+
+-- Function-valued local bindings remain usable inside generated wrappers.
+assertEqual "unary completion preserves a surrounding function binding"
+  (let keptOne := regressionTensorOne
+    in map keptOne [[|1,2|]]) [[|1,1|]]
+assertEqual "n-ary completion preserves its original function binding"
+  (let keptFour := regressionTensorFour
+       applyFour ws xs ys zs := map4 keptFour ws xs ys zs
+    in applyFour [[|1,2|]] [3] [[|4,5|]] [6]) [[|14,16|]]
