@@ -116,6 +116,14 @@ cyclic definition has a lambda or matcher literal at its root. The cycle
 analysis enforces only this root restriction; it does not classify producer
 names or contribute matcher capability evidence.
 
+For a bare top-level definition, indexed references use the ordinary
+exact/prefix/suffix binding lookup before deciding whether they refer to that
+definition. Thus `def vi_i := [|1, 2, 3|]` followed by `def vi := vi_i` is
+nonrecursive: `vi_i` names a separate indexed binding. A reference that falls
+back to the bare binding, such as `def vi := vi_1` without an indexed `vi`
+binding, remains recursive. References within index expressions are checked
+as well.
+
 At a next-matcher slot, an unresolved A variable is committed to
 `MatcherSlot`, while an unresolved R variable must be committed to `Matcher`.
 The latter value is checked against the slot, but contributes neither

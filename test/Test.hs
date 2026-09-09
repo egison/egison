@@ -20,7 +20,7 @@ import           Language.Egison
 import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
                                                   ITopExpr (..),
                                                   TITopExpr (..),
-                                                  Var (..), tiExprType)
+                                                  Var (..), Index (..), tiExprType)
 import qualified Language.Egison.Type.Env       as TypeEnv
 import           Language.Egison.Type.Env       (emptyEnv,
                                                   emptyClassEnv,
@@ -1481,6 +1481,35 @@ recursiveRootTests =
           Right _ -> return ()
           Left err -> assertFailure ("recursive lambda failed: " ++ show err)
     ]
+    ++ [ TestLabel label . TestCase $ do
+           let scheme = Forall [] [] [] (TTensor TInt)
+               env = foldr (\indices -> TypeEnv.extendEnv (Var "vi" indices) scheme)
+                       (inferEnv initialInferState) overloads
+               env' = if annotated
+                        then TypeEnv.extendEnv (Var "vi" []) scheme env
+                        else env
+               state = initialInferState { inferEnv = env' }
+               definition = IDefine (Var "vi" [])
+                 (IIndexedExpr True (IVarExpr "vi") indices)
+           (result, _) <- runInferWithWarnings (inferITopExpr definition) state
+           case result of
+             Right _ | accepted -> return ()
+             Left UnsupportedFeature{} | not accepted -> return ()
+             _ -> assertFailure ("unexpected indexed alias result: " ++ show result)
+       | annotated <- [False, True]
+       , (description, overloads, indices, accepted) <-
+           [ ("exact indexed binding", [[Sub Nothing]], [Sub one], True)
+           , ("longer indexed binding", [[Sub Nothing, Sub Nothing]], [Sub one], True)
+           , ("shorter indexed binding", [[Sub Nothing]], [Sub one, Sub one], True)
+           , ("bare fallback is recursive", [], [Sub one], False)
+           , ("different variance falls back to bare", [[Sup Nothing]], [Sub one], False)
+           , ("index expression still refers to self", [[Sub Nothing]],
+                [Sub (IVarExpr "vi")], False)
+           ]
+       , let label = (if annotated then "annotated: " else "inferred: ") ++ description
+       ]
+  where
+    one = IConstantExpr (IntegerExpr 1)
 
 -- | Strict type checking must not silently feed an ill-typed definition to
 -- the untyped evaluator.  Permissive mode retains that fallback for gradual

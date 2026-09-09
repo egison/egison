@@ -1496,8 +1496,25 @@ recursiveValueRoot
 recursiveValueRoot _ = False
 
 checkRecursiveValueRoot :: String -> IExpr -> TypeErrorContext -> Infer ()
-checkRecursiveValueRoot name expression ctx =
-  checkRecursiveGroupValueRoot name (Set.singleton name) expression ctx
+checkRecursiveValueRoot name expression ctx = do
+  env <- getEnv
+  -- A bare definition may refer to a distinct indexed binding with the same
+  -- base name. Use the normal exact/prefix/suffix lookup: every matching
+  -- indexed binding takes precedence over the bare binding. Keep references
+  -- inside the indices, and retain the bare dependency when lookup falls back
+  -- to it (for example, `def x := x_1` without an indexed x binding).
+  let includeIndexedBase base indices =
+        let indexed = Var base (map (fmap (const Nothing)) indices)
+        in case lookupEnv indexed (removeFromEnv (Var base []) env) of
+             Just _ -> False
+             Nothing -> True
+      references = iexprFreeVarRefsWith includeIndexedBase expression
+  when (name `Set.member` references && not (recursiveValueRoot expression)) $
+    throwError $
+      UnsupportedFeature
+        ("recursive definition '" ++ name ++
+          "' must have a lambda or matcher literal at its root")
+        ctx
 
 checkRecursiveGroupValueRoot
   :: String
@@ -4135,7 +4152,13 @@ iexprVarRefs = go
 -- It is used only to identify actual cycles for the recursive-value root
 -- restriction; it does not contribute matcher capability evidence.
 iexprFreeVarRefs :: IExpr -> Set.Set String
-iexprFreeVarRefs = go Set.empty
+iexprFreeVarRefs = iexprFreeVarRefsWith (\_ _ -> True)
+
+-- | Allow definition-site lookup to distinguish an indexed overload from a
+-- bare binding, while sharing all lexical-scope and index-expression handling.
+iexprFreeVarRefsWith
+  :: (String -> [Index IExpr] -> Bool) -> IExpr -> Set.Set String
+iexprFreeVarRefsWith includeIndexedBase = go Set.empty
   where
     go bound expression = case expression of
       IConstantExpr _ ->
@@ -4145,6 +4168,9 @@ iexprFreeVarRefs = go Set.empty
             Set.empty
         | otherwise ->
             Set.singleton name
+      IIndexedExpr _ (IVarExpr name) indices
+        | not (includeIndexedBase name indices) ->
+            Set.unions (map (goIndex bound) indices)
       IIndexedExpr _ base indices ->
         Set.unions (go bound base : map (goIndex bound) indices)
       ISubrefsExpr _ left right ->

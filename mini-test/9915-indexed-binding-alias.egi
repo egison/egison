@@ -1,0 +1,18 @@
+-- A bare alias and its indexed source are distinct top-level bindings.
+declare symbol i, j
+
+def vi_i := [|1, 2, 3|]
+def vi := vi_i
+assertEqual "bare alias of an indexed tensor" vi_2 2
+
+def annotated_i : Tensor Integer := [|4, 5, 6|]
+def annotated : Tensor Integer := annotated_i
+assertEqual "annotated bare alias" annotated_2 5
+
+def upper~i := [|7, 8, 9|]
+def upper := upper~i
+assertEqual "superscript alias" upper~2 8
+
+def aliasMatrix_i_j := [|[|1, 2|], [|3, 4|]|]
+def aliasMatrix := aliasMatrix_i_j
+assertEqual "rank-two alias" aliasMatrix_2_1 3
