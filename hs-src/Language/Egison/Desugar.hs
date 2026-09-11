@@ -429,9 +429,9 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --   def deriv.<name> := <rhs>
   --   def chainPartialDiff := \v dx ->
   --       match v as mathValue with
-  --         | apply1 #<n_1> $a -> deriv.<n_1> a *' chainPartialDiff a dx
+  --         | apply1 #<n_1> $a -> deriv.<n_1> a *' partialDiff a dx
   --         ...
-  --         | apply1 #<n_k> $a -> deriv.<n_k> a *' chainPartialDiff a dx
+  --         | apply1 #<n_k> $a -> deriv.<n_k> a *' partialDiff a dx
   --         else chainPartialDiffBuiltin v dx
   --   where n_1..n_k are *all* the derivative names seen so far (including
   --   <name>). Each declare derivative redefines `chainPartialDiff` with the
@@ -439,32 +439,51 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --   definition win. The fallback uses `chainPartialDiffBuiltin` (defined in
   --   lib/math/analysis/derivative.egi and never redefined) so the
   --   recursion through nested mathfuncs terminates.
-  rhsI <- desugar rhs
+  --
+  -- A function of two arguments is declared with a pair of partial
+  -- derivatives, `declare derivative f = (f1, f2)`; this emits
+  --   def deriv.<name>.1 := f1
+  --   def deriv.<name>.2 := f2
+  -- and the arm
+  --   | apply2 #<name> $a $b -> deriv.<name>.1 a b *' partialDiff a dx
+  --                             +' deriv.<name>.2 a b *' partialDiff b dx
+  let arity = derivativeDeclarationArity rhs
+  derivBindings <- case rhs of
+    TupleExpr [rhs1, rhs2] | arity == 2 -> do
+      rhs1I <- desugar rhs1
+      rhs2I <- desugar rhs2
+      return [ (stringToVar ("deriv." ++ name ++ ".1"), rhs1I)
+             , (stringToVar ("deriv." ++ name ++ ".2"), rhs2I) ]
+    _ -> do
+      rhsI <- desugar rhs
+      return [(stringToVar ("deriv." ++ name), rhsI)]
   -- Use only derivatives desugared *up to and including* this one, so the
   -- emitted chainPartialDiff body doesn't forward-reference `deriv.<later>`
   -- bindings. EnvBuilder pre-populates `derivativeRuleNames` with all names,
   -- but for code generation we want each declaration to reference only the
   -- names that have already been emitted.
   prevDesugared <- getDerivativesDesugared
-  let allNames = prevDesugared ++ [name | name `notElem` prevDesugared]
-  appendDerivativeDesugared name
+  let entry = (name, arity)
+      allEntries = prevDesugared ++ [entry | entry `notElem` prevDesugared]
+  appendDerivativeDesugared entry
   -- Build the chainPartialDiff body: a lambda over (v, dx) with a match.
-  let derivBinding = (stringToVar ("deriv." ++ name), rhsI)
-  chainBindingI <- buildChainPartialDiff allNames
+  chainBindingI <- buildChainPartialDiff allEntries
   let chainBinding = (stringToVar "chainPartialDiff", chainBindingI)
-  return . Just $ IDefineMany [derivBinding, chainBinding]
+  return . Just $ IDefineMany (derivBindings ++ [chainBinding])
   where
     -- Build:
     --   \v dx -> match v as mathValue with
-    --              | apply1 #<n1> $a -> deriv.<n1> a *' chainPartialDiff a dx
+    --              | apply1 #<n1> $a -> deriv.<n1> a *' partialDiff a dx
+    --              | apply2 #<n2> $a $b -> deriv.<n2>.1 a b *' partialDiff a dx
+    --                                      +' deriv.<n2>.2 a b *' partialDiff b dx
     --              ...
     --              else chainPartialDiffBuiltin v dx
     --
     -- We desugar a synthetic Egison expression rather than hand-building
     -- the IExpr tree, since match patterns and `apply1 #` are easier at
     -- the surface level.
-    buildChainPartialDiff :: [String] -> EvalM IExpr
-    buildChainPartialDiff names = do
+    buildChainPartialDiff :: [(String, Int)] -> EvalM IExpr
+    buildChainPartialDiff entries = do
       -- Recursive arm: deriv.<n> a *' partialDiff a dx.
       -- The recursive sub-call uses `partialDiff` (the typeclass method)
       -- so that the argument's runtime CAS shape decides which Differentiable
@@ -473,22 +492,35 @@ desugarTopExpr (DeclareDerivative name rhs) = do
       -- because `partialDiff (x^2) x` dispatches to the Term instance.
       -- Nested mathfunc applications still work because partialDiff for
       -- Factor (apply1 _ _) routes through chainPartialDiff again.
-      let mkClause n =
+      let times = InfixExpr (Op "*'" 7 InfixL False)
+          plus = InfixExpr (Op "+'" 6 InfixL False)
+          partial a = ApplyExpr (VarExpr "partialDiff") [VarExpr a, VarExpr "dx"]
+          mkClause (n, 2) =
+            ( InductivePat "apply2"
+                 [ ValuePat (VarExpr n)
+                 , PatVar "a"
+                 , PatVar "b"
+                 ]
+            , plus
+                 (times (ApplyExpr (VarExpr ("deriv." ++ n ++ ".1")) [VarExpr "a", VarExpr "b"])
+                        (partial "a"))
+                 (times (ApplyExpr (VarExpr ("deriv." ++ n ++ ".2")) [VarExpr "a", VarExpr "b"])
+                        (partial "b"))
+            )
+          mkClause (n, _) =
             ( InductivePat "apply1"
                  [ ValuePat (VarExpr n)
                  , PatVar "a"
                  ]
-            , InfixExpr (Op "*'" 7 InfixL False)
-                 (ApplyExpr (VarExpr ("deriv." ++ n)) [VarExpr "a"])
-                 (ApplyExpr (VarExpr "partialDiff")
-                            [VarExpr "a", VarExpr "dx"])
+            , times (ApplyExpr (VarExpr ("deriv." ++ n)) [VarExpr "a"])
+                    (partial "a")
             )
           fallbackExpr =
             ApplyExpr (VarExpr "chainPartialDiffBuiltin") [VarExpr "v", VarExpr "dx"]
           matchExpr = MatchExpr BFSMode
                         (VarExpr "v")
                         (VarExpr "mathValue")
-                        (map mkClause names)
+                        (map mkClause entries)
                         (Just fallbackExpr)
           lambda = LambdaExpr
                      [ Arg (APPatVar (VarWithIndices "v" []))

@@ -409,7 +409,7 @@ buildAndMergeEnvironments exprs opts = do
     [ n | (Just n, _, _, _) <- ebrReductionRules envResult ])
   prevDNames <- getDerivativeRuleNames
   setDerivativeRuleNames (prevDNames ++
-    [ n | (n, _) <- ebrDerivativeRules envResult ])
+    [ (n, derivativeDeclarationArity rhs) | (n, rhs) <- ebrDerivativeRules envResult ])
 
   forM_ (HashMap.toList (ebrConstructorEnv envResult)) $ \(ctorName, ctorInfo) ->
     registerConstructor ctorName ctorInfo

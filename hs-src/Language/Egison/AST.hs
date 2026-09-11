@@ -12,6 +12,7 @@ module Language.Egison.AST
   , RuleLevel (..)
   , ConstantExpr (..)
   , Expr (..)
+  , derivativeDeclarationArity
   , Pattern (..)
   , VarWithIndices (..)
   , makeApply
@@ -598,3 +599,10 @@ data TypedVarWithIndices = TypedVarWithIndices
   , typedVarParams      :: [TypedParam]      -- ^ Typed parameters (can include tuples)
   , typedVarRetType     :: TypeExpr          -- ^ Return type
   } deriving (Show, Eq)
+
+-- | Number of arguments of the function a `declare derivative` describes:
+-- a pair of partial derivatives declares a function of two arguments,
+-- anything else a function of one argument.
+derivativeDeclarationArity :: Expr -> Int
+derivativeDeclarationArity (TupleExpr [_, _]) = 2
+derivativeDeclarationArity _                  = 1

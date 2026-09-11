@@ -71,6 +71,7 @@ strictPrimitives =
   , ("f.asin",  floatUnaryOp asin)
   , ("f.acos",  floatUnaryOp acos)
   , ("f.atan",  floatUnaryOp atan)
+  , ("f.atan2", floatBinaryOp atan2)
   , ("f.sinh",  floatUnaryOp sinh)
   , ("f.cosh",  floatUnaryOp cosh)
   , ("f.tanh",  floatUnaryOp tanh)

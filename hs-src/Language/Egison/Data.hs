@@ -22,6 +22,7 @@ module Language.Egison.Data
     , Shape
     -- * Symbol helpers
     , getSymId
+    , getSymName
     -- * CAS types and helpers
     , CASValue(..)
     , CASTerm(..)
@@ -158,6 +159,11 @@ getSymId :: EgisonValue -> String
 getSymId val = case val of
   CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol symId _ _, _)]]) -> symId
   _ -> error "getSymId: not a symbol"
+
+getSymName :: EgisonValue -> String
+getSymName val = case val of
+  CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ name _, _)]]) -> name
+  _ -> error "getSymName: not a symbol"
 
 -- | Create a symbol CASValue
 symbolCASData :: String -> String -> EgisonValue

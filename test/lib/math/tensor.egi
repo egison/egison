@@ -212,3 +212,25 @@ assertEqual
                   [3, 3])_i_j
     in show (withSymbols [i, j] d/d g_i_j x))
   "[| [| g_1_1|1 x y z, 0, 0 |], [| 0, g_2_2|1 x y z, 0 |], [| 0, 0, g_3_3|1 x y z |] |]"
+
+-- withSymbols orders the closed axes as the symbols are listed, not as
+-- they happen to appear in the value.
+assertEqual
+  "withSymbols closes the axes in the listed order"
+  (withSymbols [i, j] [| [| 1, 2 |], [| 3, 4 |] |]_j_i)
+  [| [| 1, 3 |], [| 2, 4 |] |]
+
+assertEqual
+  "withSymbols keeps the value order when the list agrees with it"
+  (withSymbols [j, i] [| [| 1, 2 |], [| 3, 4 |] |]_j_i)
+  [| [| 1, 2 |], [| 3, 4 |] |]
+
+assertEqual
+  "withSymbols orders a derivative index by the list, not last"
+  (withSymbols [j, i] (∂/∂ [| x^2, x * y |]~i [| x, y |]~j))
+  [| [| 2 * x, y |], [| 0, x |] |]
+
+assertEqual
+  "withSymbols ignores listed symbols that the value does not carry"
+  (withSymbols [z, i, j] [| [| 1, 2 |], [| 3, 4 |] |]_j_i)
+  [| [| 1, 3 |], [| 2, 4 |] |]

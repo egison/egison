@@ -251,7 +251,10 @@ def fs := functionSymbol "f" [x, y]
 ```egison
 declare derivative sin = cos
 declare derivative log = \z -> 1 / z
+declare derivative atan2 = (\y x -> x / (x^2 + y^2), \y x -> - y / (x^2 + y^2))
 ```
+
+二引数の関数は偏導関数の組で宣言し，`apply2` の連鎖律 f1 a b · a′ + f2 a b · b′ に使う．
 
 微分の前に `requireAnalyticDerivative` が値全体を確認し、未登録の解析関数適用を定数として
 黙って 0 にしない。`Apply1` の登録済み関数、一般冪、関数シンボル、クオートには連鎖律を使う。

@@ -302,7 +302,7 @@ requireAnalyticDerivative = twoArgs' $ \valueVal variableVal ->
     (other, _) ->
       throwErrorWithTrace (TypeMismatch "math expression" (Value other))
 
-analyticDerivativeIssue :: Set.Set String -> CAS.CASValue -> Maybe String
+analyticDerivativeIssue :: Set.Set (String, Int) -> CAS.CASValue -> Maybe String
 analyticDerivativeIssue derivativeRules = goValue
  where
   goValue (CAS.CASInteger _) = Nothing
@@ -320,11 +320,14 @@ analyticDerivativeIssue derivativeRules = goValue
   goSymbol (CAS.Apply1 function argument) =
     case analyticFunctionName function of
       Just name
-        | name `Set.member` derivativeRules -> goValue argument
+        | (name, 1) `Set.member` derivativeRules -> goValue argument
         | otherwise -> unsupportedApplication name 1
       Nothing -> unsupportedApplication (CAS.prettyCAS function) 1
   goSymbol (CAS.Apply2 function base exponent)
     | analyticFunctionName function == Just "^" =
+        firstIssue [goValue base, goValue exponent]
+    | Just name <- analyticFunctionName function
+    , (name, 2) `Set.member` derivativeRules =
         firstIssue [goValue base, goValue exponent]
     | otherwise =
         unsupportedApplication (analyticFunctionLabel function) 2
@@ -742,10 +745,10 @@ ruleNamesPrim _ args = case args of
 derivativeNamesPrim :: String -> PrimitiveFunc
 derivativeNamesPrim _ args = case args of
   [] -> do
-    ns <- getDerivativeRuleNames
+    ns <- map fst <$> getDerivativeRuleNames
     return $ Collection $ Sq.fromList $ map (String . T.pack) ns
   [Tuple []] -> do
-    ns <- getDerivativeRuleNames
+    ns <- map fst <$> getDerivativeRuleNames
     return $ Collection $ Sq.fromList $ map (String . T.pack) ns
   (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
@@ -761,7 +764,7 @@ hasReductionRulePrim = oneArg' $ \v -> case v of
 hasDerivativeRulePrim :: String -> PrimitiveFunc
 hasDerivativeRulePrim = oneArg' $ \v -> case v of
   String s -> do
-    ns <- getDerivativeRuleNames
+    ns <- map fst <$> getDerivativeRuleNames
     return $ Bool (T.unpack s `elem` ns)
   _ -> throwErrorWithTrace (TypeMismatch "string function name" (Value v))
 

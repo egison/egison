@@ -56,7 +56,7 @@ import           Control.Monad.Trans.Maybe
 import           Data.Char                       (isUpper, toLower)
 import           Data.Foldable                   (toList)
 import           Data.IORef
-import           Data.List                       (partition, sortOn)
+import           Data.List                       (elemIndex, partition, sortOn)
 import           Data.Maybe
 import qualified Data.Sequence                   as Sq
 import           Data.Traversable                (mapM)
@@ -444,10 +444,16 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
   isTmpSymbol :: String -> Index EgisonValue -> Bool
   isTmpSymbol symId index = symId == getSymId (extractIndex index)
 
+  -- The axes of the closed symbols are ordered as the symbols are listed in
+  -- `withSymbols [...]`, not as they happen to appear in the value (a
+  -- derivative appends the index of its variable last, and a sum takes the
+  -- order of its first term).  This is the same order that an indexed
+  -- definition `def T~i_j := ...` imposes through its transpose.
   removeTmpScripts :: String -> Tensor a -> EvalM (Tensor a)
   removeTmpScripts symId (Tensor s xs is) = do
     let (ds, js) = partition (isTmpSymbol symId) is
-    Tensor s ys _ <- tTranspose (js ++ ds) (Tensor s xs is)
+        ds' = sortOn (\index -> elemIndex (getSymName (extractIndex index)) vars) ds
+    Tensor s ys _ <- tTranspose (js ++ ds') (Tensor s xs is)
     return (Tensor s ys js)
   removeTmpScripts _ t@Scalar{} = return t
 

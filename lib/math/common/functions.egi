@@ -50,9 +50,44 @@ declare apply tan x :=
     | #0 -> 0
     else 'tan x
 
---def acos : MathValue -> MathValue := f.acos
---def asin : MathValue -> MathValue := f.asin
---def atan : MathValue -> MathValue := f.atan
+declare mathfunc asin
+declare apply asin x :=
+  match x as mathValue with
+    | #0 -> 0
+    | #1 -> π / 2
+    | #(-1) -> - π / 2
+    else 'asin x
+
+declare mathfunc acos
+declare apply acos x :=
+  match x as mathValue with
+    | #1 -> 0
+    | #0 -> π / 2
+    | #(-1) -> π
+    else 'acos x
+
+declare mathfunc atan
+declare apply atan x :=
+  match x as mathValue with
+    | #0 -> 0
+    | #1 -> π / 4
+    | #(-1) -> - π / 4
+    else 'atan x
+
+-- atan2 y x is the angle of the point (x, y), the two-argument arctangent.
+-- Only the exact values on the axes are simplified (through the integer
+-- numerator, as in interval.egi, since runtime Ord does not cover
+-- fractions); everything else stays symbolic.
+declare mathfunc atan2
+declare apply atan2 y x :=
+  match (y, x) as (mathValue, mathValue) with
+    | (#0, _) -> if isRational x && numerator x > 0 then 0
+                 else if isRational x && numerator x < 0 then π
+                 else 'atan2 y x
+    | (_, #0) -> if isRational y && numerator y > 0 then π / 2
+                 else if isRational y && numerator y < 0 then - π / 2
+                 else 'atan2 y x
+    else 'atan2 y x
 
 declare mathfunc cosh
 declare apply cosh x :=

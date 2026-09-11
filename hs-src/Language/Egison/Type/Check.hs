@@ -196,6 +196,7 @@ builtinTypes = concat
       , ("f.asin", unaryOp TFloat TFloat)
       , ("f.acos", unaryOp TFloat TFloat)
       , ("f.atan", unaryOp TFloat TFloat)
+      , ("f.atan2", binOp TFloat TFloat TFloat)
       , ("f.sinh", unaryOp TFloat TFloat)
       , ("f.cosh", unaryOp TFloat TFloat)
       , ("f.tanh", unaryOp TFloat TFloat)

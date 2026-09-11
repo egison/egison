@@ -69,3 +69,23 @@ assertEqual
       (partialDiffMV
         (partialDiffMV derivativeVector_2 y) x)))
   [SubIndex 2, UserIndex 1, UserIndex 2]
+
+-- Derivative rules of the remaining elementary functions (the difference
+-- from the expected closed form must normalize to zero).
+assertEqual "d/d tan" (d/d (tan x) x - 1 / (cos x)^2) 0
+assertEqual "d/d sinh" (d/d (sinh x) x) (cosh x)
+assertEqual "d/d cosh" (d/d (cosh x) x) (sinh x)
+assertEqual "d/d tanh" (d/d (tanh x) x - 1 / (cosh x)^2) 0
+assertEqual "d/d asin" (d/d (asin x) x - 1 / sqrt (1 - x^2)) 0
+assertEqual "d/d acos" (d/d (acos x) x + 1 / sqrt (1 - x^2)) 0
+assertEqual "d/d atan" (d/d (atan x) x - 1 / (1 + x^2)) 0
+
+-- A two-argument function declares the pair of its partial derivatives.
+assertEqual "atan2 partial in the first argument" (∂/∂ (atan2 y x) y - x / (x^2 + y^2)) 0
+assertEqual "atan2 partial in the second argument" (∂/∂ (atan2 y x) x + y / (x^2 + y^2)) 0
+-- atan2 (x y) x is the angle atan y: constant in x, and 1 / (1 + y^2) in y
+assertEqual "atan2 chain rule through both arguments (x)" (∂/∂ (atan2 (x * y) x) x) 0
+assertEqual "atan2 chain rule through both arguments (y)" (∂/∂ (atan2 (x * y) x) y - 1 / (1 + y^2)) 0
+assertEqual "atan2 special values" (atan2 0 1, atan2 1 0, atan2 0 (-2), atan2 (-3) 0) (0, π / 2, π, - π / 2)
+assertEqual "atan2 stays symbolic elsewhere" (atan2 1 1) ('atan2 1 1)
+assertEqual "f.atan2 numeric" (f.atan2 1.0 1.0) (f.atan 1.0)

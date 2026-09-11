@@ -122,11 +122,25 @@ def chainPartialDiffBuiltin (v : MathValue) (dx : MathValue) : MathValue :=
 -- using `<expr>` as f'(g) for `f(g(x))`. Adding new derivatives here is
 -- equivalent to adding new `apply1 #<name>` cases to a hand-written matcher,
 -- but cleaner and uniform with user-declared derivatives.
+-- For a function of two arguments the right-hand side is a pair
+-- `(<expr1>, <expr2>)` of the partial derivatives with respect to the first
+-- and the second argument; `apply2 #<name>` is then differentiated as
+-- expr1 a b * a' + expr2 a b * b'.
 declare derivative sin = cos
 declare derivative cos = \z -> - sin z
 declare derivative exp = exp
 declare derivative log = \z -> 1 / z
 declare derivative sqrt = \z -> 1 / (2 * sqrt z)
+declare derivative tan = \z -> 1 / (cos z)^2
+declare derivative sinh = cosh
+declare derivative cosh = sinh
+declare derivative tanh = \z -> 1 / (cosh z)^2
+declare derivative asin = \z -> 1 / sqrt (1 - z^2)
+declare derivative acos = \z -> - 1 / sqrt (1 - z^2)
+declare derivative atan = \z -> 1 / (1 + z^2)
+-- A function of two arguments declares the pair of its partial derivatives,
+-- each a function of both arguments: d atan2(y, x) = x/(x^2+y^2) dy - y/(x^2+y^2) dx.
+declare derivative atan2 = (\y x -> x / (x^2 + y^2), \y x -> - y / (x^2 + y^2))
 
 -- ---------------------------------------------------------------------------
 -- Aliases.

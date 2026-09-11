@@ -70,7 +70,7 @@ data EvalState = EvalState
   , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
-  , derivativeRuleNames  :: [String] -- ^ Names of declared derivatives (the function names)
+  , derivativeRuleNames :: [(String, Int)] -- ^ Names of declared derivatives (the function names)
   , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
                                        --   Accumulated as `declare rule auto` declarations are desugared,
                                        --   used to rebuild `mathNormalize` to apply each rule in sequence.
@@ -79,7 +79,7 @@ data EvalState = EvalState
                                        --   the rule's LHS. Empty set means "no specific trigger" -> always run.
                                        --   Stored as Set already (not [String]) so iterateRulesCAS can read
                                        --   it once per call without per-call Set construction.
-  , derivativesDesugared :: [String] -- ^ Phase 6.3: derivative names desugared so far (in declaration order).
+  , derivativesDesugared :: [(String, Int)] -- ^ Phase 6.3: derivative names desugared so far (in declaration order).
                                        --   Each `declare derivative` redefines `chainPartialDiff` using only
                                        --   the names *up to and including* itself, avoiding forward references
                                        --   to derivatives declared later (which would emit warnings).
@@ -163,8 +163,8 @@ class (Applicative m, Monad m) => MonadEval m where
   setDerivativeRulesCount :: Int -> m ()
   getReductionRuleNames :: m [String]
   setReductionRuleNames :: [String] -> m ()
-  getDerivativeRuleNames :: m [String]
-  setDerivativeRuleNames :: [String] -> m ()
+  getDerivativeRuleNames :: m [(String, Int)]
+  setDerivativeRuleNames :: [(String, Int)] -> m ()
   -- Phase 7.5: auto-rule full var names (e.g. "autoRule.0", "autoRule.1").
   -- Used to rebuild `mathNormalize` per `declare rule auto`.
   getAutoRuleVarNames :: m [String]
@@ -178,9 +178,9 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Phase 6.3: derivative names already desugared (in declaration order).
   -- Lets each `declare derivative` see only the derivatives that come at or
   -- before it, avoiding forward references in the generated chainPartialDiff.
-  getDerivativesDesugared :: m [String]
-  setDerivativesDesugared :: [String] -> m ()
-  appendDerivativeDesugared :: String -> m ()
+  getDerivativesDesugared :: m [(String, Int)]
+  setDerivativesDesugared :: [(String, Int)] -> m ()
+  appendDerivativeDesugared :: (String, Int) -> m ()
   -- G3 (cas-simplification): `declare symbol` declaration order for the
   -- `declare ideal` priority list.
   getDeclaredSymbolOrder :: m [String]
