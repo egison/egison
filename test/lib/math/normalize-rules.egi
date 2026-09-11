@@ -40,8 +40,9 @@ assertEqual "1 + w + w^2" (1 + w + w^2) 0
 
 --
 -- Negative powers of sqrt atoms (arising from the Laurent folding of
--- single-term denominators) reduce like positive ones: |n| >= 2
--- splits off the radicand, leaving a remainder exponent in {-1,0,1}.
+-- single-term denominators) reduce like positive ones: every exponent
+-- other than 1 splits off the radicand, leaving a remainder exponent in
+-- {0,1}, so a reciprocal is rationalized: (sqrt a)^-1 = sqrt a / a.
 -- This is what lets thurston.egi's S shed its sqrt factors.
 --
 
@@ -52,7 +53,8 @@ assertEqual "sqrt^-2" (show (v * v)) "`(- θ₂^2 + θ₂ + 1)^-1 x^-2"
 assertEqual "sqrt^-4" (show (v^2 * v^2)) "`(- θ₂^2 + θ₂ + 1)^-2 x^-4"
 assertEqual "sqrt^-3"
   (show (v * v * v))
-  "('sqrt `(- θ₂^2 + θ₂ + 1))^-1 * `(- θ₂^2 + θ₂ + 1)^-1 * x^-3"
+  "('sqrt `(- θ₂^2 + θ₂ + 1)) * `(- θ₂^2 + θ₂ + 1)^-2 * x^-3"
+assertEqual "sqrt^-1 is rationalized" (show v) "('sqrt `(- θ₂^2 + θ₂ + 1)) * `(- θ₂^2 + θ₂ + 1)^-1 * x^-1"
 assertEqual "sqrt^16" ((sqrt β)^16) (β^8)
 assertEqual "integer radicand ^-2" ((sqrt 2)^(-2)) (1 / 2)
 assertEqual "negative power value preserved" ((v * v * v) * (sqrt β * x)^3) 1
@@ -96,3 +98,28 @@ assertEqual "negative constant radicand extracts i"
   (show (sqrt (-5 - 2 * sqrt 5))) "('sqrt (2 * 'sqrt 5 + 5)) * i"
 assertEqual "principal pair product"
   (sqrt (-5 - 2 * sqrt 5) * sqrt (-5 + 2 * sqrt 5)) (- sqrt 5)
+
+--
+-- Rationalized denominators and sums over the least common denominator.
+-- A sqrt atom never stays in a denominator: reciprocals of a polynomial
+-- radicand move the atom to the numerator, and an atom shared by every
+-- term of a denominator is multiplied out.  Fractions are added over the
+-- least common denominator, so sums of quotients of one polynomial keep
+-- its degree instead of doubling it.
+--
+
+declare symbol x, y
+
+assertEqual "reciprocal of a polynomial radicand"
+  (show (1 / sqrt (x^2 + 1))) "('sqrt (x^2 + 1)) / (x^2 + 1)"
+assertEqual "reciprocal cube of a polynomial radicand"
+  (show ((sqrt (x^2 + y^2))^(-3))) "('sqrt (y^2 + x^2)) / (y^4 + x^4 + 2 * x^2 y^2)"
+assertEqual "shared sqrt factor leaves the denominator"
+  (show (1 / (sqrt (x^2 + 1) * (x + 1)))) "('sqrt (x^2 + 1)) / (x^3 + x^2 + x + 1)"
+assertEqual "sum over the least common denominator"
+  (show (x / (x^2 - 1) + 1 / (x + 1))) "(2 * x - 1) / (x^2 - 1)"
+assertEqual "sum of sqrt quotients keeps the radicand denominator"
+  (show (x / sqrt (x^2 + y^2) + y / sqrt (x^2 + y^2)))
+  "(('sqrt (y^2 + x^2)) * y + ('sqrt (y^2 + x^2)) * x) / (y^2 + x^2)"
+assertEqual "value of a rationalized reciprocal is preserved"
+  ((1 / sqrt (x^2 + 1)) * sqrt (x^2 + 1)) 1

@@ -43,9 +43,12 @@ casRewriteSymbol = casRewriteDd . casRewriteSqrt . casRewriteExp
 -- same scope as casRewriteDd; inner values were normalized when they
 -- were constructed):
 --
---   1. Power reduction: (sqrt a)^n with |n| >= 2 becomes
---      a^q * (sqrt a)^r with q = quot n 2 and r = n - 2q in {-1,0,1}
---      (matching the power-evaluation path's normal form).
+--   1. Power reduction: (sqrt a)^n with n /= 1 becomes
+--      a^q * (sqrt a)^r with q = div n 2 and r = n - 2q in {0,1}.
+--      A negative power is rationalized, (sqrt a)^-1 = sqrt a / a, so
+--      that every sqrt atom carries the exponent 1 and the radicand
+--      moves to the denominator as an ordinary polynomial, where the
+--      fraction arithmetic can cancel it.
 --   2. Pair merge: sqrt a * sqrt b (both with exponent 1) merges to
 --      sqrt (a*b), and the square part of a single-term product is
 --      extracted: sqrt 2 * sqrt 8 = sqrt 16 = 4,
@@ -71,19 +74,40 @@ casRewriteSqrt = go (100 :: Int)
 
 rewriteSqrtOnce :: CASValue -> CASValue
 rewriteSqrtOnce (CASFrac num denom)
+  -- A sqrt atom shared by every term of the denominator is moved out of
+  -- it: multiplying numerator and denominator by the atom turns its
+  -- square into the radicand (1 / (sqrt u * p) = sqrt u / (u * p)), so
+  -- denominators stay polynomials in the ordinary symbols.
+  -- The squares are reduced before the division, otherwise the fraction
+  -- normalization would divide the shared atom out again.
+  | Just s <- commonSqrtFactor denom =
+      casDivide (rewriteSqrtPart (casMult num s)) (rewriteSqrtPart (casMult denom s))
   | valueNeedsSqrtWork num || valueNeedsSqrtWork denom =
       casDivide (rewriteSqrtPart num) (rewriteSqrtPart denom)
 rewriteSqrtOnce v@(CASPoly _)
   | valueNeedsSqrtWork v = rewriteSqrtPart v
 rewriteSqrtOnce v = v
 
+-- | A sqrt atom (with exponent 1) that occurs in every term of a
+-- polynomial, as a value; Nothing when there is none or the value is not
+-- a polynomial with at least one term.
+commonSqrtFactor :: CASValue -> Maybe CASValue
+commonSqrtFactor (CASPoly ts@(_ : _)) =
+  case foldr1 intersectSyms (map sqrtSyms ts) of
+    (sym : _) -> Just (CASPoly [CASTerm (CASInteger 1) [(sym, 1)]])
+    []        -> Nothing
+ where
+  sqrtSyms (CASTerm _ mono) = [ sym | (sym, 1) <- mono, Just _ <- [sqrtRadicand sym] ]
+  intersectSyms a b = [ sym | sym <- a, sym `elem` b ]
+commonSqrtFactor _ = Nothing
+
 -- | Fast path: a term needs sqrt work if it has a sqrt factor with
--- |exponent| >= 2, at least two sqrt factors with exponent 1, or a
+-- an exponent other than 1, at least two sqrt factors with exponent 1, or a
 -- nested value (an application argument, a quoted expression, or a
 -- level-4 coefficient) that needs work itself -- the old declare-rule
 -- versions recursed into those via mapTermAll, and nested-radical
 -- reductions such as sqrt 5 * sqrt(-5-2 sqrt 5) * sqrt(-5+2 sqrt 5) = 5
--- depend on it.  Terms with a lone top-level (sqrt a)^(+-1) factor and
+-- depend on it.  Terms with a lone top-level (sqrt a)^1 factor and
 -- quiet insides -- the common shape in curvature-style values -- are
 -- skipped without any rebuilding, which is the point of the port.
 termNeedsSqrtWork :: CASTerm -> Bool
@@ -92,7 +116,7 @@ termNeedsSqrtWork (CASTerm c mono) = go 0 mono || valueNeedsSqrtWork c
   go :: Int -> Monomial -> Bool
   go ones ((sym, n) : rest) = case sqrtRadicand sym of
     Just _
-      | abs n >= 2       -> True
+      | n /= 1           -> True
       | n == 1 && ones >= 1 -> True
       | n == 1           -> symNeedsSqrtWork sym || go 1 rest
       | otherwise        -> symNeedsSqrtWork sym || go ones rest
@@ -162,11 +186,13 @@ rewriteSqrtTerm :: CASTerm -> CASValue
 rewriteSqrtTerm (CASTerm c0 mono0) =
   let c    = casRewriteSqrt c0
       mono = [ (rewriteInsideSym sym, n) | (sym, n) <- mono0 ]
-      -- 1. power reduction on every factor with |n| >= 2
+      -- 1. power reduction on every factor with n /= 1; a negative n
+      --    leaves a^q with q < 0, i.e. a genuine fraction, and the
+      --    remainder r in {0, 1} keeps the sqrt atom out of denominators
       (powerOuts, mono1) = foldr powerStep ([], []) mono
       powerStep (sym, n) (outs, ms) = case sqrtRadicand sym of
-        Just a | abs n >= 2 ->
-          let q = n `quot` 2
+        Just a | n /= 1 ->
+          let q = n `div` 2
               r = n - 2 * q
           in (casPower a q : outs, if r == 0 then ms else (sym, r) : ms)
         _ -> (outs, (sym, n) : ms)

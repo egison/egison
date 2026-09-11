@@ -439,9 +439,18 @@ casPlus' (CASPoly ts1) (CASPoly ts2) = CASPoly (ts1 ++ ts2)
 casPlus' (CASInteger n) (CASPoly ts) = CASPoly (CASTerm (CASInteger n) [] : ts)
 casPlus' (CASPoly ts) (CASInteger n) = CASPoly (CASTerm (CASInteger n) [] : ts)
 
--- Frac + Frac: cross-multiply and add numerators
+-- Frac + Frac: add over the least common denominator.  With the plain
+-- product d1 * d2 every addition doubled the denominator degree, and a
+-- later gcd reduction cannot always recover (it gives up on values it
+-- does not handle), so sums of quotients of the same polynomial grew
+-- exponentially.  Dividing both denominators by their gcd first keeps
+-- the sum in the smallest form the gcd machinery can certify.
 casPlus' (CASFrac n1 d1) (CASFrac n2 d2) =
-  CASFrac (casPlus' (casMult' n1 d2) (casMult' n2 d1)) (casMult' d1 d2)
+  case reducedDenominators d1 d2 of
+    Just (d1', d2') ->
+      CASFrac (casPlus' (casMult' n1 d2') (casMult' n2 d1')) (casMult' d1 d2')
+    Nothing ->
+      CASFrac (casPlus' (casMult' n1 d2) (casMult' n2 d1)) (casMult' d1 d2)
 
 -- Frac + other: embed other as Frac
 casPlus' (CASFrac n d) other = CASFrac (casPlus' n (casMult' other d)) d
@@ -498,6 +507,39 @@ casMult' other (CASFrac n d) = CASFrac (casMult' other n) d
 -- Factor handling: lift to polynomial before operation
 casMult' (CASFactor sym) other = casMult' (liftFactorToPoly sym) other
 casMult' other (CASFactor sym) = casMult' other (liftFactorToPoly sym)
+
+-- | The two denominators divided by their gcd: (d1 / g, d2 / g), so that
+-- d1 * (d2 / g) is their least common multiple.  Equal denominators are
+-- the common case (both parts of one expression differentiated or
+-- squared) and cost nothing; otherwise the monomial content and the
+-- univariate or multivariate polynomial gcd are tried in turn.  Nothing
+-- means the gcd could not be established, and the caller falls back to
+-- the plain product.
+reducedDenominators :: CASValue -> CASValue -> Maybe (CASValue, CASValue)
+reducedDenominators d1 d2
+  | d1 == d2 = Just (CASInteger 1, CASInteger 1)
+  | otherwise = do
+      ts1 <- termsOfValue d1
+      ts2 <- termsOfValue d2
+      let (ts1', ts2') = simplifyPolyDiv ts1 ts2
+          reduced = case univariateGcdReduce ts1' ts2' of
+            Just pair -> Just pair
+            Nothing   -> multivariateGcdReduce ts1' ts2'
+      case reduced of
+        Just (ts1'', ts2'')
+          | (ts1'', ts2'') /= (ts1, ts2) ->
+              Just (casNormalizePoly ts1'', casNormalizePoly ts2'')
+        _ | (ts1', ts2') /= (ts1, ts2) ->
+              Just (casNormalizePoly ts1', casNormalizePoly ts2')
+        _ -> Nothing
+
+-- | A value as a list of terms, when it is a polynomial (or an integer or a
+-- single factor); a fraction has no term list.
+termsOfValue :: CASValue -> Maybe [CASTerm]
+termsOfValue (CASPoly ts)    = Just ts
+termsOfValue (CASInteger n)  = Just [CASTerm (CASInteger n) []]
+termsOfValue (CASFactor sym) = Just [CASTerm (CASInteger 1) [(sym, 1)]]
+termsOfValue _               = Nothing
 
 -- | Lift a Factor to a polynomial: sym → 1 * sym^1
 liftFactorToPoly :: SymbolExpr -> CASValue
