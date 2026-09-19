@@ -19,3 +19,4 @@ cabal.project.local
 mini-test
 egison-jupyter/
 dist-scratch/
+dist-prof/

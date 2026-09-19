@@ -34,6 +34,8 @@ strictPrimitives =
   , ("unconsString", unconsString)
   , ("lengthString", lengthString)
   , ("appendString", appendString)
+  , ("concatString", concatString)
+  , ("intercalateString", intercalateString)
   , ("splitString", splitString)
   , ("regex", regexString)
   , ("regexCg", regexStringCaptureGroup)
@@ -62,6 +64,20 @@ lengthString = unaryOp (toInteger . T.length)
 
 appendString :: String -> PrimitiveFunc
 appendString = binaryOp T.append
+
+-- | Concatenate a collection of strings in one pass (the library''s
+-- S.concat); a fold of appendString would copy each prefix repeatedly.
+concatString :: String -> PrimitiveFunc
+concatString = oneArg $ \val -> do
+  strs <- fromEgison val
+  return $ toEgison (T.concat (strs :: [T.Text]))
+
+-- | Join strings with a separator in one pass (the library''s S.intercalate).
+intercalateString :: String -> PrimitiveFunc
+intercalateString = twoArgs $ \sep val -> do
+  sepStr <- fromEgison sep
+  strs <- fromEgison val
+  return $ toEgison (T.intercalate sepStr (strs :: [T.Text]))
 
 splitString :: String -> PrimitiveFunc
 splitString = twoArgs $ \pat src -> do

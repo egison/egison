@@ -22,6 +22,7 @@ import           Text.Regex.TDFA                  ((=~))
 
 import           Language.Egison
 import           Language.Egison.Completion
+import           Language.Egison.EvalState        (callCountReport, enableCallCounts)
 
 import           Options.Applicative
 
@@ -62,7 +63,8 @@ run = do
       -- Load core libraries first, then math library, then user libraries and files
       allLoadExprs = coreLibExprs ++ mathLibExpr ++ libExprs ++ loadFileExprs ++ testFileExprs
   -- Load all libraries and user files in a single EvalM context to preserve EvalState
-  mResult <- fromEvalTWithState initialEvalState $ do
+  let startState = if optProfileCalls opts then enableCallCounts initialEvalState else initialEvalState
+  mResult <- fromEvalTWithState startState $ do
     env <- initialEnv  -- Only primitive environment
     evalTopExprs' env allLoadExprs True True
   case mResult of
@@ -136,10 +138,20 @@ executeTopExpr env expr = do
 
 executeTopExprWithState :: Env -> EvalState -> String -> RuntimeM ()
 executeTopExprWithState env evalState expr = do
+  opts <- ask
   cmdRet <- fromEvalTWithState evalState (runTopExprs env expr)
   case cmdRet of
     Left err -> liftIO $ hPrint stderr err >> exitFailure
-    Right _ -> liftIO exitSuccess
+    Right (_, finalState) -> liftIO $ do
+      when (optProfileCalls opts) $ reportCallCounts finalState
+      exitSuccess
+
+-- | Print the most frequently applied named functions (--profile-calls).
+reportCallCounts :: EvalState -> IO ()
+reportCallCounts st = do
+  let counts = callCountReport st
+  hPutStrLn stderr ("call counts: " ++ show (sum (map snd counts)) ++ " applications of " ++ show (length counts) ++ " named functions")
+  mapM_ (\(name, n) -> hPutStrLn stderr (show n ++ "\t" ++ name)) (take 60 counts)
 
 showBanner :: IO ()
 showBanner = do

@@ -50,7 +50,8 @@ data EgisonOpts = EgisonOpts {
     optNestedStructuredPrimitivePatternPatternWarnings :: Bool,
                                                    -- ^ Warn about nested structured primitive-pattern patterns
     optMatchWithoutElseWarnings :: Bool,            -- ^ Warn when match/matchDFS omits else
-    optTypePMMetrics    :: Bool                      -- ^ Report TypePM inference counters
+    optTypePMMetrics    :: Bool,                     -- ^ Report TypePM inference counters
+    optProfileCalls     :: Bool                      -- ^ Report application counts per function name
     }
 
 defaultOption :: EgisonOpts
@@ -86,6 +87,7 @@ defaultOption = EgisonOpts
   , optNestedStructuredPrimitivePatternPatternWarnings = False
   , optMatchWithoutElseWarnings = False
   , optTypePMMetrics = False
+  , optProfileCalls = False
   }
 
 cmdParser :: ParserInfo EgisonOpts
@@ -208,6 +210,9 @@ cmdArgParser = EgisonOpts
             <*> switch
                   (long "type-pm-metrics"
                   <> help "Report TypePM inference counters: match sites, matcher literals and clauses, product-typed next matchers, capability combinations")
+            <*> switch
+                  (long "profile-calls"
+                  <> help "Count applications of every named function and report the most frequent ones on stderr at exit")
 
 readFieldOption :: ReadM (String, String)
 readFieldOption = eitherReader $ \str ->

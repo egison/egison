@@ -267,6 +267,8 @@ builtinTypes = concat
       , ("unconsString", Forall [] [] [] $ TFun TString (TTuple [TChar, TString]))
       , ("lengthString", unaryOp TString TInt)
       , ("appendString", binOp TString TString TString)
+      , ("concatString", unaryOp (TCollection TString) TString)
+      , ("intercalateString", binOp TString (TCollection TString) TString)
       , ("splitString", binOp TString TString (TCollection TString))
       , ("regex", binOp TString TString (TCollection (TTuple [TString, TString, TString])))
       , ("regexCg", binOp TString TString (TCollection (TTuple [TString, TCollection TString, TString])))

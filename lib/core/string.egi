@@ -67,9 +67,9 @@ def S.length : String -> Integer := lengthString
 def S.split : String -> String -> [String] := splitString
 def S.append : String -> String -> String := appendString
 
-def S.concat (xss: [String]) : String := foldr (\xs rs -> S.append xs rs) "" xss
+def S.concat : [String] -> String := concatString
 
-def S.intercalate (sep: String) (ss: [String]) : String := S.concat (intersperse sep ss)
+def S.intercalate : String -> [String] -> String := intercalateString
 
 def S.replace (before: String) (after: String) (str: String) : String := S.intercalate after (S.split before str)
 

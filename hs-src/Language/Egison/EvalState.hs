@@ -12,6 +12,8 @@ module Language.Egison.EvalState
   , initialEvalState
   , MonadEval(..)
   , mLabelFuncName
+  , callCountReport
+  , enableCallCounts
   , InstanceEnv
   , MethodDict
   , ConstructorEnv
@@ -26,6 +28,7 @@ import           Control.Monad.Trans.State.Strict
 import qualified Data.HashMap.Strict              as HashMap
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.Set                         as Set
+import           Data.List                        (sortBy)
 
 import qualified Data.Map.Strict                  as Map
 
@@ -57,6 +60,9 @@ type PatternConstructorEnv = PatternTypeEnv
 
 data EvalState = EvalState
   { funcNameStack  :: [Var]          -- ^ Names of called functions for improved error message
+  , callCounts     :: !(Maybe (HashMap String Int))
+                                       -- ^ Number of applications per named function, kept only when
+                                       --   the interpreter runs with --profile-calls (Nothing otherwise)
   , instanceEnv    :: InstanceEnv    -- ^ Type class instance environment (runtime dispatch)
   , constructorEnv :: ConstructorEnv -- ^ Inductive data constructor environment
   , typeEnv        :: TypeEnv        -- ^ Type environment (for type inference)
@@ -105,6 +111,7 @@ data EvalState = EvalState
 initialEvalState :: EvalState
 initialEvalState = EvalState
   { funcNameStack = []
+  , callCounts = Nothing
   , instanceEnv = HashMap.empty
   , constructorEnv = HashMap.empty
   , typeEnv = emptyEnv
@@ -196,20 +203,26 @@ class (Applicative m, Monad m) => MonadEval m where
   setMatcherShapeEnv :: Map.Map String [PrimitivePatPattern] -> m ()
 
 instance Monad m => MonadEval (StateT EvalState m) where
-  pushFuncName name = do
-    st <- get
-    put $ st { funcNameStack = name : funcNameStack st }
-    return ()
+  -- Every function application passes through here, so the stack update is a
+  -- strict record update without an intermediate `get`/`put` pair, and the
+  -- optional call counting costs one branch when it is switched off.
+  pushFuncName name = modify' $ \st ->
+    let st' = st { funcNameStack = name : funcNameStack st }
+    in case callCounts st of
+         Nothing -> st'
+         Just counts ->
+           st' { callCounts = Just $! HashMap.insertWith (+) (show name) 1 counts }
+  {-# INLINE pushFuncName #-}
   topFuncName = do
     stack <- funcNameStack <$> get
     case stack of
       (x:_) -> return x
       []    -> error "topFuncName: function name stack is empty"
-  popFuncName = do
-    st <- get
+  popFuncName = modify' $ \st ->
     case funcNameStack st of
-      (_:rest) -> put st { funcNameStack = rest }
+      (_:rest) -> st { funcNameStack = rest }
       []       -> error "popFuncName: function name stack is empty"
+  {-# INLINE popFuncName #-}
   getFuncNameStack = funcNameStack <$> get
   
   getInstanceEnv = instanceEnv <$> get
@@ -338,8 +351,10 @@ instance Monad m => MonadEval (StateT EvalState m) where
 
 instance (MonadEval m) => MonadEval (ExceptT e m) where
   pushFuncName name = lift $ pushFuncName name
+  {-# INLINE pushFuncName #-}
   topFuncName = lift topFuncName
   popFuncName = lift popFuncName
+  {-# INLINE popFuncName #-}
   getFuncNameStack = lift getFuncNameStack
   getInstanceEnv = lift getInstanceEnv
   registerInstance cn mn t i = lift $ registerInstance cn mn t i
@@ -390,3 +405,15 @@ mLabelFuncName (Just name) m = do
   v <- m
   popFuncName
   return v
+{-# INLINE mLabelFuncName #-}
+
+-- | Switch on per-function application counting (--profile-calls).
+enableCallCounts :: EvalState -> EvalState
+enableCallCounts st = st { callCounts = Just HashMap.empty }
+
+-- | Applications counted per function name while --profile-calls is active,
+-- most frequent first.
+callCountReport :: EvalState -> [(String, Int)]
+callCountReport st = case callCounts st of
+  Nothing     -> []
+  Just counts -> sortBy (\(_, a) (_, b) -> compare b a) (HashMap.toList counts)
