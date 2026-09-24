@@ -1,0 +1,14 @@
+-- Saved targets may have a different type and capability from the root.
+assertEqual "sequence/two" (matchAll [[1,2],[3,4]] as list (list something) with
+  | { (@ & $xs) :: (@ & $ys) :: _, ($x :: _, $y :: _) } -> (x,y)) [(1,3)]
+assertEqual "sequence/one" (matchAll [[1,2]] as list (list something) with
+  | { @ :: _, $x :: _ } -> x) [1]
+assertEqual "sequence/zero" (matchAll 1 as something with | { _, _ } -> 7) [7]
+assertEqual "sequence/nested" (matchAll [[1,2],[3,4]] as list (list something) with
+  | { ({ @, $x :: _ } & @) :: _, $y :: _ } -> (x,y)) [(1,1)]
+assertEqual "sequence/or" (matchAll [[1,2]] as list (list something) with
+  | { (@ | @) :: _, $x :: _ } -> x) [1,1]
+assertEqual "sequence/list" (matchAll [1,2] as list something with | { @, $x :: _ } -> x) [1]
+assertEqual "sequence/multiset" (matchAll [1,2] as multiset something with | { @, $x :: _ } -> x) [1,2]
+assertEqual "sequence/expression-scope" (matchAll [1] as list something with
+  | { @ & #(matchAll [1] as list something with { @, $x :: _ } -> x), _ } -> 1) [1]

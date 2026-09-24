@@ -164,6 +164,8 @@ data InferState = InferState
                                           -- ^ Pattern-parameter context while checking a definition
                                           --   body.  Each ~parameter carries its declared target and
                                           --   fresh capability together, as in TypePM.PatternCtx.
+  , inferSequenceTargets :: Maybe [Dual] -- ^ Saved matcher/target requirements, newest first,
+                                          --   for the current sequential-pattern stage only.
   , inferConstraints :: [Constraint]     -- ^ Accumulated type class constraints
   , declaredSymbols  :: Map.Map String Type  -- ^ Declared symbols with their types
   , inferGlobalSubst :: Subst             -- ^ The growing zonk substitution: every committed
@@ -233,6 +235,7 @@ initialInferStateWithConfig cfg = InferState
   , inferPatternFuncDeclEnv = emptyPatternEnv
   , inferPatternFuncEnv = emptyPatternFunctionEnv
   , inferPatfunParamDuals = Map.empty
+  , inferSequenceTargets = Nothing
   , inferConstraints = []
   , declaredSymbols = Map.empty
   , inferGlobalSubst = emptySubst
@@ -2088,7 +2091,11 @@ inferIExpr expr = inferIExprWithContext expr emptyContext
 -- | Infer type for IExpr with context information
 -- NEW: Returns TIExpr (typed expression) with type information embedded
 inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
-inferIExprWithContext expr ctx = case expr of
+inferIExprWithContext expr ctx =
+  fst <$> withSequenceTargets Nothing (inferIExprInContext expr ctx)
+
+inferIExprInContext :: IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferIExprInContext expr ctx = case expr of
   -- Constants
   IConstantExpr c -> do
     ty <- inferConstant c
@@ -3496,7 +3503,7 @@ alignPatternCapabilities ctx left right = do
       recordGlobalSubst ctx substitution
       return substitution
 
--- | Capability of an and/or/forall/loop/seq-cons pattern: both children
+-- | Capability of an and/or/forall/loop pattern: both children
 -- describe the same matched value and therefore carry one aligned demand.
 capabilityCombine
   :: TypeErrorContext -> Capability -> Capability -> Infer Capability
@@ -4821,6 +4828,29 @@ inferTargetOnlyPatternApplication
     capability <- freshCapability "patternApplication"
     return (typedPattern, finalBindings, finalSubst, capability)
 
+-- | Isolate the saved targets of a sequence stage. Expression-local matches,
+-- negation, and nested sequences must not add targets to an enclosing stage.
+withSequenceTargets :: Maybe [Dual] -> Infer a -> Infer (a, [Dual])
+withSequenceTargets initial action = do
+  saved <- gets inferSequenceTargets
+  modify $ \st -> st { inferSequenceTargets = initial }
+  let restore = modify $ \st -> st { inferSequenceTargets = saved }
+  result <- action `catchError` (\err -> restore >> throwError err)
+  targets <- gets (maybe [] reverse . inferSequenceTargets)
+  restore
+  return (result, targets)
+
+recordSequenceTargets :: [Dual] -> Infer ()
+recordSequenceTargets targets = modify $ \st -> st
+  { inferSequenceTargets = fmap (reverse targets ++) (inferSequenceTargets st) }
+
+-- | Match the runtime's zero/one/many saved-target convention.
+sequenceRequirement :: [Dual] -> Dual
+sequenceRequirement [] = Dual CapAny (TTuple [])
+sequenceRequirement [target] = target
+sequenceRequirement targets =
+  Dual (CapTuple (map dualCapability targets)) (TTuple (map dualTarget targets))
+
 -- | Infer an IPattern's types and extract its pattern-variable bindings.  The
 -- fourth component is the capability-sort half of the paper's dual judgment
 -- @Γ;Δ ⊢ p : Pattern κ ▷ τ ; Δ'@.
@@ -5053,7 +5083,8 @@ inferIPattern pat expectedType ctx = case pat of
 
   INotPat p -> do
     -- Not pattern: infer the sub-pattern but do not export its bindings.
-    (tipat, _, s, innerCapability) <- inferIPattern p expectedType ctx
+    ( (tipat, _, s, innerCapability), _) <-
+      withSequenceTargets Nothing (inferIPattern p expectedType ctx)
     finalType <- applySubstWithConstraintsM s expectedType
     let tiNotPat = TIPattern (Forall [] [] [] finalType) (TINotPat tipat)
     return (tiNotPat, [], s, innerCapability)
@@ -5082,11 +5113,22 @@ inferIPattern pat expectedType ctx = case pat of
     -- Or pattern (paper PAT-OR): the two branches are alternatives over the same input
     -- context, so they are typed independently and must produce the SAME output bindings Δ'
     -- — the same variable names, at unifiable types.
-    (tipat1, bindings1, s1, capability1) <- inferIPattern p1 expectedType ctx
+    ((tipat1, bindings1, s1, capability1), saved1) <-
+      withSequenceTargets (Just []) (inferIPattern p1 expectedType ctx)
     expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2, capability2) <-
-      inferIPattern p2 expectedType' ctx
-    let s12 = composeSubst s2 s1
+    ((tipat2, bindings2, s2, capability2), saved2) <-
+      withSequenceTargets (Just []) (inferIPattern p2 expectedType' ctx)
+    unless (length saved1 == length saved2) $
+      throwError $ TE.TypeMismatch
+        (TTuple (map dualTarget saved1)) (TTuple (map dualTarget saved2))
+        "or-pattern branches must save the same number of sequential targets" ctx
+    sSaved <- foldM (\acc (left, right) -> do
+      Dual lc lt <- applyDualM acc left
+      Dual rc rt <- applyDualM acc right
+      delta <- unifyTypesWithContext (TMatcher lc lt) (TMatcher rc rt) ctx
+      return (composeSubst delta acc)) (composeSubst s2 s1) (zip saved1 saved2)
+    recordSequenceTargets saved1
+    let s12 = sSaved
         vars1 = nub (map fst bindings1)
         vars2 = nub (map fst bindings2)
         sameVars = all (`elem` vars2) vars1 && all (`elem` vars1) vars2
@@ -5268,32 +5310,38 @@ inferIPattern pat expectedType ctx = case pat of
     return (tipat, [], emptySubst, capability)
 
   ISeqConsPat p1 p2 -> do
-    -- Sequence cons: infer both patterns
-    -- Left bindings should be available to right pattern
-    (tipat1, bindings1, s1, capability1) <-
-      inferIPattern p1 expectedType ctx
-    let schemes1 = [(var, Forall [] [] [] ty) | (var, ty) <- bindings1]
-    expectedType' <- applySubstWithConstraintsM s1 expectedType
-    (tipat2, bindings2, s2, capability2) <-
-      withEnv schemes1 $
-        inferIPattern p2 expectedType' ctx
-    let s = composeSubst s2 s1
-    -- Apply substitution to left bindings
-    bindings1'' <- mapM (\(v, ty) -> do
-        ty' <- applySubstWithConstraintsM s2 ty
-        return (v, ty')) bindings1
+    ((tipat1, bindings1, s1, capability1), targets) <-
+      withSequenceTargets (Just []) (inferIPattern p1 expectedType ctx)
+    case p2 of
+      ISeqNilPat | not (null targets) ->
+        throwError $ TE.TypeMismatch (TTuple []) (TTuple (map dualTarget targets))
+          "the final sequential-pattern stage must not save targets" ctx
+      _ -> return ()
+    saved <- mapM (applyDualM s1) targets
+    let Dual nextCapability nextType = sequenceRequirement saved
+        schemes1 = [(var, Forall [] [] [] ty) | (var, ty) <- bindings1]
+    ((tipat2, bindings2, s2, capability2), _) <-
+      withSequenceTargets Nothing $ withEnv schemes1 $
+        inferIPattern p2 nextType ctx
+    -- The next stage uses the saved matchers, not the original matcher.
+    nextCapability' <- applyCapabilityM s2 nextCapability
+    s3 <- alignPatternCapabilities ctx nextCapability' capability2
+    let s = composeSubst s3 (composeSubst s2 s1)
+    bindings <- mapM (\(v, ty) -> (,) v <$> applySubstWithConstraintsM s ty)
+      (bindings1 ++ bindings2)
     finalType <- applySubstWithConstraintsM s expectedType
-    capability <- capabilityCombine ctx capability1 capability2
-    let bindings1' = bindings1''
-        tipat = TIPattern (Forall [] [] [] finalType) (TISeqConsPat tipat1 tipat2)
-    return (tipat, bindings1' ++ bindings2, s, capability)
+    capability <- applyCapabilityM s capability1
+    tipat1' <- applySubstToTIPatternM s tipat1
+    tipat2' <- applySubstToTIPatternM s tipat2
+    return (TIPattern (Forall [] [] [] finalType) (TISeqConsPat tipat1' tipat2'),
+      bindings, s, capability)
 
   ILaterPatVar -> do
-    -- Later pattern variable: no immediate binding
+    capability <- freshCapability "savedPattern"
+    recordSequenceTargets [Dual capability expectedType]
     let tipat = TIPattern (Forall [] [] [] expectedType) TILaterPatVar
-    capability <- freshCapability "pattern"
     return (tipat, [], emptySubst, capability)
-  
+
   IDApplyPat p pats -> do
     -- D-apply pattern: infer base pattern and argument patterns
     -- Base pattern bindings should be available to argument patterns

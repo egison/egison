@@ -1,0 +1,109 @@
+-- Executable, unannotated programs from type-pm-paper1, with local names.
+-- Helpers use the same operations as the corresponding Lean core expressions.
+def paperSplits xs :=
+  match xs as list something with
+    | [] -> [([], [])]
+    | $x :: $rest -> ([], xs) :: map (\(hs, ts) -> (x :: hs, ts)) (paperSplits rest)
+    else []
+
+def paperList m := matcher
+  | [] as () with
+    | [] -> [()]
+    | _ -> []
+  | $ :: $ as (m, paperList m) with
+    | $x :: $xs -> [(x, xs)]
+    | _ -> []
+  | _ ++ $ :: _ as m with
+    | $tgt -> tgt
+  | $ ++ $ as (paperList m, paperList m) with
+    | $tgt -> paperSplits tgt
+  | $ as something with
+    | $tgt -> [tgt]
+
+def paperMember x xs :=
+  match xs as paperList something with
+    | [] -> False
+    | #x :: _ -> True
+    | _ :: $rest -> paperMember x rest
+    else False
+
+def paperDeleteFirst x xs :=
+  match xs as paperList something with
+    | [] -> []
+    | #x :: $rest -> rest
+    | $y :: $rest -> y :: paperDeleteFirst x rest
+    else []
+
+def paperMultiset m := matcher
+  | [] as () with
+    | [] -> [()]
+    | _ -> []
+  | $ :: _ as m with
+    | $tgt -> tgt
+  | #$val :: $ as paperMultiset m with
+    | $tgt -> if paperMember val tgt then [paperDeleteFirst val tgt] else []
+  | $ :: $ as (m, paperMultiset m) with
+    | $tgt -> matchAll tgt as paperList m with $hs ++ $x :: $ts -> (x, hs ++ ts)
+  | $ ++ $ as (paperMultiset m, paperMultiset m) with
+    | [] -> [([], [])]
+    | $x :: $xs ->
+      let rets := matchAll xs as paperMultiset m with $hs ++ $ts -> (hs, ts)
+       in map (\(hs, ts) -> (hs, x :: ts)) rets ++ map (\(hs, ts) -> (x :: hs, ts)) rets
+  | #$val as () with
+    | $tgt -> match (val, tgt) as (paperList m, paperMultiset m) with
+        | ([], []) -> [()]
+        | ($x :: $xs, #x :: #xs) -> [()]
+        else []
+  | $ as something with
+    | $tgt -> [tgt]
+
+def paperSet m := matcher
+  | [] as () with
+    | [] -> [()]
+    | _ -> []
+  | $ :: $ as (m, paperSet m) with
+    | $tgt -> map (\x -> (x, tgt)) tgt
+  | $ ++ $ as (paperSet m, paperSet m) with
+    | $tgt -> paperSplits tgt
+  | $ as something with
+    | $tgt -> [tgt]
+
+def paperListCons := matchAll [1,2,3] as paperList something with $x :: $xs -> (x, xs)
+def paperMultisetCons := matchAll [1,2,3] as paperMultiset something with $x :: $xs -> (x, xs)
+def paperSetCons := matchAll [1,2,3] as paperSet something with $x :: $xs -> (x, xs)
+def paperSuccessor := matchAll [1,2,5,6] as paperMultiset something with $x :: #(x + 1) :: _ -> x
+def paperNaturals := take 10 (matchAll nats as paperList something with _ ++ $n :: _ -> n)
+def paperPrimePairs := take 10 (matchAll primes as paperList something with _ ++ $p :: _ ++ #(p + 6) :: _ -> (p, p + 6))
+def paperConcat xss := matchAllDFS xss as paperList (paperList something) with _ ++ (_ ++ $x :: _) :: _ -> x
+def paperWholeValue := matchAll [2,1] as paperMultiset something with #[1,2] -> 1
+def paperCapturedCons := matchAll [1,1] as paperMultiset something with #1 :: $xs -> xs
+def paperGeneralCons := matchAll [1,1] as paperMultiset something with $x :: $xs -> xs
+def paperUnconsWith m xs := matchAll xs as m with $x :: $rest -> (x, rest)
+def paperMatcherTuple := matchAll [(1,10),(2,20)] as paperMultiset (something, something) with ($x,$y) :: _ -> (x,y)
+def paperBoundTuple := let ms := (something, something) in matchAll (1,2) as ms with ($x,$y) -> (x,y)
+def paperPolyLet := let k := \m -> m in (k something, k (paperList something))
+def paperPatterns :=
+  (matchAll 1 as something with $x -> x,
+   matchAll [1,2] as paperList something with $x :: _ -> x,
+   matchAll [1,2] as paperList something with $x :: $y :: _ -> (x,y),
+   matchAll [1,1] as paperList something with $x :: #x :: _ -> x,
+   matchAll [[1,2],[3]] as paperList (paperMultiset something) with ($x :: _) :: _ -> x)
+
+assertEqual "paper1/list" paperListCons [(1,[2,3])]
+assertEqual "paper1/multiset" paperMultisetCons [(1,[2,3]),(2,[1,3]),(3,[1,2])]
+assertEqual "paper1/set" paperSetCons [(1,[1,2,3]),(2,[1,2,3]),(3,[1,2,3])]
+assertEqual "paper1/nonlinear" paperSuccessor [1,5]
+assertEqual "paper1/naturals" paperNaturals [1,2,3,4,5,6,7,8,9,10]
+assertEqual "paper1/primes" paperPrimePairs [(5,11),(7,13),(11,17),(13,19),(17,23),(23,29),(31,37),(37,43),(41,47),(47,53)]
+assertEqual "paper1/concat" (paperConcat [[1,2,3],[4,5,6],[7,8,9]]) [1,2,3,4,5,6,7,8,9]
+assertEqual "paper1/whole-value" paperWholeValue [1]
+assertEqual "paper1/captured-cons" paperCapturedCons [[1]]
+assertEqual "paper1/general-cons" paperGeneralCons [[1],[1]]
+assertEqual "paper1/uncons-list" (paperUnconsWith (paperList something) [1,2,3]) [(1,[2,3])]
+assertEqual "paper1/uncons-multiset" (paperUnconsWith (paperMultiset something) [1,2,3]) [(1,[2,3]),(2,[1,3]),(3,[1,2])]
+assertEqual "paper1/tuple" paperMatcherTuple [(1,10),(2,20)]
+assertEqual "paper1/bound-tuple" paperBoundTuple [(1,2)]
+assertEqual "paper1/pattern-types" paperPatterns ([1],[1],[(1,2)],[1],[1,2])
+
+def paperGraph := matchAll [(1,2),(2,3),(1,4),(4,5)] as paperMultiset (something, something) with (#1,$v) :: _ -> v
+assertEqual "paper1/graph" paperGraph [2,4]

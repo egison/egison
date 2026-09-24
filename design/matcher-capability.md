@@ -117,3 +117,24 @@ capability 等式）．
 - `Type/Infer.hs`：`IMatcherExpr`，`inferHeader`，`checkMatcherAtPattern`，match の検査順．
 - `EnvBuilder.hs`：公開 signature の閉性と parameters-determined 検査．
 - `CmdOptions.hs`／`Eval.hs`：診断 option と計測．
+
+## 逐次パターンの保存対象（2026-09-25）
+
+逐次パターン `{p1, p2, ...}` では，`@` が保存する値の型と，その位置で使う
+マッチャーの能力を組にして推論する．次の段階は，保存がゼロ個なら単位値，
+一個ならその値，複数なら左から右の順のタプルを照合する．元の対象の型や能力を
+次の段階へそのまま渡さない．選言の両枝では保存数と各位置の要求が一致する必要がある．
+入れ子の逐次パターン，否定，値パターン内の式の照合は，外側の保存対象へ混入させない．
+最終段階に未消費の保存対象を残す場合は拒否する．
+
+`test/lib/core/sequential-capability.egi` と通常テストの拒否例でこの処理を検査する．
+`test/lib/core/paper1-examples.egi` は論文のマッチャーと使用例を型注釈なしで検査し，
+`sample/sat/dp.egi` はSATソルバ本体と補助関数の注釈を除いて52個の入力と4個の
+解消処理を検査する．入力中の重複リテラルは呼出し前に除く．
+
+本体にはテンソル向けの関数の自動拡張がある．例えば注釈のない `deleteLiteral` は
+`Integer -> [Tensor [Integer]] -> [Tensor [Integer]]` と推論されるが，通常の
+リストを渡す上記テストは実行できる．この拡張により，中核言語と本体の推論型は必ずしも
+一致しない．また `def sat vars cnf := dp vars (map unique cnf)` のように，
+未確定の引数に対する高階関数の推論を別の関数へ合成すると，リスト内部の `Tensor` と
+通常のリストの整合で現在の検査器が拒否する場合がある．これは逐次パターンとは別の境界である．

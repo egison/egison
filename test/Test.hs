@@ -84,6 +84,7 @@ main = do
          , closedFieldTypeErrorTests
          , strictPipelineTests
          , strictSelectedCoreTests
+         , sequentialTypeErrorTests
          , annotationRigidityTests
          , capabilityMguTests
          , failedInferAtomicityTests
@@ -1585,6 +1586,7 @@ strictSelectedCoreTests =
                  , LoadFile "test/lib/core/pattern-function.egi"
                  , LoadFile "test/lib/core/closed-field-next-matcher.egi"
                  , LoadFile "test/lib/core/ar-recursive-matcher-strict.egi"
+                 , LoadFile "test/lib/core/sequential-capability.egi"
                  ])
     case result of
       Left err ->
@@ -1592,6 +1594,31 @@ strictSelectedCoreTests =
           ("strict selected-library TypePM regression failed: " ++ show err)
       Right _ ->
         return ()
+
+-- | Saved targets must agree between alternatives and carry both indices
+-- into the following sequence stage. These use the public inference entry.
+sequentialTypeErrorTests :: Test
+sequentialTypeErrorTests = TestLabel "sequential pattern rejection" . TestList $
+  map rejects
+    [ ("saved integer is not a pair", ISeqConsPat ILaterPatVar
+        (ISeqConsPat (ITuplePat [IWildCard, IWildCard]) ISeqNilPat))
+    , ("final stage must consume saved targets", ISeqConsPat ILaterPatVar ISeqNilPat)
+    , ("alternatives save the same number", ISeqConsPat
+        (IOrPat ILaterPatVar IWildCard) ISeqNilPat)
+    , ("negation does not export a saved target", ISeqConsPat
+        (INotPat ILaterPatVar)
+        (ISeqConsPat (IValuePat (IConstantExpr (IntegerExpr 1))) ISeqNilPat))
+    ]
+  where
+    rejects (label, pattern) = TestLabel label . TestCase $ do
+      let expression = IMatchAllExpr BFSMode
+            (IConstantExpr (IntegerExpr 1))
+            (IConstantExpr SomethingExpr)
+            [(pattern, IConstantExpr (IntegerExpr 1))]
+      (result, _) <- runInferWithWarnings (inferIExpr expression) initialInferState
+      case result of
+        Left _ -> return ()
+        Right typed -> assertFailure ("invalid sequence accepted: " ++ show typed)
 
 -- | The standalone type-error corpus is normally checked by a separate
 -- sweep.  Keep the two DualScheme-specific rejection boundaries in the
@@ -1912,6 +1939,7 @@ skippedLibTests =
 sampleTests :: [FilePath]
 sampleTests =
   [ "sample/primes.egi"                 -- pattern matching with infinitely many results
+  , "sample/sat/dp.egi"                 -- sequential patterns retain multiset matchers
   , "sample/sat/cdcl.egi"               -- a practical pattern-matching program
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
@@ -1942,4 +1970,4 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   evalTopExprsNoPrint env (allLibExprs ++ exprs)
   where
     assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM defaultOption m >>= assertString . either show (const "")
+    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/paper1-examples.egi", "test/lib/core/sequential-capability.egi"] }) m >>= assertString . either show (const "")
