@@ -5585,6 +5585,42 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
               Nothing -> throwError e
       _ -> throwError e
 
+-- | Use a known consumer result before deciding whether an inner callback
+-- needs definition-time tensor completion. For example, in
+-- @dp vars (map unique cnf)@ the expected @[[Integer]]@ fixes the result of
+-- @map@ before its otherwise open callback type could acquire Tensor indices.
+-- Only closed core result types supply this context. CAS and tensor result
+-- types retain their production compatibility rules. Explicit tensor operands
+-- still go through ordinary application checking;
+-- this does not erase tensors from already inferred nested data.
+inferApplicationArgument :: Type -> IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferApplicationArgument expected expression ctx = do
+  required <- applySubstWithConstraintsM emptySubst expected
+  case expression of
+    IApplyExpr function arguments
+      | Set.null (freeTyVars required)
+      , not (typeSchemeUsesEgisonExtension (Forall [] [] [] required)) ->
+          fst <$> withSequenceTargets Nothing (do
+            let exprCtx = withExpr (prettyStr expression) ctx
+            (functionTI, functionSubst) <- inferIExprWithContext function exprCtx
+            functionType <- applySubstWithConstraintsM functionSubst (tiExprType functionTI)
+            contextualSubst <- case resultAfter (length arguments) functionType of
+              Nothing -> return functionSubst
+              Just resultType -> do
+                classEnv <- getClassEnv
+                constraints <- getConstraints
+                case TU.unifyStrictWithConstraints classEnv constraints resultType required of
+                  Left _ -> return functionSubst
+                  Right resultSubst -> do
+                    recordGlobalSubst exprCtx resultSubst
+                    return (composeSubst resultSubst functionSubst)
+            inferIApplicationWithContext functionTI functionType arguments contextualSubst exprCtx)
+    _ -> inferIExprWithContext expression ctx
+  where
+    resultAfter 0 result = Just result
+    resultAfter n (TFun _ result) = resultAfter (n - 1) result
+    resultAfter _ _ = Nothing
+
 -- | Synthesize each source argument once, then align its application type.
 -- Matching a scalar callback before tensor data would prematurely specialize
 -- the consumer's variables and hide the evidence needed for tensor lifting.
@@ -5611,7 +5647,8 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
       `catchError` \_ -> return Nothing
   case initialUnifier of
     Just (shapeSubst, shapeFlag) -> do
-      argResults <- mapM (\arg -> inferIExprWithContext arg ctx) args
+      argResults <- zipWithM (\parameter argument ->
+        inferApplicationArgument parameter argument ctx) paramVars args
       let argTIExprs = map fst argResults
           argSubst = foldr composeSubst
             (composeSubst shapeSubst initSubst) (map snd argResults)

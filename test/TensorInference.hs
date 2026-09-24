@@ -26,6 +26,8 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("incompatible explicit mixed operand", ITensorMap2Expr (var "toBool2") (int 1)
         (IVectorExpr [IConstantExpr (BoolExpr True)]))
     , ("list Tensor is not erased into a scalar list", call "scalarList" [tensors])
+    , ("nested map does not erase tensor elements",
+        call "scalarList" [call "map" [var "one", tensors]])
     , ("tensor predicate cannot replace a scalar predicate", call "filter" [var "toBool", tensors])
     ] ++
   [ TestLabel "incompatible tensor element is rejected" . TestCase $ do
@@ -59,6 +61,12 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
       , ("a scalar map body does not suppress the required outer wrapper",
           call "map" [lambda ["x"] (ITensorMapExpr (lambda ["y"] (call "one" [var "x"])) (int 0)), tensors],
           listTensor, Just (0, arrow [tensor] tensor), True)
+      , ("known collection result guides nested callback inference",
+          lambda ["xss"] (call "scalarNestedList" [call "map" [var "scalarList", var "xss"]]),
+          arrow [TCollection (TCollection TInt)] (TCollection (TCollection TInt)), Nothing, False)
+      , ("known scalar list result avoids speculative tensor completion",
+          lambda ["xs"] (call "scalarList" [call "map" [var "one", var "xs"]]),
+          arrow [TCollection TInt] (TCollection TInt), Nothing, False)
       , ("ordinary scalar map", call "map" [var "one", scalars], TCollection TInt,
           Just (0, arrow [TInt] TInt), False)
       , ("polymorphic identity consumes tensors", call "map" [var "id", tensors], listTensor,
@@ -196,6 +204,7 @@ inferenceState = initialInferState { inferEnv = foldr add Env.emptyEnv bindings 
       , ("toBool2", arrow [TInt, TInt] TBool)
       , ("tensorResult", arrow [TInt] tensor)
       , ("scalarList", arrow [TCollection TInt] (TCollection TInt))
+      , ("scalarNestedList", arrow [TCollection (TCollection TInt)] (TCollection (TCollection TInt)))
       , ("scalarListResult", arrow [TInt] (TCollection TInt))
       ]
 

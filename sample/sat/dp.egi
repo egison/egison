@@ -35,63 +35,65 @@ def dp vars cnf :=
 
   | (_, _) -> False
 
-assert "dp" (dp [1] [[1]])
-assert "dp" (not (dp [1] [[1], [-1]]))
-assert "dp" (dp [1, 2, 3] [[1, 2], [-1, 3], [1, -3]])
-assert "dp" (dp [1, 2] [[1, 2], [-1, -2], [1, -2]])
-assert "dp" (not (dp [1, 2] [[1, 2], [-1, -2], [1, -2], [-1, 2]]))
-assert "dp" (dp [1, 2, 3, 4, 5]
+def sat vars cnf := dp vars (map unique cnf)
+
+assert "dp" (sat [1] [[1]])
+assert "dp" (not (sat [1] [[1], [-1]]))
+assert "dp" (sat [1, 2, 3] [[1, 2], [-1, 3], [1, -3]])
+assert "dp" (sat [1, 2] [[1, 2], [-1, -2], [1, -2]])
+assert "dp" (not (sat [1, 2] [[1, 2], [-1, -2], [1, -2], [-1, 2]]))
+assert "dp" (sat [1, 2, 3, 4, 5]
                 [[-1, -2, 3], [-1, -2, -3], [1, 2, 3, 4], [-4, -2, 3],
                  [5, 1, 2, -3], [-3, 1, -5], [1, -2, 3, 4], [1, -2, -3, 5]])
-assert "dp" (dp [1, 2] [[-1, -2], [1]])
+assert "dp" (sat [1, 2] [[-1, -2], [1]])
 
 -- The same 52 formulas and four resolution cases as the Lean regressions.
--- Normalize duplicate input literals before applying the elimination rules.
-assertEqual "sat/edge/1" (dp [] []) True
-assertEqual "sat/edge/2" (dp [] [[]]) False
-assertEqual "sat/edge/3" (dp [1] (map unique [[1, -1]])) True
-assertEqual "sat/edge/4" (dp [1] (map unique [[1, 1], [-1, -1]])) False
-assertEqual "sat/edge/5" (dp [1, 2] (map unique [[1, 2], [2]])) True
-assertEqual "sat/edge/6" (dp [1, 2] (map unique [[-1, -2], [-2]])) True
-assertEqual "sat/edge/7" (dp [1, 2] (map unique [[1, -1], [2], [-2]])) False
-assertEqual "sat/edge/8" (dp [1, 2] (map unique [[1], [1], [-2]])) True
-assertEqual "sat/one-variable/1" (dp [1] []) True
-assertEqual "sat/one-variable/2" (dp [1] [[]]) False
-assertEqual "sat/one-variable/3" (dp [1] (map unique [[1]])) True
-assertEqual "sat/one-variable/4" (dp [1] (map unique [[-1]])) True
-assertEqual "sat/one-variable/5" (dp [1] (map unique [[1, -1]])) True
-assertEqual "sat/one-variable/6" (dp [1] (map unique [[], []])) False
-assertEqual "sat/one-variable/7" (dp [1] (map unique [[], [1]])) False
-assertEqual "sat/one-variable/8" (dp [1] (map unique [[], [-1]])) False
-assertEqual "sat/one-variable/9" (dp [1] (map unique [[], [1, -1]])) False
-assertEqual "sat/one-variable/10" (dp [1] (map unique [[1], []])) False
-assertEqual "sat/one-variable/11" (dp [1] (map unique [[1], [1]])) True
-assertEqual "sat/one-variable/12" (dp [1] (map unique [[1], [-1]])) False
-assertEqual "sat/one-variable/13" (dp [1] (map unique [[1], [1, -1]])) True
-assertEqual "sat/one-variable/14" (dp [1] (map unique [[-1], []])) False
-assertEqual "sat/one-variable/15" (dp [1] (map unique [[-1], [1]])) False
-assertEqual "sat/one-variable/16" (dp [1] (map unique [[-1], [-1]])) True
-assertEqual "sat/one-variable/17" (dp [1] (map unique [[-1], [1, -1]])) True
-assertEqual "sat/one-variable/18" (dp [1] (map unique [[1, -1], []])) False
-assertEqual "sat/one-variable/19" (dp [1] (map unique [[1, -1], [1]])) True
-assertEqual "sat/one-variable/20" (dp [1] (map unique [[1, -1], [-1]])) True
-assertEqual "sat/one-variable/21" (dp [1] (map unique [[1, -1], [1, -1]])) True
-assertEqual "sat/binary/1" (dp [1, 2] []) True
-assertEqual "sat/binary/2" (dp [1, 2] (map unique [[1, 2]])) True
-assertEqual "sat/binary/3" (dp [1, 2] (map unique [[1, -2]])) True
-assertEqual "sat/binary/4" (dp [1, 2] (map unique [[1, 2], [1, -2]])) True
-assertEqual "sat/binary/5" (dp [1, 2] (map unique [[-1, 2]])) True
-assertEqual "sat/binary/6" (dp [1, 2] (map unique [[1, 2], [-1, 2]])) True
-assertEqual "sat/binary/7" (dp [1, 2] (map unique [[1, -2], [-1, 2]])) True
-assertEqual "sat/binary/8" (dp [1, 2] (map unique [[1, 2], [1, -2], [-1, 2]])) True
-assertEqual "sat/binary/9" (dp [1, 2] (map unique [[-1, -2]])) True
-assertEqual "sat/binary/10" (dp [1, 2] (map unique [[1, 2], [-1, -2]])) True
-assertEqual "sat/binary/11" (dp [1, 2] (map unique [[1, -2], [-1, -2]])) True
-assertEqual "sat/binary/12" (dp [1, 2] (map unique [[1, 2], [1, -2], [-1, -2]])) True
-assertEqual "sat/binary/13" (dp [1, 2] (map unique [[-1, 2], [-1, -2]])) True
-assertEqual "sat/binary/14" (dp [1, 2] (map unique [[1, 2], [-1, 2], [-1, -2]])) True
-assertEqual "sat/binary/15" (dp [1, 2] (map unique [[1, -2], [-1, 2], [-1, -2]])) True
-assertEqual "sat/binary/16" (dp [1, 2] (map unique [[1, 2], [1, -2], [-1, 2], [-1, -2]])) False
+-- The source sat entry point normalizes duplicate input literals.
+assertEqual "sat/edge/1" (sat [] []) True
+assertEqual "sat/edge/2" (sat [] [[]]) False
+assertEqual "sat/edge/3" (sat [1] [[1, -1]]) True
+assertEqual "sat/edge/4" (sat [1] [[1, 1], [-1, -1]]) False
+assertEqual "sat/edge/5" (sat [1, 2] [[1, 2], [2]]) True
+assertEqual "sat/edge/6" (sat [1, 2] [[-1, -2], [-2]]) True
+assertEqual "sat/edge/7" (sat [1, 2] [[1, -1], [2], [-2]]) False
+assertEqual "sat/edge/8" (sat [1, 2] [[1], [1], [-2]]) True
+assertEqual "sat/one-variable/1" (sat [1] []) True
+assertEqual "sat/one-variable/2" (sat [1] [[]]) False
+assertEqual "sat/one-variable/3" (sat [1] [[1]]) True
+assertEqual "sat/one-variable/4" (sat [1] [[-1]]) True
+assertEqual "sat/one-variable/5" (sat [1] [[1, -1]]) True
+assertEqual "sat/one-variable/6" (sat [1] [[], []]) False
+assertEqual "sat/one-variable/7" (sat [1] [[], [1]]) False
+assertEqual "sat/one-variable/8" (sat [1] [[], [-1]]) False
+assertEqual "sat/one-variable/9" (sat [1] [[], [1, -1]]) False
+assertEqual "sat/one-variable/10" (sat [1] [[1], []]) False
+assertEqual "sat/one-variable/11" (sat [1] [[1], [1]]) True
+assertEqual "sat/one-variable/12" (sat [1] [[1], [-1]]) False
+assertEqual "sat/one-variable/13" (sat [1] [[1], [1, -1]]) True
+assertEqual "sat/one-variable/14" (sat [1] [[-1], []]) False
+assertEqual "sat/one-variable/15" (sat [1] [[-1], [1]]) False
+assertEqual "sat/one-variable/16" (sat [1] [[-1], [-1]]) True
+assertEqual "sat/one-variable/17" (sat [1] [[-1], [1, -1]]) True
+assertEqual "sat/one-variable/18" (sat [1] [[1, -1], []]) False
+assertEqual "sat/one-variable/19" (sat [1] [[1, -1], [1]]) True
+assertEqual "sat/one-variable/20" (sat [1] [[1, -1], [-1]]) True
+assertEqual "sat/one-variable/21" (sat [1] [[1, -1], [1, -1]]) True
+assertEqual "sat/binary/1" (sat [1, 2] []) True
+assertEqual "sat/binary/2" (sat [1, 2] [[1, 2]]) True
+assertEqual "sat/binary/3" (sat [1, 2] [[1, -2]]) True
+assertEqual "sat/binary/4" (sat [1, 2] [[1, 2], [1, -2]]) True
+assertEqual "sat/binary/5" (sat [1, 2] [[-1, 2]]) True
+assertEqual "sat/binary/6" (sat [1, 2] [[1, 2], [-1, 2]]) True
+assertEqual "sat/binary/7" (sat [1, 2] [[1, -2], [-1, 2]]) True
+assertEqual "sat/binary/8" (sat [1, 2] [[1, 2], [1, -2], [-1, 2]]) True
+assertEqual "sat/binary/9" (sat [1, 2] [[-1, -2]]) True
+assertEqual "sat/binary/10" (sat [1, 2] [[1, 2], [-1, -2]]) True
+assertEqual "sat/binary/11" (sat [1, 2] [[1, -2], [-1, -2]]) True
+assertEqual "sat/binary/12" (sat [1, 2] [[1, 2], [1, -2], [-1, -2]]) True
+assertEqual "sat/binary/13" (sat [1, 2] [[-1, 2], [-1, -2]]) True
+assertEqual "sat/binary/14" (sat [1, 2] [[1, 2], [-1, 2], [-1, -2]]) True
+assertEqual "sat/binary/15" (sat [1, 2] [[1, -2], [-1, 2], [-1, -2]]) True
+assertEqual "sat/binary/16" (sat [1, 2] [[1, 2], [1, -2], [-1, 2], [-1, -2]]) False
 assertEqual "sat/resolution/1" (resolveOn 1 [[1, 2], [-1, 3]]) [[2, 3]]
 assertEqual "sat/resolution/2" (resolveOn 1 [[1, 2], [-1, -2]]) []
 assertEqual "sat/resolution/3" (resolveOn 1 [[1, 2], [-1, 3, -2]]) []
