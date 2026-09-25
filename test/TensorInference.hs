@@ -28,6 +28,10 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("list Tensor is not erased into a scalar list", call "scalarList" [tensors])
     , ("nested map does not erase tensor elements",
         call "scalarList" [call "map" [var "one", tensors]])
+    , ("nested MathValue map does not erase tensor elements",
+        call "mathList" [call "map" [var "mathConstant", var "mathTensors"]])
+    , ("nested MathValue function result does not erase Tensor",
+        call "mathFunctionConsumer" [call "id" [var "mathTensorResult"]])
     , ("tensor predicate cannot replace a scalar predicate", call "filter" [var "toBool", tensors])
     ] ++
   [ TestLabel "incompatible tensor element is rejected" . TestCase $ do
@@ -67,6 +71,25 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
       , ("known scalar list result avoids speculative tensor completion",
           lambda ["xs"] (call "scalarList" [call "map" [var "one", var "xs"]]),
           arrow [TCollection TInt] (TCollection TInt), Nothing, False)
+      , ("known MathValue list result guides nested callback inference",
+          lambda ["xs"] (call "mathList" [call "map" [var "mathConstant", var "xs"]]),
+          arrow [TCollection TMathValue] (TCollection TMathValue), Nothing, False)
+      , ("known nested MathValue lists specialize a polymorphic callback",
+          lambda ["xss"] (call "mathNestedList" [call "map" [var "listIdentity", var "xss"]]),
+          arrow [TCollection (TCollection TMathValue)] (TCollection (TCollection TMathValue)), Nothing, False)
+      , ("known MathValue tuple result guides nested callback inference",
+          lambda ["xs"] (call "mathPair" [call "pairMap" [var "mathConstant", var "xs"]]),
+          arrow [TTuple [TMathValue, TMathValue]] (TTuple [TMathValue, TMathValue]), Nothing, False)
+      , ("known MathValue scalar result guides nested callback inference",
+          lambda ["x"] (call "mathConstant" [call "apply" [var "mathConstant", var "x"]]),
+          arrow [TMathValue] TMathValue, Nothing, False)
+      , ("MathValue callback still maps over explicit tensors",
+          call "map" [var "mathConstant", var "mathTensors"], TCollection (TTensor TMathValue),
+          Just (0, arrow [TTensor TMathValue] (TTensor TMathValue)), True)
+      , ("scalar expectation retries ordinary inference for required tensor results",
+          call "mathConstant" [call "foldl" [var "mathAdd", int 0,
+            call "map" [var "mathTensorResult", scalars]]],
+          TTensor TMathValue, Nothing, True)
       , ("ordinary scalar map", call "map" [var "one", scalars], TCollection TInt,
           Just (0, arrow [TInt] TInt), False)
       , ("polymorphic identity consumes tensors", call "map" [var "id", tensors], listTensor,
@@ -183,6 +206,7 @@ inferenceState = initialInferState { inferEnv = foldr add Env.emptyEnv bindings 
     tensor = TTensor TInt
     bindings =
       [ ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
+      , ("apply", arrow [arrow [a] b, a] b)
       , ("iterate", arrow [arrow [a] a, a] (TCollection a))
       , ("tensorIdentity", arrow [tensor] tensor)
       , ("filter", arrow [arrow [a] TBool, TCollection a] (TCollection a))
@@ -206,6 +230,15 @@ inferenceState = initialInferState { inferEnv = foldr add Env.emptyEnv bindings 
       , ("scalarList", arrow [TCollection TInt] (TCollection TInt))
       , ("scalarNestedList", arrow [TCollection (TCollection TInt)] (TCollection (TCollection TInt)))
       , ("scalarListResult", arrow [TInt] (TCollection TInt))
+      , ("listIdentity", arrow [TCollection a] (TCollection a))
+      , ("mathConstant", arrow [TMathValue] TMathValue)
+      , ("mathAdd", arrow [TMathValue, TMathValue] TMathValue)
+      , ("mathList", arrow [TCollection TMathValue] (TCollection TMathValue))
+      , ("mathNestedList", arrow [TCollection (TCollection TMathValue)] (TCollection (TCollection TMathValue)))
+      , ("mathPair", arrow [TTuple [TMathValue, TMathValue]] (TTuple [TMathValue, TMathValue]))
+      , ("mathTensors", TCollection (TTensor TMathValue))
+      , ("mathTensorResult", arrow [TMathValue] (TTensor TMathValue))
+      , ("mathFunctionConsumer", arrow [arrow [TMathValue] TMathValue] TBool)
       ]
 
 arrow :: [Type] -> Type -> Type

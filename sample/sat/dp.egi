@@ -1,23 +1,23 @@
 def deleteLiteral l cnf :=
   map
-    (\c -> matchAll c as multiset integer with
+    (\c -> matchAll c as multiset something with
         | ((!#l) & $x) :: _ -> x)
     cnf
 
 def deleteClausesWith l cnf :=
-  matchAll cnf as multiset (multiset integer) with
+  matchAll cnf as multiset (multiset something) with
     | ((!(#l :: _)) & $c) :: _ -> c
 
 def assignTrue l cnf := deleteLiteral (neg l) (deleteClausesWith l cnf)
 
 def resolveOn v cnf :=
-  matchAll cnf as multiset (multiset integer) with
+  matchAll cnf as multiset (multiset something) with
     | {(#v :: (@ & $xs)) :: (#(neg v) :: (@ & $ys)) :: _,
        !( $l :: _, #(neg l) :: _ )} ->
       unique (xs ++ ys)
 
 def dp vars cnf :=
-  match (vars, cnf) as (multiset integer, multiset (multiset integer)) with
+  match (vars, cnf) as (multiset something, multiset (multiset something)) with
   -- satisfiable
   | (_, []) -> True
   -- unsatisfiable

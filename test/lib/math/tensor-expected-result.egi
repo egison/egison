@@ -1,0 +1,7 @@
+-- Closed MathValue list structure constrains nested higher-order inference.
+def consumeMathLists (xss : [[MathValue]]) : [[MathValue]] := xss
+def preprocessMathLists xss := consumeMathLists (map unique xss)
+assertEqual "nested MathValue lists" (preprocessMathLists [[1,1],[2,2]]) [[1],[2]]
+
+declare symbol x, y : MathValue
+assertEqual "symbolic MathValue lists" (preprocessMathLists [[x,x],[y,y]]) [[x],[y]]

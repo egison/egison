@@ -5589,37 +5589,68 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 -- needs definition-time tensor completion. For example, in
 -- @dp vars (map unique cnf)@ the expected @[[Integer]]@ fixes the result of
 -- @map@ before its otherwise open callback type could acquire Tensor indices.
--- Only closed core result types supply this context. CAS and tensor result
--- types retain their production compatibility rules. Explicit tensor operands
--- still go through ordinary application checking;
--- this does not erase tensors from already inferred nested data.
+-- Closed tensor-free result types supply this context, including MathValue
+-- inside lists and tuples. Strict unification retains scalar CAS compatibility
+-- without admitting Tensor a as a. Explicit tensor operands still go through
+-- ordinary application checking; this does not erase tensors from already
+-- inferred nested data. If specializing the result prevents a required tensor
+-- adaptation, retry ordinary inference before the enclosing argument check.
 inferApplicationArgument :: Type -> IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferApplicationArgument expected expression ctx = do
   required <- applySubstWithConstraintsM emptySubst expected
   case expression of
     IApplyExpr function arguments
-      | Set.null (freeTyVars required)
-      , not (typeSchemeUsesEgisonExtension (Forall [] [] [] required)) ->
+      | canPropagateExpectedResult required ->
           fst <$> withSequenceTargets Nothing (do
             let exprCtx = withExpr (prettyStr expression) ctx
             (functionTI, functionSubst) <- inferIExprWithContext function exprCtx
             functionType <- applySubstWithConstraintsM functionSubst (tiExprType functionTI)
-            contextualSubst <- case resultAfter (length arguments) functionType of
-              Nothing -> return functionSubst
+            let ordinary = inferIApplicationWithContext
+                  functionTI functionType arguments functionSubst exprCtx
+            case resultAfter (length arguments) functionType of
+              Nothing -> ordinary
               Just resultType -> do
                 classEnv <- getClassEnv
                 constraints <- getConstraints
                 case TU.unifyStrictWithConstraints classEnv constraints resultType required of
-                  Left _ -> return functionSubst
+                  Left _ -> ordinary
                   Right resultSubst -> do
-                    recordGlobalSubst exprCtx resultSubst
-                    return (composeSubst resultSubst functionSubst)
-            inferIApplicationWithContext functionTI functionType arguments contextualSubst exprCtx)
+                    saved <- get
+                    let contextual = do
+                          recordGlobalSubst exprCtx resultSubst
+                          inferIApplicationWithContext functionTI functionType arguments
+                            (composeSubst resultSubst functionSubst) exprCtx
+                    contextual `catchError` \_ -> do
+                      -- Discard substitutions, constraints, diagnostics, and
+                      -- counters from the failed attempt, except fresh names.
+                      nextFresh <- gets inferCounter
+                      put saved { inferCounter = nextFresh }
+                      ordinary)
     _ -> inferIExprWithContext expression ctx
   where
     resultAfter 0 result = Just result
     resultAfter n (TFun _ result) = resultAfter (n - 1) result
     resultAfter _ _ = Nothing
+
+-- | Expected-result propagation depends on known tensor-free structure,
+-- not on whether scalar leaves belong to the symbolic-mathematics extension.
+-- Inspect every type argument, including function results and CAS coefficients.
+canPropagateExpectedResult :: Type -> Bool
+canPropagateExpectedResult ty = Set.null (freeTyVars ty) && tensorFree ty
+  where
+    tensorFree TTensor{} = False
+    tensorFree (TTuple elements) = all tensorFree elements
+    tensorFree (TCollection element) = tensorFree element
+    tensorFree (TInductive _ elements) = all tensorFree elements
+    tensorFree (THash key value) = tensorFree key && tensorFree value
+    tensorFree (TMatcher _ target) = tensorFree target
+    tensorFree (TFun argument result) = tensorFree argument && tensorFree result
+    tensorFree (TIO value) = tensorFree value
+    tensorFree (TIORef value) = tensorFree value
+    tensorFree (TTerm coefficient _) = tensorFree coefficient
+    tensorFree (TFrac coefficient) = tensorFree coefficient
+    tensorFree (TPoly coefficient _) = tensorFree coefficient
+    tensorFree _ = True
 
 -- | Synthesize each source argument once, then align its application type.
 -- Matching a scalar callback before tensor data would prematurely specialize
