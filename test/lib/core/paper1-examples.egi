@@ -57,14 +57,44 @@ def paperMultiset m := matcher
   | $ as something with
     | $tgt -> [tgt]
 
+def paperIfThenElse b x y := match b as something with
+  | #True -> x
+  else y
+
+def paperSubset m xs ys :=
+  match xs as paperList m with
+    | [] -> True
+    | $x :: $rest -> match ys as paperList m with
+        | _ ++ #x :: _ -> paperSubset m rest ys
+        else False
+    else False
+
+def paperSubsetQueue queue :=
+  match queue as paperList something with
+    | [] -> []
+    | $pair :: $pending -> match pair as (something, something) with
+        | ($chosen, $rest) ->
+            let children := matchAllDFS rest as paperList something with
+                  _ ++ $x :: $tail -> (chosen ++ [x], tail)
+             in chosen :: paperSubsetQueue (pending ++ children)
+        else []
+    else []
+
+def paperSubsets xs := paperSubsetQueue [([], xs)]
+
 def paperSet m := matcher
   | [] as () with
     | [] -> [()]
     | _ -> []
   | $ :: $ as (m, paperSet m) with
-    | $tgt -> map (\x -> (x, tgt)) tgt
+    | $tgt -> matchAll tgt as paperList m with _ ++ $x :: _ -> (x, tgt)
+  | #$left ++ $ as paperSet m with
+    | $tgt -> paperIfThenElse (paperSubset m left tgt) [tgt] []
   | $ ++ $ as (paperSet m, paperSet m) with
-    | $tgt -> paperSplits tgt
+    | $tgt -> matchAllDFS paperSubsets tgt as paperList something with
+        _ ++ $xs :: _ -> (xs, tgt)
+  | #$val as () with
+    | $tgt -> paperIfThenElse (paperSubset m val tgt) (paperIfThenElse (paperSubset m tgt val) [()] []) []
   | $ as something with
     | $tgt -> [tgt]
 
@@ -107,3 +137,30 @@ assertEqual "paper1/pattern-types" paperPatterns ([1],[1],[(1,2)],[1],[1,2])
 
 def paperGraph := matchAll [(1,2),(2,3),(1,4),(4,5)] as paperMultiset (something, something) with (#1,$v) :: _ -> v
 assertEqual "paper1/graph" paperGraph [2,4]
+
+-- Compare the unannotated source definition with the production set matcher.
+def paperSetChecks m :=
+  (matchAll [2,1] as m with #[1,2] -> 1,
+   matchAll [2,1,2] as m with #[1,1,2] -> 1,
+   matchAll [1,2] as m with #[1,3] -> 1,
+   matchAll [] as m with #[] -> 1,
+   matchAll [1] as m with #[] -> 1,
+   matchAll [1,2,3] as m with $xs ++ $ys -> (xs,ys),
+   matchAll [1,1] as m with $xs ++ $ys -> (xs,ys),
+   matchAll [1,2] as m with #[2,2] ++ $rest -> rest,
+   matchAll [1,2] as m with #[3] ++ $rest -> rest,
+   matchAll [1,1] as m with $x :: $rest -> (x,rest))
+
+def paperSetExpected :=
+  ([1], [1], [], [1], [],
+   [([],[1,2,3]),([1],[1,2,3]),([2],[1,2,3]),([3],[1,2,3]),
+    ([1,2],[1,2,3]),([1,3],[1,2,3]),([2,3],[1,2,3]),([1,2,3],[1,2,3])],
+   [([],[1,1]),([1],[1,1]),([1],[1,1]),([1,1],[1,1])],
+   [[1,2]], [], [(1,[1,1]),(1,[1,1])])
+
+assertEqual "paper1/set-source-semantics" (paperSetChecks (paperSet something)) paperSetExpected
+assertEqual "paper1/set-standard-semantics" (paperSetChecks (set something)) paperSetExpected
+
+def paperDiverge x := paperDiverge x
+assertEqual "paper1/conditional-then-lazy" (paperIfThenElse True 1 (paperDiverge 0)) 1
+assertEqual "paper1/conditional-else-lazy" (paperIfThenElse False (paperDiverge 0) 2) 2
