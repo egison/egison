@@ -389,22 +389,16 @@ warnMatcherCompatibility ctx (pp, _, arms) = do
        "` binds #$ name(s) more than once: " ++
        intercalate ", " duplicatePpBinders)
       ctx
+  -- An arm may shadow a header capture; its bindings form an inner scope.
   forM_ arms $ \(dataPattern, _) -> do
     let armBinders = primitivePatternNames dataPattern
         duplicateArmBinders = duplicateNames armBinders
-        overlappingBinders = nub (filter (`elem` ppBinders) armBinders)
     unless (null duplicateArmBinders) $
       warnOutsideEgisonCore
         ("a data-pattern arm of primitive-pattern pattern `" ++
          renderPrimitivePatPattern pp ++
          "` binds name(s) more than once: " ++
          intercalate ", " duplicateArmBinders)
-        ctx
-    unless (null overlappingBinders) $
-      warnOutsideEgisonCore
-        ("a data-pattern arm of primitive-pattern pattern `" ++
-         renderPrimitivePatPattern pp ++
-         "` rebinds #$ name(s): " ++ intercalate ", " overlappingBinders)
         ctx
 
 -- | Matcher-facing pattern forms still handled by Egison's extension layer

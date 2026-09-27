@@ -1364,7 +1364,8 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
     result <- runMaybeT $ primitiveDataPatternMatch pat ref
     case result of
       Just bindings' -> do
-        let env = extendEnv matcherEnv $ bindings ++ bindings'
+        -- Data-pattern bindings are local to this arm and shadow captures.
+        let env = extendEnv matcherEnv $ bindings' ++ bindings
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont
   failPPPatternMatch = throwError (Default "failed primitive pattern pattern match")

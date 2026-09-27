@@ -1,0 +1,39 @@
+-- Data-pattern bindings are local to an arm and shadow header captures.
+-- These programs deliberately reuse a capture name in a data pattern.
+def dataPatternPriority := matcher
+  | #$x as () with
+    | $x -> if x then [()] else []
+  | $ as something with
+    | $target -> [target]
+
+assertEqual "matcher-shadow/false-target"
+  (matchAll False as dataPatternPriority with #True -> True) []
+assertEqual "matcher-shadow/true-target"
+  (matchAll True as dataPatternPriority with #False -> True) [True]
+assertEqual "matcher-shadow/dfs"
+  (matchAllDFS False as dataPatternPriority with #True -> True) []
+
+-- The captured x is an element; the data-pattern x is the whole list.
+-- Using rest as a list checks agreement between inference and evaluation.
+def listDataPatternPriority := matcher
+  | #$x :: $ as list something with
+    | $x -> [x]
+  | $ as something with
+    | $target -> [target]
+
+assertEqual "matcher-shadow/different-types"
+  (matchAll [False, True] as listDataPatternPriority with #True :: $rest -> rest)
+  [[False, True]]
+assertEqual "matcher-shadow/use-list-result"
+  (matchAll [False, True] as listDataPatternPriority with #True :: $rest -> map not rest)
+  [[True, False]]
+
+-- A capture with a different name remains available in the arm body.
+def distinctMatcherBindings := matcher
+  | #$expected as () with
+    | $actual -> if expected && not actual then [()] else []
+  | $ as something with
+    | $target -> [target]
+
+assertEqual "matcher-shadow/distinct-bindings"
+  (matchAll False as distinctMatcherBindings with #True -> True) [True]

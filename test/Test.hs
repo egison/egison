@@ -222,6 +222,26 @@ primitivePatternWarningTests =
           "a primitive value pattern to the left of every hole does not warn"
           [] warnings
 
+    , TestLabel "data-pattern bindings may shadow captures" . TestCase $ do
+        let expression = IMatcherExpr
+              [ ( PPValuePat "x"
+                , ITupleExpr []
+                , [(PDPatVar (Var "x" []), ICollectionExpr [ITupleExpr []])]
+                )
+              , ( PPPatVar
+                , IConstantExpr SomethingExpr
+                , [(PDPatVar (Var "target" []), ICollectionExpr [IVarExpr "target"])]
+                )
+              ]
+        (result, warnings) <- runInferWithWarnings
+          (inferIExpr expression)
+          (initialInferStateWithConfig defaultInferConfig
+            { cfgOutsideEgisonCoreWarnings = True })
+        case result of
+          Right _ -> return ()
+          Left err -> assertFailure ("arm shadowing was rejected: " ++ show err)
+        assertEqual "arm shadowing is ordinary core scope" [] warnings
+
     , TestLabel "nested structured pattern only" . TestCase $ do
         let pattern =
               PPInductivePat "join"
@@ -1970,4 +1990,4 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   evalTopExprsNoPrint env (allLibExprs ++ exprs)
   where
     assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/paper1-examples.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi"] }) m >>= assertString . either show (const "")
+    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/paper1-examples.egi", "test/lib/core/matcher-data-shadowing.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi"] }) m >>= assertString . either show (const "")

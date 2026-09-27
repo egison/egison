@@ -72,6 +72,21 @@ general clause）は論文の CoverageOK に対応するが，production の部�
 `string` の regex clause）を維持するため `--matcher-consistency-warnings` のときだけ
 警告する．
 
+### データ分岐の束縛
+
+primitive data pattern（分岐の対象値を分解するパターン）の束縛は，その分岐本体だけに
+有効な内側の束縛である．ヘッダの `#$x` による捕捉と同名なら，データパターン側を優先する．
+異なる名前の捕捉は引き続き参照でき，両方の束縛がマッチャーの定義環境より優先される．
+型推論では捕捉の環境を `withEnv bindings` で拡張し，実行時も
+`dataBindings ++ captureBindings` の順に名前を探索する．Lean の分岐本体の環境も
+`dataValues ++ captureValues ++ matcherEnvironment` である．
+
+この二つのスコープ間で同名を使うことはコア外の機能として警告しない．一つのヘッダ内や
+一つのデータパターン内で同名を重複して束縛する場合の診断は別である．旧
+`type-pm-compatibility.md` §4.3 のスコープ間の非重複条件は，現行の条件ではない．
+`test/lib/core/matcher-data-shadowing.egi` で，捕捉と対象の値・型が異なる例，DFS，
+異なる名前の捕捉の参照を strict モードで検査する．
+
 ### legacy CAS pattern view（core 外）
 
 `MathValue`，`IndexExpr` などの pattern 宣言は数式の実行時 view を名付けるもので，
