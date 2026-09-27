@@ -41,7 +41,9 @@ def paperMultiset m := matcher
   | $ :: _ as m with
     | $tgt -> tgt
   | #$val :: $ as paperMultiset m with
-    | $tgt -> if paperMember val tgt then [paperDeleteFirst val tgt] else []
+    | $tgt -> match tgt as paperList m with
+        | $hs ++ #val :: $ts -> [hs ++ ts]
+        else []
   | $ :: $ as (m, paperMultiset m) with
     | $tgt -> matchAll tgt as paperList m with $hs ++ $x :: $ts -> (x, hs ++ ts)
   | $ ++ $ as (paperMultiset m, paperMultiset m) with
@@ -164,3 +166,26 @@ assertEqual "paper1/set-standard-semantics" (paperSetChecks (set something)) pap
 def paperDiverge x := paperDiverge x
 assertEqual "paper1/conditional-then-lazy" (paperIfThenElse True 1 (paperDiverge 0)) 1
 assertEqual "paper1/conditional-else-lazy" (paperIfThenElse False (paperDiverge 0) 2) 2
+
+-- Nested value patterns must use the supplied element matcher.
+def paperNestedCapturedCons := matchAll [[1,2],[3]] as paperMultiset (paperMultiset something) with #[2,1] :: $rest -> rest
+def paperNestedWholeValue := matchAll [[1,2],[3]] as paperMultiset (paperMultiset something) with #[[3],[2,1]] -> 1
+assertEqual "paper1/nested-captured-cons" paperNestedCapturedCons [[[3]]]
+assertEqual "paper1/nested-whole-value" paperNestedWholeValue [1]
+
+-- Variables and wildcards follow the matcher clause before reaching something.
+def paperTransform := matcher
+  | $ as something with
+    | $tgt -> [tgt + 100]
+def paperReject := matcher
+  | $ as something with
+    | $tgt -> []
+def paperDuplicate := matcher
+  | $ as something with
+    | $tgt -> [tgt, tgt + 1]
+assertEqual "paper1/variable-transform" (matchAll 1 as paperTransform with $x -> x) [101]
+assertEqual "paper1/variable-reject" (matchAll 1 as paperReject with $x -> x) []
+assertEqual "paper1/variable-duplicate" (matchAll 1 as paperDuplicate with $x -> x) [1,2]
+assertEqual "paper1/wildcard-transform" (matchAll 1 as paperTransform with _ -> 7) [7]
+assertEqual "paper1/wildcard-reject" (matchAll 1 as paperReject with _ -> 7) []
+assertEqual "paper1/wildcard-duplicate" (matchAll 1 as paperDuplicate with _ -> 7) [7,7]
