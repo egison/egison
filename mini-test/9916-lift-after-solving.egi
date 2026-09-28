@@ -1,0 +1,10 @@
+-- The callback fixes the data parameter to Integer, so the tensor argument is
+-- lifted: probeH [| 1, 2 |] probeInc is tensorMap (\x -> probeH x probeInc)
+-- [| 1, 2 |].  A polymorphic identity still receives the tensor whole.
+def probeInc (x : Integer) : Integer := x + 1
+def probeH {a} (x : a) (f : a -> Integer) : Integer := f x
+def probeId {a} (x : a) : a := x
+
+assertEqual "scalar data" (probeH 1 probeInc) 2
+assertEqual "lift after solving" (probeH [| 1, 2 |] probeInc) [| 2, 3 |]
+assertEqual "identity keeps the tensor" (probeId [| 1, 2 |]) [| 1, 2 |]

@@ -33,6 +33,8 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("nested MathValue function result does not erase Tensor",
         call "mathFunctionConsumer" [call "id" [var "mathTensorResult"]])
     , ("tensor predicate cannot replace a scalar predicate", call "filter" [var "toBool", tensors])
+    , ("a scalar component cannot join tensor components", IVectorExpr [int 1, vector])
+    , ("a tensor component cannot join scalar components", IVectorExpr [vector, int 1])
     ] ++
   [ TestLabel "incompatible tensor element is rejected" . TestCase $ do
       (result, _) <- runInferWithWarnings
@@ -90,6 +92,14 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           call "mathConstant" [call "foldl" [var "mathAdd", int 0,
             call "map" [var "mathTensorResult", scalars]]],
           TTensor TMathValue, Nothing, True)
+      , ("a callback fixes an open data parameter to a scalar, which lifts the tensor argument",
+          call "dataCallback" [vector, var "one"], tensor, Nothing, True)
+      , ("a scalar argument with the same callback needs no lift",
+          call "dataCallback" [int 1, var "one"], TInt, Nothing, False)
+      , ("an open parameter without scalar evidence keeps a tensor argument whole",
+          call "id" [vector], tensor, Nothing, False)
+      , ("a literal of tensor components is regular", IVectorExpr [vector, vector],
+          tensor, Nothing, False)
       , ("ordinary scalar map", call "map" [var "one", scalars], TCollection TInt,
           Just (0, arrow [TInt] TInt), False)
       , ("polymorphic identity consumes tensors", call "map" [var "id", tensors], listTensor,
@@ -207,6 +217,7 @@ inferenceState = initialInferState { inferEnv = foldr add Env.emptyEnv bindings 
     bindings =
       [ ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
       , ("apply", arrow [arrow [a] b, a] b)
+      , ("dataCallback", arrow [a, arrow [a] TInt] TInt)
       , ("iterate", arrow [arrow [a] a, a] (TCollection a))
       , ("tensorIdentity", arrow [tensor] tensor)
       , ("filter", arrow [arrow [a] TBool, TCollection a] (TCollection a))

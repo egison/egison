@@ -46,11 +46,11 @@ module Language.Egison.Type.Infer
   , addWarning
   ) where
 
-import           Control.Monad              (foldM, forM_, when, zipWithM, zipWithM_, unless)
+import           Control.Monad              (foldM, forM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
 import           Data.Graph                 (SCC(..), stronglyConnComp)
-import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn)
+import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn, subsequences)
 import qualified Data.Map.Strict             as Map
 import qualified Data.Set                    as Set
 import           Language.Egison.AST        (ConstantExpr (..), PrimitivePatPattern (..))
@@ -1574,6 +1574,21 @@ unifyTypesWithContext t1 t2 ctx = do
   (t1', t2') <- zonkPair t1 t2
   fst <$> solveTypes classEnv constraints t1' t2' ctx
 
+-- | The components of a tensor literal share one type.  Ordinary unification
+-- reads a scalar as a rank-0 tensor, so a scalar component and a tensor
+-- component would unify by unwrapping the tensor; such an irregular literal,
+-- for example @[| 1, [| 2, 3 |] |]@, is rejected instead.
+unifyLiteralComponent :: Type -> Type -> TypeErrorContext -> Infer Subst
+unifyLiteralComponent elementType componentType ctx = do
+  constraints <- getConstraints
+  classEnv <- getClassEnv
+  (left, right) <- zonkPair elementType componentType
+  (substitution, unwrapped) <- solveTypes classEnv constraints left right ctx
+  if unwrapped
+    then throwError $ TE.TypeMismatch left right
+      "the components of a tensor literal must all have the same type" ctx
+    else return substitution
+
 -- | Resolve both unification operands through 'inferGlobalSubst' (with the
 -- usual constraint-aware Tensor adjustment).  'applySubstWithConstraintsM'
 -- routes every application through the global substitution, so the empty
@@ -2210,7 +2225,7 @@ inferIExprInContext expr ctx = case expr of
         (tiExpr, s') <- inferIExprWithContext e exprCtx
         let t = tiExprType tiExpr
         eType' <- applySubstWithConstraintsM s eType
-        s'' <- unifyTypesWithContext eType' t exprCtx
+        s'' <- unifyLiteralComponent eType' t exprCtx
         return (tiExpr : accExprs, composeSubst s'' (composeSubst s' s))
 
   -- Lambda
@@ -5678,7 +5693,7 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
           argSubst = foldr composeSubst
             (composeSubst shapeSubst initSubst) (map snd argResults)
       (finalSubst, tensorFlag) <-
-        checkApplicationArguments classEnv constraints funcType args
+        checkApplicationArgumentsLifting classEnv constraints funcType args
           argTIExprs paramVars argSubst shapeFlag ctx
       finishApplication
         classEnv funcConstraints resultType funcTIExpr
@@ -5712,8 +5727,8 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
 -- scalar types. Applications without callbacks retain source order.
 checkApplicationArguments
   :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
-  -> Subst -> Bool -> TypeErrorContext -> Infer (Subst, Bool)
-checkApplicationArguments classEnv constraints funcType sources typedArgs params initialSubst initialFlag ctx = do
+  -> Subst -> Bool -> Set.Set Int -> TypeErrorContext -> Infer (Subst, Bool)
+checkApplicationArguments classEnv constraints funcType sources typedArgs params initialSubst initialFlag forced ctx = do
   rankedArgs <- mapM rankArgument (zip4 [0..] sources typedArgs params)
   let hasTensorData = any ((== 0) . fst) rankedArgs
       hasCallback = any ((== 1) . fst) rankedArgs
@@ -5761,11 +5776,70 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
               Just liftedType -> liftedType
               Nothing -> inferredType
       (checkingSubst, argumentFlag) <-
-        solveApplicationArgument
-          classEnv allConstraints sourceArg updatedArg
-          checkedType expectedType ctx
+        case checkedType of
+          TTensor element
+            | index `Set.member` forced -> do
+                -- A lifted position: the element meets the parameter.
+                (elementSubst, _) <-
+                  solveApplicationArgument
+                    classEnv allConstraints sourceArg updatedArg
+                    element expectedType ctx
+                return (elementSubst, True)
+          _ ->
+            solveApplicationArgument
+              classEnv allConstraints sourceArg updatedArg
+              checkedType expectedType ctx
       let finalSubst = composeSubst checkingSubst substitution
       return (finalSubst, flag || argumentFlag)
+
+-- | Check the arguments of an application, choosing its lift set after the
+-- argument types have been solved.  The ordinary check lifts a tensor
+-- argument when its parameter is already a scalar type.  When that check
+-- fails, a tensor argument whose parameter is still open may have to be
+-- lifted because another argument fixes the parameter to a scalar type, as
+-- the callback does in @h [| 1, 2 |] inc@ for
+-- @h : a -> (a -> Integer) -> Integer@.  The lift set is then the unique
+-- subset-least set of tensor arguments whose lifting makes the check succeed
+-- with every lifted parameter a scalar type under the final substitution.
+-- A program the ordinary check accepts keeps its lift set: the arguments it
+-- lifts have scalar parameters already, so every such set contains them.
+checkApplicationArgumentsLifting
+  :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
+  -> Subst -> Bool -> TypeErrorContext -> Infer (Subst, Bool)
+checkApplicationArgumentsLifting classEnv constraints funcType sources typedArgs params initialSubst initialFlag ctx = do
+  saved <- get
+  check Set.empty `catchError` \err -> do
+    candidates <- tensorPositions
+    successes <- fmap concat $ forM (filter (not . null) (subsequences candidates)) $ \subset -> do
+      restore saved
+      (do
+          result <- check (Set.fromList subset)
+          justified <- liftJustified subset result
+          return [Set.fromList subset | justified])
+        `catchError` \_ -> return []
+    restore saved
+    case [ least | least <- successes, all (least `Set.isSubsetOf`) successes ] of
+      least : _ -> check least
+      [] -> throwError err
+  where
+    check forced =
+      checkApplicationArguments classEnv constraints funcType sources typedArgs params
+        initialSubst initialFlag forced ctx
+    -- Discard substitutions, constraints, diagnostics, and counters from a
+    -- failed attempt, except fresh names.
+    restore saved' = do
+      nextFresh <- gets inferCounter
+      put saved' { inferCounter = nextFresh }
+    tensorPositions = do
+      types <- mapM (applySubstWithConstraintsM initialSubst . tiExprType) typedArgs
+      return [ index | (index, TTensor _) <- zip [0 :: Int ..] types ]
+    liftJustified subset (finalSubst, _) = do
+      let finalConstraints = map (applySubstConstraint finalSubst) constraints
+      parameters <- mapM (applySubstWithConstraintsM finalSubst) params
+      return $ all (\index -> case drop index parameters of
+                      parameter : _ ->
+                        isTensorLiftableScalarType classEnv finalConstraints parameter
+                      [] -> False) subset
 
 -- | Tensor evidence in a data argument, including list and tuple elements.
 -- Function signatures and resource types are not tensor-valued data.
@@ -5848,7 +5922,7 @@ inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubs
       `catchError` \_ -> return Nothing
   case initialUnifier of
     Just (s1, flag1) -> do
-      (finalS, flag3) <- checkApplicationArguments
+      (finalS, flag3) <- checkApplicationArgumentsLifting
         classEnv constraints funcType args argTIExprs paramVars
         (composeSubst s1 argSubst) flag1 ctx
       finishApplication
