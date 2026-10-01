@@ -1,8 +1,8 @@
 --
--- Capability-inadmissible next matcher (paper rules G-Literal and Q-Cons).  The tail hole of the cons
--- clause requires list capability, which `something` cannot fill; the
--- runtime counterpart would route a cons sub-pattern to something and
--- get stuck.
+-- Capability-inadmissible next matcher (paper rules G-Literal and Q-Cons).  The tail pattern hole of the cons
+-- matcher clause requires a list capability, which `something` cannot provide; at
+-- run time the cons subpattern would be passed to something and raise a runtime
+-- error.
 --
 -- Expected: Type error (`Any` at the list-capable tail hole)
 --

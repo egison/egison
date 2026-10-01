@@ -8,8 +8,8 @@ This module provides pretty printing for Egison types.
 module Language.Egison.Type.Pretty
   ( prettyType
   , prettyCapability
-  , prettyDual
-  , prettyDualScheme
+  , prettyRequirement
+  , prettyPatFuncScheme
   , prettyTypeScheme
   , prettyTypeExpr
   , prettyCapabilityExpr
@@ -23,10 +23,10 @@ import           Language.Egison.AST        (CapabilityExpr (..), TypeExpr (..),
                                              SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
-import           Language.Egison.Type.Types (CapVar (..), Capability (..), Dual (..),
-                                             DualScheme (..), ShapeDimType (..),
+import           Language.Egison.Type.Types (CapVar (..), Capability (..), RequirementPair (..),
+                                             PatFuncScheme (..), ShapeDimType (..),
                                              TensorShape (..), Type (..),
-                                             TypeFormer (..), TypeFormerId (..),
+                                             DataType (..), DataTypeId (..),
                                              TypeScheme (..), SymbolSet(..), prettyTypeAtomValue,
                                              tyVarName)
 
@@ -72,33 +72,33 @@ prettyType (TFrac t)         = "Frac " ++ prettyTypeAtom t
 prettyType (TPoly t ss)     = "Poly " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 
 -- | Pretty print a matcher capability. Applications use the same
--- type-former notation as source annotations.
+-- capability-constructor notation as source annotations.
 prettyCapability :: Capability -> String
 prettyCapability CapAny = "Any"
 prettyCapability (CapVar (MkCapVar v)) = v
 prettyCapability (CapSkolem (MkCapVar v)) = v
-prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name
-prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) args) =
+prettyCapability (CapCon (DataType (DataTypeId name) _) []) = name
+prettyCapability (CapCon (DataType (DataTypeId name) _) args) =
   name ++ " " ++ unwords (map prettyCapabilityAtom args)
 prettyCapability (CapTuple []) = "()"
 prettyCapability (CapTuple capabilities) =
   "(" ++ intercalate ", " (map prettyCapability capabilities) ++ ")"
 
--- | Pretty print one capability/target pattern dual.
-prettyDual :: Dual -> String
-prettyDual (Dual capability target) =
+-- | Pretty print one capability/target requirement pair.
+prettyRequirement :: RequirementPair -> String
+prettyRequirement (RequirementPair capability target) =
   prettyCapability capability ++ " ▷ " ++ prettyType target
 
 -- | Pretty print a two-sorted pattern-function scheme.
-prettyDualScheme :: DualScheme -> String
-prettyDualScheme scheme =
+prettyPatFuncScheme :: PatFuncScheme -> String
+prettyPatFuncScheme scheme =
   quantifiers ++
-  "(" ++ intercalate ", " (map prettyDual (dualArgs scheme)) ++ ") => " ++
-  prettyDual (dualResult scheme)
+  "(" ++ intercalate ", " (map prettyRequirement (patFuncParams scheme)) ++ ") => " ++
+  prettyRequirement (patFuncResult scheme)
   where
     binders =
-      [ name | MkCapVar name <- dualCapBinders scheme ] ++
-      map tyVarName (dualTyBinders scheme)
+      [ name | MkCapVar name <- patFuncCapBinders scheme ] ++
+      map tyVarName (patFuncTyBinders scheme)
     quantifiers =
       if null binders then "" else "∀" ++ unwords binders ++ ". "
 

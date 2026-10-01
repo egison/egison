@@ -1,4 +1,4 @@
--- PAT-APP consumes the complete argument list of its DualScheme.  With only
+-- PAT-APP consumes the complete argument list of its pattern-function scheme.  With only
 -- target-function unification, the missing Bool argument below could be
 -- mistaken for a function-valued pattern result, so this specifically checks
 -- the exact-arity premise.

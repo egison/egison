@@ -3,7 +3,7 @@
 --
 
 -- This translator-era sample predates explicit declarations for its legacy
--- Term/Var/Compound representation. Term is now the CAS type former, so a
+-- Term/Var/Compound representation. Term is now the CAS data type, so a
 -- fabricated two-index annotation would be misleading. Keep this matcher
 -- inferred until the sample is rebuilt around a declared non-CAS term ADT.
 def term :=

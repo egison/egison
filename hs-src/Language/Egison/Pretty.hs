@@ -27,7 +27,7 @@ import           Language.Egison.Data
 import           Language.Egison.IExpr hiding (TIPatternNode(..))
 import           Language.Egison.IExpr (TIPatternNode(..))
 import qualified Language.Egison.Type.Types as Types
-import           Language.Egison.Type.Pretty (prettyDualScheme, prettyTypeScheme)
+import           Language.Egison.Type.Pretty (prettyPatFuncScheme, prettyTypeScheme)
 
 --
 -- Pretty printing for Non-S syntax
@@ -151,10 +151,10 @@ instance Pretty Expr where
   pretty (WithSymbolsExpr xs e) =
     indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
 
-  pretty (MatchExpr BFSMode tgt matcher clauses fallback) =
-    nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses fallback)
-  pretty (MatchExpr DFSMode tgt matcher clauses fallback) =
-    nest 2 (pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses fallback)
+  pretty (MatchExpr BFSMode tgt matcher clauses matchElse) =
+    nest 2 (pretty "match"       <+> pretty tgt <+> prettyMatch matcher clauses matchElse)
+  pretty (MatchExpr DFSMode tgt matcher clauses matchElse) =
+    nest 2 (pretty "matchDFS"    <+> pretty tgt <+> prettyMatch matcher clauses matchElse)
   pretty (MatchAllExpr BFSMode tgt matcher clauses) =
     nest 2 (pretty "matchAll"    <+> pretty tgt <+> prettyMatch matcher clauses Nothing)
   pretty (MatchAllExpr DFSMode tgt matcher clauses) =
@@ -504,10 +504,10 @@ instance Pretty IExpr where
   pretty (IWithSymbolsExpr xs e) =
     indentBlock (pretty "withSymbols" <+> list (map pretty xs)) [pretty e]
   
-  pretty (IMatchExpr BFSMode tgt matcher clauses fallback) =
-    nest 2 (pretty "match" <+> pretty tgt <+> prettyIMatch matcher clauses fallback)
-  pretty (IMatchExpr DFSMode tgt matcher clauses fallback) =
-    nest 2 (pretty "matchDFS" <+> pretty tgt <+> prettyIMatch matcher clauses fallback)
+  pretty (IMatchExpr BFSMode tgt matcher clauses matchElse) =
+    nest 2 (pretty "match" <+> pretty tgt <+> prettyIMatch matcher clauses matchElse)
+  pretty (IMatchExpr DFSMode tgt matcher clauses matchElse) =
+    nest 2 (pretty "matchDFS" <+> pretty tgt <+> prettyIMatch matcher clauses matchElse)
   
   pretty (IMatchAllExpr BFSMode tgt matcher clauses) =
     nest 2 (pretty "matchAll" <+> pretty tgt <+> prettyIMatch matcher clauses Nothing)
@@ -577,13 +577,13 @@ prettyIDoBinds :: IBindingExpr -> Doc ann
 prettyIDoBinds (pdpat, expr) = pretty pdpat <+> pretty "<-" <+> pretty expr
 
 prettyIMatch :: IExpr -> [IMatchClause] -> Maybe IExpr -> Doc ann
-prettyIMatch matcher clauses fallback =
+prettyIMatch matcher clauses matchElse =
   pretty "as" <+> pretty matcher <+> pretty "with" <> hardline <>
-    indent 2 (vsep (map prettyIClause clauses ++ prettyFallback fallback))
+    indent 2 (vsep (map prettyIClause clauses ++ prettyMatchElse matchElse))
   where
     prettyIClause (pat, body) =
       indentBlock (pipe <+> pretty pat <+> pretty "->") [pretty body]
-    prettyFallback = maybe [] (\body -> [pretty "else" <+> pretty body])
+    prettyMatchElse = maybe [] (\body -> [pretty "else" <+> pretty body])
 
 instance Complex IExpr where
   isAtom (IConstantExpr (IntegerExpr i)) | i < 0 = False
@@ -867,15 +867,15 @@ prettyTIExprNode node = case node of
     pretty "do" <+> vsep (map prettyBinding bindings) <+> prettyTIExprWithType body
     where prettyBinding (pat, expr) = pretty pat <+> pretty "<-" <+> prettyTIExprWithType expr
   
-  TIMatchExpr mode target matcher clauses fallback ->
+  TIMatchExpr mode target matcher clauses matchElse ->
     pretty matchKeyword <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
-    pretty "with" <+> vsep (map prettyClause clauses ++ prettyFallback fallback)
+    pretty "with" <+> vsep (map prettyClause clauses ++ prettyMatchElse matchElse)
     where matchKeyword = case mode of
             BFSMode -> "match"
             DFSMode -> "matchDFS"
           prettyClause (tipat, body) =
             pretty "|" <+> prettyPatternWithType tipat <+> pretty "->" <+> prettyTIExprWithType body
-          prettyFallback = maybe [] (\body -> [pretty "else" <+> prettyTIExprWithType body])
+          prettyMatchElse = maybe [] (\body -> [pretty "else" <+> prettyTIExprWithType body])
 
   TIMatchAllExpr _mode target matcher clauses ->
     pretty "matchAll" <+> prettyTIExprWithType target <+> pretty "as" <+> prettyTIExprWithType matcher <+>
@@ -926,8 +926,8 @@ prettyTIExprNode node = case node of
     pretty "matcher" <+> vsep (map prettyPatDef patDefs)
     where prettyPatDef (pat, expr, bindings) =
             pretty pat <+> pretty "->" <+> prettyTIExprWithType expr
-              <+> pretty "with" <+> vsep (map prettyArm bindings)
-          prettyArm (dp, e) = pretty "|" <+> pretty (show dp) <+> pretty "->" <+> prettyTIExprWithType e
+              <+> pretty "with" <+> vsep (map prettyDataClause bindings)
+          prettyDataClause (dp, e) = pretty "|" <+> pretty (show dp) <+> pretty "->" <+> prettyTIExprWithType e
 
   TIRuntimeDispatch className methodName _candidates args ->
     pretty "<runtime-dispatch" <+> pretty className <> pretty "."
@@ -955,8 +955,8 @@ instance Pretty TITopExpr where
   pretty (TIDeclareSymbol names ty) =
     let namesDoc = hsep $ punctuate (pretty ",") (map pretty names)
     in pretty "declare" <+> pretty "symbol" <+> namesDoc <+> pretty ":" <+> prettyTypeDoc ty
-  pretty (TIPatternFunctionDecl name dualScheme params retType body) =
-    let typeStr = prettyDualScheme dualScheme
+  pretty (TIPatternFunctionDecl name patFuncScheme params retType body) =
+    let typeStr = prettyPatFuncScheme patFuncScheme
         paramsDoc = hsep (map prettyParam params)
         retTypeDoc = prettyTypeDoc retType
     in pretty "def" <+> pretty "pattern" <+> pretty name <+> pretty ":" <+> pretty typeStr <+>
@@ -1038,9 +1038,9 @@ prettyCapabilityDoc :: Types.Capability -> Doc ann
 prettyCapabilityDoc Types.CapAny = pretty "Any"
 prettyCapabilityDoc (Types.CapVar (Types.MkCapVar v)) = pretty v
 prettyCapabilityDoc (Types.CapSkolem (Types.MkCapVar v)) = pretty v
-prettyCapabilityDoc (Types.CapCon (Types.TypeFormer (Types.TypeFormerId name) _) []) =
+prettyCapabilityDoc (Types.CapCon (Types.DataType (Types.DataTypeId name) _) []) =
   pretty name
-prettyCapabilityDoc (Types.CapCon (Types.TypeFormer (Types.TypeFormerId name) _) args) =
+prettyCapabilityDoc (Types.CapCon (Types.DataType (Types.DataTypeId name) _) args) =
   hsep (pretty name : map prettyCapabilityAtomDoc args)
 prettyCapabilityDoc (Types.CapTuple []) = pretty "()"
 prettyCapabilityDoc (Types.CapTuple capabilities) =
@@ -1179,11 +1179,11 @@ prettyDoBinds (Bind (PDTuplePat []) expr) = pretty expr
 prettyDoBinds bind                        = pretty "let" <+> pretty bind
 
 prettyMatch :: Expr -> [MatchClause] -> Maybe Expr -> Doc ann
-prettyMatch matcher clauses fallback =
+prettyMatch matcher clauses matchElse =
   pretty "as" <> group (flatAlt (hardline <> pretty matcher) (space <> pretty matcher) <+> pretty "with") <> hardline <>
-    align (vsep (map pretty clauses ++ prettyFallback fallback))
+    align (vsep (map pretty clauses ++ prettyMatchElse matchElse))
   where
-    prettyFallback = maybe [] (\body -> [pretty "else" <+> pretty body])
+    prettyMatchElse = maybe [] (\body -> [pretty "else" <+> pretty body])
 
 listoid :: String -> String -> [Doc ann] -> Doc ann
 listoid lp rp elems =

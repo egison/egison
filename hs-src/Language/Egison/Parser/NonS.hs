@@ -977,7 +977,7 @@ matcherTypeExpr = do
   return $ TEMatcher capability target
 
 -- | Parse an atomic capability index, or a parenthesized capability
--- application/product. Keeping application behind parentheses gives the
+-- application/tuple. Keeping application behind parentheses gives the
 -- surrounding two-index matcher syntax a unique split point.
 capabilityAtomOrParenExpr :: Parser CapabilityExpr
 capabilityAtomOrParenExpr =
@@ -1001,7 +1001,7 @@ capabilityExprWithApp = do
   case capabilities of
     [capability] -> return capability
     CECon name args : rest -> return $ CECon name (args ++ rest)
-    _ -> fail "a capability application must start with a type former"
+    _ -> fail "a capability application must start with a capability constructor"
 
 capabilityAtom :: Parser CapabilityExpr
 capabilityAtom =
@@ -1009,12 +1009,12 @@ capabilityAtom =
   <|> CEList <$> brackets capabilityExprWithApp
   <|> try parenCapabilityOrTuple
   <|> CEVar <$> typeVarIdent
-  <|> (\name -> CECon name []) <$> capabilityFormerIdent
+  <|> (\name -> CECon name []) <$> capabilityConstructorIdent
 
--- Capability formers include built-in type names, so unlike
+-- Capability constructors include built-in type names, so unlike
 -- 'typeNameIdent' this parser intentionally accepts reserved type keywords.
-capabilityFormerIdent :: Parser String
-capabilityFormerIdent = lexeme $ (:) <$> upperChar <*> many identChar
+capabilityConstructorIdent :: Parser String
+capabilityConstructorIdent = lexeme $ (:) <$> upperChar <*> many identChar
 
 -- | Parse a symbol set expression
 -- Either [..] for open, or [x, y, sqrt 2, sin x, ...] for closed.
@@ -1156,11 +1156,11 @@ patternMatchExpr = makeMatchFirstExpr (reserved "match")    BFSMode
       target <- keyword >> expr
       matcher <- reserved "as" >> expr
       (clauses, clauseIndent) <- reserved "with" >> matchClauses1WithIndent
-      fallback <- optional . try $ do
+      matchElse <- optional . try $ do
         _ <- indentGuardEQ clauseIndent
         reserved "else"
         expr
-      return $ MatchExpr mode target matcher clauses fallback
+      return $ MatchExpr mode target matcher clauses matchElse
 
     makeMatchAllExpr keyword ctor = ctor <$> (keyword >> expr)
                                         <*> (reserved "as" >> expr)
@@ -1751,7 +1751,7 @@ ppPattern = PPInductivePat <$> lowerId <*> many ppAtom
 
 pdPattern :: Parser PrimitiveDataPattern
 pdPattern = makeExprParser pdApplyOrAtom table
-        <?> "primitive data pattern"
+        <?> "primitive-data pattern"
   where
     table :: [[Operator Parser PrimitiveDataPattern]]
     table =

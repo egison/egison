@@ -30,7 +30,7 @@ import           Language.Egison.Type.Subst  (Subst(..), applySubst, composeSubs
                                               applySubstConstraint)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.Types  (Capability (..), CapVar (..),
-                                              TypeFormer (..),
+                                              DataType (..),
                                               TyVar (..), Type (..),
                                               freeCapVars, freeCapVarsCapability,
                                               freeTyVars,
@@ -141,10 +141,10 @@ unifyCapability cap1 cap2
 -- | Capability component matching used only inside type-class
 -- 'matchOneWay'.  It keeps the quantified-instance domain stable and is not
 -- the symmetric capability unification of type equality.  The Boolean
--- records whether literal 'CapAny' nodes come from the original consumer
--- shape.  It is false for a type obtained by expanding an earlier consumer
--- variable binding, because an @Any@ stored in that binding is a rigid value,
--- not a fresh wildcard occurrence.
+-- records whether literal 'CapAny' nodes come from the original shape of the
+-- quantified side.  It is false for a type obtained by expanding an earlier
+-- binding of a quantified-side variable, because an @Any@ stored in that
+-- binding is a rigid value, not a fresh wildcard occurrence.
 matchCapabilityOneWayWithDomain
   :: Bool
   -> Set.Set CapVar
@@ -152,21 +152,21 @@ matchCapabilityOneWayWithDomain
   -> Capability
   -> Subst
   -> Either UnifyError Subst
-matchCapabilityOneWayWithDomain literalAnyIsWildcard bindable producer0 consumer0 initialSubst
-  | not (wellFormedCapability producer0) =
-      Left (capabilityMismatch producer0 CapAny)
-  | not (wellFormedCapability consumer0) =
-      Left (capabilityMismatch consumer0 CapAny)
+matchCapabilityOneWayWithDomain literalAnyIsWildcard bindable rigid0 quantified0 initialSubst
+  | not (wellFormedCapability rigid0) =
+      Left (capabilityMismatch rigid0 CapAny)
+  | not (wellFormedCapability quantified0) =
+      Left (capabilityMismatch quantified0 CapAny)
   | otherwise =
-      go [(producer0, consumer0)] initialSubst
+      go [(rigid0, quantified0)] initialSubst
   where
     go [] acc = Right acc
-    go ((producer, originalConsumer) : rest) acc =
-      let consumer = applyCapSubst acc originalConsumer
-      in if producer == consumer
+    go ((rigid, originalQuantified) : rest) acc =
+      let quantified = applyCapSubst acc originalQuantified
+      in if rigid == quantified
            then go rest acc
-           else case (producer, originalConsumer) of
-             -- Only a literal Any in the declared consumer shape is a
+           else case (rigid, originalQuantified) of
+             -- Only a literal Any in the declared quantified-side shape is a
              -- wildcard.  Inspecting the original node here is essential:
              -- applying the accumulated substitution first would make a
              -- repeated variable bound to Any indistinguishable from this
@@ -177,19 +177,19 @@ matchCapabilityOneWayWithDomain literalAnyIsWildcard bindable producer0 consumer
              (cap, CapVar variable)
                | variable `Set.member` bindable
                , Map.notMember variable (unCapSubst acc) ->
-                   bindConsumer variable cap rest acc
-             (CapCon producerFormer producerChildren,
-              CapCon consumerFormer originalChildren)
-               | producerFormer == consumerFormer
-               , length producerChildren == length originalChildren ->
-                   go (zip producerChildren originalChildren ++ rest) acc
-             (CapTuple producerComponents, CapTuple originalComponents)
-               | length producerComponents == length originalComponents ->
-                   go (zip producerComponents originalComponents ++ rest) acc
+                   bindQuantified variable cap rest acc
+             (CapCon rigidDataType rigidChildren,
+              CapCon quantifiedDataType originalChildren)
+               | rigidDataType == quantifiedDataType
+               , length rigidChildren == length originalChildren ->
+                   go (zip rigidChildren originalChildren ++ rest) acc
+             (CapTuple rigidComponents, CapTuple originalComponents)
+               | length rigidComponents == length originalComponents ->
+                   go (zip rigidComponents originalComponents ++ rest) acc
              _ ->
-               Left (capabilityMismatch producer consumer)
+               Left (capabilityMismatch rigid quantified)
 
-    bindConsumer variable capability rest acc
+    bindQuantified variable capability rest acc
       | CapVar variable == capability =
           go rest acc
       | variable `Set.member` freeCapVarsCapability capability =
@@ -209,8 +209,8 @@ wellFormedCapability capability =
       True
     CapTuple components ->
       all wellFormedCapability components
-    CapCon former arguments ->
-      length arguments == typeFormerArity former
+    CapCon dataType arguments ->
+      length arguments == dataTypeArity dataType
         && all wellFormedCapability arguments
 
 capabilityMismatch :: Capability -> Capability -> UnifyError
@@ -250,8 +250,8 @@ unifyNestedNormalized mode classEnv constraints t1 t2 =
   in unifyG mode classEnv constraints t1' t2'
 
 -- | Root equality corresponding to TypePM's @alignTypesCore@.  It is
--- ordinary equality; the matcher/product head expansion lives in
--- 'unifyMatcherProductG'.
+-- ordinary equality; the matcher/tuple head expansion lives in
+-- 'unifyMatcherTupleG'.
 alignRootG
   :: TensorHandling
   -> ClassEnv
@@ -352,9 +352,9 @@ unifyG mode ce cs (TMatcher cap1 target1) (TMatcher cap2 target2) = do
       (applySubst capSubst target2)
   Right (composeSubst targetSubst capSubst, flag)
 unifyG mode ce cs (TMatcher cap target) (TTuple components) =
-  unifyMatcherProductG mode ce cs cap target components
+  unifyMatcherTupleG mode ce cs cap target components
 unifyG mode ce cs (TTuple components) (TMatcher cap target) =
-  unifyMatcherProductG mode ce cs cap target components
+  unifyMatcherTupleG mode ce cs cap target components
 
 -- Function types (two components with substitution threading)
 unifyG mode ce cs (TFun a1 r1) (TFun a2 r2) = do
@@ -462,13 +462,13 @@ unifyManyG mode ce cs (t1:ts1) (t2:ts2) = do
   Right (composeSubst s2 s1, f1 || f2)
 unifyManyG _ _ _ _ _ = Left $ TypeMismatch (TTuple []) (TTuple [])
 
--- | The matcher/product head expansion of the canonical equality: a matcher
+-- | The matcher/tuple head expansion of the canonical equality: a matcher
 -- equal to a tuple of @n@ components has a tuple capability and a tuple
 -- target of arity @n@, and its components are the component matchers.
 -- Variable indices are decomposed into fresh components named after the
 -- variable; the rigid capability @Any@ and constructor capabilities never
 -- distribute.
-unifyMatcherProductG
+unifyMatcherTupleG
   :: TensorHandling
   -> ClassEnv
   -> [Constraint]
@@ -476,7 +476,7 @@ unifyMatcherProductG
   -> Type
   -> [Type]
   -> Either UnifyError (Subst, Bool)
-unifyMatcherProductG mode ce cs cap target components = do
+unifyMatcherTupleG mode ce cs cap target components = do
   let arity = length components
       mismatch = Left (CapabilityMismatch (TMatcher cap target) (TTuple components))
   (capSubst, caps) <-
@@ -634,7 +634,7 @@ matchOneWayWithDomain bindable bindableCapabilities quantified0 rigid0 =
           Just acc
       | otherwise =
           Nothing
-    go ((fromOriginalConsumer, quantified, rigid) : rest) acc =
+    go ((fromOriginalQuantified, quantified, rigid) : rest) acc =
       case quantified of
         TVar variable
           | variable `Set.member` bindable ->
@@ -642,7 +642,7 @@ matchOneWayWithDomain bindable bindableCapabilities quantified0 rigid0 =
                 Just _ ->
                   -- A repeated type variable reuses its saved image rigidly.
                   -- In particular, a nested capability Any inside that image
-                  -- did not occur literally at this consumer position.
+                  -- did not occur literally at this quantified-side position.
                   matchStruct
                     False
                     (applySubst acc (TVar variable))
@@ -661,18 +661,18 @@ matchOneWayWithDomain bindable bindableCapabilities quantified0 rigid0 =
                           acc)
           | otherwise ->
               matchStruct
-                fromOriginalConsumer
+                fromOriginalQuantified
                 (TVar variable)
                 rigid
                 rest
                 acc
         _ ->
-          matchStruct fromOriginalConsumer quantified rigid rest acc
+          matchStruct fromOriginalQuantified quantified rigid rest acc
 
     descend provenance pairs rest acc =
       go
-        ([ (provenance, consumer, producer)
-         | (consumer, producer) <- pairs
+        ([ (provenance, quantified, rigid)
+         | (quantified, rigid) <- pairs
          ] ++ rest)
         acc
 
@@ -691,17 +691,17 @@ matchOneWayWithDomain bindable bindableCapabilities quantified0 rigid0 =
     matchStruct provenance (TFun a1 r1) (TFun a2 r2) rest acc =
       descend provenance [(a1, a2), (r1, r2)] rest acc
     matchStruct provenance
-                (TMatcher consumerCap consumerTarget)
-                (TMatcher producerCap producerTarget)
+                (TMatcher quantifiedCap quantifiedTarget)
+                (TMatcher rigidCap rigidTarget)
                 rest acc =
       case matchCapabilityOneWayWithDomain
              provenance
              bindableCapabilities
-             producerCap
-             consumerCap
+             rigidCap
+             quantifiedCap
              acc of
         Right acc' ->
-          descend provenance [(consumerTarget, producerTarget)] rest acc'
+          descend provenance [(quantifiedTarget, rigidTarget)] rest acc'
         Left _ ->
           Nothing
     matchStruct provenance (TIO a) (TIO b) rest acc =

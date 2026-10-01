@@ -56,7 +56,7 @@ import           Data.Hashable
 import           GHC.Generics        (Generic)
 
 import           Language.Egison.AST (ConstantExpr (..), PDPatternBase (..), PMMode (..), PrimitivePatPattern (..))
-import           Language.Egison.Type.Types (Type(..), TypeScheme(..), DualScheme(..),
+import           Language.Egison.Type.Types (Type(..), TypeScheme(..), PatFuncScheme(..),
                                              Constraint(..), TyVar(..))
 
 data ITopExpr
@@ -284,12 +284,12 @@ mapIExprTypes transformType = goExpr
         ILetExpr (map goBinding bindings) (goExpr body)
       IWithSymbolsExpr names body ->
         IWithSymbolsExpr names (goExpr body)
-      IMatchExpr mode target matcher clauses fallback ->
+      IMatchExpr mode target matcher clauses matchElse ->
         IMatchExpr mode
           (goExpr target)
           (goExpr matcher)
           (map goClause clauses)
-          (goExpr <$> fallback)
+          (goExpr <$> matchElse)
       IMatchAllExpr mode target matcher clauses ->
         IMatchAllExpr mode
           (goExpr target)
@@ -432,9 +432,9 @@ data TITopExpr
   | TILoadFile String                  -- ^ Load file (should not appear after expandLoads)
   | TILoad String                      -- ^ Load library (should not appear after expandLoads)
   | TIDeclareSymbol [String] Type      -- ^ Typed symbol declaration
-  | TIPatternFunctionDecl String DualScheme [(String, Type)] Type TIPattern  -- ^ Typed pattern function declaration
+  | TIPatternFunctionDecl String PatFuncScheme [(String, Type)] Type TIPattern  -- ^ Typed pattern function declaration
     -- String: function name
-    -- DualScheme: canonical capability/target scheme for arguments and result
+    -- PatFuncScheme: canonical capability/target scheme for arguments and result
     -- [(String, Type)]: parameters (name and type with type params substituted)
     -- Type: return type (with type params substituted)
     -- TIPattern: typed body
@@ -578,9 +578,9 @@ stripType (TIExpr _ node) = case node of
   TILetExpr bindings body -> ILetExpr (map stripTypeBinding bindings) (stripType body)
   TILetRecExpr bindings body -> ILetRecExpr (map stripTypeBinding bindings) (stripType body)
   TIWithSymbolsExpr syms body -> IWithSymbolsExpr syms (stripType body)
-  TIMatchExpr mode target matcher clauses fallback ->
+  TIMatchExpr mode target matcher clauses matchElse ->
     IMatchExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
-      (stripType <$> fallback)
+      (stripType <$> matchElse)
   TIMatchAllExpr mode target matcher clauses -> 
     IMatchAllExpr mode (stripType target) (stripType matcher) (map stripTypeClause clauses)
   TIMatcherExpr patDefs -> 
@@ -663,9 +663,9 @@ stripTypeTopExpr (TIDeclareSymbol names ty) = IDeclareSymbol names (Just ty)
 stripTypeTopExpr (TIPatternFunctionDecl name scheme params retType body) =
   IPatternFunctionDecl name tyVars params retType (stripTypePat body)
   where
-    -- Restore the source-level ordinary binders from the canonical dual
+    -- Restore the source-level ordinary binders from the canonical pattern-function
     -- scheme.  Capability binders have no surface entry in this declaration.
-    tyVars = dualTyBinders scheme
+    tyVars = patFuncTyBinders scheme
     
     -- Helper function to strip type from pattern
     stripTypePat :: TIPattern -> IPattern
@@ -752,8 +752,8 @@ mapTIExprChildren f node = case node of
   TIDoExpr bs body     -> TIDoExpr (mapBind f bs) (f body)
 
   -- Pattern matching (expression children only; patterns are untouched)
-  TIMatchExpr mode tgt mat cls fallback ->
-    TIMatchExpr mode (f tgt) (f mat) (mapClause f cls) (f <$> fallback)
+  TIMatchExpr mode tgt mat cls matchElse ->
+    TIMatchExpr mode (f tgt) (f mat) (mapClause f cls) (f <$> matchElse)
   TIMatchAllExpr mode tgt mat cls ->
     TIMatchAllExpr mode (f tgt) (f mat) (mapClause f cls)
 

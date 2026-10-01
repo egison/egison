@@ -18,81 +18,84 @@ capability κ と ordinary type（通常の値の型）τ は別の sort であ�
 
 ```haskell
 Capability = CapAny | CapVar CapVar | CapSkolem CapVar
-           | CapCon TypeFormer [Capability] | CapTuple [Capability]
+           | CapCon DataType [Capability] | CapTuple [Capability]
 ```
 
 明示注釈の検査には両 sort の skolem（特殊化できない定数）を使う．
 
 ## 2. 正準形と単一化
 
-`applySubst` は代入の後に `normalizeMatcherProducts` を適用する．
+`applySubst` は代入の後に `normalizeMatcherTuples` を適用する．
 `Matcher (κ1,…,κn) (τ1,…,τn)`（n ≥ 2）は `(Matcher κ1 τ1, …, Matcher κn τn)` へ正規化
-する．`Matcher Any (τ1, τ2)` は積ではないので正規化しない．
+する．`Matcher Any (τ1, τ2)` は capability がタプルではないので正規化しない．
 
 型等式は両 sort の通常の最汎単一化（`unifyG`）で解く．方向性のある変換や subsumption
-はない．`Matcher κ τ ≐ (σ1,…,σn)` は head expansion（`unifyMatcherProductG`）で解く：
+はない．`Matcher κ τ ≐ (σ1,…,σn)` は head expansion（`unifyMatcherTupleG`）で解く：
 κ が変数なら `(κ.1,…,κ.n)`，τ が変数なら `(τ.1,…,τ.n)` へ展開し，成分ごとに
-`Matcher κ.i τ.i ≐ σi` を解く．κ が `Any` などの非積なら失敗する．capability の等式は
+`Matcher κ.i τ.i ≐ σi` を解く．κ が `Any` などタプルでない capability なら失敗する．capability の等式は
 `unifyCapability` で解き，`Any` は定数であって wildcard ではない．
 
-## 3. matcher literal
+## 3. matcher 式
 
-`matcher | pp_1 as e_1 with arms_1 | …` の推論（論文の G-Literal／Q-* 規則，
-`Infer.hs` の `IMatcherExpr` 節と `inferPatternDef`）．
+`matcher | pp_1 as e_1 with dcs_1 | …` の推論（論文の G-Matcher／G-MatcherClause 規則，
+`Infer.hs` の `IMatcherExpr` 節と `inferPatternDef`）．`pp_i` はプリミティブパターンパターン，
+`e_i` はネクストマッチャー式，`dcs_i` はプリミティブデータマッチ節の列である．
 
-- literal 全体で一つの target 型 τ と一つの capability κ を共有する．
-- header pp の推論（`inferHeader`）：
-  - hole `$`：fresh な (χ, α) を hole の要求として返す．
-  - wildcard／value pattern `#$x`：fresh な header capability．hole はない．
+- matcher 式全体で一つの target 型 τ と一つの capability κ を共有する．
+- プリミティブパターンパターン pp の推論（`inferPPat`）：
+  - パターンホール `$`：fresh な (χ, α) をパターンホールの要求として返す．
+  - wildcard／バリューパターンパターン `#$x`：fresh な capability．パターンホールはない．
   - tuple `(pp_1,…,pp_n)`：capability `(κ_1,…,κ_n)`，target `(τ_1,…,τ_n)`．
   - 宣言済み pattern constructor `c pp_1 … pp_n`：constructor scheme を instantiate して
     field 型と result 型を得る．capability は宣言を fresh な capability 変数へ射影した
     もの（`capabilityTemplates`／`capabilitySkeleton`）：型変数 ↦ fresh χ，pattern 宣言を
     持つ型 `T τ̄` ↦ `T κ̄`，pattern 宣言を持たない閉じた型（`Integer`，`Char` など）↦
-    `Any`．各 sub-header の matched 型と capability を field の target・capability と単一化
+    `Any`．各部分パターンの matched 型と capability を field の target・capability と単一化
     する．
-- header の matched 型を共有 target と，constructor／tuple header の capability を共有
-  capability と単一化する．
-- next matcher 式 e は通常の式として推論し，その型を hole が要求する型
-  `Matcher χ_1 α_1`（1 hole）または `(Matcher χ_1 α_1, …, Matcher χ_n α_n)`（n hole）と
-  単一化する．正準形により，積 matcher 型を持つ変数や application が複数の hole を
-  同時に埋められる．
-- data arm は target 型 τ の値を受け取り，hole の target の組のリスト `[(α_1,…,α_n)]` を
-  返す（`inferDataClauseWithCheck`）．
-- literal の型は `Matcher κ τ`．
+- プリミティブパターンパターンの matched 型を共有 target と，constructor／tuple の
+  プリミティブパターンパターンの capability を共有 capability と単一化する．
+- ネクストマッチャー式 e は通常の式として推論し，その型をパターンホールが要求する型
+  `Matcher χ_1 α_1`（パターンホール 1 個）または `(Matcher χ_1 α_1, …, Matcher χ_n α_n)`
+  （n 個）と単一化する．正準形により，タプルの matcher 型を持つ変数や application が複数の
+  パターンホールを同時に埋められる．
+- プリミティブデータマッチ節は target 型 τ の値を受け取り，パターンホールの target の組の
+  リスト `[(α_1,…,α_n)]` を返す（`inferDataClauseWithCheck`）．
+- matcher 式の型は `Matcher κ τ`．
 
-静的条件：CatchAllLast（bare hole header の clause がちょうど一つ，最後）と ArmCoverage
-（最後の arm が変数／wildcard であるか，言及した data former の全 constructor を general
-arm で網羅）は型エラー．RootCoverage（言及した pattern former の全 pattern constructor に
-general clause）は論文の CoverageOK に対応するが，production の部分 matcher（CAS view，
-`string` の regex clause）を維持するため `--matcher-consistency-warnings` のときだけ
+静的条件：CatchAllLast（裸のパターンホールだけからなるキャッチオール節がちょうど一つで，
+最後にある）と，プリミティブデータマッチ節の網羅性（最後のプリミティブデータパターンが
+変数／wildcard であるか，言及したデータ型の全 constructor を一般形の節で網羅する）は型エラー．
+RootCoverage（言及したデータ型の全 pattern constructor に一般形のマッチャー節がある）は
+論文の網羅性の条件に対応するが，Egison インタプリタの部分的な matcher（CAS view，
+`string` の regex のマッチャー節）を維持するため `--matcher-consistency-warnings` のときだけ
 警告する．
 
-### データ分岐の束縛
+### プリミティブデータマッチ節の束縛
 
-primitive data pattern（分岐の対象値を分解するパターン）の束縛は，その分岐本体だけに
-有効な内側の束縛である．ヘッダの `#$x` による捕捉と同名なら，データパターン側を優先する．
-異なる名前の捕捉は引き続き参照でき，両方の束縛がマッチャーの定義環境より優先される．
-型推論では捕捉の環境を `withEnv bindings` で拡張し，実行時も
-`dataBindings ++ captureBindings` の順に名前を探索する．Lean の分岐本体の環境も
-`dataValues ++ captureValues ++ matcherEnvironment` である．
+プリミティブデータパターン（ターゲットの値を分解するパターン）の束縛は，その節の本体だけに
+有効な内側の束縛である．プリミティブパターンパターンのバリューパターンパターン `#$x` の束縛と
+同名なら，プリミティブデータパターン側を優先する．異なる名前のバリューパターンパターンの束縛は
+引き続き参照でき，両方の束縛がマッチャーの定義環境より優先される．型推論ではバリューパターン
+パターンの束縛で環境を `withEnv bindings` で拡張し，実行時も
+`dataBindings ++ valueBindings` の順に名前を探索する．Lean の節本体の環境も
+`dataValues ++ valueBindingValues ++ matcherEnvironment` である．
 
-この二つのスコープ間で同名を使うことはコア外の機能として警告しない．一つのヘッダ内や
-一つのデータパターン内で同名を重複して束縛する場合の診断は別である．
-`test/lib/core/matcher-data-shadowing.egi` で，捕捉と対象の値・型が異なる例，DFS，
-異なる名前の捕捉の参照を strict モードで検査する．
+この二つのスコープ間で同名を使うことはコア外の機能として警告しない．一つのプリミティブ
+パターンパターン内や一つのプリミティブデータパターン内で同名を重複して束縛する場合の診断は
+別である．`test/lib/core/matcher-data-shadowing.egi` で，バリューパターンパターンの束縛と
+ターゲットの値・型が異なる例，DFS，異なる名前の束縛の参照を strict モードで検査する．
 
 ### legacy CAS pattern view（core 外）
 
 `MathValue`，`IndexExpr` などの pattern 宣言は数式の実行時 view を名付けるもので，
-field と result の宣言型は target の証拠ではない（`legacyCasLeafFormer`）．この header では
-matched 型と各 hole の (capability, target) を fresh にし，header capability だけを宣言
-から取る．`--outside-egison-core-warnings` で報告する．
+field と result の宣言型は target の証拠ではない（`legacyCasLeafDataType`）．このプリミティブ
+パターンパターンでは matched 型と各パターンホールの (capability, target) を fresh にし，
+capability だけを宣言から取る．`--outside-egison-core-warnings` で報告する．
 
 ## 4. match の検査
 
-`matchAll`／`match` は target 式，matcher 式，各 arm の pattern，本体を推論し，pattern の
-要求 `Matcher κ_p τ_p` を matcher 式の型と等式で結ぶ（`checkMatcherAtPattern`）．`match` の `else` は arm 束縛の外で検査し，本体と同じ
+`matchAll`／`match` は target 式，matcher の式，各マッチ節のパターンと本体を推論し，パターンの
+要求 `Matcher κ_p τ_p` を matcher の式の型と等式で結ぶ（`checkMatcherAtPattern`）．`match` の `else` 式はマッチ節の束縛の外で検査し，本体と同じ
 結果型を持つ．TypePM では `else` は必須だが，Egison では省略可能なままとし，
 `--match-without-else-warnings` で報告する．
 
@@ -122,10 +125,10 @@ capability 等式）．
 
 主な実装箇所は次のとおりである．
 
-- `Type/Types.hs`：二添字型，`normalizeMatcherProducts`，`capabilitySkeleton`．
+- `Type/Types.hs`：二添字型，`normalizeMatcherTuples`，`capabilitySkeleton`．
 - `Type/Subst.hs`：二 sort の代入と正準化．
-- `Type/Unify.hs`：`unifyG`，`unifyMatcherProductG`，`unifyCapability`．
-- `Type/Infer.hs`：`IMatcherExpr`，`inferHeader`，`checkMatcherAtPattern`，match の検査順．
+- `Type/Unify.hs`：`unifyG`，`unifyMatcherTupleG`，`unifyCapability`．
+- `Type/Infer.hs`：`IMatcherExpr`，`inferPPat`，`checkMatcherAtPattern`，match の検査順．
 - `EnvBuilder.hs`：公開 signature の閉性と parameters-determined 検査．
 - `CmdOptions.hs`／`Eval.hs`：診断 option と計測．
 

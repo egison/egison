@@ -608,7 +608,7 @@ instance Show EgisonError where
   show (Parser err) = "Parse error at: " ++ err
   show (EgisonBug message stack) = "Egison Error: " ++ message ++ showTrace stack
   show (MatchFailure stack) = "Pattern match failed" ++ showTrace stack
-  show (PrimitiveMatchFailure stack) = "Primitive data pattern match failed" ++ showTrace stack
+  show (PrimitiveMatchFailure stack) = "Primitive-data pattern match failed" ++ showTrace stack
   show (Default message) = "Error: " ++ message
 
 showTrace :: CallStack -> String

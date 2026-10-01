@@ -38,10 +38,10 @@
 ### Phase 5-6: 型推論
 | ファイル | 役割 | 主要な型・関数 |
 |---------|------|---------------|
-| `Type/Infer.hs` | IExpr型推論（統合モジュール）。二-sort capability/target 推論とパターン関数の定義・適用を含む | `inferIExpr`, `inferITopExpr`, `inferIPattern`, `instantiateDualSchemeInState`, `generalizeDualSchemeInState` |
+| `Type/Infer.hs` | IExpr型推論（統合モジュール）。二-sort capability/target 推論とパターン関数の定義・適用を含む | `inferIExpr`, `inferITopExpr`, `inferIPattern`, `instantiatePatFuncSchemeInState`, `generalizePatFuncSchemeInState` |
 | `Type/Unify.hs` | 型単一化。TensorHandlingモードで3種の単一化を統合 | `unify`, `unifyStrict`, `unifyWithTopLevel`, `unifyWithConstraints`, `TensorHandling(..)` |
-| `Type/Subst.hs` | capability/target の二-sort代入 | `Subst`, `applySubst`, `applySubstDual`, `composeSubst` |
-| `Type/Types.hs` | 型・capability・dual scheme のデータ型定義 | `Type(..)`, `TyVar(..)`, `Capability(..)`, `TypeScheme(..)`, `Dual(..)`, `DualScheme(..)` |
+| `Type/Subst.hs` | capability/target の二-sort代入 | `Subst`, `applySubst`, `applySubstRequirement`, `composeSubst` |
+| `Type/Types.hs` | 型・capability・要求対（requirement pair）・パターン関数スキームのデータ型定義 | `Type(..)`, `TyVar(..)`, `Capability(..)`, `TypeScheme(..)`, `RequirementPair(..)`, `PatFuncScheme(..)` |
 | `Type/Error.hs` | 型エラー・型警告の定義 | `TypeError(..)`, `TypeWarning(..)`, `formatTypeError` |
 | `Type/Env.hs` | 型環境の操作 | `TypeEnv`, `ClassEnv`, `PatternTypeEnv`, `PatternFunctionEnv`, `lookupPatternEnv`, `lookupPatternFunctionEnv` |
 | `Type/Instance.hs` | 単一・多引数クラスのインスタンス検索と最具体候補の選択 | `findMatchingInstanceForType`, `findMatchingInstanceForTypes`, `selectMostSpecific` |
@@ -53,7 +53,7 @@
 - `addConstraints` でスーパークラスを自動展開（`expandSuperclasses`）
 - 推論結果から `TIExpr` (型付き内部表現) を直接生成
 - `resolveConstraintsInTIExpr` で型変数の具体化後に制約を解決
-- パターン関数定義では全 argument/result dual を一つの canonical `DualScheme` に一般化して保存
+- パターン関数定義では全引数・結果の要求対を一つの canonical `PatFuncScheme` に一般化して保存
 - finalized named application では capability/target binder を同時に fresh instantiate
 - header-only の前方・相互参照と expression-headed application は、その明示的な core 外構文によって target-only 拡張規則を選択する（body の非 core 形式は定義時に warning，直接自己参照は拒否）
 - cross-load 再定義は古い finalized scheme を先に無効化し，同一 load unit の重複宣言は拒否
@@ -195,7 +195,7 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 │   Hindley-Milner + 型クラス制約収集                         │
 │   スーパークラス自動展開 (expandSuperclasses)               │
 │   TIExpr を直接生成（各ノードに TypeScheme を付与）          │
-│   pattern function: DualScheme を一般化・保存               │
+│   pattern function: PatFuncScheme を一般化・保存               │
 │   named application: capability/target を同時 instantiate   │
 │   基盤: Unify.hs, Subst.hs, Types.hs, Instance.hs          │
 └────────────┬────────────────────────────────────────────────┘

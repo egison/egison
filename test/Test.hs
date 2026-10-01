@@ -40,7 +40,7 @@ import           Language.Egison.Type.Infer     (InferConfig (..),
                                                   inferITopExpr,
                                                   initialInferState,
                                                   initialInferStateWithConfig,
-                                                  instantiateDualSchemeInState,
+                                                  instantiatePatFuncSchemeInState,
                                                   runInferWithWarnings,
                                                   runInferWithWarningsAndState,
                                                   unifyTypes)
@@ -53,12 +53,12 @@ import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   singletonSubst)
 import           Language.Egison.Type.Types     (CapVar (..),
                                                   Capability (..),
-                                                  Dual (..), DualScheme (..),
+                                                  RequirementPair (..), PatFuncScheme (..),
                                                   TypeScheme (..),
                                                   TyVar (..), Type (..),
-                                                  dualSchemeTargetScheme,
-                                                  mkTypeFormer,
-                                                  normalizeMatcherProducts,
+                                                  patFuncSchemeTargetScheme,
+                                                  mkDataType,
+                                                  normalizeMatcherTuples,
                                                   tyVarName)
 import           Language.Egison.Type.Unify     (unify, unifyCapability,
                                                   unifyWithConstraints)
@@ -77,7 +77,7 @@ main = do
          , matchWithoutElseWarningTests
          , primitivePatternWarningTests
          , matcherStaticConditionTests
-         , patternFunctionDualSchemeTests
+         , patternFunctionSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
          , signatureBoundaryTypeErrorTests
@@ -222,7 +222,7 @@ primitivePatternWarningTests =
           "a primitive value pattern to the left of every hole does not warn"
           [] warnings
 
-    , TestLabel "data-pattern bindings may shadow captures" . TestCase $ do
+    , TestLabel "primitive-data pattern bindings may shadow value-pattern bindings" . TestCase $ do
         let expression = IMatcherExpr
               [ ( PPValuePat "x"
                 , ITupleExpr []
@@ -239,8 +239,8 @@ primitivePatternWarningTests =
             { cfgOutsideEgisonCoreWarnings = True })
         case result of
           Right _ -> return ()
-          Left err -> assertFailure ("arm shadowing was rejected: " ++ show err)
-        assertEqual "arm shadowing is ordinary core scope" [] warnings
+          Left err -> assertFailure ("data-clause shadowing was rejected: " ++ show err)
+        assertEqual "data-clause shadowing is ordinary core scope" [] warnings
 
     , TestLabel "nested structured pattern only" . TestCase $ do
         let pattern =
@@ -290,10 +290,10 @@ primitivePatternWarningTests =
     ]
   where
     demoType = TInductive "NestedPPatDemo" []
-    -- Every field has the declared pattern type, so every hole demands the
+    -- Every field has the declared pattern type, so every hole requires the
     -- matcher `demoMatcher : Matcher NestedPPatDemo NestedPPatDemo`.
     demoMatcherType =
-      TMatcher (CapCon (mkTypeFormer "NestedPPatDemo" 0) []) demoType
+      TMatcher (CapCon (mkDataType "NestedPPatDemo" 0) []) demoType
     constructorScheme =
       Forall [] [] [] (TFun demoType (TFun demoType demoType))
     pairScheme =
@@ -324,8 +324,8 @@ primitivePatternWarningTests =
           )
         , ( PPPatVar
           , IConstantExpr SomethingExpr
-          , [ ( PDPatVar (Var "fallbackTarget" [])
-              , ICollectionExpr [IVarExpr "fallbackTarget"]
+          , [ ( PDPatVar (Var "catchAllTarget" [])
+              , ICollectionExpr [IVarExpr "catchAllTarget"]
               )
             ]
           )
@@ -370,7 +370,7 @@ primitivePatternWarningTests =
 matcherStaticConditionTests :: Test
 matcherStaticConditionTests =
   TestLabel "TypePM matcher static conditions" . TestList $
-    [ TestLabel "catch-all arms may enumerate a complete ADT" . TestCase $ do
+    [ TestLabel "catch-all primitive-data-match clauses may enumerate a complete ADT" . TestCase $ do
         (result, warnings) <-
           runInferWithWarnings
             (inferIExpr completeDataMatcher)
@@ -378,24 +378,24 @@ matcherStaticConditionTests =
         case result of
           Left err ->
             assertFailure
-              ("complete constructor arms were rejected: " ++ show err)
+              ("complete constructor data clauses were rejected: " ++ show err)
           Right _ -> return ()
         assertEqual "hard static checks emit no warning" [] warnings
 
-    , TestLabel "incomplete constructor arms are rejected" . TestCase $ do
+    , TestLabel "incomplete constructor data clauses are rejected" . TestCase $ do
         (result, _) <-
           runInferWithWarnings
             (inferIExpr incompleteDataMatcher)
             dataState
         case result of
-          Left MatcherDataArmsNotExhaustive{} -> return ()
+          Left MatcherDataClausesNotExhaustive{} -> return ()
           Left err ->
             assertFailure
-              ("incomplete arms failed unexpectedly: " ++ show err)
+              ("incomplete data clauses failed unexpectedly: " ++ show err)
           Right _ ->
-            assertFailure "an incomplete user-ADT arm set was accepted"
+            assertFailure "an incomplete set of user-ADT data clauses was accepted"
 
-    , TestLabel "RootCoverage warning uses mentioned pattern formers" .
+    , TestLabel "RootCoverage warning uses the mentioned data types" .
         TestCase $ do
           let offState = patternState False
               onState = patternState True
@@ -432,11 +432,11 @@ matcherStaticConditionTests =
         , PDInductivePat "ChoiceB" []
         ]
     incompleteDataMatcher = dataMatcher [PDInductivePat "ChoiceA" []]
-    dataMatcher arms =
+    dataMatcher pdPatterns =
       IMatcherExpr
         [ ( PPPatVar
           , IConstantExpr SomethingExpr
-          , [ (arm, ICollectionExpr []) | arm <- arms ]
+          , [ (pdPattern, ICollectionExpr []) | pdPattern <- pdPatterns ]
           )
         ]
 
@@ -461,7 +461,7 @@ matcherStaticConditionTests =
           )
         ]
 
--- | On the TypePM grammar, production equality must be exactly the
+-- | On the TypePM grammar, the Egison interpreter's equality must be exactly the
 -- synchronized core relation.  Enabling extension diagnostics cannot turn a
 -- core rejection into a warned success or change the core substitution.
 coreConservativeExtensionTests :: Test
@@ -469,7 +469,7 @@ coreConservativeExtensionTests =
   TestLabel "TypePM: Egison inference is a conservative extension" . TestList $
     map checkCase cases
   where
-    listCapability = CapCon (mkTypeFormer "Collection" 1) [CapAny]
+    listCapability = CapCon (mkDataType "Collection" 1) [CapAny]
     cases =
       [ ( "nested target refinement"
         , TCollection (TMatcher CapAny (TVar (TyVar "target")))
@@ -503,28 +503,28 @@ coreConservativeExtensionTests =
         case (coreResult, productionResult) of
           (Right coreSubst, Right productionSubst) ->
             assertEqual
-              "production and TypePM substitutions"
+              "interpreter and TypePM substitutions"
               coreSubst productionSubst
           (Left _, Left _) ->
             return ()
           (Left coreError, Right productionSubst) ->
             assertFailure
-              ("production accepted a core rejection: " ++ show coreError ++
+              ("the interpreter accepted a core rejection: " ++ show coreError ++
                "; substitution " ++ show productionSubst)
           (Right coreSubst, Left productionError) ->
             assertFailure
-              ("production rejected a core success: " ++ show coreSubst ++
+              ("the interpreter rejected a core success: " ++ show coreSubst ++
                "; error " ++ show productionError)
 
-patternFunctionDualSchemeTests :: Test
-patternFunctionDualSchemeTests =
-  TestLabel "pattern-function DualScheme" . TestList $
-    [ TestLabel "definition stores one correlated DualScheme" . TestCase $ do
+patternFunctionSchemeTests :: Test
+patternFunctionSchemeTests =
+  TestLabel "pattern-function scheme" . TestList $
+    [ TestLabel "definition stores one correlated pattern-function scheme" . TestCase $ do
         let typeA = TyVar "a"
             typeB = TyVar "b"
             declaration =
               IPatternFunctionDecl
-                "dualPair"
+                "pairPattern"
                 [typeA, typeB]
                 [("left", TVar typeA), ("right", TVar typeB)]
                 (TTuple [TVar typeA, TVar typeB])
@@ -546,7 +546,7 @@ patternFunctionDualSchemeTests =
                       (Var "ambientTargets" []) ambientScheme emptyEnv
                 , inferPatternFuncDeclEnv =
                     extendPatternEnv
-                      "dualPair" headerScheme emptyPatternEnv
+                      "pairPattern" headerScheme emptyPatternEnv
                 }
 
         (result, warnings, finalState) <-
@@ -562,11 +562,11 @@ patternFunctionDualSchemeTests =
           Right
             ( Just
                 (TIPatternFunctionDecl
-                  "dualPair" typedScheme _parameters _resultType _body)
+                  "pairPattern" typedScheme _parameters _resultType _body)
             , _substitution
             ) ->
               case lookupPatternFunctionEnv
-                     "dualPair" (inferPatternFuncEnv finalState) of
+                     "pairPattern" (inferPatternFuncEnv finalState) of
                 Nothing ->
                   assertFailure
                     "the checked pattern-function scheme was not stored"
@@ -577,17 +577,17 @@ patternFunctionDualSchemeTests =
                     storedScheme
                   assertCorrelatedPairScheme storedScheme
                   let targetProjection =
-                        dualSchemeTargetScheme storedScheme
+                        patFuncSchemeTargetScheme storedScheme
                   assertEqual
                     "the declaration environment stores the canonical target projection"
                     (Just targetProjection)
                     (lookupPatternEnv
-                      "dualPair" (inferPatternFuncDeclEnv finalState))
+                      "pairPattern" (inferPatternFuncDeclEnv finalState))
                   assertEqual
                     "the ordinary environment stores the same target projection"
                     (Just targetProjection)
                     (lookupEnvExact
-                      (Var "dualPair" []) (inferEnv finalState))
+                      (Var "pairPattern" []) (inferEnv finalState))
           Right other ->
             assertFailure
               ("unexpected typed pattern-function result: " ++ show other)
@@ -615,17 +615,17 @@ patternFunctionDualSchemeTests =
           Right _ ->
             assertEqual
               "a capability occurring only in the result is ground Any"
-              (Just (DualScheme [] [] [] (Dual CapAny TInt)))
+              (Just (PatFuncScheme [] [] [] (RequirementPair CapAny TInt)))
               (lookupPatternFunctionEnv
                 "wildcardPattern" (inferPatternFuncEnv finalState))
 
     , TestLabel "append patterns default their independent leaf to Any" .
         TestCase $ do
         let element = TyVar "a"
-            collectionFormer = mkTypeFormer "Collection" 1
+            collectionDataType = mkDataType "Collection" 1
             collection ty = TCollection ty
             collectionCapability capability =
-              CapCon collectionFormer [capability]
+              CapCon collectionDataType [capability]
             consScheme =
               Forall [] [element] []
                 (TFun (TVar element)
@@ -671,11 +671,11 @@ patternFunctionDualSchemeTests =
                   assertEqual
                     (name ++ " has the canonical Any capability")
                     (Just
-                      (DualScheme
+                      (PatFuncScheme
                         []
                         [element]
                         []
-                        (Dual expectedCapability target)))
+                        (RequirementPair expectedCapability target)))
                     (lookupPatternFunctionEnv
                       name (inferPatternFuncEnv finalState))
 
@@ -695,7 +695,7 @@ patternFunctionDualSchemeTests =
             sourceName = "ambientPattern"
             aliasName = "ambientPatternAlias"
             sourceScheme =
-              DualScheme [] [] [] (Dual (CapVar ambient) TInt)
+              PatFuncScheme [] [] [] (RequirementPair (CapVar ambient) TInt)
             declaration =
               IPatternFunctionDecl
                 aliasName
@@ -813,7 +813,7 @@ patternFunctionDualSchemeTests =
               Just _ -> return ()
               Nothing ->
                 assertFailure
-                  "the accepted shadowed definition lost its DualScheme"
+                  "the accepted shadowed definition lost its pattern-function scheme"
 
         let patternBoundName = "patternBoundDefinitionHead"
             patternBoundDeclaration =
@@ -840,7 +840,7 @@ patternFunctionDualSchemeTests =
               Just _ -> return ()
               Nothing ->
                 assertFailure
-                  "the pattern-bound definition lost its DualScheme"
+                  "the pattern-bound definition lost its pattern-function scheme"
 
     , TestLabel "definition rejects duplicate parameter names" . TestCase $ do
         let declaration =
@@ -895,7 +895,7 @@ patternFunctionDualSchemeTests =
                      "predicateBody" (inferPatternFuncEnv finalState) of
                 Nothing ->
                   assertFailure
-                    "the extended body lost its inferred DualScheme"
+                    "the extended body lost its inferred pattern-function scheme"
                 Just _ -> return ()
           case warnings of
             [OutsideEgisonCoreWarning detail _] ->
@@ -906,7 +906,7 @@ patternFunctionDualSchemeTests =
               assertFailure
                 ("expected one pattern-function body warning, got " ++ show other)
 
-    , TestLabel "replacement masks an older DualScheme before forward use" .
+    , TestLabel "replacement masks an older pattern-function scheme before forward use" .
         TestCase $ do
           result <- fromEvalM
             defaultOption
@@ -922,7 +922,7 @@ patternFunctionDualSchemeTests =
                   ]
                 env1 <- evalTopExprsNoPrint env0 oldDeclaration
                 before <-
-                  fmap (fmap (length . dualArgs)) $
+                  fmap (fmap (length . patFuncParams)) $
                     lookupPatternFunctionEnv "replaceable" <$>
                       getPatternFuncEnv
                 replacement <- readTopExprs $ unlines
@@ -934,7 +934,7 @@ patternFunctionDualSchemeTests =
                   ]
                 _ <- evalTopExprsNoPrint env1 replacement
                 after <-
-                  fmap (fmap (length . dualArgs)) $
+                  fmap (fmap (length . patFuncParams)) $
                     lookupPatternFunctionEnv "replaceable" <$>
                       getPatternFuncEnv
                 return (before, after)
@@ -1011,14 +1011,14 @@ patternFunctionDualSchemeTests =
         let capabilityBinder = MkCapVar "duplicateCapability"
             targetBinder = TyVar "duplicateTarget"
             malformedScheme =
-              DualScheme
+              PatFuncScheme
                 [capabilityBinder, capabilityBinder]
                 [targetBinder, targetBinder]
-                [Dual (CapVar capabilityBinder) (TVar targetBinder)]
-                (Dual (CapVar capabilityBinder) (TVar targetBinder))
+                [RequirementPair (CapVar capabilityBinder) (TVar targetBinder)]
+                (RequirementPair (CapVar capabilityBinder) (TVar targetBinder))
         (result, warnings, _finalState) <-
           runInferWithWarningsAndState
-            (instantiateDualSchemeInState malformedScheme)
+            (instantiatePatFuncSchemeInState malformedScheme)
             (initialInferStateWithConfig defaultInferConfig)
         assertEqual "malformed scheme validation emits no warning" [] warnings
         case result of
@@ -1032,7 +1032,7 @@ patternFunctionDualSchemeTests =
               ("duplicate binders produced the wrong error: " ++ show err)
           Right _ ->
             assertFailure
-              "duplicate DualScheme binders were silently instantiated"
+              "duplicate pattern-function scheme binders were silently instantiated"
 
     , TestLabel "instantiation freshens both sorts together" . TestCase $ do
         let capLeft = MkCapVar "leftCapability"
@@ -1040,25 +1040,25 @@ patternFunctionDualSchemeTests =
             typeLeft = TyVar "leftTarget"
             typeRight = TyVar "rightTarget"
             scheme =
-              DualScheme
+              PatFuncScheme
                 [capLeft, capRight]
                 [typeLeft, typeRight]
-                [ Dual
+                [ RequirementPair
                     (CapVar capLeft)
                     (TMatcher (CapVar capLeft) (TVar typeLeft))
-                , Dual
+                , RequirementPair
                     (CapVar capRight)
                     (TMatcher (CapVar capRight) (TVar typeRight))
                 ]
-                (Dual
+                (RequirementPair
                   (CapTuple [CapVar capLeft, CapVar capRight])
                   (TTuple
                     [ TMatcher (CapVar capLeft) (TVar typeLeft)
                     , TMatcher (CapVar capRight) (TVar typeRight)
                     ]))
             instantiateTwice = do
-              first <- instantiateDualSchemeInState scheme
-              second <- instantiateDualSchemeInState scheme
+              first <- instantiatePatFuncSchemeInState scheme
+              second <- instantiatePatFuncSchemeInState scheme
               return (first, second)
 
         (result, warnings, _finalState) <-
@@ -1070,7 +1070,7 @@ patternFunctionDualSchemeTests =
         case result of
           Left err ->
             assertFailure
-              ("dual-scheme instantiation failed: " ++ show err)
+              ("pattern-function scheme instantiation failed: " ++ show err)
           Right (first, second) ->
             case (correlatedPairImages first, correlatedPairImages second) of
               ( Just (firstCapLeft, firstCapRight,
@@ -1111,11 +1111,11 @@ patternFunctionDualSchemeTests =
                 Forall [] [typeVariable] []
                   (TFun (TVar typeVariable) (TVar typeVariable))
               finalizedScheme =
-                DualScheme
+                PatFuncScheme
                   []
                   [typeVariable]
-                  [Dual CapAny (TVar typeVariable)]
-                  (Dual CapAny (TVar typeVariable))
+                  [RequirementPair CapAny (TVar typeVariable)]
+                  (RequirementPair CapAny (TVar typeVariable))
               namedApplication functionName =
                 IMatchExpr
                   BFSMode
@@ -1163,7 +1163,7 @@ patternFunctionDualSchemeTests =
                   Nothing
               shadowedName = "shadowedPatternFunction"
               shadowedScheme =
-                DualScheme [] [] [] (Dual CapAny TInt)
+                PatFuncScheme [] [] [] (RequirementPair CapAny TInt)
               shadowedApplication =
                 ILetExpr
                   [ ( PDPatVar (Var shadowedName [])
@@ -1186,7 +1186,7 @@ patternFunctionDualSchemeTests =
                     Nothing)
               shadowedState enabled =
                 let targetProjection =
-                      dualSchemeTargetScheme shadowedScheme
+                      patFuncSchemeTargetScheme shadowedScheme
                 in (initialInferStateWithConfig (config enabled))
                     { inferEnv =
                         TypeEnv.extendEnv
@@ -1241,8 +1241,8 @@ patternFunctionDualSchemeTests =
                 "the warning identifies the header-only function"
                 ("`headerIdentity`" `isInfixOf` detail)
               assertBool
-                "the warning explains that the DualScheme is not finalized"
-                ("uses only a header because its DualScheme is not finalized"
+                "the warning explains that the pattern-function scheme is not finalized"
+                ("uses only a header because its pattern-function scheme is not finalized"
                   `isInfixOf` detail)
             other ->
               assertFailure
@@ -1315,13 +1315,13 @@ patternFunctionDualSchemeTests =
   where
     assertCorrelatedPairScheme scheme =
       case scheme of
-        DualScheme
+        PatFuncScheme
           capabilityBinders
           targetBinders
-          [ Dual (CapVar leftCapability) (TVar leftTarget)
-          , Dual (CapVar rightCapability) (TVar rightTarget)
+          [ RequirementPair (CapVar leftCapability) (TVar leftTarget)
+          , RequirementPair (CapVar rightCapability) (TVar rightTarget)
           ]
-          (Dual
+          (RequirementPair
             (CapTuple
               [CapVar resultLeftCapability, CapVar resultRightCapability])
             (TTuple [TVar resultLeftTarget, TVar resultRightTarget])) -> do
@@ -1355,14 +1355,14 @@ patternFunctionDualSchemeTests =
 
     correlatedPairImages instanceValue =
       case instanceValue of
-        ( [ Dual
+        ( [ RequirementPair
               (CapVar leftCapability)
               (TMatcher (CapVar leftTargetCapability) (TVar leftTarget))
-          , Dual
+          , RequirementPair
               (CapVar rightCapability)
               (TMatcher (CapVar rightTargetCapability) (TVar rightTarget))
           ]
-          , Dual
+          , RequirementPair
               (CapTuple
                 [CapVar resultLeftCapability, CapVar resultRightCapability])
               (TTuple
@@ -1396,7 +1396,7 @@ canonicalMatcherTests =
           capabilityVariable = MkCapVar "p"
           original =
             TMatcher
-              (CapCon (mkTypeFormer "Collection" 1)
+              (CapCon (mkDataType "Collection" 1)
                 [CapVar capabilityVariable])
               (TCollection (TVar typeVariable))
           substituted =
@@ -1406,7 +1406,7 @@ canonicalMatcherTests =
       assertEqual
         "ordinary substitution must change only the matcher target"
         (TMatcher
-          (CapCon (mkTypeFormer "Collection" 1)
+          (CapCon (mkDataType "Collection" 1)
             [CapVar capabilityVariable])
           (TCollection TInt))
         substituted
@@ -1417,7 +1417,7 @@ canonicalMatcherTests =
             TCollection
               (TFun TInt
                 (TMatcher
-                  (CapCon (mkTypeFormer "Maybe" 1)
+                  (CapCon (mkDataType "Maybe" 1)
                     [CapVar capabilityVariable])
                   (TInductive "Maybe" [TInt])))
           substituted =
@@ -1429,41 +1429,41 @@ canonicalMatcherTests =
         (TCollection
           (TFun TInt
             (TMatcher
-              (CapCon (mkTypeFormer "Maybe" 1) [CapAny])
+              (CapCon (mkDataType "Maybe" 1) [CapAny])
               (TInductive "Maybe" [TInt]))))
         substituted
 
-  , TestLabel "TypePM: a matcher over a product normalizes to a product of matchers" .
+  , TestLabel "TypePM: a matcher over a tuple normalizes to a tuple of matchers" .
       TestCase $ do
         let original =
               TMatcher
                 (CapTuple [CapAny, listAny])
                 (TTuple [TInt, TCollection TInt])
         assertEqual
-          "Matcher (Any, [Any]) (Integer, [Integer]) is the product of its components"
+          "Matcher (Any, [Any]) (Integer, [Integer]) is the tuple of its components"
           (TTuple [TMatcher CapAny TInt, TMatcher listAny (TCollection TInt)])
-          (normalizeMatcherProducts original)
+          (normalizeMatcherTuples original)
 
-  , TestLabel "TypePM: Matcher Any over a product does not distribute" .
+  , TestLabel "TypePM: Matcher Any over a tuple does not distribute" .
       TestCase $ do
         let original = TMatcher CapAny (TTuple [TInt, TInt])
         assertEqual
-          "a non-product capability keeps the matcher form"
+          "a non-tuple capability keeps the matcher form"
           original
-          (normalizeMatcherProducts original)
+          (normalizeMatcherTuples original)
 
-  , TestLabel "TypePM: unification expands a matcher head against a product" .
+  , TestLabel "TypePM: unification expands a matcher head against a tuple" .
       TestCase $ do
         let p = MkCapVar "p"
             t = TyVar "t"
             head' = TMatcher (CapVar p) (TVar t)
-            matcherProduct =
+            matcherTuple =
               TTuple [TMatcher CapAny TInt, TMatcher listAny (TCollection TInt)]
         substitution <-
-          either (assertFailure . show) return (unify head' matcherProduct)
+          either (assertFailure . show) return (unify head' matcherTuple)
         assertEqual
-          "the expanded head is the product"
-          matcherProduct
+          "the expanded head is the tuple"
+          matcherTuple
           (applySubst substitution head')
 
   , TestLabel "TypePM: capabilities unify by equality only" . TestCase $
@@ -1472,7 +1472,7 @@ canonicalMatcherTests =
         Right _ -> assertFailure "Any and [Any] were unified"
   ]
   where
-    listAny = CapCon (mkTypeFormer "Collection" 1) [CapAny]
+    listAny = CapCon (mkDataType "Collection" 1) [CapAny]
 
 -- | Recursive top-level roots: a recursive lambda is accepted, a recursive
 -- data root is rejected.
@@ -1616,7 +1616,7 @@ strictSelectedCoreTests =
         return ()
 
 -- | Saved targets must agree between alternatives and carry both indices
--- into the following sequence stage. These use the public inference entry.
+-- into the following sequence stage. These use the inference entry.
 sequentialTypeErrorTests :: Test
 sequentialTypeErrorTests = TestLabel "sequential pattern rejection" . TestList $
   map rejects
@@ -1641,7 +1641,7 @@ sequentialTypeErrorTests = TestLabel "sequential pattern rejection" . TestList $
         Right typed -> assertFailure ("invalid sequence accepted: " ++ show typed)
 
 -- | The standalone type-error corpus is normally checked by a separate
--- sweep.  Keep the two DualScheme-specific rejection boundaries in the
+-- sweep.  Keep the two PatFuncScheme-specific rejection boundaries in the
 -- ordinary HUnit run as well, and require their intended diagnostics so an
 -- unrelated parse or linearity failure cannot satisfy the test accidentally.
 patternFunctionTypeErrorTests :: Test
@@ -1680,8 +1680,8 @@ patternFunctionTypeErrorTests =
             assertFailure
               ("an invalid pattern function was accepted: " ++ file)
 
--- | Ordinary match arms and the fallback share one result type, while the
--- fallback is checked outside the bindings introduced by every ordinary arm.
+-- | Ordinary match clauses and the else expression share one result type, while
+-- the else expression is checked outside the bindings of every ordinary match clause.
 matchElseTypeErrorTests :: Test
 matchElseTypeErrorTests =
   TestLabel "match else rejection" . TestList $
@@ -1754,7 +1754,7 @@ signatureBoundaryTypeErrorTests =
             assertFailure
               ("an invalid public signature was accepted: " ++ file)
 
--- | A hole of a declared list field demands the list capability; an
+-- | A hole of a declared list field requires the list capability; an
 -- Any-capability next matcher, whatever its syntactic form, is rejected by
 -- the capability equation.  Require the capability diagnostic so these cases
 -- cannot pass because of an unrelated target or parser error.
@@ -1789,7 +1789,7 @@ closedFieldTypeErrorTests =
           $ do
               env <- initialEnv
               -- The closed-field head is capability-visible only after the
-              -- frozen signature contains a Collection pattern constructor.
+              -- declared signature contains a Collection pattern constructor.
               collectionVisibility <-
                 readTopExprs
                   "inductive pattern [a] := closedFieldVisibility"
@@ -1853,19 +1853,19 @@ capabilityMguTests =
   TestLabel "TypePM: ordinary capability MGU" . TestList $
     [ TestLabel "a capability variable is bound by the capability MGU" .
         TestCase $ do
-          let producerVariable = MkCapVar "producer"
-              required = CapCon (mkTypeFormer "Collection" 1) [CapAny]
+          let matcherVariable = MkCapVar "matcherCap"
+              required = CapCon (mkDataType "Collection" 1) [CapAny]
           substitution <-
             either (assertFailure . show) return
-              (unifyCapability (CapVar producerVariable) required)
+              (unifyCapability (CapVar matcherVariable) required)
           assertEqual
-            "the ordinary MGU specializes the producer capability"
+            "the ordinary MGU specializes the matcher's capability"
             required
-            (applyCapSubst substitution (CapVar producerVariable))
+            (applyCapSubst substitution (CapVar matcherVariable))
 
     , TestLabel "a polymorphic matcher instance specializes at its use" .
         TestCase $ do
-          result <- runSource producerSpecializationSource
+          result <- runSource matcherSpecializationSource
           case result of
             Right _ -> return ()
             Left err ->
@@ -1883,7 +1883,7 @@ capabilityMguTests =
           expressions <- readTopExprs source
           evalTopExprsNoPrint env expressions
 
-    producerSpecializationSource = unlines
+    matcherSpecializationSource = unlines
       [ "def passMatcher {a}"
       , "  (m : Matcher p a)"
       , "  : Matcher p a := m"

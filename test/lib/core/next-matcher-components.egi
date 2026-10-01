@@ -1,6 +1,6 @@
--- Next-matcher component checks: the next matcher expression of a clause
--- has exactly the matcher type demanded by its holes (one matcher for one
--- hole, a tuple of matchers for several holes, the empty tuple for none).
+-- Next-matcher component checks: the next-matcher expression of a matcher clause
+-- has exactly the matcher type required by its pattern holes (one matcher for one
+-- pattern hole, a tuple of matchers for several, the empty tuple for none).
 
 def keep {a} (x : a) : a := x
 

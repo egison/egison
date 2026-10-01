@@ -12,8 +12,8 @@ def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a :=
 
 ## パターン宣言と環境
 
-パターンコンストラクタの signature とパターン関数の canonical `DualScheme` は値の型環境から
-分離する。一方，body 検査前の target-only header と，検査済み `DualScheme` から射影した target
+パターンコンストラクタの signature とパターン関数の canonical `PatFuncScheme` は値の型環境から
+分離する。一方，body 検査前の target-only header と，検査済み `PatFuncScheme` から射影した target
 型は式側の名前解決・型推論のため `TypeEnv` にも登録する。パターンコンストラクタ環境と
 パターン関数の header-only 環境も，一つの `PatternTypeEnv` 値に混在させない。
 
@@ -21,12 +21,12 @@ def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a :=
 |---|---|
 | `patternEnv :: PatternTypeEnv` | `inductive pattern` が宣言したパターンコンストラクタの `TypeScheme` |
 | `patternFuncDeclEnv :: PatternTypeEnv` | body 検査前のパターン関数 target-only header |
-| `patternFuncEnv :: PatternFunctionEnv` | body 検査済みパターン関数の canonical `DualScheme` |
+| `patternFuncEnv :: PatternFunctionEnv` | body 検査済みパターン関数の canonical `PatFuncScheme` |
 | `typeEnv :: TypeEnv` | 通常の値・関数の型と，必要な target projection |
 
 `PatternTypeEnv` は `Map String TypeScheme` という共通の容器だが，パターンコンストラクタ
 環境と header-only 環境は別の値として保持する。`PatternFunctionEnv` は
-`Map String DualScheme` の専用環境である。
+`Map String PatFuncScheme` の専用環境である。
 
 ```haskell
 newtype PatternTypeEnv = PatternTypeEnv
@@ -35,7 +35,7 @@ newtype PatternTypeEnv = PatternTypeEnv
 type PatternConstructorEnv = PatternTypeEnv
 
 newtype PatternFunctionEnv = PatternFunctionEnv
-  { unPatternFunctionEnv :: Map String DualScheme }
+  { unPatternFunctionEnv :: Map String PatFuncScheme }
 ```
 
 ## パターンコンストラクタ
@@ -45,10 +45,10 @@ newtype PatternFunctionEnv = PatternFunctionEnv
 マッチ節に現れる `IInductivePat` と区別する。
 
 - `PatternInductiveDecl` は constructor signature を `patternEnv` に登録する。
-- `PPInductivePat` の引数個数と target 型は，この frozen signature に対して検査する。
+- `PPInductivePat` の引数個数と target 型は，この宣言されたシグネチャに対して検査する。
 - `IInductiveOrPApplyPat` の名前が finalized/header-only のいずれのパターン関数環境にも
   なければ，パターンコンストラクタとして解決する。
-- frozen signature を使わず generic inference へ進む production extension は，core と同期した
+- 宣言されたシグネチャを使わず generic inference へ進む Egison インタプリタの拡張は，core と同期した
   直接経路ではない。詳細は [matcher-capability.md](./matcher-capability.md) の
   「legacy CAS pattern view（core 外）」を参照する。
 
@@ -78,42 +78,42 @@ matcher
 ### canonical type
 
 検査済みパターン関数の型は，引数と結果それぞれの capability/target を一つにまとめた
-`DualScheme` である。
+`PatFuncScheme` である。
 
 ```haskell
-data Dual = Dual
-  { dualCapability :: Capability
-  , dualTarget     :: Type
+data RequirementPair = RequirementPair
+  { requirementCapability :: Capability
+  , requirementTarget     :: Type
   }
 
-data DualScheme = DualScheme
-  { dualCapBinders :: [CapVar]
-  , dualTyBinders  :: [TyVar]
-  , dualArgs       :: [Dual]
-  , dualResult     :: Dual
+data PatFuncScheme = PatFuncScheme
+  { patFuncCapBinders :: [CapVar]
+  , patFuncTyBinders  :: [TyVar]
+  , patFuncParams       :: [RequirementPair]
+  , patFuncResult     :: RequirementPair
   }
 ```
 
 定義時には，各パラメータへ fresh capability を割り当てて本体を推論し，最終 substitution
-を引数 dual と結果 dual の双方へ適用する。その後，capability 変数と通常型変数を別々に
-一般化し，canonical `DualScheme` を `patternFuncEnv` に保存する。
+を引数と結果の要求対の双方へ適用する。その後，capability 変数と通常型変数を別々に
+一般化し，canonical `PatFuncScheme` を `patternFuncEnv` に保存する。
 
-式側で必要な通常関数型は `dualSchemeTargetScheme` により canonical scheme から射影する。
-binder と引数・結果の capability/target 相関は `DualScheme` を正本として維持する。
+式側で必要な通常関数型は `patFuncSchemeTargetScheme` により canonical scheme から射影する。
+binder と引数・結果の capability/target 相関は `PatFuncScheme` を正本として維持する。
 
 各パラメータは本体中でちょうど一回，宣言順，かつ分岐の外で使う。この線形性条件により，
 適用時の引数パターンを左から右へ一回ずつ展開できる。
 
 ### 適用
 
-finalized な named application では，`DualScheme` の capability binders と target binders を
+finalized な named application では，`PatFuncScheme` の capability binders と target binders を
 一度の fresh instantiation で同時に置換し，同じ substitution を全引数と結果に使う。
-結果 target，引数 target，引数 capability をそれぞれ対応する成分と照合し，result dual を
+結果 target，引数 target，引数 capability をそれぞれ対応する成分と照合し，結果の要求対を
 適用全体の型とする。
 
 `IInductiveOrPApplyPat` の名前解決順は次のとおりである。
 
-1. `patternFuncEnv` の finalized `DualScheme`
+1. `patternFuncEnv` の finalized `PatFuncScheme`
 2. `patternFuncDeclEnv` の header-only 宣言
 3. `patternEnv` のパターンコンストラクタ
 

@@ -1,5 +1,5 @@
 -- G-Literal: a next matcher supplied by a parameter must have both indices
--- of the matcher type demanded by the hole.  Its capability `Any` fits the head hole,
+-- of the matcher type required by the pattern hole.  Its capability `Any` fits the head hole,
 -- but its target String does not fit the hole's Integer target.
 --
 -- Expected: Type error (target mismatch at the hole)

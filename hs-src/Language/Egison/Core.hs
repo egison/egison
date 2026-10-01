@@ -492,7 +492,7 @@ evalExprShallow env (IMatchAllExpr pmmode target matcher clauses) = do
             mmap (flip evalExprShallow expr . extendEnv env) result >>= (`mappend` results)
       mfoldr tryMatchClause (return MNil) (fromList clauses)
 
-evalExprShallow env (IMatchExpr pmmode target matcher clauses fallback) = do
+evalExprShallow env (IMatchExpr pmmode target matcher clauses matchElse) = do
   target <- evalExprShallow env target
   matcher <- evalExprShallow env matcher >>= evalMatcherWHNF
   f matcher target
@@ -505,7 +505,7 @@ evalExprShallow env (IMatchExpr pmmode target matcher clauses fallback) = do
               MNil             -> cont
       callstack <- getFuncNameStack
       let onFailure =
-            case fallback of
+            case matchElse of
               Just expr -> evalExprShallow env expr
               Nothing   -> throwError $ MatchFailure callstack
       foldr tryMatchClause onFailure clauses
@@ -1364,7 +1364,7 @@ inductiveMatch env pattern target (UserMatcher matcherEnv clauses) =
     result <- runMaybeT $ primitiveDataPatternMatch pat ref
     case result of
       Just bindings' -> do
-        -- Data-pattern bindings are local to this arm and shadow captures.
+        -- Local bindings of this primitive-data-match clause shadow value-pattern bindings.
         let env = extendEnv matcherEnv $ bindings' ++ bindings
         evalExprShallow env expr >>= collectionToRefs
       _ -> cont

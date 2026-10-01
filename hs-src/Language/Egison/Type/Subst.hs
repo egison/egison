@@ -18,7 +18,7 @@ module Language.Egison.Type.Subst
   , applyCapSubst
   , applyCapSubstToType
   , applySubstScheme
-  , applySubstDual
+  , applySubstRequirement
   , applySubstConstraint
   ) where
 
@@ -30,10 +30,10 @@ import           GHC.Generics               (Generic)
 import           Language.Egison.Type.Index (Index (..), IndexSpec, IndexTyVar (..))
 import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Type (..), TypeScheme (..),
-                                             Dual (..),
+                                             RequirementPair (..),
                                              Constraint (..), SymbolSet (..),
                                              mapTypeCapabilities,
-                                             normalizeMatcherProducts)
+                                             normalizeMatcherTuples)
 
 -- | A pair of independent substitutions, one for each sort.
 --
@@ -73,7 +73,7 @@ composeSubst s2@(Subst tys2 caps2) (Subst tys1 caps1) =
 -- in a substituted type range are subsequently reached by the capability
 -- component.
 applySubst :: Subst -> Type -> Type
-applySubst s = normalizeMatcherProducts . applyCapSubstToType s . applyTypeSubst s
+applySubst s = normalizeMatcherTuples . applyCapSubstToType s . applyTypeSubst s
 
 -- | Apply only the ordinary type component of a substitution.
 --
@@ -133,8 +133,8 @@ applyCapSubst (Subst _ caps) = go Set.empty
             go (Set.insert variable seen) replacement
         | otherwise ->
             CapVar variable
-      CapCon former children ->
-        CapCon former (map (go seen) children)
+      CapCon dataType children ->
+        CapCon dataType (map (go seen) children)
       CapTuple components ->
         CapTuple (map (go seen) components)
       leaf ->
@@ -166,10 +166,10 @@ applySubstScheme (Subst tys caps) (Forall capVars tyVars cs t) =
        (map (applySubstConstraint s') cs)
        (applySubst s' t)
 
--- | Apply one paired substitution to both sorts of a pattern dual.
-applySubstDual :: Subst -> Dual -> Dual
-applySubstDual substitution (Dual capability target) =
-  Dual
+-- | Apply one paired substitution to both sorts of a requirement pair.
+applySubstRequirement :: Subst -> RequirementPair -> RequirementPair
+applySubstRequirement substitution (RequirementPair capability target) =
+  RequirementPair
     (applyCapSubst substitution capability)
     (applySubst substitution target)
 

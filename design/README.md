@@ -17,7 +17,7 @@
 ## パターンマッチと TypePM
 
 - [pattern.md](./pattern.md): パターン宣言、matcher、match 式の型付け。
-- [pattern-function-implementation.md](./pattern-function-implementation.md): パターン関数の `DualScheme` と実装契約。
+- [pattern-function-implementation.md](./pattern-function-implementation.md): パターン関数の `PatFuncScheme` と実装契約。
 - [matcher-capability.md](./matcher-capability.md): Egison 本体における二-sort matcher capability の実装範囲。
 形式仕様と証明の正本は `type-pm-mech` に置く。Egison 側の文書は、実装との対応と
 Egison core 外の拡張だけを記述する。

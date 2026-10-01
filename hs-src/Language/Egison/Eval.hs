@@ -372,7 +372,7 @@ buildAndMergeEnvironments exprs opts = do
                                    (patternEnvToList newPatternFuncEnv)
       -- A replacement header shadows both the old header and the old checked
       -- body.  Keep only the new header until its body succeeds and publishes
-      -- a new DualScheme; otherwise a forward use (or permissive fallback)
+      -- a new PatFuncScheme; otherwise a forward use (or permissive fallback)
       -- could be checked against the stale body contract.
       invalidatedPatternFuncEnv =
         foldr

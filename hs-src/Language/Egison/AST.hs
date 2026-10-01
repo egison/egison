@@ -504,14 +504,14 @@ extractNameFromVarWithIndices (VarWithIndices name _) = name
 -- Capability variables and ordinary type variables deliberately use
 -- different AST nodes, even when they have the same source spelling.  This
 -- prevents a type substitution from accidentally refining a matcher
--- capability.  'CECon' contains a canonicalizable type-former spelling and
+-- capability.  'CECon' contains a canonicalizable capability-constructor spelling and
 -- its capability arguments; aliases are not part of the capability language.
 data CapabilityExpr
-  = CEAny                              -- ^ Ground capability; a consumer literal is a wildcard
+  = CEAny                              -- ^ Ground capability; a literal in a requirement is a wildcard
   | CEVar String                        -- ^ Capability variable, e.g., p
-  | CECon String [CapabilityExpr]       -- ^ Type-former capability, e.g., List p
+  | CECon String [CapabilityExpr]       -- ^ Constructor capability, e.g., List p
   | CEList CapabilityExpr              -- ^ List syntax, e.g., [p]
-  | CETuple [CapabilityExpr]            -- ^ Product capability, e.g., (p, q)
+  | CETuple [CapabilityExpr]            -- ^ Tuple capability, e.g., (p, q)
   deriving (Show, Eq)
 
 -- | Type expression in source code

@@ -379,8 +379,8 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     -- Replace the first match clause's body in an IMatchExpr with the given
     -- IExpr. (We placeholder-desugar the match with `undefined`, then patch.)
     patchFirstMatchRhs :: IExpr -> IExpr -> IExpr
-    patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest) fallback) newBody =
-      IMatchExpr m tgt mtcher ((p, newBody) : rest) fallback
+    patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest) matchElse) newBody =
+      IMatchExpr m tgt mtcher ((p, newBody) : rest) matchElse
     patchFirstMatchRhs e _ = e
 -- G3 (design/cas-simplification.md): `declare ideal [g1, ..., gk]`.
 --
@@ -436,7 +436,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   --   where n_1..n_k are *all* the derivative names seen so far (including
   --   <name>). Each declare derivative redefines `chainPartialDiff` with the
   --   broader pattern set; Egison's name shadowing lets the latest
-  --   definition win. The fallback uses `chainPartialDiffBuiltin` (defined in
+  --   definition win. The else expression uses `chainPartialDiffBuiltin` (defined in
   --   lib/math/analysis/derivative.egi and never redefined) so the
   --   recursion through nested mathfuncs terminates.
   --
@@ -444,7 +444,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
   -- derivatives, `declare derivative f = (f1, f2)`; this emits
   --   def deriv.<name>.1 := f1
   --   def deriv.<name>.2 := f2
-  -- and the arm
+  -- and the match clause
   --   | apply2 #<name> $a $b -> deriv.<name>.1 a b *' partialDiff a dx
   --                             +' deriv.<name>.2 a b *' partialDiff b dx
   let arity = derivativeDeclarationArity rhs
@@ -484,7 +484,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
     -- the surface level.
     buildChainPartialDiff :: [(String, Int)] -> EvalM IExpr
     buildChainPartialDiff entries = do
-      -- Recursive arm: deriv.<n> a *' partialDiff a dx.
+      -- Recursive match clause: deriv.<n> a *' partialDiff a dx.
       -- The recursive sub-call uses `partialDiff` (the typeclass method)
       -- so that the argument's runtime CAS shape decides which Differentiable
       -- instance handles it: this lets `partialDiff (sin (x^2)) x` decompose
@@ -515,13 +515,13 @@ desugarTopExpr (DeclareDerivative name rhs) = do
             , times (ApplyExpr (VarExpr ("deriv." ++ n)) [VarExpr "a"])
                     (partial "a")
             )
-          fallbackExpr =
+          matchElseExpr =
             ApplyExpr (VarExpr "chainPartialDiffBuiltin") [VarExpr "v", VarExpr "dx"]
           matchExpr = MatchExpr BFSMode
                         (VarExpr "v")
                         (VarExpr "mathValue")
                         (map mkClause entries)
-                        (Just fallbackExpr)
+                        (Just matchElseExpr)
           lambda = LambdaExpr
                      [ Arg (APPatVar (VarWithIndices "v" []))
                      , Arg (APPatVar (VarWithIndices "dx" []))
@@ -1132,9 +1132,9 @@ desugar (LetRecExpr binds expr) =
 desugar (WithSymbolsExpr vars expr) =
   IWithSymbolsExpr vars <$> desugar expr
 
-desugar (MatchExpr pmmode expr0 expr1 clauses fallback) =
+desugar (MatchExpr pmmode expr0 expr1 clauses matchElse) =
   IMatchExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses
-    <*> mapM desugar fallback
+    <*> mapM desugar matchElse
 
 desugar (MatchAllExpr pmmode expr0 expr1 clauses) =
   IMatchAllExpr pmmode <$> desugar expr0 <*> desugar expr1 <*> desugarMatchClauses clauses

@@ -98,8 +98,8 @@ buildEnvironments exprs = do
                                     ++ concatMap
                                          (namedInductiveTypes . schemeBody . snd)
                                          (patternEnvToList priorPatternCtorEnv))
-  capabilityFormerArities <-
-    buildCapabilityFormerArities exprs priorCtorEnv
+  capabilityConstructorArities <-
+    buildCapabilityConstructorArities exprs priorCtorEnv
 
   -- Collect `declare cas-type` aliases first (prepass, so declaration order
   -- does not matter for users of the
@@ -121,11 +121,11 @@ buildEnvironments exprs = do
         (HashMap.toList newAliases)
   let aliasEnv = HashMap.union newAliases priorAliases
 
-  -- Elaborate the capability sort against the frozen type-former signature.
+  -- Elaborate the capability sort against the declared capability-constructor signature.
   -- This deliberately happens before ordinary declaration processing:
   -- malformed capability annotations must not be turned into well-formed
-  -- TypeFormer values merely by counting their surface arguments.
-  mapM_ (validateTopExprCapabilities capabilityFormerArities aliasEnv) exprs
+  -- DataType values merely by counting their surface arguments.
+  mapM_ (validateTopExprCapabilities capabilityConstructorArities aliasEnv) exprs
 
   -- Collect `declare cas-subtype` edges (alias-expanded) and check that each
   -- addition preserves a unique join, in declaration order.
@@ -154,28 +154,28 @@ buildEnvironments exprs = do
 -- Capability name/kind elaboration
 --------------------------------------------------------------------------------
 
--- | Arity environment for canonical capability formers.  It is separate from
+-- | Arity environment for canonical capability constructors.  It is separate from
 -- the ordinary type environment because capability variables and ordinary
 -- type variables are different sorts, and because transparent aliases are
 -- intentionally absent from this signature.
-type CapabilityFormerArities =
-  HashMap.HashMap Types.TypeFormerId Int
+type CapabilityConstructorArities =
+  HashMap.HashMap Types.DataTypeId Int
 
--- | Construct the frozen former signature used by capability annotations.
+-- | Construct the declared capability-constructor signature used by capability annotations.
 --
--- Builtin entries mirror 'Types.typeFormerOf'.  User inductive declarations
+-- Builtin entries mirror 'Types.dataTypeOf'.  User inductive declarations
 -- are added from both the current batch and the accumulated constructor
 -- environment.  The latter retains declarations with at least one
 -- constructor; empty inductive declarations need a future dedicated
--- type-former environment if they are to survive across load-unit boundaries.
-buildCapabilityFormerArities
+-- data-type environment if they are to survive across load-unit boundaries.
+buildCapabilityConstructorArities
   :: [TopExpr]
   -> ConstructorEnv
-  -> EvalM CapabilityFormerArities
-buildCapabilityFormerArities exprs priorCtorEnv = do
+  -> EvalM CapabilityConstructorArities
+buildCapabilityConstructorArities exprs priorCtorEnv = do
   mapM_ rejectBuiltinCollision userEntries
   foldM register HashMap.empty
-    (builtinCapabilityFormerArities ++ userEntries)
+    (builtinCapabilityConstructorArities ++ userEntries)
   where
     userEntries =
       [ (name, length params)
@@ -185,39 +185,39 @@ buildCapabilityFormerArities exprs priorCtorEnv = do
          | info <- HashMap.elems priorCtorEnv
          ]
 
-    builtinFormerIds =
+    builtinCapabilityConstructorIds =
       Set.fromList
-        [ Types.typeFormerId (Types.mkTypeFormer name arity)
-        | (name, arity) <- builtinCapabilityFormerArities
+        [ Types.dataTypeId (Types.mkDataType name arity)
+        | (name, arity) <- builtinCapabilityConstructorArities
         ]
 
     rejectBuiltinCollision (surfaceName, arity) =
-      let former = Types.mkTypeFormer surfaceName arity
-          formerId = Types.typeFormerId former
-      in when (Set.member formerId builtinFormerIds) $
-           capabilityKindError "type-former signature" $
+      let dataType = Types.mkDataType surfaceName arity
+          dataTypeIdent = Types.dataTypeId dataType
+      in when (Set.member dataTypeIdent builtinCapabilityConstructorIds) $
+           capabilityKindError "capability-constructor signature" $
              "inductive type `" ++ surfaceName
-             ++ "` collides with builtin canonical capability former "
-             ++ describeCapabilityFormer formerId
+             ++ "` collides with builtin canonical capability constructor "
+             ++ describeCapabilityConstructor dataTypeIdent
 
     register arities (surfaceName, arity) =
-      let former = Types.mkTypeFormer surfaceName arity
-          formerId = Types.typeFormerId former
-      in case HashMap.lookup formerId arities of
+      let dataType = Types.mkDataType surfaceName arity
+          dataTypeIdent = Types.dataTypeId dataType
+      in case HashMap.lookup dataTypeIdent arities of
            Nothing ->
-             return (HashMap.insert formerId arity arities)
+             return (HashMap.insert dataTypeIdent arity arities)
            Just previousArity
              | previousArity == arity ->
                  return arities
              | otherwise ->
-                 capabilityKindError "type-former signature" $
-                   "canonical former " ++ describeCapabilityFormer formerId
+                 capabilityKindError "capability-constructor signature" $
+                   "canonical capability constructor " ++ describeCapabilityConstructor dataTypeIdent
                    ++ " is declared at both arity "
                    ++ show previousArity ++ " and arity " ++ show arity
 
--- | Closed builtin portion of the capability former signature.
-builtinCapabilityFormerArities :: [(String, Int)]
-builtinCapabilityFormerArities =
+-- | Closed builtin portion of the capability-constructor signature.
+builtinCapabilityConstructorArities :: [(String, Int)]
+builtinCapabilityConstructorArities =
   [ ("Integer", 0)
   , ("MathValue", 0)
   , ("PolyExpr", 0)
@@ -239,7 +239,7 @@ builtinCapabilityFormerArities =
 
 -- | Validate every declaration surface that can contain a TypeExpr.
 validateTopExprCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> TopExpr
   -> EvalM ()
@@ -372,7 +372,7 @@ validateTopExprCapabilities arities aliases topExpr =
           "method `" ++ methodName ++ "` of instance `" ++ className ++ "`"
 
 validateTypedVarCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> TypedVarWithIndices
@@ -386,7 +386,7 @@ validateTypedVarCapabilities arities aliases context typedVar = do
     arities aliases context (typedVarRetType typedVar)
 
 validateConstraintCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> ConstraintExpr
@@ -396,7 +396,7 @@ validateConstraintCapabilities arities aliases context
   mapM_ (validateTypeExprCapabilities arities aliases context) typeExprs
 
 validateTypedParamCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> TypedParam
@@ -421,7 +421,7 @@ validateTypedParamCapabilities arities aliases context typedParam =
 -- | Traverse expressions so local signatures and annotations cannot bypass
 -- capability name/kind elaboration.
 validateExprCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> Expr
@@ -490,11 +490,11 @@ validateExprCapabilities arities aliases context expression =
       validate body
     WithSymbolsExpr _ body ->
       validate body
-    MatchExpr _ target matcher clauses fallback -> do
+    MatchExpr _ target matcher clauses matchElse -> do
       validate target
       validate matcher
       mapM_ (validateMatchClauseCapabilities arities aliases context) clauses
-      mapM_ validate fallback
+      mapM_ validate matchElse
     MatchAllExpr _ target matcher clauses -> do
       validate target
       validate matcher
@@ -572,7 +572,7 @@ validateExprCapabilities arities aliases context expression =
     validate = validateExprCapabilities arities aliases context
 
 validateBindingCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> BindingExpr
@@ -590,7 +590,7 @@ validateBindingCapabilities arities aliases context binding =
     validate = validateExprCapabilities arities aliases context
 
 validateMatchClauseCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> MatchClause
@@ -600,7 +600,7 @@ validateMatchClauseCapabilities arities aliases context (pattern, body) = do
   validateExprCapabilities arities aliases context body
 
 validatePatternDefCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> PatternDef
@@ -611,7 +611,7 @@ validatePatternDefCapabilities arities aliases context patternDef = do
         (patDefClauses patternDef)
 
 validatePatternCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> Pattern
@@ -682,7 +682,7 @@ validatePatternCapabilities arities aliases context pattern =
 -- annotations.  Ordinary type name resolution remains the responsibility of
 -- the existing type elaboration path.
 validateTypeExprCapabilities
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> TypeExpr
@@ -729,12 +729,12 @@ validateTypeExprCapabilities arities aliases context typeExpr =
   where
     validate = validateTypeExprCapabilities arities aliases context
 
--- | Check a capability expression against the frozen former signature.
+-- | Check a capability expression against the declared capability-constructor signature.
 --
 -- The transparent-alias check intentionally precedes canonical lookup so an
 -- alias never gains capability meaning from the shape of its expansion.
 validateCapabilityExpr
-  :: CapabilityFormerArities
+  :: CapabilityConstructorArities
   -> HashMap.HashMap String Type
   -> String
   -> CapabilityExpr
@@ -754,17 +754,17 @@ validateCapabilityExpr arities aliases context capabilityExpr =
         capabilityKindError context $
           "capability head `" ++ surfaceName
           ++ "` is a transparent type alias; use its canonical declared "
-          ++ "type former instead"
-      let former = Types.mkTypeFormer surfaceName (length arguments)
-          formerId = Types.typeFormerId former
-      case HashMap.lookup formerId arities of
+          ++ "data type instead"
+      let dataType = Types.mkDataType surfaceName (length arguments)
+          dataTypeIdent = Types.dataTypeId dataType
+      case HashMap.lookup dataTypeIdent arities of
         Nothing ->
           capabilityKindError context $
-            "unknown capability former `" ++ surfaceName ++ "`"
+            "unknown capability constructor `" ++ surfaceName ++ "`"
         Just expectedArity ->
           when (length arguments /= expectedArity) $
             capabilityKindError context $
-              "capability former `" ++ surfaceName ++ "` expects "
+              "capability constructor `" ++ surfaceName ++ "` expects "
               ++ show expectedArity ++ " argument"
               ++ plural expectedArity ++ ", but was given "
               ++ show (length arguments)
@@ -786,8 +786,8 @@ capabilityKindError context detail =
   throwError $ Default $
     "Type error:\nCapability kind error in " ++ context ++ ": " ++ detail
 
-describeCapabilityFormer :: Types.TypeFormerId -> String
-describeCapabilityFormer (Types.TypeFormerId name) = "`" ++ name ++ "`"
+describeCapabilityConstructor :: Types.DataTypeId -> String
+describeCapabilityConstructor (Types.DataTypeId name) = "`" ++ name ++ "`"
 
 plural :: Int -> String
 plural 1 = ""
@@ -1194,7 +1194,7 @@ schemeBody :: TypeScheme -> Type
 schemeBody (Forall _ _ _ ty) = ty
 
 -- | Pattern-constructor schemes from earlier load units retain their concrete
--- result former.  Recover it so later signatures do not mistake that named
+-- result data type.  Recover it so later signatures do not mistake that named
 -- type for an undeclared type variable during closedness checking.
 namedInductiveTypes :: Type -> [String]
 namedInductiveTypes ty =
@@ -1417,7 +1417,7 @@ registerPatternConstructor aliasEnv declaredTypes _typeName typeParams resultTyp
   
   return patternCtorEnv'
 
--- | Public signatures bind exactly their explicitly declared ordinary type
+-- | Signatures bind exactly their explicitly declared ordinary type
 -- variables.  Capability variables are separately quantified by the scheme.
 ensureDeclaredTypeVariables :: String -> [String] -> Type -> EvalM ()
 ensureDeclaredTypeVariables label declared ty = do
@@ -1453,7 +1453,7 @@ ensureParametersDetermined label fields result = do
          else "; undetermined matcher capability variable(s): " ++
               unwords (map show undeterminedCapVars))
 
--- | Public schemes are exposed to expression inference as declared.
+-- | Schemes are exposed to expression inference as declared.
 normalizePublicScheme :: TypeScheme -> TypeScheme
 normalizePublicScheme scheme = scheme
 

@@ -110,12 +110,12 @@ a declared pattern type with the capabilities of its parameters, such as
 `[p]` or `Maybe p`.  There is one matcher type for definitions, parameters,
 and pattern requirements alike: a pattern's requirement and the matcher
 expression it is matched with are related by an ordinary type equality,
-solved by unification over both sorts.  A matcher over a product type is
+solved by unification over both sorts.  A matcher over a tuple type is
 canonically the tuple of its component matchers, so a tuple of matchers
 fills several pattern holes.  The checker follows the rules of the core
 calculus of the type-pm paper, mechanized in `type-pm-mech`.
 Egison-specific extensions (gradual `TAny` values, computer-algebra pattern
-views, tensor types, and production-only pattern syntax) are selected only
+views, tensor types, and pattern syntax specific to the Egison interpreter) are selected only
 by explicit non-core forms and can be reported with
 `--outside-egison-core-warnings`.  A formal correspondence theorem between
 the complete Haskell implementation and the Lean implementation is

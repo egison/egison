@@ -24,8 +24,8 @@ import           GHC.Generics               (Generic)
 
 import           Language.Egison.Type.Index (IndexSpec)
 import           Language.Egison.Type.Types (CapVar (..), Capability (..), TensorShape (..),
-                                             TyVar (..), Type (..), TypeFormer (..),
-                                             TypeFormerId (..), SymbolSet(..), prettyTypeAtomValue,
+                                             TyVar (..), Type (..), DataType (..),
+                                             DataTypeId (..), SymbolSet(..), prettyTypeAtomValue,
                                              Constraint (..), constraintClass, constraintTypes,
                                              tyVarName)
 
@@ -69,9 +69,9 @@ data TypeWarning
     -- ^ Feature is deprecated
   | MatcherCoverageWarning Type [String] TypeErrorContext
     -- ^ A @matcher@ lacks a general clause for some pattern constructor(s) of its matched
-    --   type (paper Coverage, Def 4.2(3)): the matched type, then the missing constructors.
+    --   type (the coverage condition): the matched type, then the missing constructors.
   | OutsideEgisonCoreWarning String TypeErrorContext
-    -- ^ The production checker proceeds through an extension outside Egison core.
+    -- ^ The Egison interpreter's checker proceeds through an extension outside Egison core.
   | PatternHoleBeforePrimitiveValuePatternWarning String TypeErrorContext
     -- ^ A primitive-pattern pattern (rendered in the first field) has a pattern
     --   hole to the left of a primitive value pattern in DFS source order.
@@ -117,7 +117,7 @@ data TypeError
   | TypeAnnotationMismatch Type Type TypeErrorContext
     -- ^ Inferred type doesn't match annotation
   | AnnotationSkolemEscape TypeErrorContext
-    -- ^ An explicit annotation would change a metavariable owned by the
+    -- ^ An explicit annotation would change a variable owned by the
     --   surrounding inference environment (including a skolem escape)
   | UnsupportedFeature String TypeErrorContext
     -- ^ Feature not yet implemented
@@ -139,25 +139,25 @@ data TypeError
     --   (or-, loop-, not-, forall-pattern): such an occurrence may be expanded
     --   zero or several times along a matching path, breaking the binding
     --   contract.  Fields: function name, offending parameters.
-  | MatcherDataArmsNotExhaustive String Type TypeErrorContext
+  | MatcherDataClausesNotExhaustive String Type TypeErrorContext
     -- ^ A @matcher@ clause (rendered pp pattern) of a matcher for the given matched type
-    --   whose primitive-data-pattern arms are not exhaustive (paper Def 4.2(1c), arm
-    --   exhaustiveness): a target that matches the clause's pattern but none of its arms
-    --   raises "Primitive data pattern match failed" at runtime instead of backtracking.
-    --   Checked as a conservative syntactic approximation (see 'pdArmsExhaustive' in the
-    --   inference module); the standard-library convention is a final @| _ -> []@ (or
-    --   @| $tgt -> ...@) arm.
+    --   that violates the exhaustiveness of primitive-data-match clauses: a target that
+    --   matches the clause's pattern but none of its primitive-data-match clauses raises
+    --   "Primitive-data pattern match failed" at runtime instead of backtracking.
+    --   Checked as a conservative syntactic approximation (see 'dataClausesExhaustive'
+    --   in the inference module); the standard-library convention is a final @| _ -> []@
+    --   (or @| $tgt -> ...@) primitive-data-match clause.
   | MatcherCapabilityError String TypeErrorContext
-    -- ^ ShapeCap evidence for a matcher literal is inconsistent or leaves an
+    -- ^ ShapeCap evidence for a matcher expression is inconsistent or leaves an
     --   observable capability parameter undetermined.
-  | MatchCapturedValuePatScope [String] String TypeErrorContext
-    -- ^ Production use-site safeguard for a primitive-pattern pattern outside
-    --   the core's PPatCoreOrder restriction. A value pattern captured by a #$x
-    --   of the given matcher clause (rendered pp) is evaluated at clause selection,
-    --   under the atom's environment: bindings made before the atom are available,
-    --   but the listed pattern variables are bound to its left within the same
-    --   clause pattern and do not exist yet. Checked at match sites whose matcher
-    --   clause shapes are statically known.
+  | MatchValuePatternScope [String] String TypeErrorContext
+    -- ^ Use-site safeguard of the Egison interpreter for a primitive-pattern pattern
+    --   outside the core's PPatCoreOrder restriction. A value pattern matched by a
+    --   value-pattern pattern #$x of the given matcher clause (rendered pp) is
+    --   evaluated at clause selection, under the atom's environment: bindings made
+    --   before the atom are available, but the listed pattern variables are bound to
+    --   its left within the same clause pattern and do not exist yet. Checked at
+    --   match sites whose matcher clause shapes are statically known.
   deriving (Eq, Show, Generic)
 
 
@@ -225,7 +225,7 @@ formatTypeError err = case err of
   AnnotationSkolemEscape ctx ->
     formatWithContext ctx $
       "Type annotation is not locally polymorphic:\n" ++
-      "  The annotation would change a type or capability metavariable owned by the surrounding environment"
+      "  The annotation would change a type or capability variable owned by the surrounding environment"
 
   UnsupportedFeature feature ctx ->
     formatWithContext ctx $
@@ -262,27 +262,25 @@ formatTypeError err = case err of
       "(or-, loop-, not-, or forall-pattern), where they may be expanded zero or several times:\n" ++
       "  Parameters:  " ++ intercalate ", " (map ("~" ++) offenders)
 
-  MatcherDataArmsNotExhaustive ppStr ty ctx ->
+  MatcherDataClausesNotExhaustive ppStr ty ctx ->
     formatWithContext ctx $
-      "Matcher clause `" ++ ppStr ++ "` (matcher for " ++ displayType ty ++ ")" ++
-      " has non-exhaustive data-pattern arms: a target that matches the clause's pattern but" ++
-      " none of its arms fails at runtime (\"Primitive data pattern match failed\");" ++
-      " end the arms with `| _ -> []`" ++
-      "\n  (arm exhaustiveness; paper Def 4.2(1c))"
+      "Matcher clause `" ++ ppStr ++ "` (matcher for " ++ displayType ty ++ ")" ++      " has non-exhaustive primitive-data-match clauses: a target that matches the clause's" ++
+      " primitive-pattern pattern but none of its primitive-data patterns fails at runtime" ++
+      " (\"Primitive-data pattern match failed\");" ++
+      " end the primitive-data-match clauses with `| _ -> []`" ++
+      "\n  (exhaustiveness of primitive-data-match clauses)"
 
   MatcherCapabilityError detail ctx ->
     formatWithContext ctx $
-      "Cannot infer a consistent structural capability for this matcher:\n" ++
+      "Cannot infer a consistent capability for this matcher:\n" ++
       "  " ++ detail
 
-  MatchCapturedValuePatScope vars ppStr ctx ->
-    formatWithContext ctx $
-      "Value pattern captured by `#$` of matcher clause `" ++ ppStr ++ "`" ++
-      " is evaluated when the clause is selected, under the atom's environment:" ++
-      " it cannot reference " ++ intercalate ", " (map (\v -> "'" ++ v ++ "'") vars) ++
-      ", bound to its left in the same clause pattern" ++
-      " (bindings made before the atom are available)" ++
-      "\n  (production use-site safeguard for a primitive-pattern pattern outside Egison core)"
+  MatchValuePatternScope vars ppStr ctx ->
+    formatWithContext ctx $      "Value pattern accepted by the value-pattern pattern `#$` of matcher clause `" ++ ppStr ++ "`" ++
+      " is evaluated when the matcher clause is selected, under the matching atom's environment:" ++
+      " it cannot reference " ++ intercalate ", " (map (\v -> "'" ++ v ++ "'") vars) ++      ", bound to its left in the same pattern of the match clause" ++
+      " (bindings made before the matching atom are available)" ++
+      "\n  (use-site safeguard of the Egison interpreter for a primitive-pattern pattern outside Egison core)"
 
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String
@@ -332,9 +330,8 @@ formatTypeWarning warn = case warn of
 
   MatcherCoverageWarning ty missing ctx ->
     formatWithContext ctx $
-      "Warning: matcher for " ++ displayType ty ++
-      " has no general clause for pattern constructor(s): " ++ intercalate ", " missing ++
-      "\n  (a pattern using such a constructor would get stuck at runtime; paper Coverage, Def 4.2(3))"
+      "Warning: matcher for " ++ displayType ty ++      " has no general matcher clause for pattern constructor(s): " ++ intercalate ", " missing ++
+      "\n  (a pattern using such a constructor would raise a runtime error; coverage condition)"
 
   OutsideEgisonCoreWarning detail ctx ->
     formatWithContext ctx $
@@ -343,18 +340,15 @@ formatTypeWarning warn = case warn of
 
   PatternHoleBeforePrimitiveValuePatternWarning pattern ctx ->
     formatWithContext ctx $
-      "Warning: primitive-pattern pattern `" ++ pattern ++
-      "` has a pattern hole to the left of a primitive value pattern." ++
-      "\n  Production Egison accepts this matcher clause, but Egison core does not."
+      "Warning: primitive-pattern pattern `" ++ pattern ++      "` has a pattern hole to the left of a value-pattern pattern." ++
+      "\n  The Egison interpreter accepts this matcher clause, but Egison core does not."
 
   NestedStructuredPrimitivePatternPatternWarning pattern ctx ->
     formatWithContext ctx $
-      "Warning: nested structured primitive-pattern pattern `" ++ pattern ++ "`." ++
-      "\n  Production Egison accepts this matcher clause; its end-to-end core bridge has not been validated."
+      "Warning: nested structured primitive-pattern pattern `" ++ pattern ++ "`." ++      "\n  The Egison interpreter accepts this matcher clause; its end-to-end correspondence with Egison core has not been validated."
 
   MatchWithoutElseWarning ctx ->
-    formatWithContext ctx $
-      "Warning: match expression has no final else branch." ++
+    formatWithContext ctx $      "Warning: match expression has no final else expression." ++
       "\n  Egison permits this partial match; add `else` to handle unmatched targets."
 
   ClassMethodShadowWarning name cls ctx ->
@@ -461,8 +455,8 @@ prettyCapability :: Capability -> String
 prettyCapability CapAny = "Any"
 prettyCapability (CapVar (MkCapVar v)) = v
 prettyCapability (CapSkolem (MkCapVar v)) = v
-prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) []) = name
-prettyCapability (CapCon (TypeFormer (TypeFormerId name) _) args) =
+prettyCapability (CapCon (DataType (DataTypeId name) _) []) = name
+prettyCapability (CapCon (DataType (DataTypeId name) _) args) =
   name ++ " " ++ unwords (map prettyCapabilityAtom args)
 prettyCapability (CapTuple []) = "()"
 prettyCapability (CapTuple capabilities) =

@@ -25,7 +25,7 @@ def card {a, b} : Matcher Card Card := matcher
     | Card $x $y -> [(x, y)]
     | Joker -> matchAll ([Spade, Heart, Club, Diamond], [1..13]) as (set something, set something) with
                | ($s :: _, $n :: _) -> (s, n)
-    | _ -> []   -- unreachable (Card/Joker enumerate the type); satisfies arm exhaustiveness (Def 4.2(1c)), which cannot enumerate ADT constructors
+    | _ -> []   -- unreachable (Card/Joker enumerate the type); satisfies the exhaustiveness check of primitive-data-match clauses, which cannot enumerate ADT constructors
   | $ as something with
     | $tgt -> [tgt]
 

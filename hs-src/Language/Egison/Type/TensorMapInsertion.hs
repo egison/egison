@@ -602,14 +602,14 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
         return $ TISeqExpr e1' e2'
       
       -- Pattern matching
-      TIMatchExpr mode target matcher clauses fallback -> do
+      TIMatchExpr mode target matcher clauses matchElse -> do
         target' <- insertTensorMapsWithConstraints env cs target
         matcher' <- insertTensorMapsWithConstraints env cs matcher
         clauses' <- mapM (\(pat, body) -> do
           body' <- insertTensorMapsWithConstraints env cs body
           return (pat, body')) clauses
-        fallback' <- mapM (insertTensorMapsWithConstraints env cs) fallback
-        return $ TIMatchExpr mode target' matcher' clauses' fallback'
+        matchElse' <- mapM (insertTensorMapsWithConstraints env cs) matchElse
+        return $ TIMatchExpr mode target' matcher' clauses' matchElse'
       
       TIMatchAllExpr mode target matcher clauses -> do
         target' <- insertTensorMapsWithConstraints env cs target

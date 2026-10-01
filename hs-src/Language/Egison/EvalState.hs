@@ -72,7 +72,7 @@ data EvalState = EvalState
                                        -- ^ Header-only target declarations collected before body checking.
                                        --   Used only for name resolution and warned forward-extension paths.
   , patternFuncEnv :: PatternFunctionEnv
-                                       -- ^ Successfully checked canonical DualSchemes.
+                                       -- ^ Successfully checked canonical PatFuncSchemes.
   , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
   , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
@@ -103,9 +103,9 @@ data EvalState = EvalState
   , matcherShapeEnv :: Map.Map String [PrimitivePatPattern]
                                        -- ^ Clause pp shapes of top-level matcher definitions,
                                        --   harvested at IDefine by the type checker.  Consulted by
-                                       --   the production use-site safeguard for outside-core
-                                       --   primitive-pattern clauses. Persists across load batches,
-                                       --   like the type environments.
+                                       --   the Egison interpreter's use-site safeguard for
+                                       --   outside-core primitive-pattern clauses. Persists across
+                                       --   load batches, like the type environments.
   }
 
 initialEvalState :: EvalState
@@ -158,7 +158,7 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Header-only pattern function declarations.
   getPatternFuncDeclEnv :: m PatternTypeEnv
   setPatternFuncDeclEnv :: PatternTypeEnv -> m ()
-  -- Successfully checked pattern-function DualSchemes.
+  -- Successfully checked pattern-function PatFuncSchemes.
   getPatternFuncEnv :: m PatternFunctionEnv
   setPatternFuncEnv :: PatternFunctionEnv -> m ()
   -- Phase 7.4/7.5: reduction-rule and derivative-rule registration counts.
@@ -198,7 +198,7 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Phase beta: `declare cas-subtype` edges.
   getCasSubtypeEdges :: m [(Type, Type)]
   setCasSubtypeEdges :: [(Type, Type)] -> m ()
-  -- Matcher clause shapes for the outside-core production safeguard.
+  -- Matcher clause shapes for the Egison interpreter's outside-core safeguard.
   getMatcherShapeEnv :: m (Map.Map String [PrimitivePatPattern])
   setMatcherShapeEnv :: Map.Map String [PrimitivePatPattern] -> m ()
 

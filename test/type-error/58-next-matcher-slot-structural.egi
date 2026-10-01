@@ -1,13 +1,13 @@
 -- G-Literal: a next matcher supplied by a parameter must have both indices
--- of the matcher type demanded by the hole.  Its target Integer fits the head hole, but its
+-- of the matcher type required by the pattern hole.  Its target Integer fits the head hole, but its
 -- capability `[Any]` does not.
 --
 -- Expected: Type error (capability mismatch at the hole)
 
-def bad (wrongStructuralMatcher : Matcher [Any] Integer)
+def bad (wrongCapabilityMatcher : Matcher [Any] Integer)
   : Matcher [Any] [Integer] :=
   matcher
-    | $ :: $ as (wrongStructuralMatcher, list integer) with
+    | $ :: $ as (wrongCapabilityMatcher, list integer) with
       | $x :: $xs -> [(x, xs)]
       | _ -> []
     | $ as something with

@@ -44,7 +44,7 @@ EgisonValue
 - パターン関数の検査前 header。
 - `declare symbol`、CAS 型エイリアス、CAS 部分型宣言。
 
-パターン関数では、検査前の header と検査済みの `DualScheme` を別の環境に保存する。
+パターン関数では、検査前の header と検査済みの `PatFuncScheme` を別の環境に保存する。
 これにより前方参照の名前解決と、検査済み定義の完全な具体化を混同しない。
 
 ## 3. Phase 3–4: 構文糖衣の展開
@@ -55,7 +55,7 @@ EgisonValue
 型クラス宣言とインスタンス宣言は、メソッド関数と辞書ハッシュへ変換する。辞書は
 `__super_<Class>` の項目にスーパークラス辞書を保持する。
 
-match 式と matcher literal のパターンマッチ処理そのものは、この段階で通常の条件分岐へ
+match 式と matcher 式のパターンマッチ処理そのものは、この段階で通常の条件分岐へ
 展開しない。非自由データ型に対するバックトラックを含む照合は Phase 9 の評価器が行う。
 
 ## 4. Phase 5–6: 型推論
@@ -76,8 +76,8 @@ capability 変数と通常型変数は異なる sort、つまり別種の変数�
 再帰定義では、自己参照へ fresh な型変数を含む単相型を与え、本体の推論結果と単一化する。
 循環する値定義の根は lambda または matcher 式に限る。
 
-パターン型は capability と target の組 `Dual` として扱う。パターン関数では全引数と結果を
-一つの `DualScheme` に一般化し、適用時も両 sort の量化変数を同時に具体化する。
+パターン型は capability と target の組 `RequirementPair` として扱う。パターン関数では全引数と結果を
+一つの `PatFuncScheme` に一般化し、適用時も両 sort の量化変数を同時に具体化する。
 実装契約と Egison core 外の拡張の境界は [matcher-capability.md](./matcher-capability.md) を参照する。
 
 ## 5. Phase 7: 型に基づく変換

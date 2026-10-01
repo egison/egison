@@ -14,14 +14,14 @@ module Language.Egison.Type.Types
   ( Type(..)
   , Capability(..)
   , CapVar(..)
-  , TypeFormer(..)
-  , TypeFormerId(..)
+  , DataType(..)
+  , DataTypeId(..)
   , SymbolSet(..)
   , TypeAtom(..)
   , prettyTypeAtomValue
   , TypeScheme(..)
-  , Dual(..)
-  , DualScheme(..)
+  , RequirementPair(..)
+  , PatFuncScheme(..)
   , TyVar(..)
   , tyVarName
   , freshTyVarLike
@@ -38,17 +38,17 @@ module Language.Egison.Type.Types
   , freeTySkolems
   , freeCapVars
   , freeCapVarsCapability
-  , freeCapVarsDual
-  , freeTyVarsDual
-  , freeCapVarsDualScheme
-  , freeTyVarsDualScheme
+  , freeCapVarsRequirement
+  , freeTyVarsRequirement
+  , freeCapVarsPatFuncScheme
+  , freeTyVarsPatFuncScheme
   , freeCapSkolems
   , freeCapSkolemsCapability
   , mapCapability
   , mapTypeCapabilities
   , substCapVarInType
-  , mkTypeFormer
-  , typeFormerOf
+  , mkDataType
+  , dataTypeOf
   , capabilitySkeleton
   , capExprToCapability
   , isTensorType
@@ -61,9 +61,9 @@ module Language.Egison.Type.Types
   , sanitizeMethodName
   , typeExprToType
   , normalizeInductiveTypes
-  , normalizeMatcherProducts
-  , dualSchemeTargetType
-  , dualSchemeTargetScheme
+  , normalizeMatcherTuples
+  , patFuncSchemeTargetType
+  , patFuncSchemeTargetScheme
   , expandTypeAliases
   , reservedCasTypeNames
   , capitalizeFirst
@@ -97,22 +97,22 @@ newtype CapVar = MkCapVar String
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype Hashable
 
--- | Canonical identity of a type former in the frozen signature
+-- | Canonical identity of a data type in the declared signature
 -- environment.  Surface synonyms are removed before an ID is constructed.
-newtype TypeFormerId = TypeFormerId String
+newtype DataTypeId = DataTypeId String
   deriving stock (Eq, Ord, Show, Generic)
   deriving newtype Hashable
 
--- | Canonical type former together with its kind-level arity.
+-- | Canonical data type together with its kind-level arity.
 --
 -- Keeping arity in the identity prevents malformed applications of the same
 -- spelling from being considered equal by capability matching.
-data TypeFormer = TypeFormer
-  { typeFormerId    :: TypeFormerId
-  , typeFormerArity :: Int
+data DataType = DataType
+  { dataTypeId    :: DataTypeId
+  , dataTypeArity :: Int
   } deriving (Eq, Ord, Show, Generic, Hashable)
 
--- | Structural capability carried by a matcher.
+-- | Capability carried by a matcher.
 --
 -- 'CapAny' is a ground capability: a constant under capability equality,
 -- not a wildcard.
@@ -124,7 +124,7 @@ data Capability
   = CapAny
   | CapVar CapVar
   | CapSkolem CapVar
-  | CapCon TypeFormer [Capability]
+  | CapCon DataType [Capability]
   | CapTuple [Capability]
   deriving (Eq, Ord, Show, Generic, Hashable)
 
@@ -179,7 +179,7 @@ data Type
   = TInt                              -- ^ Integer
   | TMathValue                         -- ^ MathValue (mathematical expression, unifies with Integer)
   -- The four *Expr types below type the views of the internal
-  -- mathematical-expression data: primitive data patterns in matcher
+  -- mathematical-expression data: primitive-data patterns in matcher
   -- definitions (Plus / Term / Symbol / Apply1..4 / Quote / Function, as in
   -- lib/math/expression.egi) are given these types by the inference.
   | TPolyExpr                         -- ^ PolyExpr (a polynomial view: Plus)
@@ -220,68 +220,68 @@ data TypeScheme = Forall [CapVar] [TyVar] [Constraint] Type
 
 -- | The two independently substituted components of a pattern type.
 --
--- This is the production counterpart of @TypePM.Dual@: the capability is in
--- the capability sort, while the target is an ordinary Egison type (which may
--- itself contain matcher capabilities).
-data Dual = Dual
-  { dualCapability :: Capability
-  , dualTarget     :: Type
+-- This is the Egison interpreter's counterpart of @TypePM.RequirementPair@: the
+-- capability is in the capability sort, while the target is an ordinary Egison
+-- type (which may itself contain matcher capabilities).
+data RequirementPair = RequirementPair
+  { requirementCapability :: Capability
+  , requirementTarget     :: Type
   } deriving (Eq, Show, Generic, Hashable)
 
 -- | A pattern-function type quantified in both solver sorts.
 --
--- All argument duals and the result dual are instantiated together.  Keeping
--- them in one scheme preserves capability/target correlations across one
--- pattern-function application.
-data DualScheme = DualScheme
-  { dualCapBinders :: [CapVar]
-  , dualTyBinders  :: [TyVar]
-  , dualArgs       :: [Dual]
-  , dualResult     :: Dual
+-- All parameter requirement pairs and the result requirement pair are
+-- instantiated together.  Keeping them in one scheme preserves capability/target
+-- correlations across one pattern-function application.
+data PatFuncScheme = PatFuncScheme
+  { patFuncCapBinders :: [CapVar]
+  , patFuncTyBinders  :: [TyVar]
+  , patFuncParams     :: [RequirementPair]
+  , patFuncResult     :: RequirementPair
   } deriving (Eq, Show, Generic, Hashable)
 
--- | Capability variables occurring in both components of a dual.
-freeCapVarsDual :: Dual -> Set CapVar
-freeCapVarsDual (Dual capability target) =
+-- | Capability variables occurring in both components of a requirement pair.
+freeCapVarsRequirement :: RequirementPair -> Set CapVar
+freeCapVarsRequirement (RequirementPair capability target) =
   freeCapVarsCapability capability `Set.union` freeCapVars target
 
 -- | Ordinary variables occur only in the target component.
-freeTyVarsDual :: Dual -> Set TyVar
-freeTyVarsDual = freeTyVars . dualTarget
+freeTyVarsRequirement :: RequirementPair -> Set TyVar
+freeTyVarsRequirement = freeTyVars . requirementTarget
 
--- | Free capability variables of a dual scheme, excluding its binders.
-freeCapVarsDualScheme :: DualScheme -> Set CapVar
-freeCapVarsDualScheme scheme =
+-- | Free capability variables of a pattern-function scheme, excluding its binders.
+freeCapVarsPatFuncScheme :: PatFuncScheme -> Set CapVar
+freeCapVarsPatFuncScheme scheme =
   let variables =
         Set.unions
-          (map freeCapVarsDual (dualResult scheme : dualArgs scheme))
-  in variables `Set.difference` Set.fromList (dualCapBinders scheme)
+          (map freeCapVarsRequirement (patFuncResult scheme : patFuncParams scheme))
+  in variables `Set.difference` Set.fromList (patFuncCapBinders scheme)
 
--- | Free ordinary variables of a dual scheme, excluding its binders.
-freeTyVarsDualScheme :: DualScheme -> Set TyVar
-freeTyVarsDualScheme scheme =
+-- | Free ordinary variables of a pattern-function scheme, excluding its binders.
+freeTyVarsPatFuncScheme :: PatFuncScheme -> Set TyVar
+freeTyVarsPatFuncScheme scheme =
   let variables =
         Set.unions
-          (map freeTyVarsDual (dualResult scheme : dualArgs scheme))
-  in variables `Set.difference` Set.fromList (dualTyBinders scheme)
+          (map freeTyVarsRequirement (patFuncResult scheme : patFuncParams scheme))
+  in variables `Set.difference` Set.fromList (patFuncTyBinders scheme)
 
 -- | Erase pattern capabilities and expose the ordinary function type used by
--- expression elaboration.  This is a projection of the canonical dual scheme,
+-- expression elaboration.  This is a projection of the canonical pattern-function scheme,
 -- never an independently generalized signature.
-dualSchemeTargetType :: DualScheme -> Type
-dualSchemeTargetType scheme =
+patFuncSchemeTargetType :: PatFuncScheme -> Type
+patFuncSchemeTargetType scheme =
   foldr TFun
-    (dualTarget (dualResult scheme))
-    (map dualTarget (dualArgs scheme))
+    (requirementTarget (patFuncResult scheme))
+    (map requirementTarget (patFuncParams scheme))
 
--- | Quantified ordinary projection of a dual scheme.
-dualSchemeTargetScheme :: DualScheme -> TypeScheme
-dualSchemeTargetScheme scheme =
+-- | Quantified ordinary projection of a pattern-function scheme.
+patFuncSchemeTargetScheme :: PatFuncScheme -> TypeScheme
+patFuncSchemeTargetScheme scheme =
   Forall
-    (dualCapBinders scheme)
-    (dualTyBinders scheme)
+    (patFuncCapBinders scheme)
+    (patFuncTyBinders scheme)
     []
-    (dualSchemeTargetType scheme)
+    (patFuncSchemeTargetType scheme)
 
 -- | Type class constraint. May carry multiple type arguments for
 -- multi-param classes (e.g. `Coerce a b` → `Constraint "Coerce" [a, b]`).
@@ -498,7 +498,7 @@ mapCapability :: (Capability -> Capability) -> Capability -> Capability
 mapCapability f = go
   where
     go cap = f (descend cap)
-    descend (CapCon former caps) = CapCon former (map go caps)
+    descend (CapCon dataType caps) = CapCon dataType (map go caps)
     descend (CapTuple caps)      = CapTuple (map go caps)
     descend leaf                 = leaf
 
@@ -701,14 +701,14 @@ sanitizeMethodName "*"  = "times"
 sanitizeMethodName "/"  = "div"
 sanitizeMethodName name = name
 
--- | Construct a canonical type former from a surface spelling and arity.
+-- | Construct a canonical data type from a surface spelling and arity.
 --
 -- This is the deliberately small D5-core allowlist: it removes only fixed
 -- surface synonyms.  It does not consult aliases, CAS equivalence, subtyping,
 -- tensor normalization, or type-class instances.
-mkTypeFormer :: String -> Int -> TypeFormer
-mkTypeFormer surfaceName arity =
-  TypeFormer (TypeFormerId (canonicalName surfaceName)) arity
+mkDataType :: String -> Int -> DataType
+mkDataType surfaceName arity =
+  DataType (DataTypeId (canonicalName surfaceName)) arity
   where
     canonicalName "List"     = "Collection"
     canonicalName "Vector"   = "Tensor"
@@ -716,35 +716,35 @@ mkTypeFormer surfaceName arity =
     canonicalName "DiffForm" = "Tensor"
     canonicalName name       = name
 
--- | Decompose a canonical core type former and its ordinary type arguments.
+-- | Decompose a canonical core data type and its ordinary type arguments.
 --
--- Tuple products are represented by 'CapTuple' and therefore return
+-- Tuples are represented by 'CapTuple' and therefore return
 -- 'Nothing'.  Function, effect, matcher, and gradual types are opaque
 -- barriers.  CAS nodes are exposed only as raw canonical heads here; callers
 -- constructing certified CAS capabilities must additionally use the
 -- target-indexed virtual pattern signatures required by D5-CAS.
-typeFormerOf :: Type -> Maybe (TypeFormer, [Type])
-typeFormerOf TInt              = Just (mkTypeFormer "Integer" 0, [])
-typeFormerOf TMathValue        = Just (mkTypeFormer "MathValue" 0, [])
-typeFormerOf TPolyExpr         = Just (mkTypeFormer "PolyExpr" 0, [])
-typeFormerOf TTermExpr         = Just (mkTypeFormer "TermExpr" 0, [])
-typeFormerOf TSymbolExpr       = Just (mkTypeFormer "SymbolExpr" 0, [])
-typeFormerOf TIndexExpr        = Just (mkTypeFormer "IndexExpr" 0, [])
-typeFormerOf TFloat            = Just (mkTypeFormer "Float" 0, [])
-typeFormerOf TBool             = Just (mkTypeFormer "Bool" 0, [])
-typeFormerOf TChar             = Just (mkTypeFormer "Char" 0, [])
-typeFormerOf TString           = Just (mkTypeFormer "String" 0, [])
-typeFormerOf (TCollection t)   = Just (mkTypeFormer "Collection" 1, [t])
-typeFormerOf (TInductive n ts) = Just (mkTypeFormer n (length ts), ts)
-typeFormerOf (TTensor t)       = Just (mkTypeFormer "Tensor" 1, [t])
-typeFormerOf (THash k v)       = Just (mkTypeFormer "Hash" 2, [k, v])
-typeFormerOf TFactor           = Just (mkTypeFormer "Factor" 0, [])
-typeFormerOf (TTerm t _)       = Just (mkTypeFormer "Term" 1, [t])
-typeFormerOf (TFrac t)         = Just (mkTypeFormer "Frac" 1, [t])
-typeFormerOf (TPoly t _)       = Just (mkTypeFormer "Poly" 1, [t])
-typeFormerOf _                 = Nothing
+dataTypeOf :: Type -> Maybe (DataType, [Type])
+dataTypeOf TInt              = Just (mkDataType "Integer" 0, [])
+dataTypeOf TMathValue        = Just (mkDataType "MathValue" 0, [])
+dataTypeOf TPolyExpr         = Just (mkDataType "PolyExpr" 0, [])
+dataTypeOf TTermExpr         = Just (mkDataType "TermExpr" 0, [])
+dataTypeOf TSymbolExpr       = Just (mkDataType "SymbolExpr" 0, [])
+dataTypeOf TIndexExpr        = Just (mkDataType "IndexExpr" 0, [])
+dataTypeOf TFloat            = Just (mkDataType "Float" 0, [])
+dataTypeOf TBool             = Just (mkDataType "Bool" 0, [])
+dataTypeOf TChar             = Just (mkDataType "Char" 0, [])
+dataTypeOf TString           = Just (mkDataType "String" 0, [])
+dataTypeOf (TCollection t)   = Just (mkDataType "Collection" 1, [t])
+dataTypeOf (TInductive n ts) = Just (mkDataType n (length ts), ts)
+dataTypeOf (TTensor t)       = Just (mkDataType "Tensor" 1, [t])
+dataTypeOf (THash k v)       = Just (mkDataType "Hash" 2, [k, v])
+dataTypeOf TFactor           = Just (mkDataType "Factor" 0, [])
+dataTypeOf (TTerm t _)       = Just (mkDataType "Term" 1, [t])
+dataTypeOf (TFrac t)         = Just (mkDataType "Frac" 1, [t])
+dataTypeOf (TPoly t _)       = Just (mkDataType "Poly" 1, [t])
+dataTypeOf _                 = Nothing
 
--- | Build a structural capability template from a core result type.
+-- | Build a capability template from a core result type.
 --
 -- The caller supplies the mapping for ordinary type variables and the set of
 -- type constructors with declared pattern constructors, making the boundary
@@ -757,16 +757,16 @@ typeFormerOf _                 = Nothing
 -- it is evidence contributed by a nested constructor pattern, not structure
 -- manufactured by target specialization.
 capabilitySkeleton
-  :: (TyVar -> Capability) -> (TypeFormer -> Bool) -> Type -> Maybe Capability
+  :: (TyVar -> Capability) -> (DataType -> Bool) -> Type -> Maybe Capability
 capabilitySkeleton onVar declared = go
   where
     go (TVar v)         = Just (onVar v)
-    -- A target annotation is a consumer constraint, never producer evidence.
+    -- A target annotation is a requirement, never evidence of the matcher's capability.
     -- In particular its rigid ordinary skolem must not be converted into a
     -- capability witness.
     go (TSkolem _)      = Nothing
     -- Tuple components are structural roots in their own right.  Unlike a
-    -- type-former argument, a closed component such as `Ordering` must retain
+    -- data-type argument, a closed component such as `Ordering` must retain
     -- its constructor head; otherwise `(less, less)` would incorrectly ask
     -- for `(Any, Any)`.
     go (TTuple ts)      = CapTuple <$> mapM go ts
@@ -777,26 +777,26 @@ capabilitySkeleton onVar declared = go
     -- A declared pattern type projects to its own capability constructor
     -- applied to the projections of its parameters.  A type without declared
     -- pattern constructors admits no constructor pattern, so every matcher for
-    -- it has capability Any and a field of that type demands exactly Any.
+    -- it has capability Any and a field of that type requires exactly Any.
     go ty = do
-      (former, args) <- typeFormerOf ty
-      if declared former
-        then CapCon former <$> mapM go args
+      (dataType, args) <- dataTypeOf ty
+      if declared dataType
+        then CapCon dataType <$> mapM go args
         else Just CapAny
 
 -- | Convert a source capability expression to the internal capability sort.
 --
 -- Name/kind elaboration is responsible for distinguishing variables from
--- former names before this conversion.  Surface aliases are intentionally not
--- accepted here; 'mkTypeFormer' only erases the fixed core synonyms.
+-- capability-constructor names before this conversion.  Surface aliases are
+-- intentionally not accepted here; 'mkDataType' only erases the fixed core synonyms.
 capExprToCapability :: CapabilityExpr -> Capability
 capExprToCapability CEAny = CapAny
 capExprToCapability (CEVar name) = CapVar (MkCapVar name)
 capExprToCapability (CECon name args) =
   let caps = map capExprToCapability args
-  in CapCon (mkTypeFormer name (length caps)) caps
+  in CapCon (mkDataType name (length caps)) caps
 capExprToCapability (CEList cap) =
-  CapCon (mkTypeFormer "Collection" 1) [capExprToCapability cap]
+  CapCon (mkDataType "Collection" 1) [capExprToCapability cap]
 capExprToCapability (CETuple caps) =
   CapTuple (map capExprToCapability caps)
 
@@ -864,8 +864,8 @@ reservedCasTypeNames = Set.fromList
 -- target are both tuples of the same arity is the tuple of the component
 -- matchers (the definitional equality of the paper).  Applied bottom-up
 -- after every substitution.
-normalizeMatcherProducts :: Type -> Type
-normalizeMatcherProducts = go
+normalizeMatcherTuples :: Type -> Type
+normalizeMatcherTuples = go
   where
     go ty = case ty of
       TMatcher cap target ->

@@ -43,7 +43,7 @@ data EgisonOpts = EgisonOpts {
     optDumpTyped        :: Bool,       -- ^ Dump typed AST after Phase 6 (type inference & check)
     optDumpTi           :: Bool,       -- ^ Dump typed AST after TensorMap insertion (before type class expansion)
     optDumpTc           :: Bool,       -- ^ Dump typed AST after type class expansion (Phase 7 complete)
-    optMatcherConsistencyWarnings :: Bool,       -- ^ Emit matcher Coverage warnings (paper Def 4.2(3))
+    optMatcherConsistencyWarnings :: Bool,       -- ^ Emit matcher Coverage warnings
     optOutsideEgisonCoreWarnings :: Bool,         -- ^ Warn when checking proceeds through an extension outside Egison core
     optPatternHoleBeforePrimitiveValuePatternWarnings :: Bool,
                                                    -- ^ Warn when a primitive-pattern hole precedes a primitive value pattern
@@ -194,22 +194,22 @@ cmdArgParser = EgisonOpts
                   <> help "Dump typed AST after type class expansion (Phase 7 complete)")
             <*> switch
                   (long "matcher-consistency-warnings"
-                  <> help "Emit matcher Coverage warnings (paper Def 4.2(3)): a matcher lacking a general clause for some pattern constructor of its matched type. PP-Con (4.2(1a)) and arm exhaustiveness (4.2(1c)) are ordinary type errors, not gated by this flag")
+                  <> help "Emit matcher coverage warnings: a matcher lacking a general matcher clause (a pattern constructor applied to pattern holes) for some pattern constructor of its matched type. Ill-formed pattern-constructor applications in primitive-pattern patterns and non-exhaustive primitive-data-match clauses are ordinary type errors, not gated by this flag")
             <*> switch
                   (long "outside-egison-core-warnings"
                   <> help "Warn when type checking proceeds through an extension outside Egison core")
             <*> switch
                   (long "pattern-hole-before-primitive-value-pattern-warnings"
-                  <> help "Warn when a matcher clause's primitive-pattern pattern has a pattern hole before a primitive value pattern in depth-first, left-to-right order")
+                  <> help "Warn when a matcher clause's primitive-pattern pattern has a pattern hole before a value-pattern pattern in depth-first, left-to-right order")
             <*> switch
                   (long "nested-structured-primitive-pattern-pattern-warnings"
                   <> help "Warn when a matcher clause contains a nested structured primitive-pattern pattern")
             <*> switch
                   (long "match-without-else-warnings"
-                  <> help "Warn when match or matchDFS omits its optional final else branch")
+                  <> help "Warn when match or matchDFS omits its optional final else expression")
             <*> switch
                   (long "type-pm-metrics"
-                  <> help "Report TypePM inference counters: match sites, matcher literals and clauses, product-typed next matchers, capability combinations")
+                  <> help "Report TypePM inference counters: match sites, matcher expressions, matcher clauses, tuple-typed next matchers, capability combinations")
             <*> switch
                   (long "profile-calls"
                   <> help "Count applications of every named function and report the most frequent ones on stderr at exit")
