@@ -206,14 +206,15 @@ data InferState = InferState
                                           --   clauses to resolve matcher clause shapes statically.
   , inferMatchSiteCount :: Int
                                           -- ^ Number of match and matchAll expressions inferred.
-  , inferMatcherLiteralCount :: Int
-                                          -- ^ Number of matcher literals inferred.
+  , inferMatcherExpressionCount :: Int
+                                          -- ^ Number of matcher expressions inferred.
   , inferMatcherClauseCount :: Int
-                                          -- ^ Number of matcher-literal clauses inferred.
-  , inferProductNextMatcherCount :: Int
-                                          -- ^ Number of clauses with several holes whose next
-                                          --   matcher is one product-typed expression rather
-                                          --   than a syntactic tuple (canonical normalization).
+                                          -- ^ Number of matcher clauses inferred.
+  , inferTupleNextMatcherCount :: Int
+                                          -- ^ Number of matcher clauses with several pattern
+                                          --   holes whose next-matcher expression is one
+                                          --   tuple-typed expression rather than a syntactic
+                                          --   tuple (canonical normalization).
   , inferCapabilityCombineCount :: Int
                                           -- ^ Number of capability equations between the two
                                           --   children of an and/or/forall/loop pattern.
@@ -244,9 +245,9 @@ initialInferStateWithConfig cfg = InferState
   , inferDataConstructorNames = Set.empty
   , inferMatcherShapes = Map.empty
   , inferMatchSiteCount = 0
-  , inferMatcherLiteralCount = 0
+  , inferMatcherExpressionCount = 0
   , inferMatcherClauseCount = 0
-  , inferProductNextMatcherCount = 0
+  , inferTupleNextMatcherCount = 0
   , inferCapabilityCombineCount = 0
   }
 
@@ -2335,7 +2336,7 @@ inferIExprInContext expr ctx = case expr of
   -- Matchers (return Matcher type)
   IMatcherExpr patDefs -> do
     modify $ \state -> state
-      { inferMatcherLiteralCount = inferMatcherLiteralCount state + 1
+      { inferMatcherExpressionCount = inferMatcherExpressionCount state + 1
       , inferMatcherClauseCount =
           inferMatcherClauseCount state + length patDefs
       }
@@ -2455,8 +2456,8 @@ inferIExprInContext expr ctx = case expr of
         (nextMatcherTI, sNext) <- inferIExprWithContext nextMatcherExpr ctx
         when (length holes >= 2 && not (isSyntacticTuple nextMatcherExpr)) $
           modify $ \state -> state
-            { inferProductNextMatcherCount =
-                inferProductNextMatcherCount state + 1 }
+            { inferTupleNextMatcherCount =
+                inferTupleNextMatcherCount state + 1 }
         let sBase = composeSubst sNext sHeader
         holeCapabilities <- mapM (applyCapabilityM sBase . fst) holes
         holeTargets <- mapM (applySubstWithConstraintsM sBase . snd) holes

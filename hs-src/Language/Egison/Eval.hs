@@ -127,9 +127,9 @@ data PipelineAccum = PipelineAccum
   , accumTiExprs        :: [Maybe TITopExpr]
   , accumTcExprs        :: [Maybe TITopExpr]
   , accumMatchSites :: Int
-  , accumMatcherLiterals :: Int
+  , accumMatcherExpressions :: Int
   , accumMatcherClauses :: Int
-  , accumProductNextMatchers :: Int
+  , accumTupleNextMatchers :: Int
   , accumCapabilityCombines :: Int
   }
 
@@ -197,12 +197,12 @@ evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
     liftIO $ hPutStrLn stderr $
       "TypePM metrics: match-sites=" ++
       show (accumMatchSites accum) ++
-      ", matcher-literals=" ++
-      show (accumMatcherLiterals accum) ++
+      ", matcher-expressions=" ++
+      show (accumMatcherExpressions accum) ++
       ", matcher-clauses=" ++
       show (accumMatcherClauses accum) ++
-      ", product-next-matchers=" ++
-      show (accumProductNextMatchers accum) ++
+      ", tuple-next-matchers=" ++
+      show (accumTupleNextMatchers accum) ++
       ", capability-combines=" ++
       show (accumCapabilityCombines accum)
 
@@ -488,12 +488,12 @@ addInferMetrics :: InferState -> PipelineAccum -> PipelineAccum
 addInferMetrics finalState acc = acc
   { accumMatchSites =
       accumMatchSites acc + inferMatchSiteCount finalState
-  , accumMatcherLiterals =
-      accumMatcherLiterals acc + inferMatcherLiteralCount finalState
+  , accumMatcherExpressions =
+      accumMatcherExpressions acc + inferMatcherExpressionCount finalState
   , accumMatcherClauses =
       accumMatcherClauses acc + inferMatcherClauseCount finalState
-  , accumProductNextMatchers =
-      accumProductNextMatchers acc + inferProductNextMatcherCount finalState
+  , accumTupleNextMatchers =
+      accumTupleNextMatchers acc + inferTupleNextMatcherCount finalState
   , accumCapabilityCombines =
       accumCapabilityCombines acc + inferCapabilityCombineCount finalState
   }
