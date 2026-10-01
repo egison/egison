@@ -108,7 +108,7 @@ def paperNaturals := take 10 (matchAll nats as paperList something with _ ++ $n 
 def paperPrimePairs := take 10 (matchAll primes as paperList something with _ ++ $p :: _ ++ #(p + 6) :: _ -> (p, p + 6))
 def paperConcat xss := matchAllDFS xss as paperList (paperList something) with _ ++ (_ ++ $x :: _) :: _ -> x
 def paperWholeValue := matchAll [2,1] as paperMultiset something with #[1,2] -> 1
-def paperCapturedCons := matchAll [1,1] as paperMultiset something with #1 :: $xs -> xs
+def paperValueCons := matchAll [1,1] as paperMultiset something with #1 :: $xs -> xs
 def paperGeneralCons := matchAll [1,1] as paperMultiset something with $x :: $xs -> xs
 def paperUnconsWith m xs := matchAll xs as m with $x :: $rest -> (x, rest)
 def paperMatcherTuple := matchAll [(1,10),(2,20)] as paperMultiset (something, something) with ($x,$y) :: _ -> (x,y)
@@ -129,7 +129,7 @@ assertEqual "paper1/naturals" paperNaturals [1,2,3,4,5,6,7,8,9,10]
 assertEqual "paper1/primes" paperPrimePairs [(5,11),(7,13),(11,17),(13,19),(17,23),(23,29),(31,37),(37,43),(41,47),(47,53)]
 assertEqual "paper1/concat" (paperConcat [[1,2,3],[4,5,6],[7,8,9]]) [1,2,3,4,5,6,7,8,9]
 assertEqual "paper1/whole-value" paperWholeValue [1]
-assertEqual "paper1/captured-cons" paperCapturedCons [[1]]
+assertEqual "paper1/value-cons" paperValueCons [[1]]
 assertEqual "paper1/general-cons" paperGeneralCons [[1],[1]]
 assertEqual "paper1/uncons-list" (paperUnconsWith (paperList something) [1,2,3]) [(1,[2,3])]
 assertEqual "paper1/uncons-multiset" (paperUnconsWith (paperMultiset something) [1,2,3]) [(1,[2,3]),(2,[1,3]),(3,[1,2])]
@@ -140,7 +140,7 @@ assertEqual "paper1/pattern-types" paperPatterns ([1],[1],[(1,2)],[1],[1,2])
 def paperGraph := matchAll [(1,2),(2,3),(1,4),(4,5)] as paperMultiset (something, something) with (#1,$v) :: _ -> v
 assertEqual "paper1/graph" paperGraph [2,4]
 
--- Compare the unannotated source definition with the production set matcher.
+-- Compare the unannotated source definition with the standard library set matcher.
 def paperSetChecks m :=
   (matchAll [2,1] as m with #[1,2] -> 1,
    matchAll [2,1,2] as m with #[1,1,2] -> 1,
@@ -168,9 +168,9 @@ assertEqual "paper1/conditional-then-lazy" (paperIfThenElse True 1 (paperDiverge
 assertEqual "paper1/conditional-else-lazy" (paperIfThenElse False (paperDiverge 0) 2) 2
 
 -- Nested value patterns must use the supplied element matcher.
-def paperNestedCapturedCons := matchAll [[1,2],[3]] as paperMultiset (paperMultiset something) with #[2,1] :: $rest -> rest
+def paperNestedValueCons := matchAll [[1,2],[3]] as paperMultiset (paperMultiset something) with #[2,1] :: $rest -> rest
 def paperNestedWholeValue := matchAll [[1,2],[3]] as paperMultiset (paperMultiset something) with #[[3],[2,1]] -> 1
-assertEqual "paper1/nested-captured-cons" paperNestedCapturedCons [[[3]]]
+assertEqual "paper1/nested-value-cons" paperNestedValueCons [[[3]]]
 assertEqual "paper1/nested-whole-value" paperNestedWholeValue [1]
 
 -- Variables and wildcards follow the matcher clause before reaching something.
