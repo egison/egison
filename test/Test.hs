@@ -2039,4 +2039,4 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   evalTopExprsNoPrint env (allLibExprs ++ exprs)
   where
     assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/paper1-examples.egi", "test/lib/core/matcher-data-shadowing.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi"] }) m >>= assertString . either show (const "")
+    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/type-pm-examples.egi", "test/lib/core/matcher-data-shadowing.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi"] }) m >>= assertString . either show (const "")

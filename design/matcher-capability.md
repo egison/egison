@@ -147,7 +147,7 @@ capability 等式）．
 最終段階に未消費の保存対象を残す場合は拒否する．
 
 `test/lib/core/sequential-capability.egi` と通常テストの拒否例でこの処理を検査する．
-`test/lib/core/paper1-examples.egi` は論文のマッチャーと使用例を型注釈なしで検査し，
+`test/lib/core/type-pm-examples.egi` は論文のマッチャーと使用例を型注釈なしで検査し，
 `sample/sat/dp.egi` はSATソルバ本体と補助関数の注釈を除いて52個の入力と4個の
 解消処理を検査する．入力中の重複リテラルは注釈のない入口関数 `sat` で除く．
 
