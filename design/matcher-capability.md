@@ -60,6 +60,10 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
   パターンホールを同時に埋められる．
 - プリミティブデータマッチ節は target 型 τ の値を受け取り，パターンホールの target の組の
   リスト `[(α_1,…,α_n)]` を返す（`inferDataClauseWithCheck`）．
+- constructor／tuple を根に持つプリミティブパターンパターンが一つもない matcher 式は，
+  どのパターン族も実装しないので，共有 capability を `Any` と単一化する（論文の EvidenceOK）．
+  たとえば `matcher | $ as m with | $tgt -> [tgt]` の型は `Matcher χ α -> Matcher Any α` になり，
+  構成子パターンには使えない（`test/type-error/97-catch-all-matcher-constructor.egi`）．
 - matcher 式の型は `Matcher κ τ`．
 
 静的条件：CatchAllLast（裸のパターンホールだけからなるキャッチオール節がちょうど一つで，
@@ -68,7 +72,8 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
 RootCoverage（言及したデータ型の全 pattern constructor に一般形のマッチャー節がある）は
 論文の網羅性の条件に対応するが，Egison インタプリタの部分的な matcher（CAS view，
 `string` の regex のマッチャー節）を維持するため `--matcher-consistency-warnings` のときだけ
-警告する．
+警告する．リストのパターン族は論文と同じ `[]`・`::`・`++` だけを宣言する（snoc `*:` は
+2026-10-02 に削除し，`last`・`init`・`unsnoc`・`reverse` は `::` で書き直した）．
 
 ### プリミティブデータマッチ節の束縛
 

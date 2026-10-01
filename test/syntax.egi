@@ -274,7 +274,7 @@ assert "value pattern" (match 1 as integer with #1 -> True)
 
 assert "inductive pattern"
   (match [1, 2, 3] as list integer with
-   | _ *: #3 -> True)
+   | _ ++ [#3] -> True)
 
 assert "collection pattern - nil"
   (match [] as list integer with
@@ -292,7 +292,7 @@ assertEqual "collection pattern"
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
-   | #1 :: _ & _ *: #3 -> True)
+   | #1 :: _ & _ ++ [#3] -> True)
 
 assert "and pattern"
   (match [1, 2, 3] as list integer with
@@ -342,7 +342,7 @@ assertEqual "match else remains inside an enclosing if branch"
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
-   | _ *: #1 | _ *: #3 -> True)
+   | _ ++ [#1] | _ ++ [#3] -> True)
 
 assert "or pattern"
   (match [1, 2, 3] as list integer with
@@ -350,7 +350,7 @@ assert "or pattern"
 
 assert "not pattern"
   (match [1, 2] as list integer with
-   | _ *: !#1 -> True
+   | _ ++ [!#1] -> True
    | !#1 :: _ -> False)
 
 assertEqual "not pattern"

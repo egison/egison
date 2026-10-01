@@ -8,7 +8,6 @@ inductive pattern [a] :=
     | []
     | (::) a [a]
     | (++) [a] [a]
-    | (*:) [a] a
 
 --
 -- List
@@ -20,9 +19,6 @@ def list {a} (m: Matcher p a) : Matcher [p] [a] :=
       | _ -> []
     | $ :: $ as (m, list m) with
       | $x :: $xs -> [(x, xs)]
-      | _ -> []
-    | $ *: $ as (list m, m) with
-      | $xs *: $x -> [(xs, x)]
       | _ -> []
     | _ ++ $ :: _ as (m) with
       | $tgt -> tgt
@@ -189,19 +185,19 @@ def tail {a} (xs: [a]) : [a] :=
 
 def last {a} (xs: [a]) : a :=
   match xs as list something with
-    | _ *: $x -> x
+    | [$x] -> x
+    | _ :: $ys -> last ys
 
 def init {a} (xs: [a]) : [a] :=
   match xs as list something with
-    | $ys *: _ -> ys
+    | [_] -> []
+    | $x :: $ys -> x :: init ys
 
 def uncons {a} (xs: [a]) : (a, [a]) :=
   match xs as list something with
     | $x :: $ys -> (x, ys)
 
-def unsnoc {a} (xs: [a]) : ([a], a) :=
-  match xs as list something with
-    | $ys *: $x -> (ys, x)
+def unsnoc {a} (xs: [a]) : ([a], a) := (init xs, last xs)
 
 
 --
@@ -287,10 +283,7 @@ def iterate {a} (fn: a -> a) (x: a) : [a] :=
 
 def concat {a} (xss: [[a]]) : [a] := foldr (\xs rs -> xs ++ rs) [] xss
 
-def reverse {a} (xs: [a]) : [a] :=
-  match xs as list something with
-    | [] -> []
-    | $rs *: $x -> x :: reverse rs
+def reverse {a} (xs: [a]) : [a] := foldl (\acc x -> x :: acc) [] xs
 
 def intersperse {a} (sep: a) (ws: [a]) : [a] :=
   match ws as list something with

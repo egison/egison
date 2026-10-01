@@ -4,7 +4,7 @@
 
 def mickey' (cs: [Char]) : [Char] :=
   match cs as list char with
-    | (($hs & _ *: _) *: $x) *: $y *: $z ->
+    | ($hs & _ :: _) ++ [$x, $y, $z] ->
       mickey' hs ++ [',', x, y, z]
     else cs
 

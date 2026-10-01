@@ -33,15 +33,15 @@ assertEqual
   [2, 3]
 
 assertEqual
-  "list's *:"
+  "list's join with a final element"
   (match [1, 2, 3] as list integer with
-    | $ns *: $n -> (ns, n))
+    | $ns ++ [$n] -> (ns, n))
   ([1, 2], 3)
 
 assertEqual
-  "list's *: with value pattern"
+  "list's join with a final value pattern"
   (match [1, 2, 3] as list integer with
-    | $ns *: #3 -> ns)
+    | $ns ++ [#3] -> ns)
   [1, 2]
 
 assertEqual
