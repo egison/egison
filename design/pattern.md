@@ -49,7 +49,8 @@ newtype PatternFunctionEnv = PatternFunctionEnv
 - `IInductiveOrPApplyPat` の名前が finalized/header-only のいずれのパターン関数環境にも
   なければ，パターンコンストラクタとして解決する。
 - frozen signature を使わず generic inference へ進む production extension は，core と同期した
-  直接経路ではない。詳細は `type-pm-compatibility.md` を参照する。
+  直接経路ではない。詳細は [matcher-capability.md](./matcher-capability.md) の
+  「legacy CAS pattern view（core 外）」を参照する。
 
 例えば，次の primitive-pattern pattern の `cons` は宣言から引数型を得る。
 

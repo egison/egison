@@ -41,7 +41,7 @@
 | `Type/Infer.hs` | IExpr型推論（統合モジュール）。二-sort capability/target 推論とパターン関数の定義・適用を含む | `inferIExpr`, `inferITopExpr`, `inferIPattern`, `instantiateDualSchemeInState`, `generalizeDualSchemeInState` |
 | `Type/Unify.hs` | 型単一化。TensorHandlingモードで3種の単一化を統合 | `unify`, `unifyStrict`, `unifyWithTopLevel`, `unifyWithConstraints`, `TensorHandling(..)` |
 | `Type/Subst.hs` | capability/target の二-sort代入 | `Subst`, `applySubst`, `applySubstDual`, `composeSubst` |
-| `Type/Types.hs` | 型・capability・dual scheme、および通常型変数の A/R 用途クラスのデータ型定義 | `Type(..)`, `TyClass(..)`, `TyVar(..)`, `Capability(..)`, `TypeScheme(..)`, `Dual(..)`, `DualScheme(..)` |
+| `Type/Types.hs` | 型・capability・dual scheme のデータ型定義 | `Type(..)`, `TyVar(..)`, `Capability(..)`, `TypeScheme(..)`, `Dual(..)`, `DualScheme(..)` |
 | `Type/Error.hs` | 型エラー・型警告の定義 | `TypeError(..)`, `TypeWarning(..)`, `formatTypeError` |
 | `Type/Env.hs` | 型環境の操作 | `TypeEnv`, `ClassEnv`, `PatternTypeEnv`, `PatternFunctionEnv`, `lookupPatternEnv`, `lookupPatternFunctionEnv` |
 | `Type/Instance.hs` | 単一・多引数クラスのインスタンス検索と最具体候補の選択 | `findMatchingInstanceForType`, `findMatchingInstanceForTypes`, `selectMostSpecific` |
@@ -49,7 +49,7 @@
 **型推論の内部処理**:
 - Hindley-Milner型推論 + 型クラス制約の収集
 - TypePM core の構文・型・署名だけからなる入力では、`Type/Unify.hs` の同期済み core 規則を直接使用する。Egison 固有規則は `TAny`、CAS／Tensor 型、core 外構文などの明示的な証拠がある場合だけ選択し、core の失敗を別の matcher solver で再試行しない
-- A/R 用途クラスを保つ単一化・代入と `ResultOK` 検査。再帰変数へ fresh な R 変数を与えて本体の推論型と最後に単一化し、循環する定義の根を lambda／matcher literal に制限
+- 再帰変数へ fresh な型変数を与えて本体の推論型と単一化し、循環する定義の根を lambda／matcher 式に制限
 - `addConstraints` でスーパークラスを自動展開（`expandSuperclasses`）
 - 推論結果から `TIExpr` (型付き内部表現) を直接生成
 - `resolveConstraintsInTIExpr` で型変数の具体化後に制約を解決

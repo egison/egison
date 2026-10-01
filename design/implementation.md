@@ -71,15 +71,14 @@ Forall [CapVar] [TyVar] [Constraint] Type
 
 capability 変数と通常型変数は異なる sort、つまり別種の変数として代入する。通常型変数に
 用途の印はなく、matcher の型は `Matcher capability target` の一種類だけである
-（2026-09-03 に旧 `MatcherSlot`・A/R 設計を廃止、`design/matcher-capability.md` 参照）。
+（`design/matcher-capability.md` 参照）。
 
-再帰定義では、自己参照へ fresh な R 変数を含む単相型を与え、本体の推論結果と単一化する。
-循環する値定義の根は lambda または matcher literal に限る。
+再帰定義では、自己参照へ fresh な型変数を含む単相型を与え、本体の推論結果と単一化する。
+循環する値定義の根は lambda または matcher 式に限る。
 
 パターン型は capability と target の組 `Dual` として扱う。パターン関数では全引数と結果を
 一つの `DualScheme` に一般化し、適用時も両 sort の量化変数を同時に具体化する。
-Egison core と `type-pm-mech3` の境界は [type-pm-compatibility.md](./type-pm-compatibility.md)、
-実装契約は [matcher-capability.md](./matcher-capability.md) を参照する。
+実装契約と Egison core 外の拡張の境界は [matcher-capability.md](./matcher-capability.md) を参照する。
 
 ## 5. Phase 7: 型に基づく変換
 
@@ -101,7 +100,7 @@ CAS の静的型だけでは辞書を選べない限定的な場合は、実行�
 `Eval.hs` は同じ読み込み単位の定義を再帰的に束縛し、実行用の環境を作る。
 `Core.hs` は弱頭正規形を使う遅延評価、関数適用、IO、パターンマッチを実行する。
 
-パターンマッチは matcher が返す照合状態を遅延列として探索する。型検査は matcher と slot の
+パターンマッチは matcher が返す照合状態を遅延列として探索する。型検査は matcher とパターンの
 静的な整合性を保証するが、候補の列挙順やバックトラックは評価器の責務である。
 `match` と `matchDFS` の `else` はすべての通常節が空だった場合だけ元の環境で評価し、
 通常節のパターン変数を引き継がない。型推論でも通常節の後に元の型環境で検査し、

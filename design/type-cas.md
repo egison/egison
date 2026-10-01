@@ -11,9 +11,9 @@
 - [function-symbol.md](./function-symbol.md): 関数シンボルと偏微分索引。
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値の浅い実行時型による辞書選択。
 
-Matcher の形式仕様は `type-pm-mech3` を正本とする。Egison CAS の pattern view には
-形式 core 外の互換境界が残るため、[matcher-capability.md](./matcher-capability.md) と
-[type-pm-compatibility.md](./type-pm-compatibility.md) も参照する。
+Matcher の形式仕様は `type-pm-mech` を正本とする。Egison CAS の pattern view には
+形式 core 外の互換境界が残るため、[matcher-capability.md](./matcher-capability.md) の
+「legacy CAS pattern view（core 外）」も参照する。
 
 ## 1. 基本原則
 
@@ -308,7 +308,7 @@ declare ideal [w^2 + w + 1]
 
 これらの view は CAS アルゴリズムを Egison 自身で書くために必要である。一方、
 `Factor` や `Term` の view を異なる target 型の matcher として使う経路には、
-`type-pm-mech3` の D5-CAS に相当する形式的な証拠がまだない。現行実装はこの箇所だけを
+`type-pm-mech` での形式的な証拠がまだない。現行実装はこの箇所だけを
 明示的な Egison 固有境界として扱い、一般の capability 等式へは広げない。
 
 ## 12. 観察型

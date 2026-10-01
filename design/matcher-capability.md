@@ -3,11 +3,8 @@
 > 状態：2026-09-03（単一 `Matcher` 型と等式単一化への再実装後）
 
 本文書は，Egison 本体における matcher の型付けの要点を記す．形式規則と証明の正本は
-`type-pm-mech4`（統合 core，推論の健全性・主要性・完全性，実行時安全性）であり，
+`type-pm-mech`（統合 core，推論の健全性・主要性・完全性，実行時安全性）であり，
 Haskell 実装は論文（type-pm-paper 論文1）§4–§5 の規則をそのまま実装する．
-[type-pm-conformance.md](./type-pm-conformance.md) と
-[type-pm-compatibility.md](./type-pm-compatibility.md) は旧 slot 設計
-（`MatcherSlot`，A/R 変数，一方向 checking）に基づく記述であり，歴史的参照として残す．
 
 ## 1. 型と変数
 
@@ -24,8 +21,7 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
            | CapCon TypeFormer [Capability] | CapTuple [Capability]
 ```
 
-ordinary type 変数に A/R などの用途フラグはない．明示注釈の検査には両 sort の
-skolem（特殊化できない定数）を使う．
+明示注釈の検査には両 sort の skolem（特殊化できない定数）を使う．
 
 ## 2. 正準形と単一化
 
@@ -82,8 +78,7 @@ primitive data pattern（分岐の対象値を分解するパターン）の束�
 `dataValues ++ captureValues ++ matcherEnvironment` である．
 
 この二つのスコープ間で同名を使うことはコア外の機能として警告しない．一つのヘッダ内や
-一つのデータパターン内で同名を重複して束縛する場合の診断は別である．旧
-`type-pm-compatibility.md` §4.3 のスコープ間の非重複条件は，現行の条件ではない．
+一つのデータパターン内で同名を重複して束縛する場合の診断は別である．
 `test/lib/core/matcher-data-shadowing.egi` で，捕捉と対象の値・型が異なる例，DFS，
 異なる名前の捕捉の参照を strict モードで検査する．
 
