@@ -120,8 +120,9 @@ data constructor，pattern constructor，pattern function の scheme は閉じ�
 ```
 
 `--type-pm-metrics` は推論のカウンタを出力する：`match-sites`（match／matchAll 式），
-`matcher-literals`，`matcher-clauses`，`product-next-matchers`（複数 hole を一つの積型式
-で埋めた clause），`capability-combines`（and／or／forall／loop pattern の子同士の
+`matcher-expressions`（matcher式），`matcher-clauses`（マッチャー節），`tuple-next-matchers`
+（複数のパターンホールを一つのタプル型の式で埋めたマッチャー節），
+`capability-combines`（and／or／forall／loop pattern の子同士の
 capability 等式）．
 
 主な実装箇所は次のとおりである．
