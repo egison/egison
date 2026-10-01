@@ -77,6 +77,7 @@ main = do
          , matchWithoutElseWarningTests
          , primitivePatternWarningTests
          , matcherStaticConditionTests
+         , matcherEvidenceTypeErrorTests
          , patternFunctionSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
@@ -381,6 +382,23 @@ matcherStaticConditionTests =
               ("complete constructor data clauses were rejected: " ++ show err)
           Right _ -> return ()
         assertEqual "hard static checks emit no warning" [] warnings
+
+    , TestLabel "a matcher without constructor-rooted clauses has capability Any" .
+        TestCase $ do
+          (result, _) <-
+            runInferWithWarnings
+              (inferIExpr (dataMatcher [PDWildCard]))
+              dataState
+          case result of
+            Right (typed, _) ->
+              case tiExprType typed of
+                TMatcher CapAny _ -> return ()
+                other ->
+                  assertFailure
+                    ("EvidenceOK requires capability Any, got " ++ show other)
+            Left err ->
+              assertFailure
+                ("a catch-all-only matcher was rejected: " ++ show err)
 
     , TestLabel "incomplete constructor data clauses are rejected" . TestCase $ do
         (result, _) <-
@@ -1715,6 +1733,37 @@ matchElseTypeErrorTests =
           Right _ ->
             assertFailure
               ("an invalid match else expression was accepted: " ++ file)
+
+-- | A matcher expression without constructor-rooted clauses has capability Any
+-- (EvidenceOK), so a pattern constructor cannot instantiate its capability.
+matcherEvidenceTypeErrorTests :: Test
+matcherEvidenceTypeErrorTests =
+  TestLabel "TypePM matcher capability evidence" . TestList $
+    map rejects
+      [ ( "test/type-error/97-catch-all-matcher-constructor.egi"
+        , "matcher capabilities do not unify"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | expectedFragment `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("capability evidence check failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure
+              ("a constructor pattern used a matcher without capability evidence: " ++ file)
 
 signatureBoundaryTypeErrorTests :: Test
 signatureBoundaryTypeErrorTests =

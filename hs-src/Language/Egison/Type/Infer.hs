@@ -2375,7 +2375,22 @@ inferIExprInContext expr ctx = case expr of
         (inferPatternDef exprCtx sharedMatcherTarget sharedMatcherCapability)
         patDefs
     let tiPatDefs = map fst results
-        allSubst = foldr composeSubst emptySubst (concatMap snd results)
+        clauseSubst = foldr composeSubst emptySubst (concatMap snd results)
+        providesCapability (ppPat, _, _) =
+          case ppPat of
+            PPInductivePat _ _ -> True
+            PPTuplePat _ -> True
+            _ -> False
+    -- EvidenceOK: without a constructor- or tuple-rooted primitive-pattern
+    -- pattern, the matcher implements no pattern family, so its capability is
+    -- Any rather than a variable that a pattern constructor could instantiate.
+    allSubst <-
+      if any providesCapability patDefs
+        then return clauseSubst
+        else do
+          capability <- applyCapabilityM clauseSubst sharedMatcherCapability
+          sAny <- alignPatternCapabilities exprCtx capability CapAny
+          return (composeSubst sAny clauseSubst)
     covOn <- cfgMatcherConsistencyWarnings <$> gets inferConfig
     matchedTyFinal <- applySubstWithConstraintsM allSubst sharedMatcherTarget
     matcherCapability <- applyCapabilityM allSubst sharedMatcherCapability

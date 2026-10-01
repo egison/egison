@@ -1,0 +1,15 @@
+-- A matcher expression without constructor-rooted primitive-pattern patterns
+-- implements no pattern family, so its capability is Any (EvidenceOK).  A cons
+-- pattern therefore cannot use it.
+--
+-- Expected: Type error (`Any` capability at a list pattern)
+
+inductive pattern [a] :=
+  | []
+  | (::) a [a]
+
+def plain := matcher
+  | $ as something with
+    | $tgt -> [tgt]
+
+def bad := matchAll [1, 2] as plain with $x :: _ -> x
