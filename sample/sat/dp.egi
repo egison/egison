@@ -33,7 +33,7 @@ def dp vars cnf :=
     dp vs
        ((resolveOn v cnf) ++ (deleteClausesWith v (deleteClausesWith (neg v) cnf)))
 
-  | (_, _) -> False
+  else False
 
 def sat vars cnf := dp vars (map unique cnf)
 
