@@ -12,7 +12,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
   論文・ドキュメント・ユーザーへの報告に持ち込まない．
 - 用語を変えたら，このファイルと，`~/PL/type-pm-paper` の `CLAUDE.md`・`AGENTS.md`・`example-correspondence.md` を合わせて更新する．
 - 決定の経緯: 2026-10-01 に論文の用語を統一した（ユーザー決定）．2026-10-03 に「添字（indices）」などの言い換えと，
-  最汎・全域・作業リストの定義を加えた．
+  最汎・全域・作業リストの定義を加え，matcher tuple の日本語を「マッチャーのタプル」に統一した．
 
 ## 1. パターンマッチ
 
@@ -75,8 +75,8 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | pattern declaration | パターン宣言 | `inductive pattern` 宣言．frozen pattern signature とは書かない． |
 | root capability | 根の能力 | o．プリミティブパターンパターンの根のコンストラクタから得る能力． |
 | expected capability | 期待能力 | b．根では none（根の期待能力）． |
-| matcher tuple / tuple of matchers | マッチャータプル／マッチャーのタプル | 通常のタプルの型付けを使う．第一級の値として扱うものは first-class matcher tuple（第一級のマッチャータプル）． |
-| forced matcher tuple | 強制済みマッチャータプル | 実行時にネクストマッチャーを強制した構造．第一級のマッチャータプルと区別する． |
+| matcher tuple / tuple of matchers | マッチャーのタプル | 通常のタプルの型付けを使う．第一級の値として扱うものは first-class matcher tuple（第一級のマッチャーのタプル）．日本語では「マッチャータプル」とは書かない． |
+| forced matcher tuple | 強制済みのマッチャーのタプル | 実行時にネクストマッチャーを強制した構造．第一級のマッチャーのタプルと区別する． |
 | tuple | タプル | product（積）とは書かない． |
 | type agreement | 型の一致 | |
 | declarative typing | 宣言的型付け | |
@@ -192,7 +192,8 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | header | primitive-pattern pattern |
 | arm | primitive-data-match clause |
 | capture | value-pattern pattern |
-| matcher bundle | forced matcher tuple（強制済みマッチャータプル） |
+| matcher bundle | forced matcher tuple（強制済みのマッチャーのタプル） |
+| マッチャータプル（日本語） | マッチャーのタプル |
 | cursor | lazy stream |
 | former（data former／pattern former） | data type／pattern family |
 | dual | requirement pair（要求対） |
