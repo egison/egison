@@ -70,8 +70,11 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | pattern family | パターン族 | 宣言された族はこれだけ．データ側は data type． |
 | data type | データ型 | |
 | capability constructor | 能力コンストラクタ | 各パターン族が導入する能力の構成子（リストの族では [κ]）． |
-| signature | シグネチャ | Σ．宣言の一覧． |
-| declaration conditions | 宣言条件 | シグネチャに課す条件． |
+| signature | シグネチャ | Σ．すべての宣言の一覧（データ型とデータコンストラクタ，パターン族とパターンコンストラクタ，各コンストラクタのスキーム）．この意味だけに使い，一つのコンストラクタの型は scheme（スキーム），型注釈は type annotation（型注釈）と書く． |
+| declaration conditions | 宣言条件 | シグネチャに課す二組の条件． |
+| well formed (signature) | 整形式（なシグネチャ） | 宣言条件の第一の組（通常の有効範囲と引数の個数の条件）を満たすこと．宣言的型付けと型推論が前提とする． |
+| conditions for runtime safety | 実行時安全性のための条件 | 宣言条件の第二の組（組み込みのリスト・真偽値・unit 型が組み込みの値だけを持つこと，量化変数がスキームの結果の直接の引数であること）． |
+| type annotation | 型注釈 | プログラマが書く型．signature とは書かない． |
 | pattern declaration | パターン宣言 | `inductive pattern` 宣言．frozen pattern signature とは書かない． |
 | root capability | 根の能力 | o．プリミティブパターンパターンの根のコンストラクタから得る能力． |
 | expected capability | 期待能力 | b．根では none（根の期待能力）． |
@@ -110,6 +113,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | 英語 | 日本語 | 意味・注意 |
 | --- | --- | --- |
 | fuel | 燃料 | 評価の上限．単一化の step bound は別の語として残す． |
+| runtime safety | 実行時安全性 | 型の付いたプログラムが動的型エラーを起こさないこと．「実行安全性」とは書かない． |
 | dynamic type error | 動的型エラー | 実行時の型エラー．stuck は Lean の評価器の結果名としてだけ書く．shape error は使わない． |
 | delayed computation | 遅延計算 | suspension とは書かない． |
 | evaluated result | 評価結果 | cache／cached とは書かない． |
@@ -201,6 +205,10 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | suspension | delayed computation（遅延計算） |
 | cache／cached | evaluated result（評価結果） |
 | frozen signature，frozen pattern signature | pattern declaration（パターン宣言） |
+| signature（一つのコンストラクタの型の意味） | scheme（スキーム） |
+| signature（型注釈の意味） | type annotation（型注釈） |
+| constructor signature | signature（シグネチャ） |
+| 実行安全性 | 実行時安全性 |
 | callback | decomposition function |
 | payload | 使わない |
 | 開発コード名（milestone 5.x，Paper 1，mech4，theorem axis，artifact 5.x，D14 など） | 内容で述べる．先行研究は「Egi と Nishiwaki~\cite{...}」のように内容と引用で指す |
