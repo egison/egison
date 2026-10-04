@@ -158,6 +158,12 @@ data TypeError
     --   before the atom are available, but the listed pattern variables are bound to
     --   its left within the same clause pattern and do not exist yet. Checked at
     --   match sites whose matcher clause shapes are statically known.
+  | DataConstructorInPattern String (Maybe String) TypeErrorContext
+    -- ^ A data constructor written as the head of a pattern.  Patterns use the
+    --   pattern constructors declared by @inductive pattern@, and data
+    --   constructors occur only in the primitive-data patterns of matcher
+    --   clauses.  The optional field names a declared pattern constructor whose
+    --   name differs only in the case of its first letter.
   deriving (Eq, Show, Generic)
 
 
@@ -281,6 +287,13 @@ formatTypeError err = case err of
       " it cannot reference " ++ intercalate ", " (map (\v -> "'" ++ v ++ "'") vars) ++      ", bound to its left in the same pattern of the match clause" ++
       " (bindings made before the matching atom are available)" ++
       "\n  (use-site safeguard of the Egison interpreter for a primitive-pattern pattern outside Egison core)"
+
+  DataConstructorInPattern name suggestion ctx ->
+    formatWithContext ctx $
+      "Data constructor `" ++ name ++ "` cannot be used in a pattern:" ++
+      " patterns use pattern constructors declared by `inductive pattern`," ++
+      " and data constructors appear only in the primitive-data patterns of matcher clauses" ++
+      maybe "" (\candidate -> "\n  (use the pattern constructor `" ++ candidate ++ "`)") suggestion
 
 -- | Format error with context
 formatWithContext :: TypeErrorContext -> String -> String

@@ -78,6 +78,7 @@ main = do
          , primitivePatternWarningTests
          , matcherStaticConditionTests
          , matcherEvidenceTypeErrorTests
+         , dataConstructorPatternTypeErrorTests
          , patternFunctionSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
@@ -1764,6 +1765,38 @@ matcherEvidenceTypeErrorTests =
           Right _ ->
             assertFailure
               ("a constructor pattern used a matcher without capability evidence: " ++ file)
+
+-- | A data constructor written as the head of a pattern is rejected: patterns
+-- use the declared pattern constructors, as in the core.  The pattern used to
+-- pass type checking and fail at run time.
+dataConstructorPatternTypeErrorTests :: Test
+dataConstructorPatternTypeErrorTests =
+  TestLabel "TypePM data constructor in a pattern" . TestList $
+    map rejects
+      [ ( "test/type-error/98-data-constructor-pattern.egi"
+        , "Data constructor `Just` cannot be used in a pattern"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | expectedFragment `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("data-constructor pattern check failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure
+              ("a data constructor was accepted in a pattern: " ++ file)
 
 signatureBoundaryTypeErrorTests :: Test
 signatureBoundaryTypeErrorTests =

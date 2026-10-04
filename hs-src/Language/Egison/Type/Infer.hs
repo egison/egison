@@ -49,6 +49,7 @@ module Language.Egison.Type.Infer
 import           Control.Monad              (foldM, forM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
+import           Data.Char                  (toLower)
 import           Data.Graph                 (SCC(..), stronglyConnComp)
 import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn, subsequences)
 import qualified Data.Map.Strict             as Map
@@ -4804,6 +4805,25 @@ inferNamedPatternFunctionApplication
     return
       (typedPattern, finalBindings, finalSubst, finalCapability)
 
+-- | Reject a data constructor written as the head of a pattern.  Patterns use
+-- the pattern constructors declared by @inductive pattern@, and data
+-- constructors occur only in the primitive-data patterns of matcher clauses,
+-- as in the core.  Without this check a data constructor would pass type
+-- checking as a target-only pattern application or through the value
+-- environment, and then fail at run time.
+rejectDataConstructorInPattern :: String -> TypeErrorContext -> Infer ()
+rejectDataConstructorInPattern name ctx = do
+  constructorNames <- gets inferDataConstructorNames
+  when (name `Set.member` constructorNames) $ do
+    patternEnv <- getPatternEnv
+    let lowered = case name of
+          first : rest -> toLower first : rest
+          [] -> []
+        suggestion = case lookupPatternEnv lowered patternEnv of
+          Just _ | lowered /= name -> Just lowered
+          _ -> Nothing
+    throwError $ DataConstructorInPattern name suggestion ctx
+
 -- | Preserve Egison's target-only application path at an explicit extension
 -- boundary.  This helper always infers the head as an expression, including a
 -- variable head, so ordinary lexical shadowing is respected.
@@ -5001,8 +5021,11 @@ inferIPattern pat expectedType ctx = case pat of
             return (tipat, allBindings, s, capability)
       
       Nothing -> do
-        -- Not found in pattern environment: try data constructor from value environment
-        -- This handles data constructors used as patterns
+        -- A data constructor is not a pattern (see 'rejectDataConstructorInPattern').
+        rejectDataConstructorInPattern name ctx
+        -- Not found in the pattern environment and not a data constructor: an
+        -- undeclared pattern constructor that shares its name with a value
+        -- takes that value's type (an Egison extension outside the core).
         env <- getEnv
         case lookupEnv (stringToVar name) env of
           Just scheme -> do
@@ -5256,7 +5279,11 @@ inferIPattern pat expectedType ctx = case pat of
     capability <- freshCapability "pattern"
     return (tipat, [], emptySubst, capability)
   
-  IPApplyPat funcExpr argPats ->
+  IPApplyPat funcExpr argPats -> do
+    -- A data constructor is not a pattern (see 'rejectDataConstructorInPattern').
+    case funcExpr of
+      IVarExpr name -> rejectDataConstructorInPattern name ctx
+      _ -> return ()
     -- Explicit PApply syntax is expression-headed even when its head happens
     -- to be a variable with the same spelling as a top-level pattern
     -- function.  Infer that expression normally so lexical shadowing wins.

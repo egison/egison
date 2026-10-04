@@ -1,0 +1,27 @@
+-- A data constructor is not a pattern constructor.  Patterns use the pattern
+-- constructors declared by `inductive pattern` (here `just`), and data
+-- constructors appear only in the primitive-data patterns of matcher clauses,
+-- as in the core.  This pattern used to pass type checking and fail at run time
+-- with "Expected pattern constructor, but found: Just".
+--
+-- Expected: Type error (Data constructor `Just` cannot be used in a pattern)
+
+inductive pattern Maybe a :=
+  | nothing
+  | just a
+
+inductive Maybe a :=
+  | Nothing
+  | Just a
+
+def maybe m := matcher
+  | nothing as () with
+    | Nothing -> [()]
+    | _ -> []
+  | just $ as m with
+    | Just $x -> [x]
+    | _ -> []
+  | $ as something with
+    | $tgt -> [tgt]
+
+def bad := matchAll Just 3 as maybe something with Just $x -> x
