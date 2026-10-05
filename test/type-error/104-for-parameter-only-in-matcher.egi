@@ -1,0 +1,9 @@
+-- A type parameter that occurs in the target of a pattern family declared
+-- with `for` only inside a matcher type is not determined by the target:
+-- matcher types are compared after normalization, which is not structural.
+--
+-- Expected: Type error (every type parameter must occur in the target outside
+-- matcher types)
+
+inductive pattern Wrapped a for [Matcher Any a] :=
+  | wrapped a

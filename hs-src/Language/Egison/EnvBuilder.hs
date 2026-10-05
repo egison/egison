@@ -1242,8 +1242,9 @@ patternFamilyTargetType declaredTypes aliasEnv =
 -- data type, unless @T@ is that data type applied to @a1 ... an@ (the family
 -- of the type with the same name).  The target @T@ is a data type or a
 -- built-in base type, not a tuple, function, matcher, or type variable; every
--- parameter @ai@ is a direct argument of @T@; and @T@ mentions no pattern
--- family declared with `for`.
+-- parameter @ai@ occurs in @T@ outside matcher types, as in @[[a]]@, so that
+-- the target determines it; and @T@ mentions no pattern family declared with
+-- `for`.
 validatePatternFamilyTarget
   :: Set.Set String -> Set.Set String -> Set.Set String
   -> HashMap.HashMap String Type -> (String, [String], TypeExpr) -> EvalM ()
@@ -1262,19 +1263,32 @@ validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasE
       throwError $ Default $
         context ++ ": the target must be a data type or a built-in base type, "
         ++ "not a tuple, function, matcher, or type variable"
-    Just (_, arguments) -> do
-      let notArguments =
-            [ param | param <- params, TVar (TyVar param) `notElem` arguments ]
-      unless (null notArguments) $
+    Just _ -> do
+      let determined = determinedTypeVariables target
+          missing = [ param | param <- params, param `notElem` determined ]
+      unless (null missing) $
         throwError $ Default $
-          context ++ ": every type parameter must be an argument of the "
-          ++ "target; not an argument: " ++ unwords notArguments
+          context ++ ": every type parameter must occur in the target "
+          ++ "outside matcher types; missing: " ++ unwords missing
   let mentionedFamilies =
         filter (`Set.member` familyTargetNames) (inductiveTypeNamesIn target)
   unless (null mentionedFamilies) $
     throwError $ Default $
       context ++ ": the target must not mention a pattern family declared "
       ++ "with `for`: " ++ unwords mentionedFamilies
+
+-- | The type variables that a target type determines: those that occur
+-- outside matcher types.  This mirrors @PolyTy.determinedBounds@ of the Lean
+-- formalization.
+determinedTypeVariables :: Type -> [String]
+determinedTypeVariables ty = case ty of
+  TVar (TyVar name)    -> [name]
+  TTuple items         -> concatMap determinedTypeVariables items
+  TFun domain codomain ->
+    determinedTypeVariables domain ++ determinedTypeVariables codomain
+  _ | Just (_, arguments) <- Types.dataTypeOf ty ->
+        concatMap determinedTypeVariables arguments
+  _                    -> []
 
 -- | Names of the inductive types that occur anywhere in a type.
 inductiveTypeNamesIn :: Type -> [String]

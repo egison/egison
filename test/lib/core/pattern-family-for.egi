@@ -196,3 +196,33 @@ assertEqual "both families through a matcher tuple"
   (matchAll (treeData, treeData) as (tree something, root something) with
     (node $x _, root $r) -> (x, r))
   [(1, 1)]
+
+-- A type parameter of a family declared with `for` may occur nested in the
+-- target, outside matcher types.  The family Cells is also checked in the Lean
+-- regression ListPatternFamilyRegression.lean.
+
+inductive pattern Cells a for [[a]] := cell a
+
+def cells m := matcher
+  | cell $ as m with
+    | $xss -> matchAllDFS xss as list (list something) with
+                _ ++ (_ ++ $x :: _) :: _ -> x
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "any element of any row"
+  (matchAll [[1, 2], [3]] as cells something with cell $x -> x)
+  [1, 2, 3]
+
+inductive pattern Labels a for Tree [a] := label a
+
+def labels m := matcher
+  | label $ as m with
+    | Leaf $xs -> xs
+    | Node $xs _ -> xs
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "any element of the label at the root"
+  (matchAll Node [1, 2] [Leaf [3]] as labels something with label $x -> x)
+  [1, 2]

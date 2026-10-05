@@ -1,8 +1,9 @@
--- Every type parameter of a pattern family declared with `for` is an argument
--- of its target type.  Otherwise two uses of `boxed` with the same target type
--- could give its field different types.
+-- Every type parameter of a pattern family declared with `for` occurs in its
+-- target type outside matcher types.  Otherwise two uses of `boxed` with the
+-- same target type could give its field different types.
 --
--- Expected: Type error (every type parameter must be an argument of the target)
+-- Expected: Type error (every type parameter must occur in the target outside
+-- matcher types)
 
 inductive pattern Boxed a for Integer :=
   | boxed a
