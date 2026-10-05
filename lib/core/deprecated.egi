@@ -9,11 +9,11 @@ def repeatedSquaring {a} (fn: a -> a -> a) (x: a) (n: Integer) : a :=
          in fn (fn y y) x
 
 
-inductive pattern Integer :=
+inductive pattern Nat for Integer :=
   | o
-  | s Integer
+  | s Nat
 
-def nat : Matcher Integer Integer :=
+def nat : Matcher Nat Integer :=
   matcher
     | o as () with
       | 0   -> [()]
