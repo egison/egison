@@ -81,10 +81,13 @@ data TopExpr
   | InstanceDeclExpr InstanceDecl
     -- ^ Type class instance declaration
     -- e.g., instance Eq Integer where (==) x y := x = y
-  | PatternInductiveDecl String [String] [PatternConstructor]
+  | PatternInductiveDecl String [String] (Maybe TypeExpr) [PatternConstructor]
     -- ^ Pattern inductive type declaration
     -- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
-    -- String: pattern type name, [String]: type parameters, [PatternConstructor]: constructors
+    --       inductive pattern Nat for Integer := | o | s Nat
+    -- String: pattern family name, [String]: type parameters,
+    -- Maybe TypeExpr: the target type given by `for` (Nothing: the family of
+    -- the type with the same name), [PatternConstructor]: constructors
   | PatternFunctionDecl String [String] [(String, TypeExpr)] TypeExpr Pattern
     -- ^ Pattern function declaration
     -- e.g., def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a := ...

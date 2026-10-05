@@ -24,13 +24,17 @@ def pattern twin {a} (p1 : a) (p2 : MyList a) : MyList a :=
 | `patternFuncEnv :: PatternFunctionEnv` | body 検査済みパターン関数の canonical `PatFuncScheme` |
 | `typeEnv :: TypeEnv` | 通常の値・関数の型と，必要な target projection |
 
-`PatternTypeEnv` は `Map String TypeScheme` という共通の容器だが，パターンコンストラクタ
-環境と header-only 環境は別の値として保持する。`PatternFunctionEnv` は
+`PatternTypeEnv` は `Map String TypeScheme` を中心とする共通の容器だが，パターンコンストラクタ
+環境と header-only 環境は別の値として保持する。パターンコンストラクタ環境の
+`patternFamilyTargets` は，`for` で宣言したパターン族ごとに型パラメータとターゲット型を持つ
+（[pattern-family-for.md](./pattern-family-for.md)）。`PatternFunctionEnv` は
 `Map String PatFuncScheme` の専用環境である。
 
 ```haskell
-newtype PatternTypeEnv = PatternTypeEnv
-  { unPatternTypeEnv :: Map String TypeScheme }
+data PatternTypeEnv = PatternTypeEnv
+  { unPatternTypeEnv     :: Map String TypeScheme
+  , patternFamilyTargets :: Map String ([TyVar], Type)
+  }
 
 type PatternConstructorEnv = PatternTypeEnv
 
@@ -44,7 +48,10 @@ newtype PatternFunctionEnv = PatternFunctionEnv
 参照する。マッチャー定義内の primitive-pattern pattern は `PPInductivePat` であり，通常の
 マッチ節に現れる `IInductivePat` と区別する。
 
-- `PatternInductiveDecl` は constructor signature を `patternEnv` に登録する。
+- `PatternInductiveDecl` は constructor signature を `patternEnv` に登録する。シグネチャの
+  フィールドと結果の型は，パターン族を族の名前で書く（`s : Nat -> Nat`）。能力はこの型から作り
+  （`capabilityTemplates`），ターゲット型は `projectPatternFamilyTargets` で `for` の族を
+  ターゲット型に置き換えて得る（`Integer -> Integer`）。
 - `PPInductivePat` の引数個数と target 型は，この宣言されたシグネチャに対して検査する。
 - `IInductiveOrPApplyPat` の名前が finalized/header-only のいずれのパターン関数環境にも
   なければ，パターンコンストラクタとして解決する。

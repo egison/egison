@@ -194,3 +194,23 @@ assertEqual "paper/variable-duplicate" (matchAll 1 as paperDuplicate with $x -> 
 assertEqual "paper/wildcard-transform" (matchAll 1 as paperTransform with _ -> 7) [7]
 assertEqual "paper/wildcard-reject" (matchAll 1 as paperReject with _ -> 7) []
 assertEqual "paper/wildcard-duplicate" (matchAll 1 as paperDuplicate with _ -> 7) [7,7]
+
+-- A pattern family named separately from its target type.  The matcher uses
+-- the same operations as `natMatcher` in the Lean regression
+-- IntPatternFamilyRegression.lean.
+inductive pattern Nat for Integer := o | s Nat
+
+def paperNat := matcher
+  | o as () with
+    | $n -> match n as something with
+              | #0 -> [()]
+              else []
+  | s $ as paperNat with
+    | $n -> paperIfThenElse (0 < n) [n + (-1)] []
+  | $ as something with
+    | $n -> [n]
+
+def paperPredecessor := matchAll 3 as paperNat with s $m -> m
+def paperIsTwo n := matchAll n as paperNat with s (s o) -> 1
+assertEqual "paper/nat-predecessor" paperPredecessor [2]
+assertEqual "paper/nat-two" (map paperIsTwo [2, 3, 0]) [[1], [], []]

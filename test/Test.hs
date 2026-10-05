@@ -79,6 +79,7 @@ main = do
          , matcherStaticConditionTests
          , matcherEvidenceTypeErrorTests
          , dataConstructorPatternTypeErrorTests
+         , patternFamilyTargetTypeErrorTests
          , patternFunctionSchemeTests
          , patternFunctionTypeErrorTests
          , matchElseTypeErrorTests
@@ -1797,6 +1798,53 @@ dataConstructorPatternTypeErrorTests =
           Right _ ->
             assertFailure
               ("a data constructor was accepted in a pattern: " ++ file)
+
+-- | A pattern family declared with `for` names its target type separately.
+-- Its capability differs from that of every other family over the same type,
+-- and its declaration is rejected when the target is not a data type or a
+-- built-in base type, when its name is that of a data type, when a type
+-- parameter is not an argument of the target, or when the target mentions
+-- a family declared with `for`.
+patternFamilyTargetTypeErrorTests :: Test
+patternFamilyTargetTypeErrorTests =
+  TestLabel "pattern families declared with for" . TestList $
+    map rejects
+      [ ( "test/type-error/99-for-capability-mismatch.egi"
+        , "matcher capabilities do not unify"
+        )
+      , ( "test/type-error/100-for-tuple-target.egi"
+        , "the target must be a data type or a built-in base type"
+        )
+      , ( "test/type-error/101-for-data-type-name.egi"
+        , "needs a name different from every data type"
+        )
+      , ( "test/type-error/102-for-parameter-not-argument.egi"
+        , "every type parameter must be an argument of the target"
+        )
+      , ( "test/type-error/103-for-target-mentions-family.egi"
+        , "the target must not mention a pattern family declared with `for`"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | expectedFragment `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("pattern family rejection failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure
+              ("an invalid pattern family was accepted: " ++ file)
 
 signatureBoundaryTypeErrorTests :: Test
 signatureBoundaryTypeErrorTests =

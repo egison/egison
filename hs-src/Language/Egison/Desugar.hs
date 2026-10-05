@@ -225,7 +225,7 @@ desugarTopExpr (DeclareCasQuotient {}) = return Nothing  -- expanded before EnvB
 
 -- Infix declarations don't produce runtime code
 desugarTopExpr (InfixDecl _ _) = return Nothing
-desugarTopExpr (PatternInductiveDecl _ _ _) = return Nothing  -- Handled in environment building phase
+desugarTopExpr (PatternInductiveDecl _ _ _ _) = return Nothing  -- Handled in environment building phase
 
 -- Pattern function declarations need type checking, so convert to IPatternFunctionDecl
 desugarTopExpr (PatternFunctionDecl name typeParams params retType body) = do

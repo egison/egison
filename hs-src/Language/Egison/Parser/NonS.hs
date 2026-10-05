@@ -109,29 +109,32 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 -- | Parse pattern inductive type declaration
 -- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
 --       inductive pattern [a] := | (::) a [a] | (++) [a] [a]
+--       inductive pattern Nat for Integer := | o | s Nat
 patternInductiveExpr :: Parser TopExpr
 patternInductiveExpr = try $ do
   pos <- L.indentLevel
   reserved "inductive"
   reserved "pattern"
-  -- Type name can be either uppercase identifier or list type [a]
-  (typeName, typeParams) <- try listTypeName <|> regularTypeName
+  -- The family name is either an uppercase identifier, optionally followed by
+  -- `for` and the target type, or the list type [a]
+  (typeName, typeParams, target) <- try listTypeName <|> regularTypeName
   _ <- symbol ":="
   -- Parse constructors - they must be indented more than the 'inductive pattern' keyword
   -- or on the same line separated by |
   constructors <- patternConstructors pos
-  return $ PatternInductiveDecl typeName typeParams constructors
+  return $ PatternInductiveDecl typeName typeParams target constructors
   where
     regularTypeName = do
       name <- upperId
-      params <- many typeVarIdent
-      return (name, params)
+      params <- many (notFollowedBy (reserved "for") >> typeVarIdent)
+      target <- optional (reserved "for" >> typeExpr)
+      return (name, params, target)
     listTypeName = do
       -- Parse [a] as type name "[]" with type parameter "a"
       _ <- symbol "["
       param <- typeVarIdent
       _ <- symbol "]"
-      return ("[]", [param])
+      return ("[]", [param], Nothing)
 
 -- | Parse constructors for pattern inductive type
 patternConstructors :: Pos -> Parser [PatternConstructor]

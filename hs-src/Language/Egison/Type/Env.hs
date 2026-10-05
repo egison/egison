@@ -38,6 +38,9 @@ module Language.Egison.Type.Env
   , extendPatternEnv
   , lookupPatternEnv
   , patternEnvToList
+  , extendPatternFamilyTarget
+  , patternFamilyTargetList
+  , projectPatternFamilyTargets
   -- * Checked pattern-function scheme environment
   , PatternFunctionEnv(..)
   , emptyPatternFunctionEnv
@@ -62,7 +65,7 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Constraint(..), ClassInfo(..),
                                              InstanceInfo(..), freeCapVars,
                                              freeTyVars, freshCapVar,
-                                             freshTyVarLike,
+                                             freshTyVarLike, mapType,
                                              substCapVarInType, substTyVar)
 
 -- | Type environment: uses same data structure as evaluation environment
@@ -71,11 +74,22 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
 newtype TypeEnv = TypeEnv { unTypeEnv :: Map String [VarEntry TypeScheme] }
   deriving (Eq, Show)
 
--- | Target-only signatures used for declared pattern constructors or for
--- pattern-function headers, depending on the owning state field.  Finalized
--- pattern functions use the separate two-sorted 'PatternFunctionEnv'.
-newtype PatternTypeEnv = PatternTypeEnv { unPatternTypeEnv :: Map String TypeScheme }
-  deriving (Eq, Show)
+-- | Signatures used for declared pattern constructors or for pattern-function
+-- headers, depending on the owning state field.  Finalized pattern functions
+-- use the separate two-sorted 'PatternFunctionEnv'.
+--
+-- A pattern-constructor signature names pattern families in its field and
+-- result types: a family appears as an application of its own name.  For a
+-- family declared with @inductive pattern F a1 ... an for T@,
+-- 'patternFamilyTargets' maps @F@ to its type parameters and its target type
+-- @T@; 'projectPatternFamilyTargets' replaces each application of @F@ by the
+-- corresponding instance of @T@.  A family declared without @for@ is the
+-- family of the type with the same name, so its application is already its
+-- target type and it has no entry.
+data PatternTypeEnv = PatternTypeEnv
+  { unPatternTypeEnv     :: Map String TypeScheme
+  , patternFamilyTargets :: Map String ([TyVar], Type)
+  } deriving (Eq, Show)
 
 -- | Fully checked pattern-function signatures.  Header-only declarations are
 -- intentionally kept in 'PatternTypeEnv' until their bodies have produced a
@@ -388,19 +402,51 @@ mergeClassEnv (ClassEnv classes1 insts1) (ClassEnv classes2 insts2) =
 
 -- | Empty pattern type environment
 emptyPatternEnv :: PatternTypeEnv
-emptyPatternEnv = PatternTypeEnv Map.empty
+emptyPatternEnv = PatternTypeEnv Map.empty Map.empty
 
 -- | Extend the pattern type environment with a new binding
 extendPatternEnv :: String -> TypeScheme -> PatternTypeEnv -> PatternTypeEnv
-extendPatternEnv name scheme (PatternTypeEnv env) = PatternTypeEnv $ Map.insert name scheme env
+extendPatternEnv name scheme env =
+  env { unPatternTypeEnv = Map.insert name scheme (unPatternTypeEnv env) }
 
 -- | Look up a pattern constructor/function in the environment
 lookupPatternEnv :: String -> PatternTypeEnv -> Maybe TypeScheme
-lookupPatternEnv name (PatternTypeEnv env) = Map.lookup name env
+lookupPatternEnv name env = Map.lookup name (unPatternTypeEnv env)
 
 -- | Convert pattern type environment to list
 patternEnvToList :: PatternTypeEnv -> [(String, TypeScheme)]
-patternEnvToList (PatternTypeEnv env) = Map.toList env
+patternEnvToList env = Map.toList (unPatternTypeEnv env)
+
+-- | Record the type parameters and the target type of a pattern family
+-- declared with @for@.
+extendPatternFamilyTarget
+  :: String -> ([TyVar], Type) -> PatternTypeEnv -> PatternTypeEnv
+extendPatternFamilyTarget family target env =
+  env { patternFamilyTargets = Map.insert family target (patternFamilyTargets env) }
+
+-- | The pattern families declared with @for@, with their type parameters and
+-- target types.
+patternFamilyTargetList :: PatternTypeEnv -> [(String, ([TyVar], Type))]
+patternFamilyTargetList env = Map.toList (patternFamilyTargets env)
+
+-- | Replace every application of a pattern family declared with @for@ by the
+-- corresponding instance of its target type.  Arguments are replaced first,
+-- so a family nested in an argument (as in @[Nat]@) is replaced as well.
+projectPatternFamilyTargets :: PatternTypeEnv -> Type -> Type
+projectPatternFamilyTargets env
+  | Map.null families = id
+  | otherwise = mapType project
+  where
+    families = patternFamilyTargets env
+    project (TInductive name arguments)
+      | Just (parameters, target) <- Map.lookup name families
+      , length parameters == length arguments =
+          let image = Map.fromList (zip parameters arguments)
+              instantiateParameter (TVar variable)
+                | Just argument <- Map.lookup variable image = argument
+              instantiateParameter other = other
+          in mapType instantiateParameter target
+    project other = other
 
 -- | Empty checked pattern-function environment.
 emptyPatternFunctionEnv :: PatternFunctionEnv

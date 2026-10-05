@@ -23,7 +23,7 @@
 - [matcher-capability.md](./matcher-capability.md): Egison 本体における二-sort matcher capability の実装範囲。
 形式仕様と証明の正本は `type-pm-mech` に置く。Egison 側の文書は、実装との対応と
 Egison core 外の拡張だけを記述する。
-- [pattern-family-for.md](./pattern-family-for.md): （提案）パターン族の名前とターゲット型を分ける
+- [pattern-family-for.md](./pattern-family-for.md): パターン族の名前とターゲット型を分ける
   `inductive pattern F for T` 構文。組み込みの型の上の族と、一つの型の上の複数の族。
 
 ## 型クラスとテンソル

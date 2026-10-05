@@ -1,0 +1,20 @@
+-- A pattern family declared with `for` is a family of its own: a pattern of
+-- the family Nat cannot be matched by a matcher of the family Parity, although
+-- both families decompose Integer.
+--
+-- Expected: Type error (the capabilities Nat and Parity do not unify)
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat
+
+inductive pattern Parity for Integer :=
+  | even Integer
+
+def parity := matcher
+  | even $ as something with
+    | $n -> [n]
+  | $ as something with
+    | $n -> [n]
+
+def bad := matchAll 3 as parity with s $m -> m

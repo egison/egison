@@ -2626,7 +2626,13 @@ inferIExprInContext expr ctx = case expr of
                       _ -> throwError $ MatcherCapabilityError
                              "internal pattern capability projection lost its result"
                              ctx
-                    return (argTypes, resultType, fieldCapabilities, resultCapability)
+                    -- The signature names pattern families, which give the
+                    -- capabilities; the targets are the families' target types.
+                    let toTarget = projectPatternFamilyTargets patternEnv
+                    return ( map toTarget argTypes
+                           , toTarget resultType
+                           , fieldCapabilities
+                           , resultCapability )
               Nothing -> do
                 warnOutsideEgisonCore
                   ("primitive-pattern constructor `" ++ name ++
@@ -4990,8 +4996,11 @@ inferIPattern pat expectedType ctx = case pat of
         -- Found in pattern environment: use the declared type
         (_constraints, ctorType) <- instantiateSchemeInState scheme
         
-        -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType
-        let (argTypes, resultType) = extractFunctionArgs ctorType
+        -- Pattern constructor type: arg1 -> arg2 -> ... -> resultType.  The
+        -- signature names pattern families; the pattern consumes their
+        -- target types.
+        let (argTypes, resultType) =
+              extractFunctionArgs (projectPatternFamilyTargets patternEnv ctorType)
         
         -- Check argument count matches
         if length argTypes /= length pats

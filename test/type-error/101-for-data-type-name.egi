@@ -1,0 +1,13 @@
+-- A pattern family declared with `for` needs a name different from every data
+-- type, so that its name never stands for a type.
+--
+-- Expected: Type error (a pattern family declared with `for` needs a name
+-- different from every data type)
+
+inductive Nat :=
+  | Zero
+  | Succ Nat
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat

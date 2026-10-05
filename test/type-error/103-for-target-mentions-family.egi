@@ -1,0 +1,12 @@
+-- The target of a pattern family declared with `for` is a type, so it does
+-- not mention a pattern family declared with `for`.
+--
+-- Expected: Type error (the target must not mention a pattern family declared
+-- with `for`)
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat
+
+inductive pattern Nats for [Nat] :=
+  | nats

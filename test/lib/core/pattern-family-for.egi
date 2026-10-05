@@ -1,0 +1,157 @@
+-- `inductive pattern F a1 ... an for T` declares a pattern family named F
+-- whose target type is T.  `Nat` and `Parity` are two families over
+-- Integer; `Cartesian` and `Polar` are two families over the data type Cpx,
+-- and each of `cart` and `pole` decomposes values of both representations,
+-- as in Wadler's views; `Bag` is a family over lists.
+
+-- Peano-style decomposition of Integer
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat
+
+def nat := matcher
+  | o as () with
+    | 0 -> [()]
+    | _ -> []
+  | s $ as nat with
+    | $n -> if n > 0 then [n - 1] else []
+  | #$val as () with
+    | $n -> if n = val then [()] else []
+  | $ as something with
+    | $n -> [n]
+
+def pred n :=
+  match n as nat with
+    | o -> 0
+    | s $m -> m
+
+assertEqual "pred 5" (pred 5) 4
+assertEqual "pred 0" (pred 0) 0
+assertEqual "s (s o)" (matchAll 2 as nat with s (s o) -> 1) [1]
+assertEqual "s (s o) on 3" (matchAll 3 as nat with s (s o) -> 1) []
+assertEqual "value pattern under s" (matchAll 3 as nat with s #2 -> 1) [1]
+assertEqual "list of nat"
+  (matchAll [2, 0, 1] as list nat with _ ++ (s $m) :: _ -> m)
+  [1, 0]
+
+-- A second family over Integer
+
+inductive pattern Parity for Integer :=
+  | even Integer
+  | odd Integer
+
+def parity := matcher
+  | even $ as something with
+    | $n -> if modulo n 2 = 0 then [quotient n 2] else []
+  | odd $ as something with
+    | $n -> if modulo n 2 = 1 then [quotient n 2] else []
+  | $ as something with
+    | $n -> [n]
+
+assertEqual "even" (matchAll 6 as parity with even $k -> k) [3]
+assertEqual "odd" (matchAll 7 as parity with odd $k -> k) [3]
+
+-- A field written `Integer` still needs only `something`; a field written
+-- `Nat` needs a matcher for the family Nat.
+
+inductive Tagged :=
+  | Tagged Integer
+
+inductive pattern Tagged :=
+  | tagged Integer
+
+def taggedM := matcher
+  | tagged $ as something with
+    | Tagged $n -> [n]
+  | $ as something with
+    | $t -> [t]
+
+inductive Counted :=
+  | Counted Integer
+
+inductive pattern Counted :=
+  | counted Nat
+
+def countedM := matcher
+  | counted $ as nat with
+    | Counted $n -> [n]
+  | $ as something with
+    | $c -> [c]
+
+assertEqual "Integer field" (matchAll Tagged 4 as taggedM with tagged $n -> n) [4]
+assertEqual "Nat field" (matchAll Counted 4 as countedM with counted (s $m) -> m) [3]
+
+-- Two families over one data type, as in Wadler's views
+
+inductive Cpx :=
+  | Cart Float Float
+  | Pole Float Float
+
+inductive pattern Cartesian for Cpx :=
+  | cart Float Float
+
+inductive pattern Polar for Cpx :=
+  | pole Float Float
+
+def cartesian := matcher
+  | cart $ $ as (something, something) with
+    | Cart $x $y -> [(x, y)]
+    | Pole $r $t -> [(r * f.cos t, r * f.sin t)]
+  | $ as something with
+    | $z -> [z]
+
+def polar := matcher
+  | pole $ $ as (something, something) with
+    | Cart $x $y -> [(f.sqrt (x * x + y * y), f.atan2 y x)]
+    | Pole $r $t -> [(r, t)]
+  | $ as something with
+    | $z -> [z]
+
+def cadd z w :=
+  match (z, w) as (cartesian, cartesian) with
+    | (cart $x1 $y1, cart $x2 $y2) -> Cart (x1 + x2) (y1 + y2)
+
+def cmul z w :=
+  match (z, w) as (polar, polar) with
+    | (pole $r1 $t1, pole $r2 $t2) -> Pole (r1 * r2) (t1 + t2)
+
+def realPart z :=
+  match z as cartesian with
+    | cart $x _ -> x
+
+def magnitude z :=
+  match z as polar with
+    | pole $r _ -> r
+
+assertEqual "Pole decomposed by cart"
+  (round (realPart (cmul (Cart 0.0 1.0) (Cart 0.0 1.0))))
+  (-1)
+assertEqual "Cart decomposed by pole"
+  (magnitude (cadd (Cart 1.0 2.0) (Cart 2.0 2.0)))
+  5.0
+assertEqual "both views through a matcher tuple"
+  (matchAll (Cart 3.0 4.0, Cart 3.0 4.0) as (cartesian, polar) with
+    (cart $x _, pole $r _) -> (x, r))
+  [(3.0, 5.0)]
+
+-- A family over lists with its own name
+
+inductive pattern Bag a for [a] :=
+  | empty
+  | insert a (Bag a)
+
+def bag m := matcher
+  | empty as () with
+    | [] -> [()]
+    | _ -> []
+  | insert $ $ as (m, bag m) with
+    | $xs -> matchAll xs as list something with
+               $hs ++ $x :: $ts -> (x, hs ++ ts)
+  | $ as something with
+    | $xs -> [xs]
+
+assertEqual "insert" (matchAll [1, 2, 3] as bag integer with insert $x _ -> x) [1, 2, 3]
+assertEqual "insert twice"
+  (matchAll [1, 2] as bag integer with insert $x (insert $y empty) -> (x, y))
+  [(1, 2), (2, 1)]

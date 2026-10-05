@@ -36,7 +36,8 @@ import           Language.Egison.IExpr      (Var(..), stringToVar)
 import           Language.Egison.Desugar    (transVarIndex)
 import           Language.Egison.Type.Env   (TypeEnv, ClassEnv, PatternTypeEnv, emptyEnv, emptyClassEnv, emptyPatternEnv,
                                              extendEnv, extendPatternEnv, addClass, addInstance, lookupClass,
-                                             patternEnvToList)
+                                             patternEnvToList, extendPatternFamilyTarget,
+                                             patternFamilyTargetList)
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Types (Type(..), TyVar(..), Constraint(..), TypeScheme(..),
                                              freeCapVars, freeTyVars,
@@ -93,13 +94,20 @@ buildEnvironments exprs = do
   priorPatternCtorEnv <- getPatternEnv
   priorAliases <- getCasTypeAliasEnv
   let declaredTypes = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
-                                    ++ [ n | PatternInductiveDecl n _ _ <- exprs ]
+                                    ++ [ n | PatternInductiveDecl n _ _ _ <- exprs ]
                                     ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ]
                                     ++ concatMap
                                          (namedInductiveTypes . schemeBody . snd)
                                          (patternEnvToList priorPatternCtorEnv))
+      -- Value-level data types: a pattern family declared with `for` may
+      -- not reuse their names.
+      dataTypeNames = Set.fromList ([ n | InductiveDecl n _ _ <- exprs ]
+                                    ++ [ ctorTypeName ci | ci <- HashMap.elems priorCtorEnv ])
+      priorFamilyTargets = patternFamilyTargetList priorPatternCtorEnv
+      familyTargetNames = Set.fromList ([ n | PatternInductiveDecl n _ (Just _) _ <- exprs ]
+                                        ++ map fst priorFamilyTargets)
   capabilityConstructorArities <-
-    buildCapabilityConstructorArities exprs priorCtorEnv
+    buildCapabilityConstructorArities exprs priorCtorEnv priorFamilyTargets
 
   -- Collect `declare cas-type` aliases first (prepass, so declaration order
   -- does not matter for users of the
@@ -126,6 +134,11 @@ buildEnvironments exprs = do
   -- malformed capability annotations must not be turned into well-formed
   -- DataType values merely by counting their surface arguments.
   mapM_ (validateTopExprCapabilities capabilityConstructorArities aliasEnv) exprs
+
+  -- A pattern family declared with `for` names a data type or a built-in base
+  -- type as its target.
+  mapM_ (validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasEnv)
+        [ (n, ps, t) | PatternInductiveDecl n ps (Just t) _ <- exprs ]
 
   -- Collect `declare cas-subtype` edges (alias-expanded) and check that each
   -- addition preserves a unique join, in declaration order.
@@ -171,8 +184,9 @@ type CapabilityConstructorArities =
 buildCapabilityConstructorArities
   :: [TopExpr]
   -> ConstructorEnv
+  -> [(String, ([TyVar], Type))]
   -> EvalM CapabilityConstructorArities
-buildCapabilityConstructorArities exprs priorCtorEnv = do
+buildCapabilityConstructorArities exprs priorCtorEnv priorFamilyTargets = do
   mapM_ rejectBuiltinCollision userEntries
   foldM register HashMap.empty
     (builtinCapabilityConstructorArities ++ userEntries)
@@ -183,6 +197,14 @@ buildCapabilityConstructorArities exprs priorCtorEnv = do
       ]
       ++ [ (ctorTypeName info, length (ctorTypeParams info))
          | info <- HashMap.elems priorCtorEnv
+         ]
+      -- A pattern family declared with `for` is a capability constructor
+      -- that names no data type.
+      ++ [ (name, length params)
+         | PatternInductiveDecl name params (Just _) _ <- exprs
+         ]
+      ++ [ (name, length params)
+         | (name, (params, _)) <- priorFamilyTargets
          ]
 
     builtinCapabilityConstructorIds =
@@ -280,7 +302,10 @@ validateTopExprCapabilities arities aliases topExpr =
             instanceTypes
       mapM_ (validateInstanceMethodCapabilities className) methods
 
-    PatternInductiveDecl typeName _ constructors ->
+    PatternInductiveDecl typeName _ maybeTarget constructors -> do
+      mapM_ (validateTypeExprCapabilities arities aliases
+               ("target of inductive pattern `" ++ typeName ++ "`"))
+            maybeTarget
       mapM_ (validatePatternConstructorCapabilities typeName) constructors
 
     PatternFunctionDecl name _ params retType body -> do
@@ -1054,20 +1079,31 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     return result { ebrTypeEnv = typeEnv' }
 
   -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
-  PatternInductiveDecl typeName typeParams constructors -> do
+  PatternInductiveDecl typeName typeParams maybeTarget constructors -> do
     let typeParamVars = map (TVar . TyVar) typeParams
+        -- The family applied to its parameters.  The signatures of its
+        -- pattern constructors name the family by this type.
         -- Special cases: [a] as TCollection and String as TString
         patternType = case (typeName, typeParams) of
                         ("[]", [param]) -> TCollection (TVar (TyVar param))
                         ("String", [])  -> TString
                         _               -> TInductive typeName typeParamVars
         patternCtorEnv = ebrPatternConstructorEnv result
-    
+        -- A family declared with `for` records its target type.  A target
+        -- equal to the family type is the family of the type with the
+        -- same name, which needs no record.
+        patternCtorEnvWithTarget =
+          case fmap (patternFamilyTargetType declaredTypes aliasEnv) maybeTarget of
+            Just target | target /= patternType ->
+              extendPatternFamilyTarget typeName (map TyVar typeParams, target)
+                                        patternCtorEnv
+            _ -> patternCtorEnv
+
     -- Register each pattern constructor to pattern constructor environment
     patternCtorEnv' <- foldM
       (registerPatternConstructor
         aliasEnv declaredTypes typeName typeParams patternType)
-                              patternCtorEnv
+                              patternCtorEnvWithTarget
                               constructors
     
     return result { ebrPatternConstructorEnv = patternCtorEnv' }
@@ -1192,6 +1228,70 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
 
 schemeBody :: TypeScheme -> Type
 schemeBody (Forall _ _ _ ty) = ty
+
+-- | The target type written after `for` in a pattern declaration, with the
+-- same conversion as the field types of its pattern constructors.
+patternFamilyTargetType
+  :: Set.Set String -> HashMap.HashMap String Type -> TypeExpr -> Type
+patternFamilyTargetType declaredTypes aliasEnv =
+  concretizeDeclaredTypes declaredTypes . Types.expandTypeAliases aliasEnv
+    . typeExprToType
+
+-- | Check a pattern family declared with
+-- @inductive pattern F a1 ... an for T@.  The name @F@ differs from every
+-- data type, unless @T@ is that data type applied to @a1 ... an@ (the family
+-- of the type with the same name).  The target @T@ is a data type or a
+-- built-in base type, not a tuple, function, matcher, or type variable; every
+-- parameter @ai@ is a direct argument of @T@; and @T@ mentions no pattern
+-- family declared with `for`.
+validatePatternFamilyTarget
+  :: Set.Set String -> Set.Set String -> Set.Set String
+  -> HashMap.HashMap String Type -> (String, [String], TypeExpr) -> EvalM ()
+validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasEnv
+                            (family, params, targetExpr) = do
+  let target = patternFamilyTargetType declaredTypes aliasEnv targetExpr
+      context = "inductive pattern " ++ unwords (family : params)
+                ++ " for " ++ prettyType target
+      familyType = TInductive family (map (TVar . TyVar) params)
+  when (family `Set.member` dataTypeNames && target /= familyType) $
+    throwError $ Default $
+      context ++ ": a pattern family declared with `for` needs a name "
+      ++ "different from every data type"
+  case Types.dataTypeOf target of
+    Nothing ->
+      throwError $ Default $
+        context ++ ": the target must be a data type or a built-in base type, "
+        ++ "not a tuple, function, matcher, or type variable"
+    Just (_, arguments) -> do
+      let notArguments =
+            [ param | param <- params, TVar (TyVar param) `notElem` arguments ]
+      unless (null notArguments) $
+        throwError $ Default $
+          context ++ ": every type parameter must be an argument of the "
+          ++ "target; not an argument: " ++ unwords notArguments
+  let mentionedFamilies =
+        filter (`Set.member` familyTargetNames) (inductiveTypeNamesIn target)
+  unless (null mentionedFamilies) $
+    throwError $ Default $
+      context ++ ": the target must not mention a pattern family declared "
+      ++ "with `for`: " ++ unwords mentionedFamilies
+
+-- | Names of the inductive types that occur anywhere in a type.
+inductiveTypeNamesIn :: Type -> [String]
+inductiveTypeNamesIn ty = case ty of
+  TInductive name arguments -> name : concatMap inductiveTypeNamesIn arguments
+  TTuple items              -> concatMap inductiveTypeNamesIn items
+  TCollection item          -> inductiveTypeNamesIn item
+  TTensor item              -> inductiveTypeNamesIn item
+  THash key value           -> inductiveTypeNamesIn key ++ inductiveTypeNamesIn value
+  TMatcher _ target         -> inductiveTypeNamesIn target
+  TFun domain codomain      -> inductiveTypeNamesIn domain ++ inductiveTypeNamesIn codomain
+  TIO item                  -> inductiveTypeNamesIn item
+  TIORef item               -> inductiveTypeNamesIn item
+  TFrac item                -> inductiveTypeNamesIn item
+  TTerm item _              -> inductiveTypeNamesIn item
+  TPoly item _              -> inductiveTypeNamesIn item
+  _                         -> []
 
 -- | Pattern-constructor schemes from earlier load units retain their concrete
 -- result data type.  Recover it so later signatures do not mistake that named

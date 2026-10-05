@@ -59,6 +59,7 @@ import           Language.Egison.Type.Env (TypeEnv, ClassEnv, PatternTypeEnv,
                                            extendEnvMany, envToList,
                                            classEnvToList, lookupInstances,
                                            patternEnvToList, mergeClassEnv,
+                                           extendPatternFamilyTarget, patternFamilyTargetList,
                                            extendPatternEnv,
                                            removePatternFunctionEnv)
 import           Language.Egison.Type.TypeClassExpand ()
@@ -364,9 +365,12 @@ buildAndMergeEnvironments exprs opts = do
       mergedClassEnv = mergeClassEnv currentClassEnv (ebrClassEnv envResult)
       patternConstructorEnv = ebrPatternConstructorEnv envResult
       newPatternFuncEnv = ebrPatternTypeEnv envResult
-      mergedPatternEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
-                               currentPatternEnv
-                               (patternEnvToList patternConstructorEnv)
+      mergedPatternEnv =
+        foldr (\(name, target) e -> extendPatternFamilyTarget name target e)
+              (foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
+                     currentPatternEnv
+                     (patternEnvToList patternConstructorEnv))
+              (patternFamilyTargetList patternConstructorEnv)
       mergedPatternFuncDeclEnv = foldr (\(name, scheme) e -> extendPatternEnv name scheme e)
                                    currentPatternFuncDeclEnv
                                    (patternEnvToList newPatternFuncEnv)

@@ -44,12 +44,13 @@ instance Pretty TopExpr where
   pretty (Test expr) = pretty expr
   pretty (LoadFile file) = pretty "loadFile" <+> pretty (show file)
   pretty (Load lib) = pretty "load" <+> pretty (show lib)
-  pretty (PatternInductiveDecl typeName typeParams constructors) =
+  pretty (PatternInductiveDecl typeName typeParams maybeTarget constructors) =
     let typeParamsDoc = if null typeParams then emptyDoc else hsep (map pretty typeParams)
+        targetDoc = maybe emptyDoc (\target -> pretty "for" <+> pretty target) maybeTarget
         constructorsDoc = vsep $ map (\(PatternConstructor name args) ->
           pretty "|" <+> pretty name <+> hsep (map pretty args)) constructors
-    in pretty "inductive" <+> pretty "pattern" <+> pretty typeName <+> typeParamsDoc <+> 
-       pretty ":=" <+> constructorsDoc
+    in pretty "inductive" <+> pretty "pattern" <+> pretty typeName <+> typeParamsDoc <+>
+       targetDoc <+> pretty ":=" <+> constructorsDoc
   pretty (PatternFunctionDecl name typeParams params retType body) =
     let typeParamsDoc = if null typeParams then emptyDoc 
                         else braces (hsep $ punctuate (pretty ",") (map pretty typeParams))
