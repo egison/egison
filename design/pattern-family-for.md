@@ -162,6 +162,19 @@ inductive pattern Bag a for [a] :=
 フィールド `a` は `χ ⊣ a`，フィールド `Bag a` は `Bag χ ⊣ [a]` を表す。リストの族（`[]`，`::`，`++`）とは
 別の族として，多重集合として見るためのパターンコンストラクタを宣言できる。
 
+### 4.5 型パラメータを持つ利用者定義の型の上の族
+
+```egison
+inductive Tree a := Leaf a | Node a [Tree a]
+inductive pattern Tree a := leaf a | node a [Tree a]
+inductive pattern Root a for Tree a := root a
+```
+
+`root $x` は葉と節のどちらでも根のラベルに照合する。`Root` は同じ名前の型の族 `Tree` とは別の族なので，
+`tree` マッチャーの下の `root` パターンや `root` マッチャーの下の `node` パターンは型エラーになる。
+`T` の中の族のパラメータは `T` の直接の引数でなければならないので，`Bad a for [[a]]` や
+`Bad a for Tree [a]` は拒否する（§3 の条件 3）。
+
 ## 5. 実装の対応
 
 ### Egison インタプリタ
@@ -178,8 +191,8 @@ inductive pattern Bag a for [a] :=
 
 テスト:
 
-- `test/lib/core/pattern-family-for.egi`: §4 の例（`Nat`，`Parity`，`Cartesian`／`Polar`，`Bag`）と，`Integer`
-  と書いたフィールドが `something` で足りること。
+- `test/lib/core/pattern-family-for.egi`: §4 の例（`Nat`，`Parity`，`Cartesian`／`Polar`，`Bag`，`Tree`／`Root`）と，
+  `Integer` と書いたフィールドが `something` で足りること。
 - `test/lib/core/type-pm-examples.egi` の `paperNat`: 論文の例。Lean の回帰と同じ演算で書いたマッチャー。
 - `test/type-error/99`〜`103`: 能力の不一致，タプルのターゲット，データ型と同じ名前，ターゲットの引数でない
   パラメータ，ターゲットに現れる族。`test/Test.hs` の `patternFamilyTargetTypeErrorTests` が検査する。
@@ -195,6 +208,9 @@ inductive pattern Bag a for [a] :=
 - `IntPatternFamilyRegression.lean`: `Nat` と `Parity` を整数型の上に宣言したシグネチャが宣言条件をすべて
   満たすこと，推論・評価・動的型エラーの不在，`parity` や `something` の下の `Nat` パターンの拒否，二つの族を
   混ぜたマッチャーの拒否，タプルのターゲットと型変数を量化する整数型のスキームの拒否。
+- `ParametricTreeRegression.lean`: §4.5 の `Tree a` と族 `Tree`・`Root`（ラベルは整数）。
+  `test/lib/core/pattern-family-for.egi` と同じ問い合わせの推論・正確な評価結果・動的型エラーの不在と，
+  族の合わないパターンの拒否。
 
 ## 6. 今後の拡張
 

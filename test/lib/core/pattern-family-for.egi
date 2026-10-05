@@ -155,3 +155,44 @@ assertEqual "insert" (matchAll [1, 2, 3] as bag integer with insert $x _ -> x) [
 assertEqual "insert twice"
   (matchAll [1, 2] as bag integer with insert $x (insert $y empty) -> (x, y))
   [(1, 2), (2, 1)]
+
+-- A parameterized recursive data type with two families: the family of the
+-- type with the same name and a family declared with `for` on `Tree a`.  The
+-- same programs are checked in the Lean regression ParametricTreeRegression.lean.
+
+inductive Tree a := Leaf a | Node a [Tree a]
+inductive pattern Tree a := leaf a | node a [Tree a]
+inductive pattern Root a for Tree a := root a
+
+def tree m := matcher
+  | leaf $ as m with
+    | Leaf $x -> [x]
+    | Node _ _ -> []
+  | node $ $ as (m, list (tree m)) with
+    | Leaf _ -> []
+    | Node $x $ts -> [(x, ts)]
+  | $ as something with
+    | $tgt -> [tgt]
+
+def root m := matcher
+  | root $ as m with
+    | Leaf $x -> [x]
+    | Node $x _ -> [x]
+  | $ as something with
+    | $tgt -> [tgt]
+
+def treeData := Node 1 [Node 2 [Leaf 3, Leaf 4], Leaf 5, Node 6 [Leaf 3]]
+
+assertEqual "leaves among the children of the root"
+  (matchAll treeData as tree something with node _ (_ ++ (leaf $y) :: _) -> y)
+  [5]
+assertEqual "the two labels above each leaf 3 at depth two"
+  (matchAll treeData as tree something with
+    node $a (_ ++ (node $b (_ ++ (leaf #3) :: _)) :: _) -> (a, b))
+  [(1, 2), (1, 6)]
+assertEqual "root of a node" (matchAll treeData as root something with root $x -> x) [1]
+assertEqual "root of a leaf" (matchAll Leaf 7 as root something with root $x -> x) [7]
+assertEqual "both families through a matcher tuple"
+  (matchAll (treeData, treeData) as (tree something, root something) with
+    (node $x _, root $r) -> (x, r))
+  [(1, 1)]
