@@ -178,8 +178,8 @@ inductive pattern Bag a for [a] :=
 
 - **Lean の機械化（`~/PL/type-pm-mech`）**: スキームはすでに要求対で表され、族の名前（`PatternFamily`）と
   データ型の名前（`DataType`）も別々で、両者を結びつける宣言条件はない。したがって §4.3 のような
-  データ型の上の族は、現在の Lean の core でそのまま書ける。組み込みの型の上の族（§4.1、§4.2）のために、
-  次を行う。
+  データ型の上の族は、宣言条件の上では現在の Lean の core でも書ける（3 の回帰で確かめる）。
+  組み込みの型の上の族（§4.1、§4.2）のために、次を行う。
   1. `PatternTargetDeclared`（`Foundation/Signature.lean`）を、組み込みの整数型 `int` も許す形に広げる。
   2. `PatternTyping.ctor_target_data`（`CallByNeedDispatchTyping.lean`）と
      `PPatTyping.someEvidence_target_data`（`Typing.lean`）の結論を「ターゲット型はデータ型か `int`」に
