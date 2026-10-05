@@ -8,13 +8,6 @@ def tree {a, b} (a: Matcher p b) : Matcher (Tree p) (Tree b) := matcher
   | node $ $ as (a, multiset (tree a)) with
     | Leaf _ -> []
     | Node $x $ts -> [(x, ts)]
-  | $ :: $ as (a, tree a) with
-    | Leaf _ -> []
-    | Node $x $ts -> map (\t -> (x, t)) ts
-  | $ ++ $ as (list a, tree a) with
-    | $tgt -> matchAll tgt as tree a with
-              | loop $i (1, $n) ($x_i :: ...) $t
-                -> (map (\i -> x_i) [1..n], t)
   | $ as something with
     | $tgt -> [tgt]
 
@@ -27,17 +20,26 @@ def treeData : Tree String :=
      Node "Logic programming" [Leaf "Prolog", Leaf "Curry"],
      Node "Object oriented" [Leaf "C++", Leaf "Java", Leaf "Ruby", Leaf "Python", Leaf "OCaml"]]
 
+-- The labels on a path from the root to a leaf labeled x.  The loop pattern
+-- descends through one child of a node at each step.
 def ancestors {Eq a} (x: a) (t: Tree a) : [[a]] :=
   matchAllDFS t as tree eq with
-    | $hs ++ leaf #x -> hs
+    | loop $i (1, $n)
+        (node $h_i (... :: _))
+        (leaf #x) -> map (\i -> h_i) [1..n]
 
 assertEqual "ancestors"
   (ancestors "Egison" treeData)
   [["Programming language", "pattern-match-oriented"], ["Programming language", "Functional language", "Dynamically typed"]]
 
+-- The labels of the leaves below a node labeled x.
 def descendants {Eq a} (x: a) (t: Tree a) : [a] :=
   matchAllDFS t as tree eq with
-    | _ ++ #x :: _ ++ leaf $y -> y
+    | loop $i (1, _)
+        (node _ (... :: _))
+        (node #x ((loop $j (1, _)
+                     (node _ (... :: _))
+                     (leaf $y)) :: _)) -> y
 
 assertEqual "descendants"
   (descendants "Functional language" treeData)

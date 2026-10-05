@@ -2093,6 +2093,7 @@ sampleTests =
   , "sample/sat/cdcl.egi"               -- a practical pattern-matching program
   , "sample/poker-hands.egi"
   , "sample/poker-hands-with-joker.egi"
+  , "sample/tree.egi"                   -- loop patterns over a user-declared pattern family
   , "sample/math/geometry/riemann-curvature-tensor-of-S2.egi" -- tensor index notation
   , "sample/math/geometry/riemann-curvature-tensor-of-T2.egi" -- tensor indices and math quote
   , "sample/math/geometry/curvature-form.egi"                 -- differential forms
