@@ -64,16 +64,18 @@ inductive pattern F a1 ... an for T :=
 1. 族の名前は，どのデータ型の名前とも異なる。ただし `T` がその名前の型を `a1 ... an` に適用したもの
    なら，同じ名前の型の族の宣言として受け付ける。
 2. `T` はデータ型の適用か組み込みの基本型で，タプル型・関数型・マッチャー型・型変数ではない。
-3. 族の型パラメータ `ai` は，すべて `T` の中にマッチャー型の外で現れる（`[a]`，`[[a]]`，`Tree [a]` はよく，
-   `[Matcher Any a]` だけに現れるのはいけない）。これにより，宣言条件のうちの実行時安全性のための条件
+3. 族の型パラメータ `ai` は，すべて `T` の中に現れる（`[a]`，`[[a]]`，`Tree [a]`，`[Matcher Any a]` はよく，
+   `Integer` に対する型パラメータはいけない）。これにより，宣言条件のうちの実行時安全性のための条件
    （スキームの結果が量化変数を定めること）が成り立つ。型の正規化は関数型・タプル型・データ型の上では
-   構造的なので，正規化した結果が等しい二つのインスタンスは，マッチャー型の外の位置で一致する。マッチャー型は
-   正規化でマッチャーのタプルに分配されることがあるので除く。
+   構造的であり，マッチャー型をマッチャーのタプルに分配する正規化も，能力を固定すればターゲットについて単射である。
+   能力の位置は結果の能力で定まるので，正規化した結果が等しい二つのインスタンスは，`T` に現れるすべての
+   型変数で一致する。
 4. `T` は `for` で宣言した族の名前を含まない。
 
 Lean の機械化では，パターンコンストラクタの結果のターゲット型は宣言済みのデータ型の適用か組み込みの
 整数型 `int` である（`Foundation/Signature.lean` の `PatternTargetDeclared`）。条件 3 は
-`SignatureRuntime.lean` の `PatternCtorScheme.ResultDetermined`（`PolyTy.determinedBounds`）である。
+`SignatureRuntime.lean` の `PatternCtorScheme.ResultDetermined`（`PolyTy.determinedBounds`）で，
+マッチャー型の分配の単射性は `Normalization.lean` の `Ty.normalizeMatcher_injective` である。
 整数型は引数を持たないので，ターゲット型が `int` のスキームは型変数を量化しない。
 
 ## 4. 例
@@ -175,9 +177,9 @@ inductive pattern Root a for Tree a := root a
 
 `root $x` は葉と節のどちらでも根のラベルに照合する。`Root` は同じ名前の型の族 `Tree` とは別の族なので，
 `tree` マッチャーの下の `root` パターンや `root` マッチャーの下の `node` パターンは型エラーになる。
-族のパラメータは `T` の直接の引数でなくてもよい。`inductive pattern Cells a for [[a]] := cell a` や
-`inductive pattern Labels a for Tree [a] := label a` も宣言できる。`[Matcher Any a]` のようにマッチャー型の中にだけ
-現れるパラメータは拒否する（§3 の条件 3）。
+族のパラメータは `T` の直接の引数でなくてもよい。`inductive pattern Cells a for [[a]] := cell a`，
+`inductive pattern Labels a for Tree [a] := label a`，`inductive pattern Matchers a for [Matcher Any a] := nonempty`
+も宣言できる。`T` に現れないパラメータは拒否する（§3 の条件 3）。
 
 ## 5. 実装の対応
 
@@ -196,20 +198,19 @@ inductive pattern Root a for Tree a := root a
 テスト:
 
 - `test/lib/core/pattern-family-for.egi`: §4 の例（`Nat`，`Parity`，`Cartesian`／`Polar`，`Bag`，`Tree`／`Root`，
-  `Cells`，`Labels`）と，`Integer` と書いたフィールドが `something` で足りること。
+  `Cells`，`Labels`，`Matchers`）と，`Integer` と書いたフィールドが `something` で足りること。
 - `test/lib/core/type-pm-examples.egi` の `paperNat`: 論文の例。Lean の回帰と同じ演算で書いたマッチャー。
-- `test/type-error/99`〜`104`: 能力の不一致，タプルのターゲット，データ型と同じ名前，ターゲットに現れない
-  パラメータ，ターゲットに現れる族，マッチャー型の中にだけ現れるパラメータ。`test/Test.hs` の
-  `patternFamilyTargetTypeErrorTests` が検査する。
+- `test/type-error/99`〜`103`: 能力の不一致，タプルのターゲット，データ型と同じ名前，ターゲットに現れない
+  パラメータ，ターゲットに現れる族。`test/Test.hs` の `patternFamilyTargetTypeErrorTests` が検査する。
 
 ### Lean の機械化
 
 - `Foundation/Signature.lean`: `PatternTargetDeclared` と `patternTargetCheck` が整数型のターゲットを許す。
 - `SignatureRuntime.lean`: `PatternCtorScheme.ResultDetermined` は，量化した型変数がターゲットの中に
-  マッチャー型の外で現れること（`PolyTy.determinedBounds`）を検査する。
-  `PolyTy.normalize_bound_eq_of_mem_determinedBounds` が，正規化した結果が等しいインスタンスはそれらの位置で
-  一致することを示し，`PatternCtorScheme.instancesDetermined_of_resultDetermined` が結果からフィールドが定まる
-  ことを導く。
+  現れること（`PolyTy.determinedBounds`）を検査する。`Normalization.lean` の `Ty.normalizeMatcher_injective` が
+  マッチャー型の分配の単射性を示し，`PolyTy.normalize_bound_eq_of_mem_determinedBounds` が，能力の位置で一致し
+  正規化した結果が等しいインスタンスは，ターゲットに現れる型変数で一致することを示す。
+  `PatternCtorScheme.instancesDetermined_of_resultDetermined` が結果からフィールドが定まることを導く。
 - `Typing.lean` の `PPatTyping.someEvidence_target_shape`，`CallByNeedDispatchTyping.lean` の
   `PatternTyping.ctor_target_shape`，`CallByNeedSafety.lean` の `MatcherTupleType.patternTarget_inversion`:
   コンストラクタパターンのターゲットがデータ型か整数型なので，そのマッチャーは一つのマッチャーである。
@@ -219,8 +220,8 @@ inductive pattern Root a for Tree a := root a
 - `ParametricTreeRegression.lean`: §4.5 の `Tree a` と族 `Tree`・`Root`（ラベルは整数）。
   `test/lib/core/pattern-family-for.egi` と同じ問い合わせの推論・正確な評価結果・動的型エラーの不在と，
   族の合わないパターンの拒否。
-- `ListPatternFamilyRegression.lean`: §4.4 の `Bag a for [a]` と `Cells a for [[a]]`。推論・正確な評価結果・
-  動的型エラーの不在，族の合わないパターンの拒否，型変数がマッチャー型の中にだけ現れるスキームの拒否。
+- `ListPatternFamilyRegression.lean`: §4.4 の `Bag a for [a]`，`Cells a for [[a]]`，`Matchers a for [Matcher Any a]`。
+  推論・正確な評価結果・動的型エラーの不在，族の合わないパターンの拒否，型変数がターゲットに現れないスキームの拒否。
 
 ## 6. 今後の拡張
 

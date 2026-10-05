@@ -1242,7 +1242,7 @@ patternFamilyTargetType declaredTypes aliasEnv =
 -- data type, unless @T@ is that data type applied to @a1 ... an@ (the family
 -- of the type with the same name).  The target @T@ is a data type or a
 -- built-in base type, not a tuple, function, matcher, or type variable; every
--- parameter @ai@ occurs in @T@ outside matcher types, as in @[[a]]@, so that
+-- parameter @ai@ occurs in @T@, as in @[[a]]@ or @[Matcher Any a]@, so that
 -- the target determines it; and @T@ mentions no pattern family declared with
 -- `for`.
 validatePatternFamilyTarget
@@ -1268,8 +1268,8 @@ validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasE
           missing = [ param | param <- params, param `notElem` determined ]
       unless (null missing) $
         throwError $ Default $
-          context ++ ": every type parameter must occur in the target "
-          ++ "outside matcher types; missing: " ++ unwords missing
+          context ++ ": every type parameter must occur in the target; "
+          ++ "missing: " ++ unwords missing
   let mentionedFamilies =
         filter (`Set.member` familyTargetNames) (inductiveTypeNamesIn target)
   unless (null mentionedFamilies) $
@@ -1277,15 +1277,17 @@ validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasE
       context ++ ": the target must not mention a pattern family declared "
       ++ "with `for`: " ++ unwords mentionedFamilies
 
--- | The type variables that a target type determines: those that occur
--- outside matcher types.  This mirrors @PolyTy.determinedBounds@ of the Lean
--- formalization.
+-- | The type variables that occur in a target type, including inside the
+-- target of a matcher type.  The target determines them, because matcher
+-- normalization is injective in the target for a fixed capability.  This
+-- mirrors @PolyTy.determinedBounds@ of the Lean formalization.
 determinedTypeVariables :: Type -> [String]
 determinedTypeVariables ty = case ty of
   TVar (TyVar name)    -> [name]
   TTuple items         -> concatMap determinedTypeVariables items
   TFun domain codomain ->
     determinedTypeVariables domain ++ determinedTypeVariables codomain
+  TMatcher _ target    -> determinedTypeVariables target
   _ | Just (_, arguments) <- Types.dataTypeOf ty ->
         concatMap determinedTypeVariables arguments
   _                    -> []

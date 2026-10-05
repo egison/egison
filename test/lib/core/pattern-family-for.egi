@@ -226,3 +226,23 @@ def labels m := matcher
 assertEqual "any element of the label at the root"
   (matchAll Node [1, 2] [Leaf [3]] as labels something with label $x -> x)
   [1, 2]
+
+-- A type parameter may also occur only inside a matcher type in the target.
+-- The family Matchers is also checked in the Lean regression
+-- ListPatternFamilyRegression.lean.
+
+inductive pattern Matchers a for [Matcher Any a] := nonempty
+
+def matchers := matcher
+  | nonempty as () with
+    | _ :: _ -> [()]
+    | _ -> []
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "a nonempty list of matchers"
+  (matchAll [something, something] as matchers with nonempty -> 1)
+  [1]
+assertEqual "an empty list of matchers"
+  (matchAll [] as matchers with nonempty -> 1)
+  []

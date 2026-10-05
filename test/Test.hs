@@ -1803,8 +1803,8 @@ dataConstructorPatternTypeErrorTests =
 -- Its capability differs from that of every other family over the same type,
 -- and its declaration is rejected when the target is not a data type or a
 -- built-in base type, when its name is that of a data type, when a type
--- parameter does not occur in the target outside matcher types, or when the
--- target mentions a family declared with `for`.
+-- parameter does not occur in the target, or when the target mentions a family
+-- declared with `for`.
 patternFamilyTargetTypeErrorTests :: Test
 patternFamilyTargetTypeErrorTests =
   TestLabel "pattern families declared with for" . TestList $
@@ -1819,10 +1819,7 @@ patternFamilyTargetTypeErrorTests =
         , "needs a name different from every data type"
         )
       , ( "test/type-error/102-for-parameter-not-argument.egi"
-        , "every type parameter must occur in the target outside matcher types"
-        )
-      , ( "test/type-error/104-for-parameter-only-in-matcher.egi"
-        , "every type parameter must occur in the target outside matcher types"
+        , "every type parameter must occur in the target"
         )
       , ( "test/type-error/103-for-target-mentions-family.egi"
         , "the target must not mention a pattern family declared with `for`"
