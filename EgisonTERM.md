@@ -198,6 +198,7 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | observed type（単一化） | 解を適用する結果型 |
 | header | primitive-pattern pattern |
 | arm | primitive-data-match clause |
+| Int（組み込みの整数型．論文の型の表記） | Integer（Egison の型名に合わせる．Lean の識別子 `Ty.int` はそのまま．規則名 T-Int・G-Int は整数リテラルの規則の名前なので残す．2026-10-07） |
 | essential clause（一般のマッチャー節の意味） | general matcher clause（一般のマッチャー節）．essential は序論の「本質的なループ」と紛れる |
 | refinement clause（特殊化したマッチャー節の意味） | specialized matcher clause（特殊化したマッチャー節）．refinement は refinement type と紛れ，結果の多重性を変える節もあるので不正確 |
 | capture | value-pattern pattern |
