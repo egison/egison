@@ -1,7 +1,8 @@
 # パターン族の名前とターゲット型を分ける `for` 構文
 
 状態: 実装済み（2026-10-05）。Egison インタプリタと Lean の機械化（`~/PL/type-pm-mech`）の両方が
-対応する。
+対応する。フィールドを能力の式だけにし，`Any` を `(Any for T)` と書く構文は 2026-10-06 に実装した
+（インタプリタのみ。Lean は表層構文を持たない）。
 
 ## 1. 構文
 
@@ -17,6 +18,20 @@ inductive pattern F a1 ... an for T :=
   `String` など）。
 - `for T` を省いた `inductive pattern T a1 ... an := ...` は，同じ名前の型 `T a1 ... an` の族を宣言する
   （従来の構文）。`for T a1 ... an` と書いても同じ意味になる。
+- フィールド `f` は能力の式で，次のどれかである。
+
+  ```
+  f ::= ai                    族の型パラメータ
+      | G f ... f             宣言済みのパターン族 G の適用（リストの族は [f]）
+      | (f, ..., f)           フィールドのタプル
+      | (Any for t)           ターゲット型 t の上の能力 Any（t は任意の型の式）
+  ```
+
+  括弧やリストの中では `[Any for Integer]`，`(MathValue, Any for Integer)` のように括弧を省ける。
+  `Integer` のように族の名前でない型をそのまま書いたフィールドはエラーになる（エラー文で
+  `(Any for Integer)` と書くよう案内する）。`for` を付けられるのは `Any` だけである。ただしコアの外の
+  数式処理のビュー（`MathValue` などの族）は，`(MathValue for Term MathValue [..])` のように族の能力にも
+  `for` で型を添えられる（§2）。
 
 この構文で次のことができる。
 
@@ -25,8 +40,8 @@ inductive pattern F a1 ... an for T :=
 2. 一つの型の上の複数の族。例えば Wadler のビュー（views: 一つのデータ型を，内部表現とは別の
    コンストラクタの組で分解できるようにする仕組み）の直交座標と極座標，整数の Peano 式の分解と
    偶奇による分解。
-3. 要求を変えない族の追加。`Nat for Integer` を宣言しても，`Integer` と書いたフィールドの能力は
-   `Any` のままである。Peano 式に分解したいフィールドだけ `Nat` と書く。
+3. 要求を変えない族の追加。`Nat for Integer` を宣言しても，`(Any for Integer)` と書いたフィールドの
+   能力は `Any` のままである。Peano 式に分解したいフィールドだけ `Nat` と書く。
 
 ## 2. 意味
 
@@ -40,39 +55,54 @@ inductive pattern F a1 ... an for T :=
 `χi` はパラメータ `ai` に対応する能力変数である。フィールド `f` には，その位置のパターンが必要とする
 能力を書き，ターゲット型はその能力から補う。一つの族からはターゲット型が一つに定まるが，一つの型には
 複数の族がありうる（能力と型は一対多に対応する）ので，型ではなく能力を書く。ターゲット型を定めない
-能力は `Any` だけなので，型パラメータ・族の適用・タプルのどれでもないフィールドは型として読み，
-その型の上の `Any` を表す。
+能力は `Any` だけなので，`Any` はいつも `(Any for t)` と型を添えて書く。
 要求対 `κ(f) ⊣ τ(f)` は次の規則で読む。
 
 | フィールドの形 | 能力 κ(f) | ターゲット型 τ(f) |
 |---|---|---|
 | 族のパラメータ `ai` | `χi` | `ai` |
-| 族の名前の適用 `G t1 ... tm`（`G` は `inductive pattern G b1 ... bm for TG` で宣言） | `G κ(t1) ... κ(tm)` | `TG` の `b1 ... bm` を `τ(t1) ... τ(tm)` で置き換えた型 |
-| 同じ名前の族を持たない型の適用 `E t1 ... tm`（`Integer` など） | `Any` | `E τ(t1) ... τ(tm)` |
-| タプル `(t1, ..., tk)` | `(κ(t1), ..., κ(tk))` | `(τ(t1), ..., τ(tk))` |
+| 族の名前の適用 `G f1 ... fm`（`G` は `inductive pattern G b1 ... bm for TG` で宣言） | `G κ(f1) ... κ(fm)` | `TG` の `b1 ... bm` を `τ(f1) ... τ(fm)` で置き換えた型 |
+| タプル `(f1, ..., fk)` | `(κ(f1), ..., κ(fk))` | `(τ(f1), ..., τ(fk))` |
+| `(Any for t)` | `Any` | `t` |
 
 同じ名前の族を持つ型の名前 `D` は，族の名前として 2 行目で読む。その族のターゲット型は
-`D b1 ... bm` なので，`D t1 ... tm` は `D κ(t1) ... κ(tm) ⊣ D τ(t1) ... τ(tm)` になり，従来の規則と同じ
-結果を与える（例えば `[Integer]` は `[Any] ⊣ [Integer]`）。族の名前は型の引数の中にも書ける。例えば
-フィールド `[Nat]` は `[Nat] ⊣ [Integer]` を表す。
+`D b1 ... bm` なので，`D f1 ... fm` は `D κ(f1) ... κ(fm) ⊣ D τ(f1) ... τ(fm)` になる。族の名前は
+フィールドの引数の中にも書ける。例えばフィールド `[Nat]` は `[Nat] ⊣ [Integer]`，`[Any for Integer]` は
+`[Any] ⊣ [Integer]`，`(Any for [Integer])` は `Any ⊣ [Integer]` を表す。
 
-族を持つ型の上の `Any` は書けない。例えば
-`inductive pattern AssocList a b for [(a, b)] := | get a b | getAll a [b]` のフィールド `[b]` は
-リストの能力 `[χb]` を表すので，マッチャー節ではその位置の次のマッチャーに `list mb` のような
-リストのマッチャー（`mb` は `b` のマッチャー）を渡す。利用者はその位置でパターン変数を使えば値全体を
-受け取れる。
+`Any` を型と並べて明示するので，族を持つ型の上の `Any` も書ける。例えば
+`inductive pattern AssocList a b for [(a, b)] := | get a b | getAll a (Any for [b])` では，マッチャー節は
+`getAll` の値のリストの位置に `something` を渡せる（フィールドを `[b]` と書くと，リストの能力 `[χb]` を
+要求するので `list mb` のようなリストのマッチャーが要る）。
+
+コアの外の例外として，数式処理のビュー（`MathValue`，`PolyExpr`，`TermExpr`，`SymbolExpr`，`IndexExpr` の
+族）は，族の能力にも `for` で型を添えられる。例えば `poly [MathValue for Term MathValue [..]]` は，項の位置に
+`term`・`*` などの MathValue のパターンを使えるようにしたまま，その位置のターゲット型を `Term MathValue [..]`
+にする（`derivative.egi` は，この型で型クラスの実装を静的に選ぶ）。これらのビューのマッチャー定義では，
+もともと宣言したフィールドの型をターゲットの根拠に使わない。
+
+実装では，`(κ for t)` を予約語の擬似的な型名を使って `TInductive "for" [κ, t]`，`Any` を
+`TInductive "Any" []` として型の式に格納する。能力は κ から（`capabilitySkeleton`），ターゲット型は t から
+（`projectPatternFamilyTargets`）取る。宣言を読み込むときに，フィールドが上の形の能力の式であることを
+検査する（`EnvBuilder.validatePatternConstructorFields`）。
 
 `Any` と書いたフィールドに新しい型変数 β を対応させる案（`Any ⊣ β`）は採らない（2026-10-06 決定）。
 
 - β を ∀ で束縛すると，β は結果に現れないので，§3 の条件 3（スキームの結果が量化変数を定めること）を
   満たさない。マッチャー節とパターンはスキームを別々に具体化し，両者をつなぐのは結果だけなので，β は
-  両側で別の型に決まりうる。例えば `inductive pattern Boxed for Integer := | boxed Any` に対して，
+  両側で別の型に決まりうる。例えば `inductive pattern Boxed for Integer := | boxed Any`（Any に新しい型変数を対応させる仮の構文）に対して，
   マッチャー節 `boxed $ as something with | $n -> ["hello"]` は β = `String` とし，パターン `boxed $x` の
   本体 `x + 1` は β = `Integer` とするので，実行時の型エラーになる。
 - β を照合ごとの抽象型（存在型）として扱えば安全だが，型システムに抽象型の導入と隠蔽を加える必要があり，
   型推論の主要型性も難しくなる。Egison のデータコンストラクタには存在型のフィールドがなく，成分の型は
-  いつもターゲット型から定まるので，フィールドはいつも `Integer`，`b`，`[b]` のようにターゲット型が定まる
-  形で書ける。
+  いつもターゲット型から定まるので，フィールドはいつも `(Any for Integer)`，`b`，`[b]` のようにターゲット型が
+  定まる形で書ける。
+
+型をそのまま書いたフィールド（`even Integer` を「Integer 上の Any」と読む旧構文）は廃止した（2026-10-06 決定）。
+フィールドは能力であるという原則を構文で保つためで，`Any` は `(Any for Integer)` と明示する。これにより
+「族の名前でなければ型として読む」という暗黙の規則がなくなり，族を持つ型の上の `Any` も書けるようになった。
+フィールドの構文解析器は能力の式だけを読み（`Parser/NonS.hs` の `patternFieldArg`），関数型・マッチャー型・
+数式処理の型などの型の構文は `for` の後でだけ読む。
 
 能力の単一化，EvidenceOK（matcher式の能力が，各マッチャー節のプリミティブパターンパターンの根の
 コンストラクタから得る能力とすべて等しく，そのような能力がなければ `Any` であるという条件），網羅性の
@@ -93,6 +123,10 @@ inductive pattern F a1 ... an for T :=
    能力の位置は結果の能力で定まるので，正規化した結果が等しい二つのインスタンスは，`T` に現れるすべての
    型変数で一致する。
 4. `T` は `for` で宣言した族の名前を含まない。
+
+すべてのパターン宣言のフィールドは，§1 の能力の式でなければならない（`for` の有無によらない）。
+族の名前でない型（`Integer`），族の型パラメータでも族でもない名前，`Any` 以外の能力に付けた `for`
+（数式処理のビューを除く）は，宣言を読み込むときに拒否する。
 
 Lean の機械化では，パターンコンストラクタの結果のターゲット型は宣言済みのデータ型の適用か組み込みの
 整数型 `int` である（`Foundation/Signature.lean` の `PatternTargetDeclared`）。条件 3 は
@@ -133,8 +167,8 @@ def pred n :=
 
 ```egison
 inductive pattern Parity for Integer :=
-  | even Integer
-  | odd Integer
+  | even (Any for Integer)
+  | odd (Any for Integer)
 ```
 
 `even $k` は `2k`，`odd $k` は `2k + 1` の形の整数に照合する。`Nat` と `Parity` は同じ `Integer` の上の
@@ -152,10 +186,10 @@ inductive Cpx :=
   | Pole Float Float
 
 inductive pattern Cartesian for Cpx :=
-  | cart Float Float
+  | cart (Any for Float) (Any for Float)
 
 inductive pattern Polar for Cpx :=
-  | pole Float Float
+  | pole (Any for Float) (Any for Float)
 
 def cartesian := matcher
   | cart $ $ as (something, something) with
@@ -213,17 +247,21 @@ inductive pattern Root a for Tree a := root a
 | 宣言の条件（§3） | `EnvBuilder.hs` の `validatePatternFamilyTarget` |
 | 能力コンストラクタの登録 | `EnvBuilder.hs` の `buildCapabilityConstructorArities`（`for` の族を追加） |
 | ターゲット型の記録 | `EnvBuilder.hs` の `processTopExpr` が `extendPatternFamilyTarget` で `patternFamilyTargets` に登録。ロード単位をまたぐ統合は `Eval.hs` |
-| シグネチャ | フィールドと結果の型は族の名前で書く（`s : Nat -> Nat`）。`--dump-env` もこの形で表示する |
+| フィールドの構文 | `Parser/NonS.hs` の `patternFieldArg`（能力の式だけを読む）と，`EnvBuilder.validatePatternConstructorFields`（族の名前でない型や，`Any` 以外への `for` を拒否する） |
+| シグネチャ | フィールドと結果の型は族の名前で書く（`s : Nat -> Nat`，`even : (Any for Integer) -> Parity`）。`--dump-env` もこの形で表示する |
 | 能力 | `Type/Infer.hs` の `capabilityTemplates`（族の名前から能力コンストラクタを作る） |
 | ターゲット型 | `Type/Env.hs` の `projectPatternFamilyTargets` を，マッチャー節の `PPInductivePat` とマッチ節の `IInductivePat` の推論で適用する |
 
 テスト:
 
 - `test/lib/core/pattern-family-for.egi`: §4 の例（`Nat`，`Parity`，`Cartesian`／`Polar`，`Bag`，`Tree`／`Root`，
-  `Cells`，`Labels`，`Matchers`）と，`Integer` と書いたフィールドが `something` で足りること。
+  `Cells`，`Labels`，`Matchers`），`(Any for Integer)` と書いたフィールドが `something` で足りること，
+  族を持つ型の上の Any（`AssocList` の `getAll a (Any for [b])`）。
 - `test/lib/core/type-pm-examples.egi` の `paperNat`: 論文の例。Lean の回帰と同じ演算で書いたマッチャー。
-- `test/type-error/99`〜`103`: 能力の不一致，タプルのターゲット，データ型と同じ名前，ターゲットに現れない
-  パラメータ，ターゲットに現れる族。`test/Test.hs` の `patternFamilyTargetTypeErrorTests` が検査する。
+- `test/type-error/99`〜`106`: 能力の不一致，タプルのターゲット，データ型と同じ名前，ターゲットに現れない
+  パラメータ，ターゲットに現れる族，族の名前でない型のフィールド（`even Integer`），コアの族への `for`
+  （`(Nat for Integer)`），Any のフィールドに置いたコンストラクタパターン。`test/Test.hs` の
+  `patternFamilyTargetTypeErrorTests` が検査する。
 
 ### Lean の機械化
 

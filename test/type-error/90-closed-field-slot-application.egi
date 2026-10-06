@@ -6,7 +6,7 @@
 -- type)
 
 inductive Box := Box [Integer]
-inductive pattern Box := box [Integer]
+inductive pattern Box := box [Any for Integer]
 
 def boxMatcherWith m :=
   matcher

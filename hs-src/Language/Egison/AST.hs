@@ -220,7 +220,8 @@ data InductiveConstructor = InductiveConstructor
 -- e.g., myNil, myCons a (MyList a)
 data PatternConstructor = PatternConstructor
   { patternCtorName :: String      -- ^ Pattern constructor name (e.g., "myNil", "myCons")
-  , patternCtorArgs :: [TypeExpr]  -- ^ Pattern constructor argument types (e.g., [], [a, MyList a])
+  , patternCtorArgs :: [TypeExpr]  -- ^ Pattern constructor fields, each naming a capability
+                                   --   (e.g., [], [a, MyList a], [(Any for Integer)])
   } deriving (Show, Eq)
 
 data ConstantExpr
@@ -545,6 +546,9 @@ data TypeExpr
   | TETerm TypeExpr SymbolSetExpr      -- ^ Term type, e.g., Term Integer [x] (single monomial over the given atoms)
   | TEFrac TypeExpr                     -- ^ Frac type, e.g., Frac Integer
   | TEPoly TypeExpr SymbolSetExpr      -- ^ Poly type, e.g., Poly Integer [x, y]
+  -- Pattern-constructor fields with an explicit target type
+  | TEAnyCapability                    -- ^ The capability Any before @for@ in a field
+  | TECapabilityFor TypeExpr TypeExpr  -- ^ A field with an explicit target type, e.g., (Any for Integer)
   deriving (Show, Eq)
 
 -- | Symbol set expression for polynomial types

@@ -3,7 +3,7 @@
 -- the `closedFieldBox $` clause, not to the target type `[Integer]` itself.
 
 inductive ClosedFieldBox := ClosedFieldBox [Integer]
-inductive pattern ClosedFieldBox := closedFieldBox [Integer]
+inductive pattern ClosedFieldBox := closedFieldBox [Any for Integer]
 
 -- A matcher may consume a list while exposing no list-pattern capability.
 def closedFieldTargetOnly : Matcher Any [Integer] :=

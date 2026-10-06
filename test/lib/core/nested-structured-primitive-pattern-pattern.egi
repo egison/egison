@@ -7,8 +7,8 @@ inductive NestedPPatWarningDemo :=
   | NestedPPatWarningCons Integer NestedPPatWarningDemo
 
 inductive pattern NestedPPatWarningDemo :=
-  | nestedPPatWarningJoin Integer NestedPPatWarningDemo
-  | nestedPPatWarningCons Integer NestedPPatWarningDemo
+  | nestedPPatWarningJoin (Any for Integer) NestedPPatWarningDemo
+  | nestedPPatWarningCons (Any for Integer) NestedPPatWarningDemo
 
 def nestedPPatWarningMatcher :=
   matcher

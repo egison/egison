@@ -4,4 +4,4 @@
 -- Expected: Type error (the target must be a data type or a built-in base type)
 
 inductive pattern Pair for (Integer, Integer) :=
-  | pair Integer Integer
+  | pair (Any for Integer) (Any for Integer)

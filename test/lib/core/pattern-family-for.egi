@@ -38,8 +38,8 @@ assertEqual "list of nat"
 -- A second family over Integer
 
 inductive pattern Parity for Integer :=
-  | even Integer
-  | odd Integer
+  | even (Any for Integer)
+  | odd (Any for Integer)
 
 def parity := matcher
   | even $ as something with
@@ -59,7 +59,7 @@ inductive Tagged :=
   | Tagged Integer
 
 inductive pattern Tagged :=
-  | tagged Integer
+  | tagged (Any for Integer)
 
 def taggedM := matcher
   | tagged $ as something with
@@ -89,10 +89,10 @@ inductive Cpx :=
   | Pole Float Float
 
 inductive pattern Cartesian for Cpx :=
-  | cart Float Float
+  | cart (Any for Float) (Any for Float)
 
 inductive pattern Polar for Cpx :=
-  | pole Float Float
+  | pole (Any for Float) (Any for Float)
 
 def cartesian := matcher
   | cart $ $ as (something, something) with
@@ -246,3 +246,22 @@ assertEqual "a nonempty list of matchers"
 assertEqual "an empty list of matchers"
   (matchAll [] as matchers with nonempty -> 1)
   []
+
+-- A field names a capability.  A field that accepts every pattern without a
+-- constructor names Any together with its target type, as in
+-- (Any for Integer) above.  Any may also be given on a type that has a
+-- pattern family: in `getAll a (Any for [b])` the matcher clause passes
+-- `something` for the list of values, which a list field `[b]` would forbid.
+
+inductive pattern AssocList a b for [(a, b)] := getAll a (Any for [b])
+
+def assocList ma mb := matcher
+  | getAll #$k $ as something with
+    | $tgt -> [matchAll tgt as list (ma, mb) with _ ++ (#k, $v) :: _ -> v]
+  | $ as something with
+    | $tgt -> [tgt]
+
+assertEqual "Any on a type that has a pattern family"
+  (matchAll [(1, 10), (2, 20), (1, 30)] as assocList integer integer with
+    | getAll #1 $vs -> vs)
+  [[10, 30]]

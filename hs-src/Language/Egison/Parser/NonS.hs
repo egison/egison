@@ -110,6 +110,7 @@ topExpr = Load     <$> (reserved "load" >> stringLiteral)
 -- e.g., inductive pattern MyList a := | myNil | myCons a (MyList a)
 --       inductive pattern [a] := | (::) a [a] | (++) [a] [a]
 --       inductive pattern Nat for Integer := | o | s Nat
+--       inductive pattern Parity for Integer := | even (Any for Integer)
 patternInductiveExpr :: Parser TopExpr
 patternInductiveExpr = try $ do
   pos <- L.indentLevel
@@ -157,8 +158,8 @@ patternConstructor = prefixPatternConstructor
     -- Prefix notation: [], myNil, myCons a (MyList a), (::) a [a]
     prefixPatternConstructor = do
       name <- try emptyListConstructor <|> try parenOperator <|> lowerId  -- Pattern constructors can be [], operator in parens, or lowercase identifier
-      -- Parse argument types
-      args <- many (try inductiveArgType)
+      -- Parse the fields, each naming a capability
+      args <- many (try patternFieldArg)
       return $ PatternConstructor name args
     
     -- Empty list constructor: []
@@ -171,6 +172,96 @@ patternConstructor = prefixPatternConstructor
       op <- some (oneOf ("!#$%&*+./<=>?@\\^|-~:" :: String))
       _ <- symbol ")"
       return op
+
+-- | Parse a field of a pattern constructor.  A field names the capability
+-- that a pattern in its position needs; its target type follows from the
+-- capability.  A field is a type parameter, a pattern family applied to
+-- fields, a list or tuple of fields, or a capability with an explicit target
+-- type, written (Any for T).  Any is the only capability that determines no
+-- target type, so it is written only with @for@.  A type that names no
+-- pattern family, such as Integer, is not a field; the environment builder
+-- reports it and suggests (Any for Integer).
+-- e.g., a, Nat, [a], (Tree a), (a, [a]), (Any for Integer), [Any for Char]
+patternFieldArg :: Parser TypeExpr
+patternFieldArg = try $ do
+  notFollowedBy (symbol "|")
+  patternFieldAtom
+
+-- | A field that needs no parentheses in an argument position.
+patternFieldAtom :: Parser TypeExpr
+patternFieldAtom =
+      TEList <$> brackets patternFieldComponent
+  <|> patternFieldParens
+  <|> TEVar <$> patternFieldVar
+  <|> (\name -> patternFamilyField name []) <$> patternFamilyName
+
+-- | A parenthesized field, a tuple of fields, or the unit tuple.
+patternFieldParens :: Parser TypeExpr
+patternFieldParens = parens $ do
+  first <- optional patternFieldComponent
+  case first of
+    Nothing -> return $ TETuple []
+    Just field -> do
+      rest <- optional (symbol "," >> patternFieldComponent `sepBy1` symbol ",")
+      return $ maybe field (TETuple . (field :)) rest
+
+-- | A field inside brackets or parentheses: a pattern family applied to
+-- fields, possibly followed by @for@ and an explicit target type, or Any
+-- followed by @for@ and its target type.
+patternFieldComponent :: Parser TypeExpr
+patternFieldComponent = do
+  capability <- (TEAnyCapability <$ reserved "Any") <|> patternFieldApp
+  target <- optional (reserved "for" >> typeExpr)
+  case (capability, target) of
+    (TEAnyCapability, Nothing) ->
+      fail "the capability Any needs its target type: write (Any for T)"
+    (_, Nothing) -> return capability
+    (_, Just targetType) -> return $ TECapabilityFor capability targetType
+
+-- | A pattern family applied to fields, or a single field.
+patternFieldApp :: Parser TypeExpr
+patternFieldApp =
+      try (do name <- patternFamilyName
+              args <- many (notFollowedBy (reserved "for") >> patternFieldAtom)
+              return $ patternFamilyField name args)
+  <|> patternFieldAtom
+
+-- | A type parameter in a field.
+patternFieldVar :: Parser String
+patternFieldVar = try $ do
+  notFollowedBy (reserved "for")
+  inductiveTypeVar
+
+-- | The name of a pattern family in a field.  Families may share their names
+-- with built-in types (String, MathValue, Matrix), so type keywords are
+-- accepted here; Any is a capability, not a family.
+patternFamilyName :: Parser String
+patternFamilyName = lexeme $ try $ do
+  c <- upperChar
+  cs <- many identChar
+  let name = c : cs
+  if name == "Any"
+    then fail "the capability Any needs its target type: write (Any for T)"
+    else return name
+
+-- | The field naming a pattern family applied to fields.  A family that
+-- shares its name with a built-in type is represented by that type, as in
+-- type expressions, so that its application is its target type.
+patternFamilyField :: String -> [TypeExpr] -> TypeExpr
+patternFamilyField name args = case (name, args) of
+  ("Integer", [])    -> TEInt
+  ("MathValue", [])  -> TEMathValue
+  ("Float", [])      -> TEFloat
+  ("Bool", [])       -> TEBool
+  ("Char", [])       -> TEChar
+  ("String", [])     -> TEString
+  ("Factor", [])     -> TEFactor
+  ("Tensor", [arg])  -> TETensor arg
+  ("Vector", [arg])  -> TEVector arg
+  ("Matrix", [arg])  -> TEMatrix arg
+  ("DiffForm", [arg]) -> TEDiffForm arg
+  (_, [])            -> TEVar name
+  _                  -> TEApp (TEVar name) args
 
 -- | Parse inductive data type declaration
 -- e.g., inductive Ordering := | Less | Equal | Greater

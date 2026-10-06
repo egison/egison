@@ -1,0 +1,20 @@
+-- A field written (Any for T) requires the capability Any, which permits no
+-- pattern constructor, even when T has a pattern family: Integer has the
+-- family Nat, but a pattern of Nat in the field of `boxed` is rejected.
+--
+-- Expected: Type error (the capabilities Nat and Any do not unify)
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat
+
+inductive pattern Boxed for Integer :=
+  | boxed (Any for Integer)
+
+def boxed := matcher
+  | boxed $ as something with
+    | $n -> [n]
+  | $ as something with
+    | $n -> [n]
+
+def bad := matchAll 3 as boxed with boxed (s $m) -> m

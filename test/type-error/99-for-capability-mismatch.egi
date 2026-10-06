@@ -9,7 +9,7 @@ inductive pattern Nat for Integer :=
   | s Nat
 
 inductive pattern Parity for Integer :=
-  | even Integer
+  | even (Any for Integer)
 
 def parity := matcher
   | even $ as something with

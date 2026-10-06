@@ -44,7 +44,7 @@ assertEqual "next matcher: structured lambda application"
   [Just [1, 2]]
 
 inductive PairBox := PairBox (Integer, Integer)
-inductive pattern PairBox := pairBox (Integer, Integer)
+inductive pattern PairBox := pairBox (Any for Integer, Any for Integer)
 
 -- There is one hole, so the whole tuple is one product-matcher component.
 def pairBoxMatcher : Matcher PairBox PairBox :=

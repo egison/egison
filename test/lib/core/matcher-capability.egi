@@ -126,7 +126,7 @@ inductive CapabilityAtom :=
   | CapabilityAtom Integer
 
 inductive pattern CapabilityAtom :=
-  | capabilityAtom Integer
+  | capabilityAtom (Any for Integer)
 
 def capabilityAtomMatcher : Matcher CapabilityAtom CapabilityAtom :=
   matcher

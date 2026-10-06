@@ -59,6 +59,7 @@ import qualified Data.Set                   as Set
 
 import           Language.Egison.IExpr      (Var(..), Index(..))
 import           Language.Egison.VarEntry   (VarEntry(..))
+import           Language.Egison.Type.Types (capabilityForName)
 import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
                                              Type (..), TypeScheme (..),
                                              PatFuncScheme,
@@ -85,7 +86,9 @@ newtype TypeEnv = TypeEnv { unTypeEnv :: Map String [VarEntry TypeScheme] }
 -- @T@; 'projectPatternFamilyTargets' replaces each application of @F@ by the
 -- corresponding instance of @T@.  A family declared without @for@ is the
 -- family of the type with the same name, so its application is already its
--- target type and it has no entry.
+-- target type and it has no entry.  A field written @(κ for T)@, such as
+-- @(Any for Integer)@, names its target type explicitly and is projected to
+-- @T@.
 data PatternTypeEnv = PatternTypeEnv
   { unPatternTypeEnv     :: Map String TypeScheme
   , patternFamilyTargets :: Map String ([TyVar], Type)
@@ -430,14 +433,16 @@ patternFamilyTargetList :: PatternTypeEnv -> [(String, ([TyVar], Type))]
 patternFamilyTargetList env = Map.toList (patternFamilyTargets env)
 
 -- | Replace every application of a pattern family declared with @for@ by the
--- corresponding instance of its target type.  Arguments are replaced first,
--- so a family nested in an argument (as in @[Nat]@) is replaced as well.
+-- corresponding instance of its target type, and every field written
+-- @(κ for T)@ by @T@.  Arguments are replaced first, so a family nested in an
+-- argument (as in @[Nat]@) is replaced as well.
 projectPatternFamilyTargets :: PatternTypeEnv -> Type -> Type
-projectPatternFamilyTargets env
-  | Map.null families = id
-  | otherwise = mapType project
+projectPatternFamilyTargets env = mapType project
   where
     families = patternFamilyTargets env
+    -- A field written (κ for T) targets T.
+    project (TInductive name [_, target])
+      | name == capabilityForName = target
     project (TInductive name arguments)
       | Just (parameters, target) <- Map.lookup name families
       , length parameters == length arguments =

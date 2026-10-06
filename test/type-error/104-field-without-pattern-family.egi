@@ -1,0 +1,8 @@
+-- A field of a pattern constructor names a capability.  A type that names no
+-- pattern family is not a field; a field that accepts every pattern without a
+-- constructor on Integer is written (Any for Integer).
+--
+-- Expected: Error (`Integer` names no pattern family)
+
+inductive pattern Parity for Integer :=
+  | even Integer

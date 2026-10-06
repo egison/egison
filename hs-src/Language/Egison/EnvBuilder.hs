@@ -140,6 +140,17 @@ buildEnvironments exprs = do
   mapM_ (validatePatternFamilyTarget dataTypeNames familyTargetNames declaredTypes aliasEnv)
         [ (n, ps, t) | PatternInductiveDecl n ps (Just t) _ <- exprs ]
 
+  -- The fields of pattern constructors name capabilities.  The pattern
+  -- families they may name are those of earlier load units and of this one.
+  let patternFamilies =
+        [ dataType | (_, scheme) <- patternEnvToList priorPatternCtorEnv
+                   , Just dataType <- [schemeResultDataType scheme] ]
+        ++ [ dataType | PatternInductiveDecl n ps _ _ <- exprs
+                      , Just (dataType, _) <-
+                          [Types.dataTypeOf (patternFamilyType n ps)] ]
+  mapM_ (validatePatternConstructorFields patternFamilies declaredTypes aliasEnv)
+        [ (n, ps, cs) | PatternInductiveDecl n ps _ cs <- exprs ]
+
   -- Collect `declare cas-subtype` edges (alias-expanded) and check that each
   -- addition preserves a unique join, in declaration order.
   priorEdges <- getCasSubtypeEdges
@@ -749,6 +760,9 @@ validateTypeExprCapabilities arities aliases context typeExpr =
       validate coefficient
     TEPoly coefficient _ ->
       validate coefficient
+    TECapabilityFor capability target -> do
+      validate capability
+      validate target
     _ ->
       return ()
   where
@@ -1080,14 +1094,9 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
 
   -- 5. Pattern Inductive Declarations (from PatternInductiveDecl)
   PatternInductiveDecl typeName typeParams maybeTarget constructors -> do
-    let typeParamVars = map (TVar . TyVar) typeParams
-        -- The family applied to its parameters.  The signatures of its
+    let -- The family applied to its parameters.  The signatures of its
         -- pattern constructors name the family by this type.
-        -- Special cases: [a] as TCollection and String as TString
-        patternType = case (typeName, typeParams) of
-                        ("[]", [param]) -> TCollection (TVar (TyVar param))
-                        ("String", [])  -> TString
-                        _               -> TInductive typeName typeParamVars
+        patternType = patternFamilyType typeName typeParams
         patternCtorEnv = ebrPatternConstructorEnv result
         -- A family declared with `for` records its target type.  A target
         -- equal to the family type is the family of the type with the
@@ -1236,6 +1245,89 @@ patternFamilyTargetType
 patternFamilyTargetType declaredTypes aliasEnv =
   concretizeDeclaredTypes declaredTypes . Types.expandTypeAliases aliasEnv
     . typeExprToType
+
+-- | The type that names a pattern family in the signatures of its pattern
+-- constructors: the family applied to its parameters, where the list family
+-- is the list type and the String family is the built-in string type.
+patternFamilyType :: String -> [String] -> Type
+patternFamilyType name params = case (name, params) of
+  ("[]", [param]) -> TCollection (TVar (TyVar param))
+  ("String", [])  -> TString
+  _               -> TInductive name (map (TVar . TyVar) params)
+
+-- | The pattern family of a declared pattern constructor, read from the
+-- result of its signature.
+schemeResultDataType :: TypeScheme -> Maybe Types.DataType
+schemeResultDataType (Forall _ _ _ ty) = fst <$> Types.dataTypeOf (result ty)
+  where
+    result (TFun _ rest) = result rest
+    result other         = other
+
+-- | The fields of a pattern constructor name capabilities, and their target
+-- types follow from the capabilities.  A field is a type parameter of its
+-- family, a declared pattern family applied to fields, a list or tuple of
+-- fields, or a capability with an explicit target type, written (κ for T).
+-- Any, the capability that determines no target type, is written only as
+-- (Any for T).  Outside the core rules, the family of a legacy
+-- symbolic-mathematics view may also take an explicit target type, as in
+-- (MathValue for Term MathValue [..]).  A type that names no pattern family,
+-- such as Integer, is rejected with a suggestion to write (Any for Integer).
+validatePatternConstructorFields
+  :: [Types.DataType] -> Set.Set String -> HashMap.HashMap String Type
+  -> (String, [String], [PatternConstructor]) -> EvalM ()
+validatePatternConstructorFields families declaredTypes aliasEnv
+                                 (familyName, params, constructors) =
+  mapM_ validateConstructor constructors
+  where
+    validateConstructor (PatternConstructor ctorName fieldExprs) =
+      mapM_ (validateField ctorName) fieldExprs
+
+    validateField ctorName fieldExpr = do
+      let field = concretizeDeclaredTypes declaredTypes
+                    (Types.expandTypeAliases aliasEnv (typeExprToType fieldExpr))
+      case invalidField field of
+        Nothing -> return ()
+        Just (offending, reason) -> throwError $ Default $
+          "pattern constructor `" ++ ctorName ++ "` of inductive pattern `"
+          ++ familyName ++ "`: `" ++ prettyType offending ++ "`"
+          ++ (if offending == field
+                then ""
+                else " in the field `" ++ prettyType field ++ "`")
+          ++ " " ++ reason
+
+    -- The first part of a field that is not a capability, with the reason.
+    invalidField :: Type -> Maybe (Type, String)
+    invalidField ty = case ty of
+      TVar variable
+        | Types.tyVarName variable `elem` params -> Nothing
+        | otherwise ->
+            Just (ty, "is neither a type parameter nor a pattern family")
+      TTuple items -> firstInvalid items
+      TInductive name [capability, _]
+        | name == Types.capabilityForName ->
+            if explicitCapabilityAllowed capability
+              then Nothing
+              else Just (ty, "gives a capability other than Any an explicit"
+                             ++ " target type; only Any, or the family of a"
+                             ++ " symbolic-mathematics view, takes one")
+      TInductive name []
+        | name == Types.anyCapabilityName ->
+            Just (ty, "needs its target type; write (Any for T)")
+      _ -> case Types.dataTypeOf ty of
+        Just (dataType, arguments)
+          | dataType `elem` families -> firstInvalid arguments
+        _ -> Just (ty, "names no pattern family; a field names a capability,"
+                       ++ " so write (Any for " ++ prettyType ty ++ ")")
+
+    firstInvalid items = case [ found | Just found <- map invalidField items ] of
+      found : _ -> Just found
+      []        -> Nothing
+
+    explicitCapabilityAllowed capability = case capability of
+      TInductive name [] | name == Types.anyCapabilityName -> True
+      _ | Just (dataType, []) <- Types.dataTypeOf capability ->
+            Types.legacyCasLeafDataType dataType && dataType `elem` families
+      _ -> False
 
 -- | Check a pattern family declared with
 -- @inductive pattern F a1 ... an for T@.  The name @F@ differs from every

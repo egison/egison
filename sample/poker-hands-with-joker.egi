@@ -10,7 +10,7 @@ inductive pattern Suit :=
   | diamond
 
 inductive pattern Card :=
-  | card Suit Integer
+  | card Suit (Any for Integer)
   | joker
 
 -- Matcher definitions

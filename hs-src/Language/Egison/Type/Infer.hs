@@ -3545,17 +3545,6 @@ capabilityCombine ctx left right = do
   substitution <- alignPatternCapabilities ctx left right
   applyCapabilityM substitution left
 
--- | Type constructors whose pattern declarations are legacy CAS pattern
--- views: the declaration names the runtime view of a mathematical expression,
--- not the target type of the matcher, so its field types are not target
--- evidence.  This is an Egison extension outside the core rules and is
--- reported by the outside-core diagnostic.
-legacyCasLeafDataType :: DataType -> Bool
-legacyCasLeafDataType dataType =
-  dataType `elem`
-    map (\name -> mkDataType name 0)
-      ["MathValue", "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr"]
-
 -- | Convert a freshly instantiated structural type signature into capability
 -- templates using one shared variable map.  This bridge is local to declared
 -- pattern-constructor projection; pattern inference itself remains in the

@@ -4,7 +4,7 @@
 -- Expected: Type error (`Any` capability at a list-headed hole)
 
 inductive Box := Box [Integer]
-inductive pattern Box := box [Integer]
+inductive pattern Box := box [Any for Integer]
 
 def mPoly {a} : Matcher Any a :=
   matcher

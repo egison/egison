@@ -7,18 +7,18 @@
 inductive pattern MathValue :=
   | frac MathValue MathValue
   | (/) MathValue MathValue
-  | plus [(Term MathValue [..])]
-  | poly [(Term MathValue [..])]
-  | term MathValue [(MathValue, Integer)]
+  | plus [MathValue for Term MathValue [..]]
+  | poly [MathValue for Term MathValue [..]]
+  | term MathValue [(MathValue, Any for Integer)]
   | mult MathValue MathValue
-  | (+) (Term MathValue [..]) MathValue
+  | (+) (MathValue for Term MathValue [..]) MathValue
   | (*) MathValue MathValue
-  | (^) Factor Integer
+  | (^) (MathValue for Factor) (Any for Integer)
   | symbol String [IndexExpr]
-  | apply1 (MathValue -> MathValue) MathValue
-  | apply2 (MathValue -> MathValue -> MathValue) MathValue MathValue
-  | apply3 (MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue
-  | apply4 (MathValue -> MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue MathValue
+  | apply1 (Any for MathValue -> MathValue) MathValue
+  | apply2 (Any for MathValue -> MathValue -> MathValue) MathValue MathValue
+  | apply3 (Any for MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue
+  | apply4 (Any for MathValue -> MathValue -> MathValue -> MathValue -> MathValue) MathValue MathValue MathValue MathValue
   | quote MathValue
   | func MathValue [MathValue]
 

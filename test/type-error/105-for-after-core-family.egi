@@ -1,0 +1,12 @@
+-- Only the capability Any takes an explicit target type with `for`: a
+-- pattern family determines its own target type.  (Outside the core rules,
+-- the family of a symbolic-mathematics view may also take one.)
+--
+-- Expected: Error (`for` after the family Nat)
+
+inductive pattern Nat for Integer :=
+  | o
+  | s Nat
+
+inductive pattern Wrapped for Integer :=
+  | wrap (Nat for Integer)

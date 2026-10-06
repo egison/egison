@@ -6,6 +6,6 @@
 --
 
 inductive Tile := Num Integer | Hnr Integer
-inductive pattern Tile := num Integer | hnr Integer
+inductive pattern Tile := num (Any for Integer) | hnr (Any for Integer)
 
 def t := matchAll [1, 2, 3] as multiset integer with num $n :: _ -> n

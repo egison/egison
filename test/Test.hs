@@ -1824,6 +1824,15 @@ patternFamilyTargetTypeErrorTests =
       , ( "test/type-error/103-for-target-mentions-family.egi"
         , "the target must not mention a pattern family declared with `for`"
         )
+      , ( "test/type-error/104-field-without-pattern-family.egi"
+        , "names no pattern family; a field names a capability, so write (Any for Integer)"
+        )
+      , ( "test/type-error/105-for-after-core-family.egi"
+        , "gives a capability other than Any an explicit target type"
+        )
+      , ( "test/type-error/106-any-field-rejects-constructor.egi"
+        , "matcher capabilities do not unify"
+        )
       ]
   where
     rejects (file, expectedFragment) =

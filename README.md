@@ -71,7 +71,7 @@ inductive Suit := Spade | Heart | Club | Diamond
 inductive Card := Card Suit Integer
 
 inductive pattern Suit := | spade | heart | club | diamond
-inductive pattern Card := | card Suit Integer
+inductive pattern Card := | card Suit (Any for Integer)
 
 def suit := algebraicDataMatcher | spade | heart | club | diamond
 def card := algebraicDataMatcher | card suit (mod 13)

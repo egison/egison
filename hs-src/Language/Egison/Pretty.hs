@@ -304,6 +304,9 @@ instance Pretty TypeExpr where
   pretty (TEFrac t) = pretty "Frac" <+> prettyTypeExprAtomDoc t
   pretty (TEPoly t symbols) =
     pretty "Poly" <+> prettyTypeExprAtomDoc t <+> prettySymbolSetExprDoc symbols
+  pretty TEAnyCapability = pretty "Any"
+  pretty (TECapabilityFor capability target) =
+    parens (pretty capability <+> pretty "for" <+> pretty target)
 
 instance Pretty CapabilityExpr where
   pretty CEAny = pretty "Any"

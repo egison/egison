@@ -50,6 +50,10 @@ module Language.Egison.Type.Types
   , mkDataType
   , dataTypeOf
   , capabilitySkeleton
+  , capabilityForName
+  , anyCapabilityName
+  , capabilityForTarget
+  , legacyCasLeafDataType
   , capExprToCapability
   , isTensorType
   , hasAmbiguousOpenTower
@@ -744,6 +748,36 @@ dataTypeOf (TFrac t)         = Just (mkDataType "Frac" 1, [t])
 dataTypeOf (TPoly t _)       = Just (mkDataType "Poly" 1, [t])
 dataTypeOf _                 = Nothing
 
+-- | Pseudo type constructors that store a pattern-constructor field with an
+-- explicit target type.  The field @(κ for T)@ is stored as
+-- @TInductive "for" [κ, T]@, and the capability Any written before @for@ as
+-- @TInductive "Any" []@.  Both names are reserved words, so no declared type
+-- can use them.  The field requires the capability κ on the target type T.
+capabilityForName :: String
+capabilityForName = "for"
+
+anyCapabilityName :: String
+anyCapabilityName = "Any"
+
+-- | The target type of a field written @(κ for T)@.
+capabilityForTarget :: Type -> Maybe Type
+capabilityForTarget (TInductive name [_, target])
+  | name == capabilityForName = Just target
+capabilityForTarget _ = Nothing
+
+-- | Pattern families of the legacy symbolic-mathematics views.  Their
+-- declarations name the run-time view of a mathematical expression, not the
+-- target type of a matcher, so matcher definitions do not take their field
+-- types as target evidence, and their fields may pair the view's capability
+-- with a more specific target type, as in @(MathValue for Term MathValue [..])@.
+-- These views are an Egison extension outside the core rules and are reported
+-- by the outside-core diagnostic.
+legacyCasLeafDataType :: DataType -> Bool
+legacyCasLeafDataType dataType =
+  dataType `elem`
+    map (\name -> mkDataType name 0)
+      ["MathValue", "PolyExpr", "TermExpr", "SymbolExpr", "IndexExpr"]
+
 -- | Build a capability template from a core result type.
 --
 -- The caller supplies the mapping for ordinary type variables and the set of
@@ -774,6 +808,12 @@ capabilitySkeleton onVar declared = go
     go TTerm {}         = Nothing
     go TFrac {}         = Nothing
     go TPoly {}         = Nothing
+    -- A field with an explicit target type, (κ for T), requires the
+    -- capability κ; Any is its own capability.
+    go (TInductive name [capability, _])
+      | name == capabilityForName = go capability
+    go (TInductive name [])
+      | name == anyCapabilityName = Just CapAny
     -- A declared pattern type projects to its own capability constructor
     -- applied to the projections of its parameters.  A type without declared
     -- pattern constructors admits no constructor pattern, so every matcher for
@@ -840,6 +880,10 @@ typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
 -- New CAS types
 typeExprToType TEFactor = TFactor
+typeExprToType TEAnyCapability = TInductive anyCapabilityName []
+typeExprToType (TECapabilityFor capability target) =
+  TInductive capabilityForName
+    [typeExprToType capability, typeExprToType target]
 typeExprToType (TETerm t ss) = TTerm (typeExprToType t) (symbolSetExprToSymbolSet ss)
 typeExprToType (TEFrac t) = TFrac (typeExprToType t)
 typeExprToType (TEPoly t ss) = TPoly (typeExprToType t) (symbolSetExprToSymbolSet ss)

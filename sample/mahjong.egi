@@ -26,7 +26,7 @@ inductive pattern Honor :=
   | chun
 
 inductive pattern Tile :=
-  | num Suit Integer
+  | num Suit (Any for Integer)
   | hnr Honor
 
 def suit :=

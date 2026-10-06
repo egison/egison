@@ -5,7 +5,7 @@
 -- Expected: Type error (`Any` capability at the Box hole)
 
 inductive Box := Box [Integer]
-inductive pattern Box := box [Integer]
+inductive pattern Box := box [Any for Integer]
 
 def keepSecond {a, b} (x : a) (y : b) : b := y
 

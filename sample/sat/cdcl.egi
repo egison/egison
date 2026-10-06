@@ -5,9 +5,9 @@ inductive Assignment :=
 
 -- Pattern constructor declarations
 inductive pattern Assignment :=
-  | deduced (Integer, Integer) [(Integer, Integer)]
-  | guessed (Integer, Integer)
-  | whichever (Integer, Integer)
+  | deduced (Any for Integer, Any for Integer) [(Any for Integer, Any for Integer)]
+  | guessed (Any for Integer, Any for Integer)
+  | whichever (Any for Integer, Any for Integer)
 
 def literal := integer
 

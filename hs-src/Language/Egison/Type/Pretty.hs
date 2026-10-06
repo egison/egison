@@ -23,6 +23,7 @@ import           Language.Egison.AST        (CapabilityExpr (..), TypeExpr (..),
                                              SymbolSetExpr(..), TypeAtomExpr(..))
 import           Language.Egison.Type.Types (Constraint(..))
 import           Language.Egison.Type.Index (Index (..), IndexKind (..))
+import           Language.Egison.Type.Types (capabilityForName)
 import           Language.Egison.Type.Types (CapVar (..), Capability (..), RequirementPair (..),
                                              PatFuncScheme (..), ShapeDimType (..),
                                              TensorShape (..), Type (..),
@@ -48,6 +49,9 @@ prettyType (TSkolem v)      = tyVarName v
 prettyType (TTuple ts)      = "(" ++ intercalate ", " (map prettyType ts) ++ ")"
 prettyType (TCollection t)  = "[" ++ prettyType t ++ "]"
 prettyType (TInductive name []) = name
+prettyType (TInductive name [capability, target])
+  | name == capabilityForName =
+      "(" ++ prettyType capability ++ " for " ++ prettyType target ++ ")"
 prettyType (TInductive name args) = name ++ " " ++ unwords (map prettyTypeAtom args)
 prettyType (TTensor t)      = "Tensor " ++ prettyTypeAtom t
 prettyType (THash k v)      = "Hash " ++ prettyTypeAtom k ++ " " ++ prettyHashValueType v
@@ -133,6 +137,8 @@ prettyTypeAtom t@(TCollection _) = prettyType t
 prettyTypeAtom t@TPort       = prettyType t
 prettyTypeAtom t@TAny        = prettyType t
 prettyTypeAtom t@TFactor     = prettyType t
+prettyTypeAtom t@(TInductive name [_, _])
+  | name == capabilityForName = prettyType t
 prettyTypeAtom t            = "(" ++ prettyType t ++ ")"
 
 -- | Pretty print a TypeScheme
@@ -212,6 +218,9 @@ prettyTypeExpr TEFactor = "Factor"
 prettyTypeExpr (TETerm t ss) = "Term " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
 prettyTypeExpr (TEFrac t) = "Frac " ++ prettyTypeExprAtom t
 prettyTypeExpr (TEPoly t ss) = "Poly " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
+prettyTypeExpr TEAnyCapability = "Any"
+prettyTypeExpr (TECapabilityFor capability target) =
+  "(" ++ prettyTypeExpr capability ++ " for " ++ prettyTypeExpr target ++ ")"
 
 -- | Pretty print a source-level matcher capability.
 prettyCapabilityExpr :: CapabilityExpr -> String
@@ -254,4 +263,6 @@ prettyTypeExprAtom t@(TEVar _)   = prettyTypeExpr t
 prettyTypeExprAtom t@(TEList _)  = prettyTypeExpr t
 prettyTypeExprAtom t@(TETuple _) = prettyTypeExpr t
 prettyTypeExprAtom t@TEFactor    = prettyTypeExpr t
+prettyTypeExprAtom t@TEAnyCapability = prettyTypeExpr t
+prettyTypeExprAtom t@(TECapabilityFor _ _) = prettyTypeExpr t
 prettyTypeExprAtom t             = "(" ++ prettyTypeExpr t ++ ")"

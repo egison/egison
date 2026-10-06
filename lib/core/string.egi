@@ -8,7 +8,7 @@ inductive pattern String :=
   | regexCg String String [String] String
   | regex String String String String
   | s.empty
-  | s.cons Char String
+  | s.cons (Any for Char) String
   | s.join String String
 
 def string : Matcher String String :=
