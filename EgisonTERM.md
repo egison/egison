@@ -30,6 +30,8 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | primitive-data-match clause | プリミティブデータマッチ節 | ターゲットを分解してネクストターゲットのリストを返す節． |
 | primitive-data pattern | プリミティブデータパターン | プリミティブデータマッチ節の左辺．メタ変数は dp． |
 | catch-all clause | キャッチオール節 | 最後に置く `$ as something with ...` の節． |
+| general matcher clause | 一般のマッチャー節 | プリミティブパターンパターンの根がコンストラクタで，その全フィールドがパターンホールであるマッチャー節（リストの族では `[]`，`$ :: $`，`$ ++ $`）．根にそのコンストラクタを持つすべてのパターンを受け付ける．網羅性の条件は，宣言された各コンストラクタにこの節を要求する． |
+| specialized matcher clause | 特殊化したマッチャー節 | 根がコンストラクタで，一般のマッチャー節でないマッチャー節（`$ :: _`，`#$val :: $`，`_ ++ $ :: _` など）．一般のマッチャー節より前に置き，特定の形のパターンだけを受け付ける．網羅性の条件には数えない． |
 | match clause | マッチ節 | `match`・`matchAll` の各節． |
 | target | ターゲット | 照合される値． |
 | pattern constructor | パターンコンストラクタ | パターン族に属するコンストラクタ（nil，cons，join など）． |
@@ -195,6 +197,8 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | observed type（単一化） | 解を適用する結果型 |
 | header | primitive-pattern pattern |
 | arm | primitive-data-match clause |
+| essential clause（一般のマッチャー節の意味） | general matcher clause（一般のマッチャー節）．essential は序論の「本質的なループ」と紛れる |
+| refinement clause（特殊化したマッチャー節の意味） | specialized matcher clause（特殊化したマッチャー節）．refinement は refinement type と紛れ，結果の多重性を変える節もあるので不正確 |
 | capture | value-pattern pattern |
 | matcher bundle | forced matcher tuple（強制済みのマッチャーのタプル） |
 | マッチャータプル（日本語） | マッチャーのタプル |
