@@ -64,7 +64,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | pattern type | パターン型 | ⟨κ, τ, Δ⟩．パターンが要求する能力とターゲット型と，導入する束縛． |
 | binding list | 束縛リスト | Δ．相異なる束縛 x : τ の順序付きリスト． |
 | type context / initial type context | 型文脈／初期型文脈 | Γ／Γ₀．実行時の ρ だけを environment（環境）と呼ぶ． |
-| closed program | 閉じたプログラム | 自由変数が Γ₀ の名前だけの式． |
+| closed program | 閉じたプログラム | 宣言列と本体式からなる P = (d̄, e) のうち，本体 e の自由変数が Γ₀ の名前に限られるもの．型推論は宣言を検査して得た Σ の下で本体 e を扱う． |
 | scheme / instance | スキーム／インスタンス | σ／inst(σ)．型スキームとも書く． |
 | sort | ソート | 型変数と能力変数の二種類．説明なしで使わない． |
 | normalization / normal form | 正規化／正規形 | `normalize`． |
