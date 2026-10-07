@@ -96,7 +96,16 @@ matcher 型と matcher のタプル型を同一視する正準化のもとで受
 | 94-data-constructor-undetermined-capability | parameters determined | data constructor field にだけ現れる capability 変数を拒否 |
 | 95-pattern-constructor-undetermined-capability | parameters determined | pattern constructor field にだけ現れる capability 変数を拒否 |
 | 96-pattern-function-open-scheme | signature closedness | pattern function の未宣言型変数を拒否 |
+| 97-catch-all-matcher-constructor | matcher 式の能力(EvidenceOK) | 根がコンストラクタのマッチャー節を持たない matcher 式(キャッチオール節だけ)の能力は `Any` なので，cons パターンに使うと拒否 |
 | 98-data-constructor-pattern | pattern と data constructor の名前の分離(コアの `Pattern.ctor` と `DPat.ctor`) | パターンに書いたデータコンストラクタ `Just` を拒否(以前は型検査を通り，実行時に `Expected pattern constructor` で失敗) |
+| 99-for-capability-mismatch | 能力の等式(`for` で宣言した族はそれぞれ別の族) | 同じ `Integer` の上の族 `Nat` と `Parity`: `Parity` のマッチャーの下で `Nat` のパターン `s $m` を使うと拒否 |
+| 100-for-tuple-target | `for` の宣言条件 2(`design/pattern-family-for.md` §3) | ターゲット型がタプル型 `(Integer, Integer)` の族の宣言を拒否(ターゲット型はデータ型の適用か組み込みの基本型) |
+| 101-for-data-type-name | `for` の宣言条件 1(同 §3) | データ型 `Nat` と同じ名前の族 `Nat for Integer` の宣言を拒否 |
+| 102-for-parameter-not-argument | `for` の宣言条件 3(同 §3．実行時安全性のための条件) | 型パラメータ `a` がターゲット型 `Integer` に現れない `Boxed a for Integer` の宣言を拒否 |
+| 103-for-target-mentions-family | `for` の宣言条件 4(同 §3) | `for` で宣言した族 `Nat` をターゲット型に含む `Nats for [Nat]` の宣言を拒否 |
+| 104-field-without-pattern-family | パターン宣言のフィールドは能力の式(同 §1・§3) | 族の名前でない型 `Integer` をそのまま書いたフィールド(`even Integer`)を拒否(`(Any for Integer)` と書く) |
+| 105-for-after-core-family | 同(`for` を付けられるのは `Any` だけ) | 族 `Nat` に `for` を付けたフィールド `(Nat for Integer)` を拒否 |
+| 106-any-field-rejects-constructor | 能力の等式(`(Any for T)` のフィールドの能力は `Any`) | `Integer` に族 `Nat` があっても，`(Any for Integer)` と書いたフィールドの位置で `Nat` のパターン `s $m` を使うと拒否 |
 | 107-root-tuple-matcher-clause | matcher 式の能力(EvidenceOK)とマッチャー型の正準形 | 根がタプルのプリミティブパターンパターン `($, $)` を拒否(以前は型検査を通ってマッチャーのクロージャにマッチャーのタプルの型が付き，実行時に `Primitive-data pattern match failed` で失敗) |
 | 108-root-unit-matcher-clause | 同(要素 0 個のタプル) | 根の `()` を拒否(`Matcher () ()` は単一化で空のマッチャーのタプル `()` と等しくなり，クロージャが単位値として通っていた) |
 
