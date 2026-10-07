@@ -97,6 +97,8 @@ matcher 型と matcher のタプル型を同一視する正準化のもとで受
 | 95-pattern-constructor-undetermined-capability | parameters determined | pattern constructor field にだけ現れる capability 変数を拒否 |
 | 96-pattern-function-open-scheme | signature closedness | pattern function の未宣言型変数を拒否 |
 | 98-data-constructor-pattern | pattern と data constructor の名前の分離(コアの `Pattern.ctor` と `DPat.ctor`) | パターンに書いたデータコンストラクタ `Just` を拒否(以前は型検査を通り，実行時に `Expected pattern constructor` で失敗) |
+| 107-root-tuple-matcher-clause | matcher 式の能力(EvidenceOK)とマッチャー型の正準形 | 根がタプルのプリミティブパターンパターン `($, $)` を拒否(以前は型検査を通ってマッチャーのクロージャにマッチャーのタプルの型が付き，実行時に `Primitive-data pattern match failed` で失敗) |
+| 108-root-unit-matcher-clause | 同(要素 0 個のタプル) | 根の `()` を拒否(`Matcher () ()` は単一化で空のマッチャーのタプル `()` と等しくなり，クロージャが単位値として通っていた) |
 
 ## ケース追加時の注意
 
@@ -114,6 +116,8 @@ matcher 型と matcher のタプル型を同一視する正準化のもとで受
   ではなく，hole が要求する matcher 型への不適合な適用で reject されたことを確認する。
 - 98 は ``Data constructor `Just` cannot be used in a pattern`` を含むことを確認し，
   パターンに書いたデータコンストラクタで reject されたことを確認する。
+- 107・108 は `A single matcher cannot interpret tuple patterns` を含むことを確認し，
+  根がタプルのマッチャー節で reject されたことを確認する。
 - 受理側の対になるケースがあれば `mini-test/` に置く
   (例: `mini-test/120-patfun-struct-index.egi`)。
 

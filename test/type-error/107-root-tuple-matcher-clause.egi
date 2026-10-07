@@ -1,0 +1,21 @@
+-- A tuple primitive-pattern pattern at the root of a matcher clause would make
+-- the matcher expression's capability a tuple.  A matcher type whose capability
+-- and target are tuples normalizes to a tuple of matchers, so the single matcher
+-- closure below would get the type Matcher p a -> (Matcher p a, Matcher p a),
+-- and `firstOf` would decompose the closure as a tuple.  This program used to
+-- pass type checking and fail at run time with "Primitive-data pattern match
+-- failed".  Tuple patterns are interpreted only by tuples of matchers; a tuple
+-- nested in a constructor field (as in `assocMultiset`) stays allowed.
+--
+-- Expected: Type error (A single matcher cannot interpret tuple patterns)
+
+def unorderedPair m := matcher
+  | ($, $) as (m, m) with
+    | ($x, $y) -> [(x, y), (y, x)]
+    | _ -> []
+  | $ as something with
+    | $tgt -> [tgt]
+
+def firstOf (a, b) := a
+
+assertEqual "first component" (matchAll 1 as firstOf (unorderedPair something) with $x -> x) [1]

@@ -1,0 +1,19 @@
+-- The empty tuple `()` at the root of a matcher clause is a tuple
+-- primitive-pattern pattern too (cf. 107).  It would give the matcher
+-- expression the type Matcher () (), which unification equates with the empty
+-- tuple of matchers (), so `g` would accept the matcher closure as the unit
+-- value.  This program used to pass type checking and fail at run time with
+-- "Primitive-data pattern match failed".
+--
+-- Expected: Type error (A single matcher cannot interpret tuple patterns)
+
+def unitM := matcher
+  | () as () with
+    | () -> [()]
+    | _ -> []
+  | $ as something with
+    | $tgt -> [tgt]
+
+def g () := 1
+
+assertEqual "unit" (g unitM) 1

@@ -2367,8 +2367,10 @@ inferIExprInContext expr ctx = case expr of
           exprCtx
     mapM_ (warnMatcherCompatibility exprCtx) patDefs
     -- G-Literal: one shared target type and one shared capability for the
-    -- whole matcher expression.  Every constructor or tuple primitive-pattern pattern
+    -- whole matcher expression.  Every constructor-rooted primitive-pattern pattern
     -- has exactly this capability and target; the catch-all's hole is unconstrained.
+    -- A tuple-rooted primitive-pattern pattern is rejected (see
+    -- 'inferPrimitivePatPattern').
     sharedMatcherTarget <- freshVar "matcherTarget"
     sharedMatcherCapability <- freshCapability "matcherCap"
     results <-
@@ -2380,11 +2382,10 @@ inferIExprInContext expr ctx = case expr of
         providesCapability (ppPat, _, _) =
           case ppPat of
             PPInductivePat _ _ -> True
-            PPTuplePat _ -> True
             _ -> False
-    -- EvidenceOK: without a constructor- or tuple-rooted primitive-pattern
-    -- pattern, the matcher implements no pattern family, so its capability is
-    -- Any rather than a variable that a pattern constructor could instantiate.
+    -- EvidenceOK: without a constructor-rooted primitive-pattern pattern, the
+    -- matcher implements no pattern family, so its capability is Any rather
+    -- than a variable that a pattern constructor could instantiate.
     allSubst <-
       if any providesCapability patDefs
         then return clauseSubst
@@ -2436,7 +2437,7 @@ inferIExprInContext expr ctx = case expr of
     where
       -- Infer one matcher clause (Q-Nil/Q-Cons/Q-Join generalized to every declared
       -- pattern constructor): the primitive-pattern pattern fixes the matcher
-      -- expression's target and, for constructor and tuple ones, its capability; the next
+      -- expression's target and, for constructor-rooted ones, its capability; the next
       -- matcher expression has exactly the matcher type holeMatcherType by the holes; the
       -- primitive-data-match clauses return the decompositions of the holes' targets.
       inferPatternDef
@@ -2511,22 +2512,36 @@ inferIExprInContext expr ctx = case expr of
             sDataClauses = foldr composeSubst emptySubst (map snd dataClauseResults)
         return ((ppPat, nextMatcherTI, dataClauseTIs), [sClause, sDataClauses])
 
-      -- Infer a primitive-pattern pattern.  Returns the matched (target)
-      -- type, the holes as (capability, target) requirements in source order,
-      -- the capability of the primitive-pattern pattern when the root is a
-      -- constructor or tuple pattern, the value-pattern bindings (#$val), and
-      -- the substitution.
+      -- Infer the primitive-pattern pattern of a matcher clause.  Returns the
+      -- matched (target) type, the holes as (capability, target) requirements
+      -- in source order, the capability of the primitive-pattern pattern when
+      -- the root is a constructor pattern, the value-pattern bindings (#$val),
+      -- and the substitution.
+      --
+      -- A tuple at the root is a type error in every checking mode.  Its
+      -- capability is a tuple, and a matcher type whose capability and target
+      -- are tuples equals a tuple of matchers (by normalization for two or more
+      -- components, and by unification also for none: Matcher () () equals
+      -- ()), so the clause would give the single matcher closure a tuple type.
+      -- Tuple patterns are interpreted only by tuples of matchers.  A tuple
+      -- nested in a constructor field stays allowed (see 'inferPPat'): its
+      -- capability is unified with the field's, so the field's next matchers
+      -- form a tuple of matchers.
       inferPrimitivePatPattern
         :: PrimitivePatPattern
         -> TypeErrorContext
         -> Infer ( Type, [(Capability, Type)], Maybe Capability
                  , [(String, TypeScheme)], Subst )
       inferPrimitivePatPattern ppPat ctx = do
+        case ppPat of
+          PPTuplePat _ ->
+            throwError $
+              RootTupleMatcherClause (renderPrimitivePatPattern ppPat) ctx
+          _ -> return ()
         (matchedTy, holes, capability, bindings, s) <- inferPPat ppPat ctx
         let ppatCapability =
               case ppPat of
                 PPInductivePat _ _ -> Just capability
-                PPTuplePat _       -> Just capability
                 _                  -> Nothing
         return (matchedTy, holes, ppatCapability, bindings, s)
 

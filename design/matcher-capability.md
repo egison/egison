@@ -45,22 +45,34 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
 - プリミティブパターンパターン pp の推論（`inferPPat`）：
   - パターンホール `$`：fresh な (χ, α) をパターンホールの要求として返す．
   - wildcard／バリューパターンパターン `#$x`：fresh な capability．パターンホールはない．
-  - tuple `(pp_1,…,pp_n)`：capability `(κ_1,…,κ_n)`，target `(τ_1,…,τ_n)`．
+  - tuple `(pp_1,…,pp_n)`：capability `(κ_1,…,κ_n)`，target `(τ_1,…,τ_n)`．constructor の
+    field の中でだけ使える（根のタプルは下記のとおり型エラー）．
   - 宣言済み pattern constructor `c pp_1 … pp_n`：constructor scheme を instantiate して
     field 型と result 型を得る．capability は宣言を fresh な capability 変数へ射影した
     もの（`capabilityTemplates`／`capabilitySkeleton`）：型変数 ↦ fresh χ，pattern 宣言を
     持つ型 `T τ̄` ↦ `T κ̄`，pattern 宣言を持たない閉じた型（`Integer`，`Char` など）↦
     `Any`．各部分パターンの matched 型と capability を field の target・capability と単一化
     する．
-- プリミティブパターンパターンの matched 型を共有 target と，constructor／tuple の
+- プリミティブパターンパターンの matched 型を共有 target と，根が constructor の
   プリミティブパターンパターンの capability を共有 capability と単一化する．
+- 根がタプルのプリミティブパターンパターン（`($, $)` など．要素 0 個の `()` も含む）は，検査の
+  モードによらず型エラーにする（`RootTupleMatcherClause`，`inferPrimitivePatPattern`）．
+  タプルパターンの能力はタプルで，能力とターゲット型がともにタプルのマッチャー型はマッチャーの
+  タプルの型と等しい（要素 2 個以上は正規化で，0 個も単一化の head expansion で `Matcher () ()`
+  と `()` が等しくなる）ので，この節を許すと一つのマッチャーのクロージャにマッチャーのタプルの
+  型が付く（正規形がタプルの型を持つ値はタプルである，という性質が崩れる）．タプルパターンを
+  解釈するのはマッチャーのタプルだけである．constructor の field の中のタプル（`assocMultiset` の
+  `($, $) :: $` など）は，その能力が field の能力と単一化され，field のネクストマッチャーが
+  マッチャーのタプルになるので許す．型エラーの例は `test/type-error/107-root-tuple-matcher-clause.egi`
+  と `108-root-unit-matcher-clause.egi`（2026-10-07 の論文1の理論レビューで見つかった健全性の穴．
+  以前は型検査を通り，実行時に失敗した）．
 - ネクストマッチャー式 e は通常の式として推論し，その型をパターンホールが要求する型
   `Matcher χ_1 α_1`（パターンホール 1 個）または `(Matcher χ_1 α_1, …, Matcher χ_n α_n)`
   （n 個）と単一化する．正準形により，タプルの matcher 型を持つ変数や application が複数の
   パターンホールを同時に埋められる．
 - プリミティブデータマッチ節は target 型 τ の値を受け取り，パターンホールの target の組の
   リスト `[(α_1,…,α_n)]` を返す（`inferDataClauseWithCheck`）．
-- constructor／tuple を根に持つプリミティブパターンパターンが一つもない matcher 式は，
+- constructor を根に持つプリミティブパターンパターンが一つもない matcher 式は，
   どのパターン族も実装しないので，共有 capability を `Any` と単一化する（論文の EvidenceOK）．
   たとえば `matcher | $ as m with | $tgt -> [tgt]` の型は `Matcher χ α -> Matcher Any α` になり，
   構成子パターンには使えない（`test/type-error/97-catch-all-matcher-constructor.egi`）．

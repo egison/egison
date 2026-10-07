@@ -150,6 +150,14 @@ data TypeError
   | MatcherCapabilityError String TypeErrorContext
     -- ^ ShapeCap evidence for a matcher expression is inconsistent or leaves an
     --   observable capability parameter undetermined.
+  | RootTupleMatcherClause String TypeErrorContext
+    -- ^ A @matcher@ clause whose primitive-pattern pattern (rendered) is a tuple
+    --   at its root, including the empty tuple @()@.  A tuple pattern requires a
+    --   tuple capability, and a matcher type whose capability and target are
+    --   tuples equals a tuple of matchers, so the clause would give the single
+    --   matcher closure a tuple type.  Tuple patterns are interpreted only by
+    --   tuples of matchers.  A tuple nested in a constructor field is allowed:
+    --   the field's next matchers form a tuple of matchers.
   | MatchValuePatternScope [String] String TypeErrorContext
     -- ^ Use-site safeguard of the Egison interpreter for a primitive-pattern pattern
     --   outside the core's PPatCoreOrder restriction. A value pattern matched by a
@@ -280,6 +288,14 @@ formatTypeError err = case err of
     formatWithContext ctx $
       "Cannot infer a consistent capability for this matcher:\n" ++
       "  " ++ detail
+
+  RootTupleMatcherClause ppStr ctx ->
+    formatWithContext ctx $
+      "Matcher clause `" ++ ppStr ++ "` has a tuple primitive-pattern pattern at its root.\n" ++
+      "  A single matcher cannot interpret tuple patterns:" ++
+      " tuple patterns are interpreted only by tuples of matchers.\n" ++
+      "  Declare a pattern family (e.g. `inductive pattern UPair a for ...`)" ++
+      " or match the components with a tuple of matchers."
 
   MatchValuePatternScope vars ppStr ctx ->
     formatWithContext ctx $      "Value pattern accepted by the value-pattern pattern `#$` of matcher clause `" ++ ppStr ++ "`" ++

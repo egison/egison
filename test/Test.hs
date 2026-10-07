@@ -78,6 +78,7 @@ main = do
          , primitivePatternWarningTests
          , matcherStaticConditionTests
          , matcherEvidenceTypeErrorTests
+         , rootTupleMatcherClauseTypeErrorTests
          , dataConstructorPatternTypeErrorTests
          , patternFamilyTargetTypeErrorTests
          , patternFunctionSchemeTests
@@ -1766,6 +1767,42 @@ matcherEvidenceTypeErrorTests =
           Right _ ->
             assertFailure
               ("a constructor pattern used a matcher without capability evidence: " ++ file)
+
+-- | A tuple primitive-pattern pattern at the root of a matcher clause, the
+-- empty tuple included, is rejected: it would give the single matcher closure
+-- a tuple of matcher types.  Both programs used to pass type checking and fail
+-- at run time.
+rootTupleMatcherClauseTypeErrorTests :: Test
+rootTupleMatcherClauseTypeErrorTests =
+  TestLabel "TypePM tuple at the root of a matcher clause" . TestList $
+    map rejects
+      [ ( "test/type-error/107-root-tuple-matcher-clause.egi"
+        , "A single matcher cannot interpret tuple patterns"
+        )
+      , ( "test/type-error/108-root-unit-matcher-clause.egi"
+        , "A single matcher cannot interpret tuple patterns"
+        )
+      ]
+  where
+    rejects (file, expectedFragment) =
+      TestLabel file . TestCase $ do
+        result <- fromEvalM
+          defaultOption
+            { optNoPrelude = True
+            , optTypeCheckStrict = True
+            }
+          $ do
+              env <- initialEnv
+              evalTopExprsNoPrint env [LoadFile file]
+        case result of
+          Left err
+            | expectedFragment `isInfixOf` show err -> return ()
+            | otherwise ->
+                assertFailure
+                  ("root tuple matcher clause check failed unexpectedly: " ++ show err)
+          Right _ ->
+            assertFailure
+              ("a matcher clause with a tuple at its root was accepted: " ++ file)
 
 -- | A data constructor written as the head of a pattern is rejected: patterns
 -- use the declared pattern constructors, as in the core.  The pattern used to
