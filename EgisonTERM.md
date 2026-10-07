@@ -134,6 +134,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | numbers that name type variables and capability variables | 型変数と能力変数を表す番号 | `Supply` の上限の対象．「添字（indices）」とは書かない． |
 | de Bruijn indices | 束縛位置を表す番号 | 局所変数の表現． |
 | position | 位置 | ソース列の要素の位置．「添字（index）」とは書かない． |
+| AI coding assistant | AI のコーディング支援ツール | Lean の証明を書いた Claude（Anthropic）と Codex（OpenAI）．論文では §4 の冒頭の段落の末尾で述べる． |
 
 Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数の略記を使う（2026-10-01 決定）．
 
