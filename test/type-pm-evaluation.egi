@@ -1,4 +1,4 @@
--- The arithmetic value pattern in the paper's execution overview.
+-- Retained checks of the simpler arithmetic value pattern.
 assertEqual "paper/arithmetic-value-accepts"
   (matchAll 7 as something with #(3 + 4) -> 1) [1]
 assertEqual "paper/arithmetic-value-rejects"
@@ -6,3 +6,14 @@ assertEqual "paper/arithmetic-value-rejects"
 -- Both uses refer to the same delayed arithmetic expression.
 assertEqual "paper/arithmetic-shared"
   (let x := 3 + 4 in (x, x)) (7, 7)
+
+-- The complete Appendix B query, using the unannotated paper matcher.
+assertEqual "paper/matchall-whole"
+  (let v := 3 + 4 in
+    matchAll [7,8] as paperMultiset something with $x :: #v :: _ -> x) [8]
+assertEqual "paper/matchall-whole-library"
+  (let v := 3 + 4 in
+    matchAll [7,8] as multiset something with $x :: #v :: _ -> x) [8]
+assertEqual "paper/matchall-whole-miss"
+  (let v := 3 + 4 in
+    matchAll [8,9] as paperMultiset something with $x :: #v :: _ -> x) []
