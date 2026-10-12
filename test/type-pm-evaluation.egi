@@ -1,0 +1,8 @@
+-- The arithmetic value pattern in the paper's execution overview.
+assertEqual "paper/arithmetic-value-accepts"
+  (matchAll 7 as something with #(3 + 4) -> 1) [1]
+assertEqual "paper/arithmetic-value-rejects"
+  (matchAll 8 as something with #(3 + 4) -> 1) []
+-- Both uses refer to the same delayed arithmetic expression.
+assertEqual "paper/arithmetic-shared"
+  (let x := 3 + 4 in (x, x)) (7, 7)

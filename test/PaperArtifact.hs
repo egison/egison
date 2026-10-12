@@ -307,5 +307,6 @@ paperExamplesTest =
     result <- runStrict (return (libraryLoads ++
       [ LoadFile "test/lib/core/type-pm-examples.egi"
       , LoadFile "test/type-pm-catch-all.egi"
+      , LoadFile "test/type-pm-evaluation.egi"
       ])) []
     either (assertFailure . show) (const (return ())) result
