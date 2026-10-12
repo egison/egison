@@ -1,0 +1,30 @@
+cabal-version:      2.4
+name:               sweet-egison-comparison
+version:            0.1.0.0
+synopsis:           The Sweet Egison side of a comparison with Egison's type inference
+description:
+  Checks the Haskell-embedding claims in the related work of the paper on
+  type inference for Egison pattern matching: the type that GHC infers for
+  an unannotated function over a matcher argument, its results with list and
+  multiset matchers, and the rejection of the cons pattern under Something
+  and of a choice between two matchers.  The Egison side of the comparison
+  is in the paper-artifact test suite of the Egison package.
+  Run `cabal test` in this directory.
+license:            MIT
+build-type:         Simple
+tested-with:        GHC ==9.10.1
+
+test-suite sweet-egison-comparison
+  type:             exitcode-stdio-1.0
+  main-is:          Main.hs
+  other-modules:
+    Definitions
+    InferredType
+    Rejected
+  build-depends:
+      base              >= 4.8 && < 5
+    , HUnit
+    , sweet-egison      == 0.1.2.1
+    , template-haskell
+  default-language: GHC2021
+  ghc-options:      -Wall

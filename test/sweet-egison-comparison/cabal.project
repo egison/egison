@@ -1,0 +1,3 @@
+-- A project of its own, so that the Egison package does not depend on
+-- Sweet Egison.
+packages: .

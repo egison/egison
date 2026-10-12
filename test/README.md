@@ -38,6 +38,34 @@ $ gtimeout 900 cabal test 2>&1 | tee /tmp/cabal-test.log
 $ grep -E "Warning:|Type error:|Evaluation error:|Unbound variable" /tmp/cabal-test.log
 ```
 
+## Checks for the paper on type inference for pattern matching
+
+The test suite `paper-artifact` (`test/PaperArtifact.hs`) reproduces the
+interpreter results reported in the appendices of the paper:
+
+* the four collection matchers of `lib/core/collection.egi` are inferred
+  without their type annotations, with the same types as the annotated
+  definitions, and `test/lib/core/collection.egi` passes with and without
+  the annotations;
+* the paper's list and set matcher listings are inferred without type
+  annotations and pass their cases; the listings are read from the
+  paper-source directory given by `PAPER_SOURCES`, and this check is
+  skipped when the variable is not set;
+* the Egison side of the comparison with Haskell embeddings, and the paper
+  examples of `test/lib/core/type-pm-examples.egi` under strict checking.
+
+```
+$ PAPER_SOURCES=/absolute/path/to/paper-source cabal test paper-artifact
+```
+
+The Sweet Egison side of the comparison is the separate package
+`test/sweet-egison-comparison`, so that this package does not depend on
+Sweet Egison:
+
+```
+$ cd test/sweet-egison-comparison && cabal test
+```
+
 ## Not wired
 
 `test/CLITest.hs` (command-line option tests) predates the move to
