@@ -1,0 +1,5 @@
+-- Uses the unannotated paperMultiset from type-pm-examples.egi.
+assertEqual "paper/catch-all-whole-variable"
+  (matchAll [1,2] as paperMultiset something with $x -> x) [[1,2]]
+assertEqual "paper/catch-all-whole-wildcard"
+  (matchAll [1,2] as paperMultiset something with _ -> 7) [7]

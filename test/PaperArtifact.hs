@@ -304,5 +304,8 @@ chooseMatcherTest =
 paperExamplesTest :: Test
 paperExamplesTest =
   TestLabel "the paper examples pass under strict checking" . TestCase $ do
-    result <- runStrict (return (libraryLoads ++ [LoadFile "test/lib/core/type-pm-examples.egi"])) []
+    result <- runStrict (return (libraryLoads ++
+      [ LoadFile "test/lib/core/type-pm-examples.egi"
+      , LoadFile "test/type-pm-catch-all.egi"
+      ])) []
     either (assertFailure . show) (const (return ())) result
