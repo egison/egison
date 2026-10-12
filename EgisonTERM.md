@@ -219,6 +219,7 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | signature（型注釈の意味） | type annotation（型注釈） |
 | constructor signature | signature（シグネチャ） |
 | 実行安全性 | 実行時安全性 |
+| corpus／コーパス（評価・検査に使うプログラムの集合） | programs used for evaluation（評価対象のプログラム集合）／programs checked（検査対象のプログラム群） |
 | callback | decomposition function |
 | payload | 使わない |
 | 開発コード名（milestone 5.x，Paper 1，mech4，theorem axis，artifact 5.x，D14 など） | 内容で述べる．先行研究は「Egi と Nishiwaki~\cite{...}」のように内容と引用で指す |
