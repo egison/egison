@@ -7,7 +7,7 @@ assertEqual "paper/arithmetic-value-rejects"
 assertEqual "paper/arithmetic-shared"
   (let x := 3 + 4 in (x, x)) (7, 7)
 
--- The complete Appendix B query, using the unannotated paper matcher.
+-- Retained checks of the earlier two-branch arithmetic-sharing query.
 assertEqual "paper/matchall-whole"
   (let v := 3 + 4 in
     matchAll [7,8] as paperMultiset something with $x :: #v :: _ -> x) [8]
@@ -17,3 +17,14 @@ assertEqual "paper/matchall-whole-library"
 assertEqual "paper/matchall-whole-miss"
   (let v := 3 + 4 in
     matchAll [8,9] as paperMultiset something with $x :: #v :: _ -> x) []
+
+-- Appendix A: nonlinear matching, catch-all forwarding, and shared target arithmetic.
+assertEqual "paper/nonlinear-matchall"
+  (matchAll [3 + 4,8,7] as paperMultiset something with
+    $x :: #x :: $rs -> (x,rs)) [(7,[8]),(7,[8])]
+assertEqual "paper/nonlinear-matchall-library"
+  (matchAll [3 + 4,8,7] as multiset something with
+    $x :: #x :: $rs -> (x,rs)) [(7,[8]),(7,[8])]
+assertEqual "paper/nonlinear-matchall-miss"
+  (matchAll [3 + 4,8,9] as paperMultiset something with
+    $x :: #x :: $rs -> (x,rs)) []
