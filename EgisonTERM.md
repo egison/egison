@@ -120,6 +120,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | --- | --- | --- |
 | fuel | 燃料 | 評価の上限．単一化の step bound は別の語として残す． |
 | runtime safety | 実行時安全性 | 型の付いたプログラムが動的型エラーを起こさないこと．「実行安全性」とは書かない． |
+| progress | 進行性 | 実行が完了していなければ，次の実行ステップが存在すること．「前進」とは書かない． |
 | dynamic type error | 動的型エラー | 実行時の型エラー．stuck は Lean の評価器の結果名としてだけ書く．shape error は使わない． |
 | delayed computation | 遅延計算 | suspension とは書かない． |
 | evaluated result | 評価結果 | cache／cached とは書かない． |
