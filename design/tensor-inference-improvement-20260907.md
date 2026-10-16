@@ -196,6 +196,6 @@ ones [[|1,2|]]    → [[|1,1|]]   : [Tensor Integer]
 - [二引数の補完](/Users/egisatoshi/PL/egison/hs-src/Language/Egison/Type/TensorMapInsertion.hs:298)
 - [包装の型の予測と任意個数の式生成](/Users/egisatoshi/PL/egison/hs-src/Language/Egison/Type/TensorMapInsertion.hs:397)
 - [スカラーを含む実行規則](/Users/egisatoshi/PL/egison/hs-src/Language/Egison/Core.hs:585)
-- [証明計画](/Users/egisatoshi/PL/type-tensor-paper/PROOF-PLAN.md)
+- [採用方針と現在の証明計画](/Users/egisatoshi/PL/type-tensor-paper/Problem.md)
 
 この調査では本体の Haskell コード・Lean の証明・論文本文は変更していない．確認用の `mini-test` と設計メモを追加した．
