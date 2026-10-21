@@ -232,3 +232,16 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 - 操作名・述語名: firstClause，firstDataClause，nextTargets，Next，Targets，ValueBeforeHole，CapOK，EvidenceOK，collectSome，
   StaticChecks，CapEq，Evidence，freshInst，mgu，substitutionEquations，normalize，inst，Gen．
 - 規則名・数式・コード・`\cite`／`\label` のキーは日本語版でも変えない．
+
+## 9. テンソルの型推論と評価
+
+テンソル論文の本文・要旨・図表では，操作の名前と，何を保証するかを具体的に述べる（2026-10-21）．
+
+| 英語 | 日本語 | 意味・注意 |
+| --- | --- | --- |
+| tensor construction | テンソル構築式 | `[e1,...,ek]` や `[|e1,...,ek|]` のように，成分となる式を並べてテンソルを作る式．初出で記法を説明する．literal／リテラルとだけ書かない． |
+| `tensorMap` / `tensorMap2` | 操作名をそのまま使う | テンソルのスカラー成分ごとに関数を適用する操作と，その二引数版．プログラマが書いた呼び出しと自動挿入した呼び出しを区別する場合も，操作名を述べる．「明示的写像」「写像だけを挿入する」とだけ書かない． |
+| numeric index | 数値添字 | テンソルの一つの軸に沿って成分を選ぶ番号．ソースの添字は1から数える．記号添字は軸に名前を付ける．幾何学の座標とは区別する． |
+| index tuple | 添字の組 | 各軸における整数の位置を並べたもの．配列の内部表現では0から数えることを明記する． |
+| type preservation and progress | 型保存と進行性 | 評価中に型が保たれ，型の付いた式は，値であるか，次のステップへ進めるか，定義済みの実行時エラーを報告する．この論文で type safety と呼ぶ場合は，この意味を説明する． |
+| termination, array bounds, and fresh index names | 停止性，配列参照の範囲，添字名の衝突回避 | 添字処理の実装についての個別の保証を述べる．階数や数値添字の範囲を型で管理する保証と混同しない．「安全性」とだけ書かない． |
