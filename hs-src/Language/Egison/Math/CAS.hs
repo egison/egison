@@ -7,7 +7,7 @@
 Module      : Language.Egison.Math.CAS
 Licence     : MIT
 
-This module defines the new CASValue data type for the computer algebra system.
+This module defines the CASValue data type for the computer algebra system.
 The type structure directly determines the runtime internal representation.
 
 Key design principles:
@@ -39,7 +39,7 @@ module Language.Egison.Math.CAS
     , casPower
     , casNumerator
     , casDenominator
-    -- * Observed type (Phase 8)
+    -- * Observed type
     , prettyTypeOf
     , casAtomSet
     , casDifferentialClosed
@@ -815,7 +815,7 @@ casNormalizeFrac num denom =
        _ -> CASFrac num' denom'
 
 --------------------------------------------------------------------------------
--- Type-driven reshape (Phase A of the reshape primitive design)
+-- Type-driven reshape
 --------------------------------------------------------------------------------
 
 -- | Reshape a CAS value to match the structure implied by the given Type.

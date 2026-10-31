@@ -12,8 +12,8 @@
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値の浅い実行時型による辞書選択。
 
 Matcher の形式仕様は `type-pm-mech` を正本とする。Egison CAS の pattern view には
-形式 core 外の互換境界が残るため、[matcher-capability.md](./matcher-capability.md) の
-「legacy CAS pattern view（core 外）」も参照する。
+形式 core 外の分解規則を用いるため、[matcher-capability.md](./matcher-capability.md) の
+「数式のパターンによる分解（core 外）」も参照する。
 
 ## 1. 基本原則
 
@@ -354,7 +354,7 @@ CASFrac numerator denom   -> Frac <内側の観察型>
 - CAS 表現を選ぶ `reshape` の主な入口はトップレベル定義と式注釈であり、関数引数、match 節、
   typed `let` の全注釈へは一般化していない。
 - 商型とタワー型の暗黙混在は許さない。
-- CAS pattern view の D5-CAS は Egison 固有の互換境界である。
+- CAS pattern view は Egison 固有の分解規則である。
 - 記号行列の逆行列は大きな行列向けに最適化されていない。
 
 ## 15. 実装と検証

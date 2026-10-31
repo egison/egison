@@ -89,14 +89,9 @@ shouldInsertTensorMap classEnv constraints argType paramType =
   in isParamScalar && isArgTensor
 
 
--- NOTE: the former unliftFunctionType helper stripped every Tensor head in
--- the function type before recursing over the remaining arguments.  At the
--- positions actually being mapped the parameter is already scalar (that is
--- the insertion condition), so the stripping was a no-op there; its only
--- real effects were harmful: a genuine Tensor parameter at a later position
--- was rewritten to its element type, which made the recursion insert a bogus
--- tensorMap over an argument the function consumes whole.  The insertion now
--- keeps the function's instantiated type unchanged.
+-- Keep the instantiated function type throughout insertion. A parameter
+-- that accepts a whole tensor retains its Tensor head even when another
+-- parameter is mapped componentwise.
 
 -- | Get the parameter type at the specified index from a function type
 -- Example: (a -> b -> c) at index 0 → Just a, at index 1 → Just b
@@ -137,7 +132,7 @@ isPotentialScalarType classEnv constraints ty =
        Right _ -> False  -- Can unify with Tensor a → not scalar
        Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
--- | Exclude effectful/resource-like types from compatibility lifting. These
+-- | Exclude effectful/resource-like types from automatic lifting. These
 -- types are not tensors, but wrapping callbacks such as `io : IO a -> a` would
 -- change control-flow behavior in ordinary higher-order applications.
 containsNonLiftableType :: Type -> Bool

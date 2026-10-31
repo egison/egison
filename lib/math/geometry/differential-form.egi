@@ -26,5 +26,5 @@ def ι {Field a} (X: DiffForm a) (Y: DiffForm a) : DiffForm a :=
 --    | #N -> d (ι X Y)
 --    | _ -> ι X (d Y) + d (ι X Y)
 
--- sortWithSign is now implemented as a primitive function in Haskell
+-- sortWithSign is a primitive function in Haskell.
 -- See hs-src/Language/Egison/Primitives.hs

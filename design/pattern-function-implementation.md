@@ -80,7 +80,7 @@ target 内に入れ子になった matcher capability の出現を一括して�
 capability variable がちょうど一回だけ現れる場合、その variable は相関を表さないため ground
 `Any` へ canonicalize する。二回以上現れる variable は binder として残し、引数間および
 引数・結果間の共有を保存する。ambient variable は一般化も `Any` 化もせず自由なまま残す。
-pattern variable や wildcard 自体の推論では従来どおり fresh capability を割り当てるため、
+pattern variable や wildcard 自体の推論では fresh capability を割り当てるため、
 この canonicalization が本体推論中の別々の leaf を同一視することはない。
 形式仕様の `Pattern capability target` 表記では、この規則により代表例は次の型を持つ。
 

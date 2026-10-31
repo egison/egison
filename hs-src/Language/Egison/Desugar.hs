@@ -4,7 +4,7 @@
 Module      : Language.Egison.Desugar
 Licence     : MIT
 
-This module implements Phase 3-4: Syntactic Desugaring (for untyped path).
+This module implements Phase 3-4: Syntactic Desugaring.
 For the typed path, desugaring is done inside type inference.
 
 Syntactic Desugaring (Phase 3-4):
@@ -54,12 +54,9 @@ desugarTopExpr (DefineWithType typedVwi expr) = do
   -- Note: Constraints are preserved in the type scheme (by EnvBuilder),
   -- and dictionary passing is handled in TypeClassExpand phase
   --
-  -- (Auto-coerce elaboration was tried but reverted: wrapping `e` in
-  -- `coerce` breaks inner typeclass dispatch when `e` is itself a method
-  -- call needing return-type context — e.g. `def f : Frac Integer := embed 5`
-  -- becomes `coerce (embed 5)`, leaving `embed`'s return type ambiguous.
-  -- After tower fix + Term widening, runtime forms are already canonical
-  -- in most cases, so explicit `coerce` is rarely needed.)
+  -- The declared result type supplies context for method selection.
+  -- Keep the expression under that context rather than wrapping it in a
+  -- coercion that could leave the method's return type ambiguous.
   let name = typedVarName typedVwi
       indices = typedVarIndices typedVwi
       params = typedVarParams typedVwi
@@ -151,7 +148,7 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
       -- that e.g. `Coerce (Frac Integer) Integer` and
       -- `Coerce (Frac (Poly Integer [..])) Integer` get distinct names.
       -- cas-type aliases are expanded first so the generated names agree
-      -- with EnvBuilder's registerInstanceMethods (Phase alpha).
+      -- with EnvBuilder's registerInstanceMethods.
       aliasEnv <- getCasTypeAliasEnv
       let instTypeNames = map (typeToName . expandTypeAliases aliasEnv . typeExprToType) instTypes
           instTypeName  = concat instTypeNames
@@ -217,7 +214,7 @@ desugarTopExpr (InstanceDeclExpr (InstanceDecl constraints classNm instTypes met
 desugarTopExpr (InductiveDecl _ _ _) = return Nothing
 
 -- cas-type aliases and cas-subtype edges are fully handled during
--- environment building (Phase alpha/beta of the extensible tower);
+-- environment building;
 -- no runtime artifact.
 desugarTopExpr (DeclareCasType _ _) = return Nothing
 desugarTopExpr (DeclareCasSubtype _ _) = return Nothing
@@ -245,19 +242,19 @@ desugarTopExpr (DeclareSymbol names mTypeExpr) = do
              Just texpr -> expandTypeAliases aliasEnv (typeExprToType texpr)
              Nothing    -> typeExprToType TEInt
   -- Record the declaration order of CAS symbols for `declare ideal`
-  -- (DG1: declared earlier = ranks lower = survives in normal forms).
+  -- (declared earlier = ranks lower = survives in normal forms).
   case ty of
     TInt       -> appendDeclaredSymbols names
     TMathValue -> appendDeclaredSymbols names
     _          -> return ()
   return . Just $ IDeclareSymbol names (Just ty)
 desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
-  -- Phase 7.5 (literal LHS) + Phase A (pattern variables `$x`, `#x`).
+  -- Compile literal left-hand sides and pattern variables `$x`, `#x`.
   --
   --   declare rule auto term i^2 = -1
   --   ⇒  def autoRule.<fresh> := \v -> applyTermRule i^2 (-1) v
   --
-  -- With pattern variables (Phase A):
+  -- With pattern variables:
   --   declare rule trigPyth poly (sin $x)^2 + (cos #x)^2 = 1
   --   ⇒  def rule.trigPyth := \v -> match v as mathExpr with
   --                                  | (apply1 #sin $x)^2 + (apply1 #cos #x)^2 -> 1
@@ -382,7 +379,7 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
     patchFirstMatchRhs (IMatchExpr m tgt mtcher ((p, _) : rest) matchElse) newBody =
       IMatchExpr m tgt mtcher ((p, newBody) : rest) matchElse
     patchFirstMatchRhs e _ = e
--- G3 (design/cas-simplification.md): `declare ideal [g1, ..., gk]`.
+-- `declare ideal [g1, ..., gk]`.
 --
 --   declare ideal [w^2 + w + 1]
 --     =>  def idealRules.N := idealTermRules [<priority atoms>] [g1', ..., gk']
@@ -392,7 +389,7 @@ desugarTopExpr (DeclareRule mname level lhsPat rhs) = do
 -- The generators receive the same rule-free treatment as declare-rule
 -- right-hand sides (unNormalizeOps), so generators that the active auto
 -- rules would collapse are safe to write plainly.  The priority list is
--- the declaration order of `declare symbol` (DG1: earlier = survives),
+-- the declaration order of `declare symbol` (earlier = survives),
 -- extended by the compound atoms (symbolic applications, quotes) in the
 -- order they appear in the generators.  idealTermRules computes the
 -- reduced Groebner basis once (lazily, in the rule-free engine of
@@ -425,7 +422,7 @@ desugarTopExpr (DeclareIdeal gens) = do
     ]
 
 desugarTopExpr (DeclareDerivative name rhs) = do
-  -- Phase 6.3 part 4-6: emit
+  -- Emit
   --   def deriv.<name> := <rhs>
   --   def chainPartialDiff := \v dx ->
   --       match v as mathValue with
@@ -458,7 +455,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
       rhsI <- desugar rhs
       return [(stringToVar ("deriv." ++ name), rhsI)]
   -- Use only derivatives desugared *up to and including* this one, so the
-  -- emitted chainPartialDiff body doesn't forward-reference `deriv.<later>`
+  -- Emitted chainPartialDiff body doesn't forward-reference `deriv.<later>`
   -- bindings. EnvBuilder pre-populates `derivativeRuleNames` with all names,
   -- but for code generation we want each declaration to reference only the
   -- names that have already been emitted.
@@ -529,7 +526,7 @@ desugarTopExpr (DeclareDerivative name rhs) = do
                      matchExpr
       desugar lambda
 desugarTopExpr (DeclareMathFunc name _mType) = do
-  -- Phase 6.3 part 5: emit a wrapper function that quotes the symbol on
+  -- Emit a wrapper function that quotes the symbol on
   -- application:  def <name> (x : MathValue) : MathValue := '<name> x
   -- The parser builds `'name x` as `ApplyExpr (QuoteSymbolExpr (VarExpr name)) [VarExpr x]`,
   -- so we mirror that structure here.
@@ -539,7 +536,7 @@ desugarTopExpr (DeclareMathFunc name _mType) = do
   bodyI <- desugar body
   return . Just $ IDefine (stringToVar name) bodyI
 desugarTopExpr (DeclareApply name args body) = do
-  -- Phase A: emit `def <name> := \<args> -> <body>` which overrides the
+  -- Emit `def <name> := \<args> -> <body>` which overrides the
   -- wrapper generated by `declare mathfunc <name>`. Within the body, the
   -- user uses `'<name> arg` (quote) for the symbolic Factor fallback so
   -- recursion terminates; calling `<name> arg` (unquoted) re-enters this
@@ -762,7 +759,7 @@ unNormalizeOps e = case e of
             go k = IApplyExpr mulPrim [base', go (k - 1)]
         in go n
   -- General case: `x ^ n` with non-literal n. Dispatch to `^'`, the
-  -- un-normalised power operator that uses `power'` (which now uses
+  -- un-normalised power operator that uses `power'` (which uses
   -- direct recursion + i.- instead of take/foldl). This avoids the
   -- mathNormalize cycle when ^ appears in a declare-rule RHS.
   IApplyExpr (IVarExpr "^") [base, expn] ->
@@ -821,7 +818,7 @@ buildMathNormalizeRedef autoVars = do
 -- of desugared ideal generators, in appearance order (deduplicated).
 -- They extend the declaration-order priority list: compound atoms are
 -- not declared with `declare symbol`, so their rank comes from where
--- they first appear in the generators (DG1, cas-simplification 3.5).
+-- they first appear in the generators (cas-simplification 3.5).
 collectCompoundAtomExprs :: [IExpr] -> [IExpr]
 collectCompoundAtomExprs es = nubBy (\a b -> show a == show b) (concatMap go es)
   where
@@ -1269,7 +1266,7 @@ desugar (TypeAnnotation expr typeExpr) = do
   aliasEnv <- getCasTypeAliasEnv
   return $ IReshape (expandTypeAliases aliasEnv (typeExprToType typeExpr)) inner
 
--- `simplify <expr> using <ruleName>` (Phase 7.6).
+-- `simplify <expr> using <ruleName>`.
 -- Desugars to a direct call of the registered rule lambda:
 --   simplify e using r  ⇒  rule.r e
 -- The rule lambda was emitted by `desugarTopExpr (DeclareRule (Just r) ...)`.

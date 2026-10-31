@@ -153,7 +153,7 @@ def multExpr : Matcher MathValue MathValue :=
 
 def termExpr : Matcher MathValue MathValue := mathValue
 
--- Phase 5 Step 5.0: basic matchers (atoms, factor, symbol).
+-- Basic matchers (atoms, factor, symbol).
 -- These deliberately delegate to `mathValue` so that they can be used as
 -- generic decomposition matchers under the `factor` / `symbol` names while
 -- the full parametric matchers below provide coefficient-aware variants.
@@ -202,7 +202,7 @@ def factor : Matcher MathValue Factor :=
     | $ as something with
         | $tgt -> [tgt]
 
--- Phase 5 Step 5.1-5.3: parametric matchers `term`, `poly`, `frac`.
+-- Parametric matchers `term`, `poly`, `frac`.
 -- They share the same runtime behavior as `mathValue` but the coefficient
 -- matcher is parametric (`m` rather than the hard-coded `integer`). Pattern
 -- variables bound by `term $`, `mult $`, `$ * $` therefore have type `a` (the
@@ -365,8 +365,8 @@ def frac {a} (m: Matcher p a) : Matcher MathValue MathValue :=
     | $ as something with
         | $tgt -> [tgt]
 
--- mathExpr: an alias for `mathValue` used by older code and the parametric
--- matcher tests. Kept for backward compatibility.
+-- mathExpr is a name for the mathValue matcher, including in parametric
+-- matcher expressions.
 def mathExpr : Matcher MathValue MathValue := mathValue
 
 
@@ -592,6 +592,6 @@ def L./ (xs: [MathValue]) (ys: [MathValue]) : ([MathValue], [MathValue]) :=
         let (zs, rs) := L./ (map2 (-) (take (length yrs) xrs) (map (* (x / y)) yrs) ++ drop (length yrs) xrs) ys
          in (x / y :: zs, rs)
 
--- Phase A.5 primitives `mapPolyAll`, `mapTermAll`, `mapFracAll` are
+-- Traversal primitives `mapPolyAll`, `mapTermAll`, `mapFracAll` are
 -- registered in `Type/Check.hs`, so they're known to the type system
 -- without needing forwarder definitions here.

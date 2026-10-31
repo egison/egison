@@ -165,9 +165,8 @@ instance Field Float
 --
 -- CAS type widening / narrowing
 --
--- After Phase C, both `Embed` and the `coerceTo*` helper functions have been
--- removed in favor of the unified `reshape` mechanism: the type checker
--- inserts a `TIReshape T` node whenever a `def x : T := e` annotation is
+-- Post-typecheck elaboration inserts a `TIReshape T` node when a
+-- `def x : T := e` annotation is
 -- encountered (where T is a concrete CAS scalar — Integer, Factor, Frac _,
 -- Poly _ _, Term _ _). At runtime, `casReshapeAs T v` structurally rewrites
 -- the CAS value to fit T (collapsing Frac with denom=1 to Integer, lifting
@@ -183,7 +182,7 @@ instance Field Float
 --
 
 --
--- Rule application combinators (Phase 7.5 helper)
+-- Rule application combinators
 --
 -- `applyRules` runs each rule once, left-to-right. `iterateRules` runs
 -- the chain repeatedly until the value stops changing (fixed point).

@@ -208,7 +208,7 @@ data Type
   | TIORef Type                       -- ^ IORef type
   | TPort                             -- ^ Port type (file handles)
   | TAny                              -- ^ Any type (for gradual typing)
-  -- New CAS types (Phase 2)
+  -- CAS types
   | TFactor                           -- ^ Factor type (atomic mathematical factor from quote ')
   | TTerm Type SymbolSet               -- ^ Term type, e.g., Term Integer [x] = monomials over Integer with atom set [x]
   | TFrac Type                         -- ^ Frac type, e.g., Frac Integer = rationals
@@ -312,9 +312,8 @@ data ClassInfo = ClassInfo
   , classMethods :: [(String, Type)]   -- ^ Method names and their types
   } deriving (Eq, Show, Generic)
 
--- | Backward-compatible accessor for the first (or only) class parameter.
--- Many existing call sites assume a single-parameter class; multi-param classes
--- (Phase 5.5 Embed) need to call `classParams` directly.
+-- | First parameter of a nonempty class parameter list.
+-- Multi-parameter classes use `classParams` for the complete parameter list.
 classParam :: ClassInfo -> TyVar
 classParam ci = case classParams ci of
   (p:_) -> p
@@ -325,10 +324,10 @@ data InstanceInfo = InstanceInfo
   { instContext :: [Constraint]        -- ^ Instance context (e.g., "Eq a" in "{Eq a} Eq [a]")
   , instClass   :: String              -- ^ Class name
   , instTypes   :: [Type]              -- ^ Instance types (e.g. [Integer] or [Integer, Frac Integer] for multi-param)
-  , instMethods :: [(String, ())]      -- ^ Method implementations (placeholder for now)
+  , instMethods :: [(String, ())]      -- ^ Method names; method bodies are compiled into runtime dictionaries.
   } deriving (Eq, Show, Generic)
 
--- | Backward-compatible accessor for the first (or only) instance type.
+-- | First type of a nonempty instance type list.
 instType :: InstanceInfo -> Type
 instType ii = case instTypes ii of
   (t:_) -> t
@@ -367,7 +366,7 @@ freeTyVars (TIO t)          = freeTyVars t
 freeTyVars (TIORef t)       = freeTyVars t
 freeTyVars TPort            = Set.empty
 freeTyVars TAny             = Set.empty
--- New CAS types
+-- CAS types
 freeTyVars TFactor          = Set.empty
 freeTyVars (TTerm t ss)      = freeTyVars t `Set.union` freeTyVarsSymbolSet ss
 freeTyVars (TFrac t)         = freeTyVars t
@@ -683,7 +682,7 @@ typeConstructorName (TIO _) = "IO"
 typeConstructorName (TIORef _) = "IORef"
 typeConstructorName TPort = "Port"
 typeConstructorName TAny = "Any"
--- New CAS types
+-- CAS types
 typeConstructorName TFactor = "Factor"
 typeConstructorName (TTerm _ _) = "Term"
 typeConstructorName (TFrac _) = "Frac"
@@ -765,7 +764,7 @@ capabilityForTarget (TInductive name [_, target])
   | name == capabilityForName = Just target
 capabilityForTarget _ = Nothing
 
--- | Pattern families of the legacy symbolic-mathematics views.  Their
+-- | Pattern families of the symbolic-mathematics views.  Their
 -- declarations name the run-time view of a mathematical expression, not the
 -- target type of a matcher, so matcher definitions do not take their field
 -- types as target evidence, and their fields may pair the view's capability
@@ -878,7 +877,7 @@ typeExprToType (TEFun t1 t2) = TFun (typeExprToType t1) (typeExprToType t2)
 typeExprToType (TEIO t) = TIO (typeExprToType t)
 typeExprToType (TEConstrained _ t) = typeExprToType t  -- Ignore constraints
 typeExprToType (TEPattern t) = TInductive "Pattern" [typeExprToType t]
--- New CAS types
+-- CAS types
 typeExprToType TEFactor = TFactor
 typeExprToType TEAnyCapability = TInductive anyCapabilityName []
 typeExprToType (TECapabilityFor capability target) =
@@ -931,9 +930,8 @@ normalizeMatcherTuples = go
       TPoly t ss -> TPoly (go t) ss
       leaf -> leaf
 
--- | Expand `declare cas-type` transparent aliases inside a Type (Phase alpha
--- of the extensible CAS tower; see
--- design/type-cas-tower-implementation.md section 2).
+-- | Expand transparent `declare cas-type` aliases inside a Type.
+-- See design/type-cas-tower-implementation.md section 2.
 -- A capitalized name in type position parses to `TVar (TyVar name)` (or is
 -- concretized to `TInductive name []`), so we substitute both forms.
 -- Alias bodies stored in the map are already fully expanded, hence a single
@@ -969,7 +967,7 @@ normalizeInductiveTypes (TInductive name []) = case name of
   "SymbolExpr" -> TSymbolExpr
   "IndexExpr"  -> TIndexExpr
   "Port"       -> TPort
-  "Factor"     -> TFactor  -- New CAS type
+  "Factor"     -> TFactor  -- CAS type
   _            -> TInductive name []
 -- Normalize Div to TFrac
 normalizeInductiveTypes (TInductive "Frac" [t]) = TFrac (normalizeInductiveTypes t)
@@ -988,7 +986,7 @@ normalizeInductiveTypes (TFun arg ret) = TFun (normalizeInductiveTypes arg) (nor
 normalizeInductiveTypes (TIO t) = TIO (normalizeInductiveTypes t)
 normalizeInductiveTypes (TIORef t) = TIORef (normalizeInductiveTypes t)
 normalizeInductiveTypes (TTensor t) = TTensor (normalizeInductiveTypes t)
--- New CAS types
+-- CAS types
 normalizeInductiveTypes (TTerm t ss) = TTerm (normalizeInductiveTypes t) ss
 normalizeInductiveTypes (TFrac t) = TFrac (normalizeInductiveTypes t)
 normalizeInductiveTypes (TPoly t ss) = TPoly (normalizeInductiveTypes t) ss

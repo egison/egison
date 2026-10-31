@@ -69,7 +69,7 @@ prettyType (TIO t)          = "IO " ++ prettyTypeAtom t
 prettyType (TIORef t)       = "IORef " ++ prettyTypeAtom t
 prettyType TPort            = "Port"
 prettyType TAny             = "_"
--- New CAS types
+-- CAS types
 prettyType TFactor          = "Factor"
 prettyType (TTerm t ss)      = "Term " ++ prettyTypeAtom t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t)         = "Frac " ++ prettyTypeAtom t
@@ -213,7 +213,7 @@ prettyTypeExpr (TEConstrained cs t) = prettyConstraintExprs cs ++ " " ++ prettyT
     prettyConstraintExprs [] = ""
     prettyConstraintExprs constraints = "{" ++ intercalate ", " (map prettyConstraintExpr constraints) ++ "}"
     prettyConstraintExpr _ = "..."  -- TODO: implement constraint printing
--- New CAS types
+-- CAS types
 prettyTypeExpr TEFactor = "Factor"
 prettyTypeExpr (TETerm t ss) = "Term " ++ prettyTypeExprAtom t ++ " " ++ prettySymbolSetExpr ss
 prettyTypeExpr (TEFrac t) = "Frac " ++ prettyTypeExprAtom t

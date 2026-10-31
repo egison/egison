@@ -33,16 +33,13 @@ lazyPrimitives :: [(String, String -> LazyPrimitiveFunc)]
 lazyPrimitives =
   [ ("isInteger",    lazyOneArg isInteger)
   , ("isRational",   lazyOneArg isRational)
-  -- Note: Other type checking functions (isBool, isScalar, isFloat, isChar, isString,
-  -- isCollection, isHash, isTensor, typeName) are removed because they are not needed
-  -- with the static type system. isInteger and isRational are kept because
-  -- MathValue = Integer = Rational in Egison.
+  -- CAS values can contain integers or rationals. These predicates inspect
+  -- their numeric representation at runtime.
   ]
 
 --
 -- Typing
--- Note: Only isInteger and isRational are kept because MathValue = Integer = Rational in Egison.
--- Other type checking functions are removed as they are not needed with the static type system.
+-- These predicates inspect numeric CAS representations at runtime.
 --
 
 isInteger :: WHNFData -> EvalM WHNFData

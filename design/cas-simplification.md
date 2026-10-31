@@ -1,8 +1,7 @@
 # Egison CAS の高度な簡約
 
 この文書は、多変数多項式 GCD、グレブナー基底、イデアル正規形、平方根と指数関数の
-構造的簡約について、現在の仕様と実装境界をまとめる。完了済みの実装計画、過去の失敗例、
-一時的な性能測定値は含めない。
+構造的簡約について、現在の仕様と実装境界をまとめる。
 
 関連する型と表現は [type-cas.md](./type-cas.md)、型タワーは
 [type-cas-tower-implementation.md](./type-cas-tower-implementation.md)、商型は

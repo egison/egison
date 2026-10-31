@@ -2,9 +2,8 @@
 Module      : Language.Egison.Type.Check
 Licence     : MIT
 
-This module provides the built-in type environment for Egison programs.
-Note: Type checking is now handled by Infer.hs. This module only provides
-the built-in type environment.
+Built-in type environment for Egison programs.
+Type inference and checking are implemented in Infer.hs.
 -}
 
 module Language.Egison.Type.Check
@@ -92,7 +91,7 @@ builtinTypes = concat
       , ("termMonomial", Forall [] [] [] $ TFun TMathValue (TCollection (TTuple [TMathValue, TMathValue])))
       , ("typeOf", forallA $ TFun (TVar a) TString)
       , ("inspect", forallA $ TFun (TVar a) TString)
-      -- Unsafe cast for cas-quotient generated code only (M4;
+      -- Unsafe cast for cas-quotient generated code only (see
       -- design/type-cas-quotient.md): projQ/reprQ cross between a
       -- quotient's nominal type and its base representation.
       , ("casQuotientCast", Forall [] [TyVar "a", TyVar "b"] []
@@ -122,7 +121,7 @@ builtinTypes = concat
       -- Per-term trigger guard for generated pattern-rule steps.
       , ("casContainsAnySymbol", Forall [] [] [] $
           TFun (TCollection TString) (TFun TMathValue TBool))
-      -- Phase A.5 deep-traversal primitives.
+      -- deep-traversal primitives.
       -- Type: (MathValue -> MathValue) -> MathValue -> MathValue.
       , ("mapPolyAll", Forall [] [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
@@ -286,6 +285,6 @@ builtinTypes = concat
         ("True", Forall [] [] [] TBool)
       , ("False", Forall [] [] [] TBool)
       -- Note: Ordering constructors (Less, Equal, Greater), Maybe constructors (Nothing, Just),
-      -- and other algebraicDataMatcher constructors are now automatically registered
+      -- and other algebraicDataMatcher constructors are registered
       -- when the matcher is defined via registerAlgebraicConstructors
       ]

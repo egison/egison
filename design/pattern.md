@@ -57,7 +57,7 @@ newtype PatternFunctionEnv = PatternFunctionEnv
   なければ，パターンコンストラクタとして解決する。
 - 宣言されたシグネチャを使わず generic inference へ進む Egison インタプリタの拡張は，core と同期した
   直接経路ではない。詳細は [matcher-capability.md](./matcher-capability.md) の
-  「legacy CAS pattern view（core 外）」を参照する。
+  「数式のパターンによる分解（core 外）」を参照する。
 
 例えば，次の primitive-pattern pattern の `cons` は宣言から引数型を得る。
 
@@ -155,9 +155,9 @@ match target as matcher with
   else fallback
 ```
 
-通常節は従来どおりソース順に試す。どの節からも解が得られなかった場合だけ，
+通常節はソース順に試す。どの節からも解が得られなかった場合だけ，
 `fallback` を `match` の外側と同じ環境で評価する。したがって，通常節のパターン変数は
-`else` から参照できない。`else` を省略してすべての節が失敗した場合は，従来どおり
+`else` から参照できない。`else` を省略してすべての節が失敗した場合は，
 実行時のパターンマッチ失敗となる。
 
 `else` は matcher にパターンを渡さない。これは最終節の `| _ -> fallback` と重要な違いがある。

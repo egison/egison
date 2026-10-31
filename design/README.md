@@ -15,6 +15,7 @@
 
 - [implementation.md](./implementation.md): パースから評価までの処理の流れ。
 - [FILE_MAPPING.md](./FILE_MAPPING.md): 処理段階と Haskell モジュールの詳細な対応表。
+- [interpreter-performance.md](./interpreter-performance.md): 性能の計測方法と対象となる処理。
 
 ## パターンマッチと TypePM
 
@@ -32,7 +33,8 @@ Egison core 外の拡張だけを記述する。
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値に対する浅い実行時型ディスパッチ。
 - [type-tensor-simple.md](./type-tensor-simple.md): テンソル型と添字記法の基本仕様。
 - [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md): スカラー関数をテンソルへ持ち上げる変換。
-- [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階関数の callback に対する tensor-lift の伝播。
+- [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階引数のスカラー関数の自動変換。
+- [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 型推論の要件，実装との対応，検査できる制限。
 
 ## CAS
 

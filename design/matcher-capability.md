@@ -1,10 +1,8 @@
 # Matcher capability 実装契約
 
-> 状態：2026-09-03（単一 `Matcher` 型と等式単一化への再実装後）
-
 本文書は，Egison 本体における matcher の型付けの要点を記す．形式規則と証明の正本は
 `type-pm-mech`（統合 core，推論の健全性・主要性・完全性，実行時安全性）であり，
-Haskell 実装は論文（type-pm-paper 論文1）§4–§5 の規則をそのまま実装する．
+Haskell 実装は論文（`type-pm-paper`）§4–§5 の規則を実装する．
 
 ## 1. 型と変数
 
@@ -64,8 +62,7 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
   解釈するのはマッチャーのタプルだけである．constructor の field の中のタプル（`assocMultiset` の
   `($, $) :: $` など）は，その能力が field の能力と単一化され，field のネクストマッチャーが
   マッチャーのタプルになるので許す．型エラーの例は `test/type-error/107-root-tuple-matcher-clause.egi`
-  と `108-root-unit-matcher-clause.egi`（2026-10-07 の論文1の理論レビューで見つかった健全性の穴．
-  以前は型検査を通り，実行時に失敗した）．
+  と `108-root-unit-matcher-clause.egi` で検査する．
 - ネクストマッチャー式 e は通常の式として推論し，その型をパターンホールが要求する型
   `Matcher χ_1 α_1`（パターンホール 1 個）または `(Matcher χ_1 α_1, …, Matcher χ_n α_n)`
   （n 個）と単一化する．正準形により，タプルの matcher 型を持つ変数や application が複数の
@@ -84,8 +81,7 @@ Capability = CapAny | CapVar CapVar | CapSkolem CapVar
 RootCoverage（言及したデータ型の全 pattern constructor に一般形のマッチャー節がある）は
 論文の網羅性の条件に対応するが，Egison インタプリタの部分的な matcher（CAS view，
 `string` の regex のマッチャー節）を維持するため `--matcher-consistency-warnings` のときだけ
-警告する．リストのパターン族は論文と同じ `[]`・`::`・`++` だけを宣言する（snoc `*:` は
-2026-10-02 に削除し，`last`・`init`・`unsnoc`・`reverse` は `::` で書き直した）．
+警告する．リストのパターン族は論文と同じ `[]`・`::`・`++` を宣言する．
 
 ### プリミティブデータマッチ節の束縛
 
@@ -102,7 +98,7 @@ RootCoverage（言及したデータ型の全 pattern constructor に一般形�
 別である．`test/lib/core/matcher-data-shadowing.egi` で，バリューパターンパターンの束縛と
 ターゲットの値・型が異なる例，DFS，異なる名前の束縛の参照を strict モードで検査する．
 
-### legacy CAS pattern view（core 外）
+### 数式のパターンによる分解（core 外）
 
 `MathValue`，`IndexExpr` などの pattern 宣言は数式の実行時 view を名付けるもので，
 field と result の宣言型は target の証拠ではない（`legacyCasLeafDataType`）．このプリミティブ
@@ -149,7 +145,7 @@ capability 等式）．
 - `EnvBuilder.hs`：公開 signature の閉性と parameters-determined 検査．
 - `CmdOptions.hs`／`Eval.hs`：診断 option と計測．
 
-## 逐次パターンの保存対象（2026-09-25）
+## 逐次パターンの保存対象
 
 逐次パターン `{p1, p2, ...}` では，`@` が保存する値の型と，その位置で使う
 マッチャーの能力を組にして推論する．次の段階は，保存がゼロ個なら単位値，
@@ -170,5 +166,5 @@ capability 等式）．
 結果型へ等式で伝えてから，高階関数のテンソル向けの自動拡張を判断する．これにより
 `def sat vars cnf := dp vars (map unique cnf)` も注釈なしに推論できる．推論済みの
 リスト内部のテンソルを消す処理ではなく，明示的なテンソルを含む不適合な入力は引き続き
-拒否する．数式処理やテンソルの型を結果に要求する場合は，従来の本体用の規則を用いる．
+拒否する．数式処理やテンソルの型を結果に要求する場合は，本体の型推論規則を用いる．
 この境界は `test/TensorInference.hs` で検査する．

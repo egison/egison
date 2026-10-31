@@ -53,14 +53,10 @@ data EnvBuildResult = EnvBuildResult
   , ebrConstructorEnv :: ConstructorEnv  -- ^ Data constructor information
   , ebrPatternConstructorEnv :: PatternConstructorEnv  -- ^ Pattern constructor information
   , ebrPatternTypeEnv :: PatternTypeEnv  -- ^ Pattern function information
-  -- Phase 7.4/7.5: collected `declare rule` declarations. Stored as the raw
-  -- (name, level, lhs, rhs) tuple. Rule application is not yet wired into
-  -- normalization; this field exists so the data round-trips through env
-  -- building and is available for inspection / future Phase 7.5 code.
+  -- Reduction declarations as (name, level, lhs, rhs) tuples for inspection
+  -- and registration. Desugaring generates the runtime rule functions.
   , ebrReductionRules :: [(Maybe String, RuleLevel, Pattern, Expr)]
-  -- Phase 6.3: collected `declare derivative` declarations. Maps function
-  -- name -> derivative expression. Wiring into `Differentiable Factor` is
-  -- still pending; for now, just the registration list.
+  -- Derivative declarations map function names to derivative expressions.
   , ebrDerivativeRules :: [(String, Expr)]
   -- Names of functions declared via `declare mathfunc`. Used by the
   -- DeclareApply handler to enforce that `declare apply foo ...` only
@@ -950,7 +946,7 @@ concretizeDeclaredTypes decls = applySubst subst
 -- | Process a single top-level expression to collect environment information.
 -- `aliasEnv` carries `declare cas-type` aliases (prior batches + this batch);
 -- every TypeExpr conversion goes through `t2t` so alias names are expanded
--- before types are stored anywhere (Phase alpha of the extensible tower).
+-- before types are stored anywhere.
 processTopExpr :: Set.Set String -> HashMap.HashMap String Type -> EnvBuildResult -> TopExpr -> EvalM EnvBuildResult
 processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
 
@@ -971,10 +967,8 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
   
   -- 2. Type Class Definitions (from ClassDeclExpr).
   -- Supports any number of type parameters (single-param `class Eq a` and
-  -- multi-param `class Embed a b` go through the same path). Methods are still
-  -- registered against the *first* parameter for backward compatibility with
-  -- existing single-param infrastructure (Phase 5.5 multi-param-aware
-  -- elaboration is a separate task).
+  -- multi-param `class Embed a b` go through the same path). Method metadata
+  -- records the first parameter; instance selection uses the complete list.
   ClassDeclExpr (ClassDecl className typeParams superClasses methods) | not (null typeParams) -> do
     let classEnv = ebrClassEnv result
         typeEnv = ebrTypeEnv result
@@ -1014,7 +1008,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
   -- 3. Instance Definitions (from InstanceDeclExpr).
   -- Multi-param-friendly: instance declarations may carry one or more
   -- types (`instance Embed Integer (Frac Integer) where ...`). All of them
-  -- are stored in `instTypes`; the legacy `instType` accessor reads the head.
+  -- are stored in `instTypes`; `instType` returns the first type.
   InstanceDeclExpr (InstanceDecl context className instTypes methods) -> do
     let classEnv = ebrClassEnv result
         typeEnv = ebrTypeEnv result
@@ -1022,7 +1016,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         -- Convert all instance types
         instanceTypeList = map t2t instTypes
 
-        -- Get the primary instance type (head) for backward compatibility
+        -- Get the first instance type for method metadata.
         mainInstType = case instanceTypeList of
           []    -> TAny
           (t:_) -> t
@@ -1140,11 +1134,11 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
     
     return result { ebrPatternTypeEnv = patternEnv' }
   
-  -- Phase alpha/beta: cas-type aliases and cas-subtype edges were collected
+  -- cas-type aliases and cas-subtype edges were collected
   -- in the prepass (buildEnvironments), so nothing to do per-declaration here.
   DeclareCasType _ _ -> return result
   DeclareCasSubtype _ _ -> return result
-  -- M4: cas-quotient declarations are macro-expanded away before environment
+  -- cas-quotient declarations are macro-expanded away before environment
   -- building (Eval.expandCasQuotientDecls); nothing should reach here.
   DeclareCasQuotient {} -> return result
 
@@ -1166,27 +1160,27 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         typeEnv' = foldr (\name env -> extendEnv (stringToVar name) scheme env) typeEnv names
     return result { ebrTypeEnv = typeEnv' }
 
-  -- 8. Reduction Rule Declarations (from DeclareRule, Phase 7.4)
-  -- The parser accepts the rule and we now stash the (name, level, lhs, rhs)
-  -- tuple in `ebrReductionRules` for later inspection / Phase 7.5 use.
+  -- 8. Reduction Rule Declarations
+  -- Store the (name, level, lhs, rhs) tuple for declaration inspection.
+  -- Runtime rule functions are generated during desugaring.
   -- Application during `casNormalize` is still pending.
   DeclareRule mname level lhs rhs ->
     return result { ebrReductionRules = ebrReductionRules result ++
                                           [(mname, level, lhs, rhs)] }
 
-  -- 8b. Ideal declarations (G3 of cas-simplification).  They desugar to
+  -- 8b. Ideal declarations (cas-simplification).  They desugar to
   -- ordinary definitions (idealRules.N / autoRule.N / mathNormalize),
   -- which are typed like any other define; nothing to register here.
   DeclareIdeal _ -> return result
 
-  -- 9. Derivative Declarations (from DeclareDerivative, Phase 6.3)
+  -- 9. Derivative Declarations
   -- Stash the (name, expr) pair in `ebrDerivativeRules`. Wiring into
   -- `Differentiable Factor`'s connection rule is still pending.
   DeclareDerivative name rhs ->
     return result { ebrDerivativeRules = ebrDerivativeRules result ++
                                             [(name, rhs)] }
 
-  -- 10. Math function declarations (Phase 6.3 part 5).
+  -- 10. Math function declarations.
   -- Register the function's type signature so the inference engine knows
   -- `f : MathValue -> MathValue` (the wrapper body that quotes the symbol).
   -- Without this, binary operations like `f 3 + f 4` infer `Any + Any` and
@@ -1204,7 +1198,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         names'   = Set.insert name (ebrMathFuncNames result)
     return result { ebrTypeEnv = typeEnv', ebrMathFuncNames = names' }
 
-  -- 11. Math function application rules (Phase A of declare apply impl).
+  -- 11. Math function application rules.
   -- Requires a prior `declare mathfunc <name>` so the function's type and
   -- intent are known. The actual implementation is emitted by Desugar as a
   -- plain `def` that overrides the mathfunc wrapper.
@@ -1227,7 +1221,7 @@ processTopExpr declaredTypes aliasEnv result topExpr = case topExpr of
         "Add `declare mathfunc " ++ name ++ "` before this `declare apply` declaration."
 
   where
-    -- typeExprToType + cas-type alias expansion (Phase alpha).
+    -- typeExprToType + cas-type alias expansion.
     t2t :: TypeExpr -> Type
     t2t = Types.expandTypeAliases aliasEnv . typeExprToType
 
@@ -1268,7 +1262,7 @@ schemeResultDataType (Forall _ _ _ ty) = fst <$> Types.dataTypeOf (result ty)
 -- family, a declared pattern family applied to fields, a list or tuple of
 -- fields, or a capability with an explicit target type, written (κ for T).
 -- Any, the capability that determines no target type, is written only as
--- (Any for T).  Outside the core rules, the family of a legacy
+-- (Any for T). Outside the core rules, a symbolic CAS pattern family
 -- symbolic-mathematics view may also take an explicit target type, as in
 -- (MathValue for Term MathValue [..]).  A type that names no pattern family,
 -- such as Integer, is rejected with a suggestion to write (Any for Integer).

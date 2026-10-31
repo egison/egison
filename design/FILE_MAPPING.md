@@ -80,7 +80,7 @@ TypeClassExpand の処理パイプライン（TIDefine の場合）:
 - 1制約につき1辞書パラメータ（スーパークラスは辞書内の `__super_*` 参照で辿る）
 - `deExpandConstraints` で展開された制約を最小セットに戻す
 - `findSuperclassPath` + `buildSuperclassChain` でメソッドアクセスチェーンを生成
-- `remapDictRefsInBody` で旧辞書参照名を新チェーンアクセスにリマップ
+- `remapDictRefsInBody` で辞書参照をスーパークラス辞書へのアクセスに置換
 
 スタンドアロンのメソッド参照（例: `foldl (+) 0 xs` の `(+)`）のeta展開は TypeClassExpand 内の `replaceMethodCallsInNode`（`TIVarExpr` ケース）で辞書アクセスと同時に行われる。
 

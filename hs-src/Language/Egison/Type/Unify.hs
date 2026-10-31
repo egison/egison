@@ -281,7 +281,7 @@ unifyG _ _ _ (TSkolem v1) (TSkolem v2)
 unifyG _ _ _ TInt TMathValue = ok
 unifyG _ _ _ TMathValue TInt = ok
 
--- Phase 5.5 (simplified subtype unification): all CAS-family types
+-- all CAS-family types
 -- (Factor / Frac / Poly) unify with MathValue and with TInt (=MathValue).
 -- This is the "every CAS type is a subtype of MathValue" relationship from
 -- the design's type-inclusion graph. The runtime values are all CASValue

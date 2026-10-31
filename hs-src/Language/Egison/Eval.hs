@@ -161,7 +161,7 @@ evalExpandedTopExprsTyped' :: Env -> [TopExpr] -> Bool -> Bool -> EvalM (Maybe E
 evalExpandedTopExprsTyped' env exprs printValues shouldDumpTyped = do
   opts <- ask
 
-  -- M4 (quotient mechanism, design/type-cas-quotient.md): macro-expand
+  -- Expand quotient declarations (design/type-cas-quotient.md):
   -- `declare cas-quotient` into ordinary defs/instances/assertions BEFORE
   -- environment building, so the generated instances and signatures flow
   -- through the normal prepass.
@@ -399,7 +399,7 @@ buildAndMergeEnvironments exprs opts = do
   prevEdges <- getCasSubtypeEdges
   setCasSubtypeEdges (prevEdges ++ ebrCasSubtypeEdges envResult)
 
-  -- Phase 7.4/7.5/6.3: surface declaration counts and names to the runtime
+  -- surface declaration counts and names to the runtime
   -- so that inspection primitives (`numReductionRules`, `ruleNames`,
   -- `numDerivativeRules`, `derivativeNames`) can read them. The full data
   -- (LHS/RHS Exprs) is in EnvBuildResult and not yet plumbed; only counts

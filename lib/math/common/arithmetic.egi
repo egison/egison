@@ -65,11 +65,11 @@ def gcdForMathValue (x: MathValue) (y: MathValue) : MathValue :=
     | (_, #0) -> x
     | (#0, _) -> y
     | (term $a $xs, term $b $ys) ->
-      -- After Term widening (2026-05-06), `$a` and `$b` are statically MathValue.
+      -- The coefficients `$a` and `$b` have type MathValue.
       -- Only compute integer gcd when both are integers; otherwise fall back to 1.
       (if isInteger a && isInteger b then gcd' (i.abs a) (i.abs b) else 1)
         *' foldl (*') 1 (map (\(s, n) -> s ^' n) (AC.intersect xs ys))
-    else 1  -- fallback when neither is in term form (e.g., level-3/4 raw poly after tower fix)
+    else 1  -- Neither value has term form.
 
 def gcd' (x: Integer) (y: Integer) : Integer :=
   match (x, y) as (integer, integer) with

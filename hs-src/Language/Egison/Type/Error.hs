@@ -474,7 +474,7 @@ prettyType (TIO t) = "IO " ++ prettyType t
 prettyType (TIORef t) = "IORef " ++ prettyType t
 prettyType TPort = "Port"
 prettyType TAny = "_"
--- New CAS types
+-- CAS types
 prettyType TFactor = "Factor"
 prettyType (TTerm t ss) = "Term " ++ prettyType t ++ " " ++ prettySymbolSet ss
 prettyType (TFrac t) = "Frac " ++ prettyType t

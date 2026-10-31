@@ -445,7 +445,8 @@ data TITopExpr
 -- TypeScheme info is preserved for Phase 7 (TypedDesugar) to perform type-driven transformations
 -- such as type class dictionary passing and tensorMap insertion.
 --
--- NEW: TIExpr is now RECURSIVE - each sub-expression is also a TIExpr,
+-- Each sub-expression is a TIExpr, retaining type information throughout
+-- the tree for type-directed transformations.
 -- allowing type information to be preserved throughout the tree.
 -- This eliminates the need to re-run type inference during TypeClassExpand.
 data TIExpr = TIExpr
@@ -815,7 +816,7 @@ tipType (TIPattern (Forall _ _ _ t) _) = t
 data TILoopRange = TILoopRange TIExpr TIExpr TIPattern
   deriving Show
 
--- NOTE: TIBindingExpr, TIMatchClause, and TIPatternDef are now defined
+
 -- near TIExprNode (around line 302-308) to keep type definitions close together
 
 instance {-# OVERLAPPING #-} Show (Index String) where

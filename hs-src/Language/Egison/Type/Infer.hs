@@ -3,8 +3,8 @@ Module      : Language.Egison.Type.Infer
 Licence     : MIT
 
 This module provides type inference for IExpr (Internal Expression).
-This is the unified type inference module for Phase 5-6 of the Egison compiler:
-  IExpr (Desugared, no types) → (Type, Subst)
+Inference constructs a typed internal expression and a type substitution
+from the desugared IExpr.
 
 This module consolidates all type inference functionality, including:
   - Hindley-Milner type inference
@@ -12,10 +12,8 @@ This module consolidates all type inference functionality, including:
   - Infer monad and state management
   - All helper functions
 
-Note: This module only performs type inference and returns Type information.
-The typed AST (TIExpr) is created in a separate phase by combining IExpr with Type.
-
-Previous modules (Infer.hs for Expr, TypeInfer.hs for Expr→TypedExpr) are deprecated.
+Each TIExpr node retains its inferred type scheme. TensorMapInsertion and
+TypeClassExpand consume these annotations for type-directed transformations.
 -}
 
 module Language.Egison.Type.Infer
@@ -1466,8 +1464,8 @@ unifyTypes :: Type -> Type -> Infer Subst
 unifyTypes t1 t2 = unifyTypesWithContext t1 t2 emptyContext
 
 -- | Unify two types with context information
--- This now uses the accumulated constraints from the Infer monad to properly
--- handle constraint-aware unification (e.g., ensuring {Num a} a doesn't unify with Tensor b)
+-- Use the accumulated constraints from the Infer monad for
+-- constraint-aware unification (e.g., ensuring {Num a} a doesn't unify with Tensor b)
 -- | Error message for a capability mismatch.
 matcherCapabilityMismatchMsg :: String
 matcherCapabilityMismatchMsg =
@@ -2094,13 +2092,13 @@ applySubstToTIPatternM s tiPattern = do
     applySubstToTIPatternWithClassEnv classEnv (composeSubst g s) tiPattern
 
 -- | Infer type for IExpr
--- NEW: Returns TIExpr (typed expression) instead of (IExpr, Type, Subst)
+-- Returns the typed internal expression.
 -- This builds the recursive TIExpr structure directly during type inference
 inferIExpr :: IExpr -> Infer (TIExpr, Subst)
 inferIExpr expr = inferIExprWithContext expr emptyContext
 
 -- | Infer type for IExpr with context information
--- NEW: Returns TIExpr (typed expression) with type information embedded
+-- Returns the typed internal expression.
 inferIExprWithContext :: IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferIExprWithContext expr ctx =
   fst <$> withSequenceTargets Nothing (inferIExprInContext expr ctx)
@@ -2611,7 +2609,7 @@ inferIExprInContext expr ctx = case expr of
                         Nothing -> False
                 if isLegacyCasView
                   then do
-                    -- Legacy CAS pattern view (outside the core rules): the
+                    -- Symbolic CAS pattern view (outside the core rules): the
                     -- declaration names the runtime view only.  Its declared
                     -- field and result types are not target evidence, so the
                     -- holes and the matched type are fresh and are fixed by
@@ -4909,7 +4907,7 @@ sequenceRequirement targets =
 -- | Infer an IPattern's types and extract its pattern-variable bindings.  The
 -- fourth component is the capability-sort half of the paper's pattern typing judgment
 -- @Γ;Δ ⊢ p : Pattern κ ▷ τ ; Δ'@.
---   * τ_t (the *target* type) and Δ' (bindings) are computed exactly as before — coherently,
+-- * The target type and bindings are computed coherently from the pattern.
 --     top-down, threading one substitution (τ_t is read from the TIPattern / @expectedType@);
 --   * κ is built in the capability sort with a fresh variable at every
 --     variable, wildcard, and value/predicate leaf.
@@ -5550,7 +5548,7 @@ inferTensorMapApplication function operands ctx = do
       return (composeSubst checkingSubst substitution, mapped || mapsTensor)
 
 -- | Infer application (helper)
--- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
+-- Returns the typed internal expression.
 inferIApplication :: String -> Type -> [IExpr] -> Subst -> Infer (TIExpr, Subst)
 inferIApplication funcName funcType args initSubst = do
   let funcTI = mkTIExpr funcType (TIVarExpr funcName)
@@ -5608,13 +5606,12 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
           (next, _) <- align False actual required
           return (composeSubst next substitution, False)
 
--- TensorMap insertion logic has been moved to Language.Egison.Type.TensorMapInsertion
--- This keeps type inference focused on type checking only
+-- Language.Egison.Type.TensorMapInsertion constructs the mapped expressions.
 
 -- | Infer application (helper) with context
--- NEW: Returns TIExpr instead of (IExpr, Type, Subst)
--- TensorMap insertion has been moved to Phase 7 (TensorMapInsertion module)
--- This function now only performs type inference and unification
+-- Returns a typed expression and its inferred substitution.
+-- TensorMapInsertion reconstructs tensor maps from the inferred types.
+-- This function performs type inference and unification.
 -- When a Tensor argument is passed to a scalar parameter, the result type is wrapped in Tensor
 --
 -- The ordinary path fixes the function spine first and synthesizes arguments
@@ -6025,7 +6022,7 @@ inferIApplicationUnifyPhase funcTIExpr funcType args argTIExprs argTypes argSubs
 -- | Infer let bindings (non-recursive)
 
 -- | Infer let bindings (non-recursive) with context
--- NEW: Returns TIBindingExpr instead of IBindingExpr
+-- Returns bindings with their inferred type annotations.
 -- Infer IO bindings for do expressions
 inferIOBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIOBindingsWithContext [] _env s _ctx = return ([], [], s)
@@ -6242,7 +6239,7 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
 -- | Infer letrec bindings (recursive)
 
 -- | Infer letrec bindings (recursive) with context
--- NEW: Returns TIBindingExpr instead of IBindingExpr
+-- Returns bindings with their inferred type annotations.
 inferIRecBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIRecBindingsWithContext bindings _env s ctx = do
   -- Create placeholders with fresh type variables
@@ -6434,7 +6431,7 @@ extractIBindingsFromPattern pat ty = case pat of
         concat $ zipWith extractIBindingsFromPattern pats tys
       _ -> 
         -- Type is not a resolved tuple (might be type variable or mismatch)
-        -- Extract pattern variables but assign them the full tuple type for now
+        -- Extract pattern variables and assign them the full tuple type.
         -- This is imprecise but allows variables to be in scope
         -- The actual element types will be determined during later unification
         concatMap (\p -> extractIBindingsFromPattern p ty) pats
@@ -6652,16 +6649,11 @@ inferITopExpr topExpr = case topExpr of
         return (Just (TIDefine updatedScheme var exprTI''), finalSubst')
       
       Nothing -> do
-        -- No explicit type signature: infer and generalize as before
+        -- Infer and generalize a definition without an explicit type signature.
         clearConstraints  -- Start with fresh constraints for this expression
-        -- Monomorphic recursion: bind the definition's own name to a fresh
-        -- type variable before inferring the body, so recursive calls
-        -- constrain it.  (Previously the name was unbound in its own body:
-        -- the calls warned, fell to Any, and could fail at runtime.  The
-        -- accident that hid this: a def shadowing a class method looked
-        -- its own name up in the METHOD's scheme.)  The body's type is
-        -- unified with the placeholder below, so polymorphic recursion
-        -- still needs an explicit signature, as in ML.
+        -- Monomorphic recursion shares a fresh type variable between the
+        -- definition name and recursive calls. Unify the body with this
+        -- placeholder; an explicit signature specifies polymorphic recursion.
         selfTy <- freshVar "rec"
         modify $ \s -> s { inferEnv = extendEnv var (Forall [] [] [] selfTy) (inferEnv s) }
         let owner = extractNameFromVar var
@@ -6731,14 +6723,14 @@ inferITopExpr topExpr = case topExpr of
     clearConstraints  -- Start with fresh constraints
     (exprTI, finalSubst) <- inferIExpr expr
     exprTI' <- applySubstToTIExprM finalSubst exprTI
-    -- Constraints are now in state, will be retrieved by Eval.hs
+    -- Eval.hs retrieves the constraints from the inference state.
     return (Just (TITest exprTI'), finalSubst)
   
   IExecute expr -> do
     clearConstraints  -- Start with fresh constraints
     (exprTI, finalSubst) <- inferIExpr expr
     exprTI' <- applySubstToTIExprM finalSubst exprTI
-    -- Constraints are now in state, will be retrieved by Eval.hs
+    -- Eval.hs retrieves the constraints from the inference state.
     return (Just (TIExecute exprTI'), finalSubst)
   
   ILoadFile _path -> return (Nothing, emptySubst)

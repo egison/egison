@@ -703,7 +703,7 @@ declareRuleExpr = try $ do
   rhs <- exprWithoutWhere
   return $ DeclareRule ruleName level lhs rhs
 
--- | Parse a `declare ideal` declaration (G3 of design/cas-simplification.md).
+-- | Parse a `declare ideal` declaration (design/cas-simplification.md).
 --
 --   declare ideal [w^2 + w + 1]
 --   declare ideal [(sin θ)^2 + (cos θ)^2 - 1]
@@ -732,7 +732,7 @@ extractRuleSides :: Expr -> Maybe (Expr, Expr)
 extractRuleSides (InfixExpr op lhs rhs) | repr op == "=" = Just (lhs, rhs)
 extractRuleSides _ = Nothing
 
--- | Parse a `declare derivative` declaration (Phase 6.3 of type-cas).
+-- | Parse a `declare derivative` declaration.
 --
 --   declare derivative sin = cos
 --   declare derivative log = \x -> 1 / x
@@ -755,7 +755,7 @@ declareDerivativeExpr = try $ do
       fail "expected `declare derivative <name> = <expr>` (LHS must be a plain identifier)"
     Nothing -> fail "expected `declare derivative <name> = <expr>`"
 
--- | Parse a `declare mathfunc` declaration (Phase 6.3 part 5).
+-- | Parse a `declare mathfunc` declaration.
 --
 --   declare mathfunc sin
 --   declare mathfunc sqrt : MathValue -> MathValue
@@ -776,7 +776,7 @@ declareMathFuncExpr = try $ do
     typeAtomSimple
   return $ DeclareMathFunc name mType
 
--- | Parse a `declare apply` declaration (Phase A of declare apply impl).
+-- | Parse a `declare apply` declaration.
 --
 --   declare apply sin x := if x = 0 then 0 else 'sin x
 --   declare apply sqrt x := ...
@@ -957,7 +957,7 @@ typeAtomSimple =
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
   <|> try diffFormTypeExpr
-  -- New CAS types
+  -- CAS types
   <|> try factorTypeExpr
   <|> try termTypeExpr
   <|> try fracTypeExpr
@@ -983,7 +983,7 @@ typeAtom =
   <|> try vectorTypeExpr
   <|> try matrixTypeExpr
   <|> try diffFormTypeExpr
-  -- New CAS types
+  -- CAS types
   <|> try factorTypeExpr
   <|> try termTypeExpr
   <|> try fracTypeExpr
@@ -1011,7 +1011,7 @@ tensorTypeExpr :: Parser TypeExpr
 tensorTypeExpr = do
   _ <- reserved "Tensor"
   elemType <- typeAtomOrParenType  -- Allow parenthesized types like (IORef [a])
-  -- TETensor now only takes the element type
+  -- TETensor carries the element type.
   return $ TETensor elemType
 
 vectorTypeExpr :: Parser TypeExpr
@@ -1181,11 +1181,11 @@ exprInOp =
    <|> atomOrApplyExpr
    <?> "expression"
 
--- | Parse `simplify <expr> using <rule_name>` (Phase 7.6 skeleton).
+-- | Parse `simplify <expr> using <rule_name>`.
 -- Body is parsed as `exprWithoutWhere` so the trailing `using <name>` is
--- captured separately. The runtime semantics is a no-op for now (returns the
+-- captured separately. Desugaring calls the named rule function `rule.<name>`.
 -- evaluated expression unchanged) — the rule application engine will
--- replace this stub.
+
 simplifyUsingExpr :: Parser Expr
 simplifyUsingExpr = try $ do
   reserved "simplify"
@@ -1515,10 +1515,6 @@ tupleOrParenExpr = do
       op   <- choice $ infixFuncOp : map (infixLiteral . repr) ops
       rarg <- optional expr
       case rarg of
-        -- Disabling for now... (See issue 159)
-        -- Just (InfixExpr op' _ _)
-        --   | assoc op' /= InfixR && priority op >= priority op' ->
-        --   customFailure (IllFormedSection op op')
         _ -> return (SectionExpr op Nothing rarg)
 
     -- Sections with the left operand but lacks the right operand: eg. (1 +)

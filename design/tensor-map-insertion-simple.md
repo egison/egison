@@ -92,11 +92,11 @@ callback の返り値がリストの要素として包まれる `map` では acc
 この伝播を起こさない。詳細は
 [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md) を参照する。
 
-## 6. 二引数 callback の互換経路
+## 6. 未確定な二引数関数の補完
 
 多相な `foldl1 (+)` のように、期待型へまだ具体的な `Tensor` が現れない場合は、型主導の種を
 作れない。渡された値がちょうど二引数の lift 可能なスカラー関数で、期待型のどこかが
-テンソルを取りうる場合は、互換経路として `tensorMap2` wrapper を作る。
+テンソルを取りうる場合は、補完として `tensorMap2` wrapper を作る。
 
 ```egison
 foldl1 (+) xs
@@ -122,7 +122,7 @@ foldl1 (+) xs
 - `isPotentialScalarType`: 制約を考慮したスカラー判定。
 - `callbackLiftMask`: 高階 callback の lift 位置と feedback の固定点。
 - `wrapWithTypeDirectedTensorLift`: 型主導のイータ展開。
-- `shouldUseTensorMap2Fallback`: 二引数互換経路の判定。
+- `shouldUseTensorMap2Fallback`: 二引数の補完の判定。
 - `insertTensorMaps`: 変換の入口。
 
 変換順は `Type/TypedDesugar.hs` が管理する。回帰は `test/lib/math/tensor.egi` と
@@ -131,8 +131,6 @@ foldl1 (+) xs
 ## 9. 高階引数の型推論と挿入の整合
 
 高階引数とは、別の関数へ引数として渡す関数である。
-2026-08-27 の関数適用の推論順序の変更によって、データ側の Tensor が
-高階引数の期待型へ反映されなくなる不具合があった。2026-09-06 に修正した。
 
 ```egison
 def constant (x : Integer) : Integer := 1
@@ -146,24 +144,19 @@ map constant [[|1, 2|]]
 照合する。リストやタプルの内部の Tensor もここで扱う。
 テンソルを含むデータと高階引数が揃わない適用では、記述順に照合する。
 
-関数引数の照合では、6月に実装した型に基づく挿入の判定を共有する。
+関数引数の照合では、型に基づく挿入の判定を共有する。
 `typeDirectedTensorLiftType` は、その判定が生成する関数の型だけを返す。
 例えば `Integer -> Integer` を `Tensor Integer -> Tensor Integer` に
 持ち上げる場合、後者を `map` の期待型と照合する。この照合で戻り値の型変数にも
 Tensor を反映するため、全体の型は `Tensor [Integer]` ではなく
-`[Tensor Integer]` になる。実際の式の挿入は引き続き型推論の後に行う。
+`[Tensor Integer]` になる。実際の式の挿入は型推論の後に行う。
 
 `foldl` や `scanl` のスカラー初期値は、高階引数の戻り値がテンソルになることを
 反映した後に照合する。スカラーを Tensor の階数0として渡す場合には、
 それを理由として適用全体を追加の Tensor で包まない。
 例えば `scanl` の戻り値は `[Tensor Integer]` になる。
 
-6月に実装した一引数・複数引数の変換器と、期待型にまだ Tensor が現れない
-多相な `sum` 用の二引数の補完は維持する。補完を任意個数の引数へ一般化する
-検討は、今回の推論と挿入の接続の修正とは区別する。
-型スキームに新しい制約形式を追加する変更は行っていない。
-
-通常の `cabal test` に次の回帰テストを組み込む。
+通常の `cabal test` は次の回帰テストを実行する。
 
 - `test/TensorInference.hs`: 推論型、挿入後の型、受け手と関数引数の型の一致、
   挿入の有無、不正な要素型の拒否を確認する。
@@ -173,7 +166,5 @@ Tensor を反映するため、全体の型は `Tensor [Integer]` ではなく
 - 不要な持ち上げを防ぐため、普通のスカラーのリスト、多相な恒等関数、
   Tensor 全体を明示的に受け取る関数についても確認する。
 
-推論の健全性・完全性・主要型性と挿入の一意性は、実装の回帰テストとは別に
-証明する課題である。主要型性は、推論した型と既存の制約から、仕様が許す
-他の型を代入で得られることを指す。型の正規化による等式の解と、使用時の
-テンソル適用規則も対応させる。
+未確定な受け取り口の補完は [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md)，
+規則と実装の対応は [tensor-inference-boundaries.md](./tensor-inference-boundaries.md) にまとめる．

@@ -424,7 +424,7 @@ termCoeffPrim = oneArg' $ \v -> case v of
   CASData v0@(CAS.CASFrac _ _) -> return $ CASData v0
   _ -> throwErrorWithTrace (TypeMismatch "single-term CAS value" (Value v))
 
--- | Phase B: term-level rule application primitive.
+-- | Term-level rule application primitive.
 --
 -- Given a `term`-level rule with LHS `<lhsValue>` (typically a single-monomial
 -- value like `i^2`, with implicit coefficient 1) and RHS `<rhsValue>`, apply
@@ -506,7 +506,7 @@ applyTermRuleCAS lhsValue rhsValue input =
           in monomialContains rest target'
         _ -> Nothing
 
--- | Phase A.5: structural traversal primitives `mapPoly`, `mapTerm`, `mapFrac`.
+-- | Structural traversal primitives `mapPoly`, `mapTerm`, `mapFrac`.
 -- Each takes a user closure `f : MathValue -> MathValue` and a CAS value, and
 -- recursively applies `f` at the corresponding granularity, descending into
 -- sub-MathValues inside Apply1-4 / Quote / Function / Symbol indices.
@@ -706,7 +706,7 @@ descendSymbol recur (CAS.Quote v) = CAS.Quote <$> recur v
 descendSymbol recur (CAS.FunctionData name args) = CAS.FunctionData name <$> mapM recur args
 descendSymbol _ s@(CAS.QuoteFunction _) = return s
 
--- | Phase 7.4/7.5: report the number of `declare rule` declarations seen by
+-- | Report the number of `declare rule` declarations seen by
 -- the env-builder. The rule data itself is held in EnvBuildResult; here we
 -- only expose the count so users can confirm registration worked.
 numReductionRulesPrim :: String -> PrimitiveFunc
@@ -719,7 +719,7 @@ numReductionRulesPrim _ args = case args of
     return $ toEgison (fromIntegral n :: Integer)
   (a:_)  -> throwErrorWithTrace (TypeMismatch "no arguments" (Value a))
 
--- | Phase 6.3: report the number of `declare derivative` declarations seen.
+-- | Report the number of `declare derivative` declarations seen.
 numDerivativeRulesPrim :: String -> PrimitiveFunc
 numDerivativeRulesPrim _ args = case args of
   [] -> do
@@ -803,7 +803,7 @@ casContainsAnyName names = goV
                                        Nothing -> False
   goSym (CAS.FunctionData fn args) = goV fn || any goV args
 
--- | Phase 5.5: runtime check that all atoms in a CAS value belong to the
+-- | Runtime check that all atoms in a CAS value belong to the
 -- given allowed-atom-name list. Used by user-level coerce-style helpers.
 -- Atom names are pretty-printed (e.g. "x", "sqrt 2"), matched as strings.
 isInPolyAtomsPrim :: String -> PrimitiveFunc
@@ -819,7 +819,7 @@ isInPolyAtomsPrim = twoArgs $ \v allowedC ->
   extractName _          = throwErrorWithTrace (TypeMismatch "string atom name" (Value v))
   v = CASData (CAS.CASInteger 0)  -- unused placeholder for the error path
 
--- | Phase 5.5: check if a CASValue is a pure integer (no atoms / fractions).
+-- | Check if a CASValue is a pure integer (no atoms / fractions).
 isPureIntegerPrim :: String -> PrimitiveFunc
 isPureIntegerPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASInteger _)  -> return $ Bool True
@@ -828,7 +828,7 @@ isPureIntegerPrim = oneArg' $ \v -> case v of
   CASData _                   -> return $ Bool False
   _                           -> return $ Bool False
 
--- | Phase 5.5: check if a CASValue is a pure rational (Frac of integers).
+-- | Check if a CASValue is a pure rational (Frac of integers).
 isPureFractionPrim :: String -> PrimitiveFunc
 isPureFractionPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASInteger _) -> return $ Bool True
@@ -837,7 +837,7 @@ isPureFractionPrim = oneArg' $ \v -> case v of
   CASData (CAS.CASPoly [CAS.CASTerm (CAS.CASInteger _) []]) -> return $ Bool True
   _ -> return $ Bool False
 
--- | Phase 8: differential closure check.
+-- | differential closure check.
 -- Returns True iff the output value's atom set is a subset of the input's,
 -- i.e. ∂/∂ did not introduce any new atoms. Used to label results that
 -- stayed in the same Poly Integer [atoms] sub-ring.
@@ -848,7 +848,7 @@ differentialClosedPrim = twoArgs $ \input output ->
       return $ Bool (CAS.casDifferentialClosed iv ov)
     _ -> throwErrorWithTrace (TypeMismatch "two CAS values" (Value input))
 
--- | Phase 8: print the value alongside its observed type for REPL inspection.
+-- | print the value alongside its observed type for REPL inspection.
 -- Returns a string of the form "value : observed-type".
 inspectPrim :: String -> PrimitiveFunc
 inspectPrim = oneArg' $ \v -> case v of
@@ -881,7 +881,7 @@ inspectPrim = oneArg' $ \v -> case v of
   intercalateComma [s]    = s
   intercalateComma (s:ss) = s ++ ", " ++ intercalateComma ss
 
--- | Phase 8 observed type: report the most specific runtime type of a value
+-- | Report the most specific runtime type of a value
 -- as a string.
 -- | Identity at runtime; typed `forall a b. a -> b` (Type/Check.hs).
 -- The unsafe static cast used ONLY by the code generated from

@@ -4,9 +4,9 @@
 --
 --
 
--- Built-in normalization. Now reduced to the residual Haskell-side rewriter
--- (`symbolNormalize` -> `casRewriteSymbol` -> `casRewriteDd`); all other
--- rewrite rules live as `declare rule auto` declarations below.
+-- Built-in normalization uses `symbolNormalize` and `casRewriteSymbol` for
+-- structural rewrites of differential, square-root and exponential factors.
+-- The declarations below supply scalar identities and term-level rules.
 --
 -- The user-facing `mathNormalize` is defined as an alias that desugar
 -- overrides per `declare rule auto`. The override pattern is:
@@ -20,25 +20,24 @@ def mathNormalizeBuiltin (x: MathValue) : MathValue := symbolNormalize x
 def mathNormalize (x: MathValue) : MathValue := mathNormalizeBuiltin x
 
 --
--- Built-in auto rules (migrated from Math/Rewrite.hs).
+-- Built-in auto rules.
 -- Each `declare rule auto` extends mathNormalize so the rule fires on every
 -- arithmetic operation (+, -, *, /, ^).
 --
 
 -- Imaginary unit: i^2 = -1.
--- Replaces casRewriteI in Math/Rewrite.hs. The auto-rule engine handles
+-- The auto-rule engine handles
 -- arbitrary powers (i^3, i^4, ...) by iterating the rule on each term.
 declare rule auto term i^2 = -1
 
 -- Cube root of unity: the primitive cube root w satisfies w^2 + w + 1 = 0.
--- Declared as an ideal (G3 of design/cas-simplification.md): the Groebner
+-- Declared as an ideal (design/cas-simplification.md): the Groebner
 -- basis of the generator is computed once and registered as term-level
--- rewrite rules.  The single generated rule w^2 -> -1 - w subsumes the
--- previously hand-written pair (w^3 = w * w^2 reduces in two steps), so
--- the completeness of the rule set is a theorem instead of a convention.
+-- rewrite rules. The generated rule w^2 -> -1 - w also reduces higher
+-- powers, for example by writing w^3 = w * w^2.
 declare ideal [w^2 + w + 1]
 
--- Logarithm identities (replaces casRewriteLog in Math/Rewrite.hs).
+-- Logarithm identities.
 -- log 1 = 0 and log e = 1 are also handled at the lib `log` function entry,
 -- but are kept here so the symbolic 'log form normalises consistently.
 -- log (e^n) reaches the rule as log (exp n) because (^) rewrites e^n to exp n
@@ -47,10 +46,7 @@ declare rule auto term log 1 = 0
 declare rule auto term log e = 1
 declare rule auto term log (exp $n) = n
 
--- Exponential identities (replaces casRewriteExp in Math/Rewrite.hs).
--- The multi-factor cases ((exp x)^n, exp x * exp y) are now expressible
--- because lib/math/expression.egi was extended with apply1-4 patterns on
--- the multExpr matcher (so the "rest of factors" slot accepts apply1).
+-- Exponential identities.
 declare rule auto term exp 0 = 1
 declare rule auto term exp 1 = e
 declare rule auto term exp ($n * i * π) = (-1)^n
@@ -59,7 +55,7 @@ declare rule auto term exp ($n * i * π) = (-1)^n
 -- casRewriteExp), for the same per-term match-cost reason as the sqrt
 -- rules; the value rules above stay here.
 
--- Power identities (replaces casRewritePower in Math/Rewrite.hs).
+-- Power identities.
 -- (x^y)^n = x^(n*y) for n >= 2; n=1 returns the term unchanged.
 -- The pattern matches a single-factor term containing one apply2 #(^) factor.
 declare rule auto term term $c ((apply2 #(^) $x $y, $n) :: []) =
@@ -68,11 +64,11 @@ declare rule auto term term $c ((apply2 #(^) $x $y, $n) :: []) =
     else c *' '(^) x y
 
 -- x^y * x^z = x^(y+z) when both factors are apply2 #(^) with the same base.
--- Exact 2-factor variant; multi-factor cases stay in casRewritePower for now.
+-- Exact two-factor variant.
 declare rule auto term term $c ((apply2 #(^) $x $y, #1) :: (apply2 #(^) #x $z, #1) :: []) =
   c *' '(^) x (y +' z)
 
--- nth-root power reduction (replaces casRewriteRt in Math/Rewrite.hs).
+-- nth-root power reduction.
 -- (rt n x)^k for k >= n -> (rt n x)^(k mod n) * x^(k div n).
 -- The isInteger guard skips the rule for symbolic n.
 declare rule auto term term $c ((apply2 #rt $n $x, $k) :: []) =
@@ -82,14 +78,12 @@ declare rule auto term term $c ((apply2 #rt $n $x, $k) :: []) =
       else c *' ('rt n x)^'k
     else c *' ('rt n x)^'k
 
--- nth-root-of-unity power reduction (replaces casRewriteRtu in
--- Math/Rewrite.hs).
+-- nth-root-of-unity power reduction.
 -- - k >= n: reduce exponent via mod n.
 -- - k = n-1: apply minimal-polynomial reduction
 --   (rtu n)^(n-1) = -1 - rtu n - (rtu n)^2 - ... - (rtu n)^(n-2).
 -- - otherwise: keep as-is.
--- Note: the original casRewriteRtu g stage was buggy (foldr casMinus gave
--- alternating signs); the foldl form below is the correct minimal-polynomial.
+-- The foldl below subtracts every term of the minimal polynomial.
 declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
   if isInteger n
     then if k >= n
@@ -100,18 +94,11 @@ declare rule auto term term $c ((apply1 #rtu $n, $k) :: []) =
     else c *' ('rtu n)^'k
 
 -- Square root power reduction and pair merging are implemented in
--- Haskell (Math/Rewrite.hs, casRewriteSqrt): the declare-rule versions
--- paid a pattern-match attempt on every term of every sqrt-carrying
--- value per normalization, making arithmetic on such values ~20x
--- slower (thurston.egi's bottleneck; design/cas-simplification.md G6).
+-- Haskell (Math/Rewrite.hs, casRewriteSqrt), which traverses only the
+-- factors relevant to these structural rewrites.
 
--- Note: FunctionData same-shape term merging stays in casRewriteDd
--- (Math/Rewrite.hs). The poly-level declare rule version
---   $a * ($f & func $g $args) * $mr + $b * (func #g #args) * #mr + $rest
---     = (a + b) * f * mr + rest
--- works correctly but the multi-term + same-binding constraint is too
--- expensive for complex differential-form computations like
--- riemann-curvature-tensor-of-S2xS3 (>120s vs few-seconds with Haskell).
+-- casRewriteDd in Math/Rewrite.hs merges terms sharing a FunctionData
+-- factor directly in the CAS representation.
 
 -- abs of a manifestly non-negative monomial reduces to the monomial itself.
 -- A monomial is non-negative if all its symbol exponents are even AND the
@@ -134,7 +121,7 @@ declare rule auto term term $c ((apply1 #abs $a, $n) :: $rr) =
              *' foldl (*') 1 (map (\(p, k) -> p ^' k) rr)
 
 --
--- sin/cos pythagorean identity (replaces lib's rewriteRuleForSinAndCos)
+-- Pythagorean identity for sine and cosine
 --
 
 -- a*mr + (-a)*cos(x)^2*mr -> a*sin(x)^2*mr (since 1 - cos²x = sin²x)

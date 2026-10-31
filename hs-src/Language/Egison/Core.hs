@@ -460,7 +460,7 @@ evalExprShallow env (IDoExpr bindings expr) = return $ Value $ IOFunc $ do
         ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDWildCard], IApplyExpr expr [IVarExpr "#1"])] expr'
       PDWildCard ->
         ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDWildCard], IApplyExpr expr [IVarExpr "#1"])] expr'
-      -- Otherwise, bind the result as before
+      -- Otherwise, bind the result.
       _ ->
         ILetExpr [(PDTuplePat [PDPatVar (stringToVar "#1"), PDPatVar (stringToVar "#2")], IApplyExpr expr [IVarExpr "#1"])] $
         ILetExpr [(names, IVarExpr "#2")] expr'
@@ -655,7 +655,7 @@ evalExprShallow env (IPatternFuncExpr paramNames body) =
   -- Create a PatternFunc value, capturing the current environment
   return $ Value (PatternFunc env paramNames body)
 
--- Reshape (Phase A of design/type-cas-implementation-status.md §reshape).
+-- Reshape a value according to its declared CAS type (design/type-cas.md).
 -- Inserted by post-typecheck elaboration from a type annotation. At eval time
 -- we structurally rewrite the inner CAS value to fit the annotation's type.
 -- Non-CAS values pass through unchanged.
@@ -1445,7 +1445,7 @@ extractTerm _ = Nothing
 -- Helper: Convert Index CASValue to a CASValue representation
 -- We wrap the index expression in InductiveData for pattern matching
 indexToCASValue :: Index CASValue -> CASValue
-indexToCASValue (Sub cv) = cv  -- For now, just return the inner value
+indexToCASValue (Sub cv) = cv  -- Return the value carried by the index.
 indexToCASValue (Sup cv) = cv
 indexToCASValue (User cv) = cv
 

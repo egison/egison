@@ -73,11 +73,11 @@ data EvalState = EvalState
                                        --   Used only for name resolution and warned forward-extension paths.
   , patternFuncEnv :: PatternFunctionEnv
                                        -- ^ Successfully checked canonical PatFuncSchemes.
-  , reductionRulesCount  :: Int      -- ^ Phase 7.4/7.5: number of `declare rule` declarations seen
-  , derivativeRulesCount :: Int      -- ^ Phase 6.3: number of `declare derivative` declarations seen
+  , reductionRulesCount  :: Int      -- ^ number of `declare rule` declarations seen
+  , derivativeRulesCount :: Int      -- ^ number of `declare derivative` declarations seen
   , reductionRuleNames   :: [String] -- ^ Names of named rules ("auto" rules are excluded)
   , derivativeRuleNames :: [(String, Int)] -- ^ Names of declared derivatives (the function names)
-  , autoRuleVarNames     :: [String] -- ^ Phase 7.5: full var names of auto rules (e.g. "autoRule.0").
+  , autoRuleVarNames     :: [String] -- ^ full var names of auto rules (e.g. "autoRule.0").
                                        --   Accumulated as `declare rule auto` declarations are desugared,
                                        --   used to rebuild `mathNormalize` to apply each rule in sequence.
   , autoRuleTriggers     :: [Set.Set String] -- ^ Trigger-symbol set per auto rule (parallel to autoRuleVarNames).
@@ -85,19 +85,19 @@ data EvalState = EvalState
                                        --   the rule's LHS. Empty set means "no specific trigger" -> always run.
                                        --   Stored as Set already (not [String]) so iterateRulesCAS can read
                                        --   it once per call without per-call Set construction.
-  , derivativesDesugared :: [(String, Int)] -- ^ Phase 6.3: derivative names desugared so far (in declaration order).
+  , derivativesDesugared :: [(String, Int)] -- ^ derivative names desugared so far (in declaration order).
                                        --   Each `declare derivative` redefines `chainPartialDiff` using only
                                        --   the names *up to and including* itself, avoiding forward references
                                        --   to derivatives declared later (which would emit warnings).
-  , casTypeAliasEnv :: HashMap String Type -- ^ Phase alpha (extensible CAS tower):
+  , casTypeAliasEnv :: HashMap String Type -- ^ Transparent aliases in the CAS type environment.
                                        --   `declare cas-type` transparent aliases, name -> fully
                                        --   expanded Type. Persists across load batches so aliases
                                        --   declared in a library apply to later files.
-  , casSubtypeEdges :: [(Type, Type)] -- ^ Phase beta: `declare cas-subtype` edges (alias-expanded,
+  , casSubtypeEdges :: [(Type, Type)] -- ^ `declare cas-subtype` edges (alias-expanded,
                                        --   declaration order, redundant edges included for node
                                        --   bookkeeping). Persists across load batches.
-  , declaredSymbolOrder :: [String]  -- ^ G3 (cas-simplification): CAS symbols in `declare symbol`
-                                       --   declaration order (deduplicated).  DG1: symbols declared
+  , declaredSymbolOrder :: [String]  -- ^ CAS symbols in `declare symbol`
+                                       --   declaration order (deduplicated).  Symbols declared
                                        --   earlier rank lower in the monomial order used by
                                        --   `declare ideal`, i.e. they survive in normal forms.
   , matcherShapeEnv :: Map.Map String [PrimitivePatPattern]
@@ -161,7 +161,7 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Successfully checked pattern-function PatFuncSchemes.
   getPatternFuncEnv :: m PatternFunctionEnv
   setPatternFuncEnv :: PatternFunctionEnv -> m ()
-  -- Phase 7.4/7.5: reduction-rule and derivative-rule registration counts.
+  -- reduction-rule and derivative-rule registration counts.
   -- Counts only — full data is held by EnvBuildResult during build phase
   -- and isn't currently threaded into the runtime state.
   getReductionRulesCount :: m Int
@@ -172,7 +172,7 @@ class (Applicative m, Monad m) => MonadEval m where
   setReductionRuleNames :: [String] -> m ()
   getDerivativeRuleNames :: m [(String, Int)]
   setDerivativeRuleNames :: [(String, Int)] -> m ()
-  -- Phase 7.5: auto-rule full var names (e.g. "autoRule.0", "autoRule.1").
+  -- auto-rule full var names (e.g. "autoRule.0", "autoRule.1").
   -- Used to rebuild `mathNormalize` per `declare rule auto`.
   getAutoRuleVarNames :: m [String]
   setAutoRuleVarNames :: [String] -> m ()
@@ -182,20 +182,20 @@ class (Applicative m, Monad m) => MonadEval m where
   -- Set list directly; no per-call construction).
   getAutoRuleTriggers :: m [Set.Set String]
   appendAutoRuleTriggers :: [String] -> m ()
-  -- Phase 6.3: derivative names already desugared (in declaration order).
+  -- derivative names already desugared (in declaration order).
   -- Lets each `declare derivative` see only the derivatives that come at or
   -- before it, avoiding forward references in the generated chainPartialDiff.
   getDerivativesDesugared :: m [(String, Int)]
   setDerivativesDesugared :: [(String, Int)] -> m ()
   appendDerivativeDesugared :: (String, Int) -> m ()
-  -- G3 (cas-simplification): `declare symbol` declaration order for the
+  -- `declare symbol` declaration order for the
   -- `declare ideal` priority list.
   getDeclaredSymbolOrder :: m [String]
   appendDeclaredSymbols :: [String] -> m ()
-  -- Phase alpha (extensible CAS tower): `declare cas-type` alias environment.
+  -- (extensible CAS tower): `declare cas-type` alias environment.
   getCasTypeAliasEnv :: m (HashMap String Type)
   setCasTypeAliasEnv :: HashMap String Type -> m ()
-  -- Phase beta: `declare cas-subtype` edges.
+  -- `declare cas-subtype` edges.
   getCasSubtypeEdges :: m [(Type, Type)]
   setCasSubtypeEdges :: [(Type, Type)] -> m ()
   -- Matcher clause shapes for the Egison interpreter's outside-core safeguard.

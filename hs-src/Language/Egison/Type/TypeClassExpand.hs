@@ -61,9 +61,8 @@ import           Language.Egison.Type.Instance (findMatchingInstanceForTypes,
 
 -- | Dispatch helper: prefer the most-specific instance via subtype partial
 -- order; fall back to the first unifying instance if specificity returns
--- an ambiguity error or no match. This keeps backward compatibility while
--- enabling deterministic specialization (see design/runtime-type-dispatch.md
--- §4). Runs in EvalM to consult the declared CAS subtype order
+-- an ambiguity error or no match (design/runtime-type-dispatch.md §4).
+-- Runs in EvalM to consult the declared CAS subtype order
 -- (`declare cas-subtype` edges) alongside the structural skeleton.
 findInstanceForDispatch :: [Type] -> [InstanceInfo] -> EvalM (Maybe InstanceInfo)
 findInstanceForDispatch tys insts = do
@@ -431,7 +430,7 @@ expandTypeClassMethodsT tiExpr = do
         ref' <- expandTIExprWithConstraints classEnv' scope ref
         return $ TIUserrefsExpr b base' ref'
 
-      -- Other cases: return unchanged for now
+      -- Other cases: return unchanged.
       TIInductiveDataExpr name exprs -> do
         exprs' <- mapM (expandTIExprWithConstraints classEnv' scope) exprs
         return $ TIInductiveDataExpr name exprs'
@@ -957,7 +956,7 @@ expandTypeClassMethodsT tiExpr = do
                   --       eqCollection (eqCollection eqInteger) (when resolving Eq [[Integer]])
                   return $ TIExpr (Forall [] [] [] dictType) (TIApplyExpr dictExpr dictArgs)
             Nothing -> do
-              -- No instance found - this is an error, but return a dummy for now
+              -- Preserve the method reference when no instance dictionary is available.
               return $ TIExpr (Forall [] [] [] (TVar (TyVar "error"))) (TIVarExpr "undefined")
 
 -- | Generate dictionary parameter name from constraint
@@ -1083,7 +1082,7 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
         -- to superclass chain accesses from the new de-expanded params (e.g.,
         -- dict_Field -> __super_Ring -> __super_MulMonoid -> __super_MulSemigroup).
         -- expandTypeClassMethodsT (Step 1) already resolved methods using expanded
-        -- dict names.  Now we remap those to chain accesses from minimal params.
+        -- dict names. Remap these to chain accesses from minimal parameters.
         body' <- case tiExprNode body of
                    TIHashExpr _ -> return body
                    _ -> return $ remapDictRefsInBody env cs body
@@ -1303,7 +1302,7 @@ addDictionaryParametersT (Forall _capVars _vars constraints _ty) tiExpr
           return (pat, matcherExpr', bindings')) patDefs
         return $ TIMatcherExpr patDefs'
       
-      -- Other expressions: return as-is for now
+      -- Other expressions: return unchanged.
       _ -> return node
 
 -- | Apply dictionaries to expressions with concrete type constraints

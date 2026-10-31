@@ -4,27 +4,15 @@
 Module      : Language.Egison.Math.Rewrite
 Licence     : MIT
 
-Residual mathematical rewrite rules kept in Haskell.
+Structural mathematical rewrite rules over CAS values.
 
-Remaining functions:
-  - casRewriteDd : merge polynomial terms with same FunctionData factor.
-    The equivalent declare-rule poly pattern is too expensive for complex
-    differential-form samples (e.g. riemann-curvature-tensor-of-S2xS3).
-  - casRewriteSqrt : sqrt power reduction and sqrt pair merging.
-    Ported back from declare rule (G6 of design/cas-simplification.md):
-    the Egison-level term rules paid a pattern-match attempt on every
-    term of every sqrt-carrying value per normalization, making
-    arithmetic on such values ~20x slower (thurston.egi's bottleneck).
-  - casRewriteExp : exp power reduction and exp product merging
-    ((exp a)^n -> exp (n a), exp a * exp b -> exp (a+b)), ported back
-    for the same reason (an identical 60-operation fold on
-    exp-carrying operands measured 20.7s under the declare rules).
-    The value rules (exp 0 = 1, exp 1 = e, exp (n i pi) = (-1)^n)
-    stay in the library.
+  - casRewriteDd merges terms sharing a FunctionData factor.
+  - casRewriteSqrt reduces powers and merges square-root factors.
+  - casRewriteExp reduces powers and merges exponential factors:
+      (exp a)^n -> exp (n a), exp a * exp b -> exp (a+b).
 
-Migrated to declare rule (and removed):
-  - casRewriteI, casRewriteW, casRewriteLog
-  - casRewritePower, casRewriteRt, casRewriteRtu
+These traversals inspect the relevant factors directly. Scalar identities
+such as exp 0 = 1 and log 1 = 0 are declared in lib/math/normalize.egi.
 -}
 
 module Language.Egison.Math.Rewrite
@@ -61,7 +49,7 @@ casRewriteSymbol = casRewriteDd . casRewriteSqrt . casRewriteExp
 casRewriteSqrt :: CASValue -> CASValue
 casRewriteSqrt = go (100 :: Int)
  where
-  -- Iterate to a fixpoint (like the old applyRuleFix): one rewrite
+  -- Iterate to a fixed point: one rewrite
   -- pass can create new reducible shapes -- merging produces products
   -- whose casMult combines equal atoms into powers, and content
   -- splitting produces pairs that reproduce themselves identically
@@ -104,12 +92,11 @@ commonSqrtFactor _ = Nothing
 -- | Fast path: a term needs sqrt work if it has a sqrt factor with
 -- an exponent other than 1, at least two sqrt factors with exponent 1, or a
 -- nested value (an application argument, a quoted expression, or a
--- level-4 coefficient) that needs work itself -- the old declare-rule
--- versions recursed into those via mapTermAll, and nested-radical
+-- level-4 coefficient) that needs work itself. Nested-radical
 -- reductions such as sqrt 5 * sqrt(-5-2 sqrt 5) * sqrt(-5+2 sqrt 5) = 5
 -- depend on it.  Terms with a lone top-level (sqrt a)^1 factor and
 -- quiet insides -- the common shape in curvature-style values -- are
--- skipped without any rebuilding, which is the point of the port.
+-- skipped without rebuilding.
 termNeedsSqrtWork :: CASTerm -> Bool
 termNeedsSqrtWork (CASTerm c mono) = go 0 mono || valueNeedsSqrtWork c
  where
@@ -159,7 +146,7 @@ sqrtRadicand = applyArg1 "sqrt"
 -- | Generic traversals shared by the factor rewriters: does any
 -- nested value (application argument, quoted expression) satisfy the
 -- check / rewrite every nested value.  Each rewriter recurses only
--- into itself, matching the old per-rule mapTermAll recursion.
+-- into its own structural rule.
 symNeedsWorkWith :: (CASValue -> Bool) -> SymbolExpr -> Bool
 symNeedsWorkWith p (Apply1 _ a)       = p a
 symNeedsWorkWith p (Apply2 _ a b)     = p a || p b
@@ -180,8 +167,7 @@ rewriteInsideSymWith f sym = case sym of
 -- | Rewrite the sqrt factors of one term.  Returns a CASValue because
 -- extracted radicand powers can be polynomials.  Nested values
 -- (application arguments, quoted expressions, level-4 coefficients)
--- are rewritten first, bottom-up, matching the old mapTermAll
--- recursion of the declare-rule versions.
+-- are rewritten first, bottom-up.
 rewriteSqrtTerm :: CASTerm -> CASValue
 rewriteSqrtTerm (CASTerm c0 mono0) =
   let c    = casRewriteSqrt c0
@@ -230,12 +216,11 @@ rewriteSqrtTerm (CASTerm c0 mono0) =
 --     sqrt (4 x^2 y) = 2 x sqrt y); the remainder stays as ONE atom.
 --   * multi-term radicand: extract the integer content's square part,
 --     and split the squarefree content off as its OWN integer sqrt
---     atom, leaving a content-free polynomial radicand.  This matches
---     the stable form the old declare-rule + lib-sqrt round trip
---     converged to (sqrt 5 * sqrt(-10 sqrt 5 - 50) =
---     5 * sqrt(-2 sqrt 5 - 10)); without it, algebraically related
+--     atom, leaving a content-free polynomial radicand. For example,
+--     sqrt 5 * sqrt(-10 sqrt 5 - 50) =
+--     5 * sqrt(-2 sqrt 5 - 10). Without this normalization, related
 --     atoms appear in several content forms and sums that should
---     cancel (5th roots of unity, mini-test 117) do not.
+--     cancel, as in calculations with fifth roots of unity, do not.
 --
 -- Anything unsupported stays entirely inside (value-safe).
 splitSquarePart :: CASValue -> (CASValue, [CASValue])
@@ -296,7 +281,7 @@ integerSquarePart m0 = go m0 2
 -- most one exp factor with exponent 1).  Nested values are rewritten
 -- first, like casRewriteSqrt.  The value rules exp 0 = 1, exp 1 = e,
 -- and exp (n i pi) = (-1)^n stay in the library and fire on the
--- merged atom as before.
+-- merged atom.
 casRewriteExp :: CASValue -> CASValue
 casRewriteExp (CASFrac num denom)
   | valueNeedsExpWork num || valueNeedsExpWork denom =

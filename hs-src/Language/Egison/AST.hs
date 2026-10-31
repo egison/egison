@@ -66,7 +66,6 @@ data TopExpr
   | DefineWithType TypedVarWithIndices Expr  -- ^ Definition with type annotation
   | Test Expr
   | Execute Expr
-    -- temporary : we will replace load to import and export
   | LoadFile String
   | Load String
   | InfixDecl Bool Op -- True for pattern infix; False for expression infix
@@ -98,27 +97,27 @@ data TopExpr
     --       declare symbol x, y, z : Float
     -- [String]: symbol names, Maybe TypeExpr: optional type (defaults to Integer)
   | DeclareIdeal [Expr]
-    -- ^ Ideal declaration (G3 of design/cas-simplification.md).
+    -- ^ Ideal declaration (design/cas-simplification.md).
     -- e.g.  declare ideal [w^2 + w + 1]
     -- Computes the reduced Groebner basis of the generators once (lazily,
     -- via the Egison-level engine in lib/math/algebra/groebner.egi) and
     -- registers the whole basis as one term-level auto rewrite rule.
   | DeclareRule (Maybe String) RuleLevel Pattern Expr
-    -- ^ Reduction rule declaration (Phase 7.4 of type-cas design).
+    -- ^ Reduction rule declaration.
     -- e.g.  declare rule auto term i^2 = -1
     --       declare rule trig_pythagorean poly (sin $x)^2 + (cos #x)^2 = 1
     -- Maybe String:  rule name (Nothing = auto rule)
     -- RuleLevel:     where the LHS pattern binds (term/poly/frac)
     -- Pattern Expr:  LHS pattern (with $x/#x), RHS expression
   | DeclareDerivative String Expr
-    -- ^ Derivative declaration (Phase 6.3 of type-cas design).
+    -- ^ Derivative declaration.
     -- e.g.  declare derivative sin = cos
     --       declare derivative log = \x -> 1 / x
     -- String: name of the function whose derivative is being declared
     --         (typically introduced by `declare mathfunc` first).
     -- Expr:   the derivative-as-an-expression (typically a function or lambda)
   | DeclareMathFunc String (Maybe TypeExpr)
-    -- ^ Math function declaration (Phase 6.3 part 5).
+    -- ^ Math function declaration.
     -- e.g.  declare mathfunc sin
     --       declare mathfunc sqrt : MathValue -> MathValue
     -- Desugars to a wrapper function that quotes the symbol:
@@ -145,7 +144,7 @@ data TopExpr
     -- environment building into reduce<Q>/proj<Q>/repr<Q> definitions,
     -- homomorphic Ring/Eq instances, and congruence-law assertions.
   | DeclareApply String [String] Expr
-    -- ^ Math function application rule (Phase A of declare apply impl).
+    -- ^ Math function application rule.
     -- e.g.  declare apply sin x := if x = 0 then 0 else 'sin x
     --       declare apply sqrt x := ...
     -- String:    function name (must have been declared via `declare mathfunc`).
@@ -153,7 +152,7 @@ data TopExpr
     -- Expr:      body. Within body, `'<name> x` produces the symbolic Factor
     --            (no recursion); `<name> x` (unquoted) recurses through this
     --            rule again — RHS must use `'` for the fallback to terminate.
-    -- Phase A desugars to a plain `def <name> (args : MathValue ...) : MathValue := <body>`
+    -- Desugars to a plain `def <name> (args : MathValue ...) : MathValue := <body>`
     -- which simply overrides the wrapper from `declare mathfunc`.
  deriving Show
 
@@ -298,7 +297,7 @@ data Expr
   | FunctionExpr [String]
 
   | TypeAnnotation Expr TypeExpr  -- ^ Expression with type annotation (expr : type)
-  | SimplifyUsingExpr Expr String -- ^ Phase 7.6: `simplify <expr> using <ruleName>`. Skeleton: parser only — runtime semantics will appear when the rule-application engine lands.
+  | SimplifyUsingExpr Expr String -- ^ Apply the named reduction rule to the expression.
   deriving Show
 
 data VarWithIndices = VarWithIndices String [VarIndex]
@@ -541,7 +540,7 @@ data TypeExpr
   | TEApp TypeExpr [TypeExpr]          -- ^ Type application, e.g., List a
   | TEConstrained [ConstraintExpr] TypeExpr
                                       -- ^ Constrained type, e.g., Eq a => a
-  -- New CAS types (Phase 2)
+  -- CAS types
   | TEFactor                           -- ^ Factor type (atomic mathematical factor)
   | TETerm TypeExpr SymbolSetExpr      -- ^ Term type, e.g., Term Integer [x] (single monomial over the given atoms)
   | TEFrac TypeExpr                     -- ^ Frac type, e.g., Frac Integer

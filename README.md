@@ -120,7 +120,7 @@ by explicit non-core forms and can be reported with
 `--outside-egison-core-warnings`.  A formal correspondence theorem between
 the complete Haskell implementation and the Lean implementation is
 intentionally out of scope.
-The implemented guarantees and the boundary of the legacy CAS pattern views are
+The implemented guarantees and the boundary of the symbolic CAS pattern views are
 documented in [design/matcher-capability.md](design/matcher-capability.md).
 
 ```hs
@@ -419,7 +419,7 @@ Please follow us.
 
 Egison is released under the [MIT license](https://github.com/egison/egison/blob/master/LICENSE).
 
-We used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the base part of the previous version of the interpreter.
+We used [husk-scheme](http://justinethier.github.io/husk-scheme/) by Justin Ethier as reference to implement the interpreter's foundations.
 
 ## Sponsors
 
