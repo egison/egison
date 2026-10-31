@@ -5836,13 +5836,24 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
       -- argument types before deciding which scalar inputs need maps.
       contextConstraints <- getConstraints
       globalSubst <- gets inferGlobalSubst
+      environmentVariables <- freeVarsInEnv <$> getEnv
       let Forall _ _ argConstraints _ = tiScheme updatedArg
           currentSubst = composeSubst globalSubst substitution
           allConstraints =
             nub $ map (applySubstConstraint currentSubst)
               (constraints ++ contextConstraints ++ argConstraints)
+          -- A polymorphic consumer's fresh variable (show, id, constructors)
+          -- accepts the function as data. Complete a still-unknown callback
+          -- position only when it is tied to the surrounding monomorphic
+          -- environment, as in a lambda-bound g or an alias capturing g.
+          surroundingVariables = Set.unions
+            [freeTyVars (applySubst currentSubst (TVar variable))
+            | variable <- Set.toList environmentVariables]
+          allowUnknown = case expectedType of
+            TVar variable -> variable `Set.member` surroundingVariables
+            _ -> False
           checkedType =
-            case typeDirectedTensorLiftType classEnv allConstraints
+            case typeDirectedTensorLiftType allowUnknown classEnv allConstraints
                    outerType index expectedType updatedArg of
               Just liftedType -> liftedType
               Nothing -> inferredType

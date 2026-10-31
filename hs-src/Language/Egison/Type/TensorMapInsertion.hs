@@ -276,20 +276,23 @@ callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedRes
 -- argument position. The plan is absent when the expected callback type does
 -- not force any tensor lifting.
 buildCallbackLiftPlan ::
-    ClassEnv
+    Bool
+    -> ClassEnv
     -> [Constraint]
     -> Type
     -> Int
     -> Type
     -> TIExpr
     -> Maybe ([CallbackParamPlan], [CallbackParamPlan], Type)
-buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
+buildCallbackLiftPlan allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
   let actualFuncType = tiExprType funcExpr
       (actualParams, actualResult) = collectFunctionType actualFuncType
       -- An open consumer still receives a completed scalar callback. Its
       -- function shape need not have been fixed by another data argument.
       completedExpected = case expectedCallbackType of
-        TVar _ | not (isPotentialScalarType classEnv constraints expectedCallbackType) ->
+        TVar _ | allowUnknown
+               && not (any containsNonLiftableType actualParams)
+               && not (isPotentialScalarType classEnv constraints expectedCallbackType) ->
           buildFunctionType
             (map (\parameter -> if isTensorLiftableScalarType classEnv constraints parameter
                      then normalizeTensorType (TTensor parameter) else parameter) actualParams)
@@ -358,7 +361,7 @@ insertTensorMaps tiExpr = do
 -- maps the scalar function over that tensor argument.
 wrapWithTypeDirectedTensorLift :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe TIExpr
 wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
-  case buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
+  case buildCallbackLiftPlan False classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
     Nothing -> Nothing
     Just (callbackParams, liftedParams, resultType) ->
       -- Bind the supplied expression outside generated parameters. This is a
@@ -378,10 +381,10 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
 -- No expression is inserted here: inference checks this type against the
 -- consumer before fixing its result variables, and insertion uses the same
 -- plan after all substitutions have been applied.
-typeDirectedTensorLiftType :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe Type
-typeDirectedTensorLiftType classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr = do
+typeDirectedTensorLiftType :: Bool -> ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe Type
+typeDirectedTensorLiftType allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr = do
   (callbackParams, _, resultType) <-
-    buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr
+    buildCallbackLiftPlan allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr
   return $ buildFunctionType
     (map callbackParamOuterType callbackParams)
     (normalizeTensorType (TTensor resultType))

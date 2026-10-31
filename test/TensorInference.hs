@@ -169,6 +169,11 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           letOnes (call "ones" [scalars]), listTensor, Nothing, True)
       , ("definition-time unary completion", lambda ["xs"] (call "map" [var "one", var "xs"]),
           arrow [listTensor] listTensor, Nothing, True)
+      , ("generic consumer preserves a scalar function value",
+          call "consumeAny" [var "one"], TInt,
+          Just (0, arrow [TInt] TInt), False)
+      , ("generic consumer preserves a higher-order function value",
+          call "consumeAny" [var "map"], TInt, Nothing, False)
       , ("open consumer completes its scalar callback",
           lambda ["g"] (call "one" [IApplyExpr (var "g") [var "one"]]),
           arrow [arrow [arrow [tensor] tensor] TInt] TInt, Nothing, True)
@@ -278,7 +283,8 @@ inferenceState = initialInferState { inferEnv =
     d = TVar (TyVar "d")
     tensor = TTensor TInt
     bindings =
-      [ ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
+      [ ("consumeAny", arrow [a] TInt)
+      , ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
       , ("apply", arrow [arrow [a] b, a] b)
       , ("dataCallback", arrow [a, arrow [a] TInt] TInt)
       , ("iterate", arrow [arrow [a] a, a] (TCollection a))
