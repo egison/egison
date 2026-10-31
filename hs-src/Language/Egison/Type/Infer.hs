@@ -1574,6 +1574,105 @@ unifyTypesWithContext t1 t2 ctx = do
   (t1', t2') <- zonkPair t1 t2
   fst <$> solveTypes classEnv constraints t1' t2' ctx
 
+-- | A common type for values stored together or returned by alternative
+-- branches. Tensor heads are retained, with rank-zero admission for scalar
+-- values, and the same rule applies inside lists and tuples. Unresolved
+-- value types meet the complete common type, rather than the first scalar
+-- encountered in the source. Functions and other type constructors still
+-- require equality without erasing any nested Tensor heads.
+commonResultType :: [Type] -> TypeErrorContext -> Infer (Type, Subst)
+commonResultType types ctx = do
+  current <- mapM (applySubstWithConstraintsM emptySubst) types
+  let normalized = map normalizeTensorType current
+      variables = [ty | ty@TVar{} <- normalized]
+      concrete = [ty | ty <- normalized, not (isVariable ty)]
+  (common, structuralSubst) <- case concrete of
+    [] -> case variables of
+      [] -> do
+        ty <- freshVar "element"
+        return (ty, emptySubst)
+      first:rest -> matchTypes first rest
+    _ | any isTensor concrete -> do
+          (element, substitution) <- commonResultType (map tensorElement concrete) ctx
+          return (normalizeTensorType (TTensor element), substitution)
+    TCollection{}:_ | all isCollection concrete -> do
+          (element, substitution) <- commonResultType
+            [ty | TCollection ty <- concrete] ctx
+          return (TCollection element, substitution)
+    TTuple first:_ | all (sameTupleArity (length first)) concrete -> do
+          let columns = [[fields !! index | TTuple fields <- concrete]
+                        | index <- [0 .. length first - 1]]
+          (elements, substitution) <- foldM mergeColumn ([], emptySubst) columns
+          return (TTuple elements, substitution)
+    first:rest -> matchTypes first rest
+  substitution <- foldM (matchVariable common) structuralSubst variables
+  result <- applySubstWithConstraintsM substitution common
+  return (normalizeTensorType result, substitution)
+  where
+    isVariable TVar{} = True
+    isVariable _ = False
+    isTensor TTensor{} = True
+    isTensor _ = False
+    isCollection TCollection{} = True
+    isCollection _ = False
+    tensorElement (TTensor element) = element
+    tensorElement ty = ty
+    sameTupleArity arity (TTuple fields) = length fields == arity
+    sameTupleArity _ _ = False
+
+    mergeColumn (elements, substitution) column = do
+      (element, next) <- commonResultType column ctx
+      return (elements ++ [element], composeSubst next substitution)
+
+    matchVariable common substitution variable = do
+      current <- applySubstWithConstraintsM substitution variable
+      expected <- applySubstWithConstraintsM substitution common
+      -- Every value of a is already admitted at Tensor a. Equating a with
+      -- Tensor a would instead invent a recursive substitution and lose
+      -- the generic type of the value.
+      if normalizeTensorType (TTensor current) == normalizeTensorType expected
+        then return substitution
+        else do
+          next <- unifyTypesWithContext current expected ctx
+          return (composeSubst next substitution)
+
+    matchTypes first rest = do
+      substitution <- foldM (matchExact first) emptySubst rest
+      result <- applySubstWithConstraintsM substitution first
+      return (result, substitution)
+
+    matchExact first substitution next = do
+      (left, right) <- zonkPair first next
+      constraints <- getConstraints
+      classEnv <- getClassEnv
+      (matched, unwrapped) <- solveTypes classEnv constraints left right ctx
+      when unwrapped $
+        throwError $ TE.TypeMismatch left right
+          "these result types cannot be combined by erasing Tensor" ctx
+      return (composeSubst matched substitution)
+
+-- | List syntax requires a list at the outermost position. Rank-zero
+-- admission is available for its elements, not for a tensor of lists.
+commonCollectionType :: [Type] -> TypeErrorContext -> Infer (Type, Subst)
+commonCollectionType types ctx = do
+  (elements, shapeSubst) <- foldM collectionElement ([], emptySubst) types
+  (element, resultSubst) <- commonResultType elements ctx
+  return (TCollection element, composeSubst resultSubst shapeSubst)
+  where
+    collectionElement (elements, substitution) ty = do
+      current <- applySubstWithConstraintsM substitution ty
+      case current of
+        TCollection element -> return (elements ++ [element], substitution)
+        TVar{} -> constrainCollection elements substitution current
+        TAny -> constrainCollection elements substitution current
+        _ -> throwError $ TE.TypeMismatch current (TCollection TAny)
+          "list construction and concatenation require a list" ctx
+
+    constrainCollection elements substitution current = do
+      element <- freshVar "element"
+      next <- unifyTypesWithContext current (TCollection element) ctx
+      return (elements ++ [element], composeSubst next substitution)
+
 -- | The components of a tensor literal share one type.  Ordinary unification
 -- reads a scalar as a rank-0 tensor, so a scalar component and a tensor
 -- component would unify by unwrapping the tensor; such an irregular literal,
@@ -1619,6 +1718,16 @@ solveTypes
 solveTypes classEnv constraints left right ctx = do
   case TU.unifyWithConstraints classEnv constraints left right of
     Right result -> commit result
+    Left (TU.OccursCheck variable (TTensor (TVar same)))
+      | variable == same -> do
+          -- With Tensor (Tensor a) = Tensor a, this equation has tensor-
+          -- headed solutions; it is not an infinite structural type.
+          element <- freshVar "tensorElement"
+          let tensorSubst = singletonSubst variable (TTensor element)
+          (substitution, unwrapped) <- solveTypes classEnv
+            (map (applySubstConstraint tensorSubst) constraints)
+            (applySubst tensorSubst left) (applySubst tensorSubst right) ctx
+          commit (composeSubst substitution tensorSubst, unwrapped)
     Left (TU.TypeMismatch mismatchLeft mismatchRight)
       | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
           warnOutsideEgisonCore
@@ -2147,18 +2256,12 @@ inferIExprInContext expr ctx = case expr of
   -- Collections (Lists)
   ICollectionExpr elems -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    elemType <- freshVar "elem"
-    (elemTIExprs, s) <- foldM (inferListElem elemType exprCtx) ([], emptySubst) elems
-    elemType' <- applySubstWithConstraintsM s elemType
-    let resultType = TCollection elemType'
-    return (mkTIExpr resultType (TICollectionExpr (reverse elemTIExprs)), s)
-    where
-      inferListElem eType exprCtx (accExprs, s) e = do
-        (tiExpr, s') <- inferIExprWithContext e exprCtx
-        let t = tiExprType tiExpr
-        eType' <- applySubstWithConstraintsM s eType
-        s'' <- unifyTypesWithContext eType' t exprCtx
-        return (tiExpr : accExprs, composeSubst s'' (composeSubst s' s))
+    inferred <- mapM (\element -> inferIExprWithContext element exprCtx) elems
+    let elemTIExprs = map fst inferred
+        sourceSubst = foldr composeSubst emptySubst (map snd inferred)
+    (elementType, resultSubst) <- commonResultType (map tiExprType elemTIExprs) exprCtx
+    let substitution = composeSubst resultSubst sourceSubst
+    return (mkTIExpr (TCollection elementType) (TICollectionExpr elemTIExprs), substitution)
 
   -- Cons
   IConsExpr headExpr tailExpr -> do
@@ -2170,9 +2273,8 @@ inferIExprInContext expr ctx = case expr of
         s12 = composeSubst s2 s1
     headType' <- applySubstWithConstraintsM s12 headType
     tailType' <- applySubstWithConstraintsM s12 tailType
-    s3 <- unifyTypesWithContext (TCollection headType') tailType' exprCtx
+    (resultType, s3) <- commonCollectionType [TCollection headType', tailType'] exprCtx
     let finalS = composeSubst s3 s12
-    resultType <- applySubstWithConstraintsM finalS tailType
     return (mkTIExpr resultType (TIConsExpr headTI tailTI), finalS)
   
   -- Join (list concatenation)
@@ -2185,9 +2287,8 @@ inferIExprInContext expr ctx = case expr of
         s12 = composeSubst s2 s1
     leftType' <- applySubstWithConstraintsM s12 leftType
     rightType' <- applySubstWithConstraintsM s12 rightType
-    s3 <- unifyTypesWithContext leftType' rightType' exprCtx
+    (resultType, s3) <- commonCollectionType [leftType', rightType'] exprCtx
     let finalS = composeSubst s3 s12
-    resultType <- applySubstWithConstraintsM finalS leftType
     return (mkTIExpr resultType (TIJoinExpr leftTI rightTI), finalS)
   
   -- Hash (Map)
@@ -2262,17 +2363,10 @@ inferIExprInContext expr ctx = case expr of
     let condType = tiExprType condTI
     s2 <- unifyTypesWithContext condType TBool exprCtx
     let s12 = composeSubst s2 s1
-    commonType <- freshVar "ifResult"
     (thenTI, s3) <- inferIExprWithContext thenExpr exprCtx
-    thenType <- applySubstWithConstraintsM s3 (tiExprType thenTI)
-    commonThen <- applySubstWithConstraintsM s3 commonType
-    sThen <- unifyTypesWithContext thenType commonThen exprCtx
     (elseTI, sElse) <- inferIExprWithContext elseExpr exprCtx
-    elseType <- applySubstWithConstraintsM sElse (tiExprType elseTI)
-    commonElse <- applySubstWithConstraintsM sElse commonType
-    s5 <- unifyTypesWithContext elseType commonElse exprCtx
-    let finalS = foldr composeSubst emptySubst [s5, sElse, sThen, s3, s12]
-    resultType <- applySubstWithConstraintsM finalS commonType
+    (resultType, s5) <- commonResultType [tiExprType thenTI, tiExprType elseTI] exprCtx
+    let finalS = foldr composeSubst emptySubst [s5, sElse, s3, s12]
     return (mkTIExpr resultType (TIIfExpr condTI thenTI elseTI), finalS)
   
   -- Let expression

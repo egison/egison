@@ -35,6 +35,16 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("tensor predicate cannot replace a scalar predicate", call "filter" [var "toBool", tensors])
     , ("a scalar component cannot join tensor components", IVectorExpr [int 1, vector])
     , ("a tensor component cannot join scalar components", IVectorExpr [vector, int 1])
+    , ("joined tensor elements cannot enter a scalar list consumer",
+        call "scalarList" [IJoinExpr scalars tensors])
+    , ("constructed tensor elements cannot enter a scalar list consumer",
+        call "scalarList" [ICollectionExpr [int 1, vector]])
+    , ("tensor of lists is not a concatenation operand",
+        IJoinExpr (IVectorExpr [scalars, scalars]) scalars)
+    , ("common list elements do not admit an infinite list type",
+        lambda ["x"] (ICollectionExpr [var "x", ICollectionExpr [var "x"]]))
+    , ("Tensor normalization does not hide an infinite list type",
+        lambda ["x"] (ICollectionExpr [var "x", IVectorExpr [ICollectionExpr [var "x"]]]))
     ] ++
   [ TestLabel "standalone open consumer has a polymorphic answer" . TestCase $ do
       (inferred, warnings) <- runInferWithWarnings
@@ -73,10 +83,100 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
       case result of
         Left _ -> return ()
         Right typed -> assertFailure ("accepted Integer callback on Bool: " ++ show typed)
+  , TestLabel "ordinary list construction remains polymorphic" . TestCase $ do
+      (inferred, _) <- runInferWithWarnings
+        (inferIExpr (lambda ["x"] (ICollectionExpr [var "x"]))) inferenceState
+      case inferred of
+        Right (typed, _) -> case tiExprType typed of
+          TFun input@TVar{} (TCollection element) ->
+            assertEqual "a -> [a]" input element
+          ty -> assertFailure ("unexpected polymorphic list type: " ++ show ty)
+        Left err -> assertFailure (show err)
+  , TestLabel "empty-list concatenation remains polymorphic" . TestCase $ do
+      (inferred, _) <- runInferWithWarnings
+        (inferIExpr (lambda ["xs"] (IJoinExpr (ICollectionExpr []) (var "xs")))) inferenceState
+      case inferred of
+        Right (typed, _) -> case tiExprType typed of
+          TFun (TCollection input@TVar{}) (TCollection element) ->
+            assertEqual "[a] -> [a]" input element
+          ty -> assertFailure ("unexpected polymorphic concatenation type: " ++ show ty)
+        Left err -> assertFailure (show err)
+  , TestLabel "ordinary conditional remains polymorphic" . TestCase $ do
+      (inferred, _) <- runInferWithWarnings
+        (inferIExpr (lambda ["x"] (conditional (var "x") (var "x")))) inferenceState
+      case inferred of
+        Right (typed, _) -> case tiExprType typed of
+          TFun input@TVar{} output -> assertEqual "a -> a" input output
+          ty -> assertFailure ("unexpected polymorphic conditional type: " ++ show ty)
+        Left err -> assertFailure (show err)
+  , TestLabel "rank-zero admission does not invent a recursive type" . TestCase $ do
+      (inferred, _) <- runInferWithWarnings
+        (inferIExpr (lambda ["x"] (ICollectionExpr [var "x", IVectorExpr [var "x"]]))) inferenceState
+      case inferred of
+        Right (typed, _) -> case tiExprType typed of
+          TFun input@TVar{} (TCollection (TTensor element)) ->
+            assertEqual "a -> [Tensor a]" input element
+          ty -> assertFailure ("unexpected shared element type: " ++ show ty)
+        Left err -> assertFailure (show err)
+  , TestLabel "recursive list results respect Tensor normalization" . TestCase $ do
+      let empty = ICollectionExpr []
+          prefix = call "prefix" [empty]
+          base = ICollectionExpr [ITupleExpr [prefix, empty]]
+          recursive = IConsExpr (ITupleExpr [prefix, var "xs"])
+            (call "walk" [lambda ["ys"]
+              (call "prefix" [IConsExpr (int 1) (var "ys")]), var "xs"])
+          definition = lambda ["prefix", "xs"] (conditional base recursive)
+          source = ILetRecExpr [(PDPatVar (Var "walk" []), definition)] (var "walk")
+      (inferred, warnings) <- runInferWithWarnings (inferIExpr source) inferenceState
+      assertEqual "recursive inference emits no warnings" [] warnings
+      case inferred of
+        Right _ -> return ()
+        Left err -> assertFailure (show err)
   ]
   where
     cases =
-      [ ("unary map", call "map" [var "one", tensors], listTensor,
+      [ ("concatenation preserves a right tensor element", IJoinExpr scalars tensors,
+          listTensor, Nothing, False)
+      , ("concatenation preserves a left tensor element", IJoinExpr tensors scalars,
+          listTensor, Nothing, False)
+      , ("list construction preserves a later tensor element", ICollectionExpr [int 1, vector],
+          listTensor, Nothing, False)
+      , ("list construction preserves an earlier tensor element", ICollectionExpr [vector, int 1],
+          listTensor, Nothing, False)
+      , ("tensor head promotes a scalar list tail", IConsExpr vector scalars,
+          listTensor, Nothing, False)
+      , ("scalar head retains a tensor list tail", IConsExpr (int 1) tensors,
+          listTensor, Nothing, False)
+      , ("conditional preserves a tensor else branch", conditional scalars tensors,
+          listTensor, Nothing, False)
+      , ("conditional preserves a tensor then branch", conditional tensors scalars,
+          listTensor, Nothing, False)
+      , ("nested lists preserve tensor elements", ICollectionExpr [scalars, tensors],
+          TCollection listTensor, Nothing, False)
+      , ("tuple elements preserve their tensor positions",
+          ICollectionExpr [ITupleExpr [int 1, int 2], ITupleExpr [vector, int 3]],
+          TCollection (TTuple [tensor, TInt]), Nothing, False)
+      , ("tensor alternatives preserve outer Tensor", conditional (int 0) vector,
+          tensor, Nothing, False)
+      , ("ordinary list concatenation retains scalar types", IJoinExpr scalars scalars,
+          TCollection TInt, Nothing, False)
+      , ("ordinary scalar alternatives retain scalar types", conditional (int 0) (int 1),
+          TInt, Nothing, False)
+      , ("a shared unknown element receives the common Tensor type",
+          lambda ["x"] (ICollectionExpr [var "x", int 1, vector]),
+          arrow [tensor] listTensor, Nothing, False)
+      , ("a shared unknown element before Tensor retains the same type",
+          lambda ["x"] (ICollectionExpr [vector, int 1, var "x"]),
+          arrow [tensor] listTensor, Nothing, False)
+      , ("scalar element arithmetic retains its scalar domain",
+          lambda ["x"] (ICollectionExpr [call "one" [var "x"], vector]),
+          arrow [TInt] listTensor, Nothing, False)
+      , ("a scalar consumer maps a joined tensor element",
+          call "map" [var "one", IJoinExpr scalars tensors],
+          listTensor, Just (0, arrow [tensor] tensor), True)
+      , ("a scalar consumer maps a tensor-valued conditional",
+          call "one" [conditional (int 0) vector], tensor, Nothing, True)
+      , ("unary map", call "map" [var "one", tensors], listTensor,
           Just (0, arrow [tensor] tensor), True)
       , ("data-first map", call "mapDataFirst" [tensors, var "one"], listTensor,
           Just (1, arrow [tensor] tensor), True)
@@ -261,6 +361,7 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     letOnes body = ILetExpr
       [(PDPatVar (Var "ones" []), lambda ["xs"] (call "map" [var "one", var "xs"]))] body
     constrainedAddition = lambda ["x", "y"] (call "constrainedAdd" [var "x", var "y"])
+    conditional = IIfExpr (IConstantExpr (BoolExpr False))
     tensor = TTensor TInt
     listTensor = TCollection tensor
     vector = IVectorExpr [int 1, int 2]

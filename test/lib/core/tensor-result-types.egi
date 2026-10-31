@@ -1,0 +1,21 @@
+-- Common result types retain Tensor information in list elements and branches.
+assertEqual "scalar-first concatenation"
+  ([1] ++ [[|2,3|]]) [1,[|2,3|]]
+assertEqual "tensor-first concatenation"
+  ([[|2,3|]] ++ [1]) [[|2,3|],1]
+assertEqual "tensor head and scalar tail"
+  ([|2,3|] :: [1]) [[|2,3|],1]
+assertEqual "scalar head and tensor tail"
+  (1 :: [[|2,3|]]) [1,[|2,3|]]
+assertEqual "conditional chooses a tensor list"
+  (if False then [1] else [[|2,3|]]) [[|2,3|]]
+assertEqual "conditional chooses a scalar list"
+  (if True then [1] else [[|2,3|]]) [1]
+assertEqual "mapped concatenation preserves tensor elements"
+  (map (\x -> x+10) ([1] ++ [[|2,3|]])) [11,[|12,13|]]
+assertEqual "mapped tensor branch"
+  ((\x -> x+10) (if False then 1 else [|2,3|])) [|12,13|]
+assertEqual "mapped scalar branch"
+  ((\x -> x+10) (if True then 1 else [|2,3|])) 11
+assertEqual "nested lists retain tensor elements"
+  (map (map (\x -> x+10)) [[1],[[|2,3|]]]) [[11],[[|12,13|]]]
