@@ -187,16 +187,7 @@ evalExprShallow env (IJoinExpr xs ys) = do
 evalExprShallow env (IVectorExpr exprs) = do
   let n = toInteger (length exprs)
   whnfs <- mapM (evalExprShallow env) exprs
-  case whnfs of
-    ITensor Tensor{}:_ ->
-      mapM f whnfs >>= tConcat' >>= fromTensor
-    _ -> makeITensorFromWHNF [n] whnfs
-  where
-    f (ITensor (Tensor ns xs indices)) = do
-      xs' <- mapM evalRef xs
-      xs'' <- mapM newEvaluatedObjectRef xs'
-      return $ Tensor ns xs'' indices
-    f x = Scalar <$> newEvaluatedObjectRef x
+  makeITensorFromWHNF [n] whnfs
 
 evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   nsWhnf <- evalExprShallow env nsExpr
@@ -593,16 +584,16 @@ evalExprShallow env (ITensorMapExpr fnExpr tExpr) = do
   whnf <- evalExprShallow env tExpr
   case whnf of
     ITensor t ->
-      tMap (\x -> newApplyThunkRef env fn [x]) t >>= fromTensor
+      tMap (\x -> newApplyThunkRef env fn [x]) t >>= fromTensor >>= normalizeTensorWHNF
     Value (TensorData t) ->
-      tMap (\x -> newApplyObjThunkRef env fn [WHNF (Value x)]) t >>= fromTensor
+      tMap (\x -> newApplyObjThunkRef env fn [WHNF (Value x)]) t >>= fromTensor >>= normalizeTensorWHNF
     _ -> applyObj env fn [WHNF whnf]
 
 evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
   fn <- evalExprShallow env fnExpr
   whnf1 <- evalExprShallow env t1Expr
   whnf2 <- evalExprShallow env t2Expr
-  case (whnf1, whnf2) of
+  mapped <- case (whnf1, whnf2) of
     -- both of arguments are tensors
     (ITensor t1, ITensor t2) ->
       tMap2 (\x y -> newApplyThunkRef env fn [x, y]) t1 t2 >>= fromTensor
@@ -634,6 +625,7 @@ evalExprShallow env (ITensorMap2Expr fnExpr t1Expr t2Expr) = do
         y <- newEvaluatedObjectRef (Value y)
         newApplyThunkRef env fn [x, y]) t2 >>= fromTensor
     _ -> applyObj env fn [WHNF whnf1, WHNF whnf2]
+  normalizeTensorWHNF mapped
 
 evalExprShallow env (ITensorMap2WedgeExpr fnExpr t1Expr t2Expr) = do
   fn <- evalExprShallow env fnExpr
@@ -1681,13 +1673,52 @@ toListPat (pat:pats) = IInductivePat "::" [pat, toListPat pats]
 makeITensorFromWHNF :: Shape -> [WHNFData] -> EvalM WHNFData
 makeITensorFromWHNF s xs = do
   xs' <- mapM newEvaluatedObjectRef xs
-  return $ ITensor (Tensor s (V.fromList xs') [])
+  newITensor s xs'
 
 -- A rank-zero tensor is its sole scalar component.  Do not use the component
 -- count alone here: shapes [0] and [1] are still rank-one tensors.
 newITensor :: Shape -> [ObjectRef] -> EvalM WHNFData
 newITensor [] [ref] = evalRef ref
-newITensor s refs = return $ ITensor (Tensor s (V.fromList refs) [])
+newITensor s refs = normalizeTensorWHNF (ITensor (Tensor s (V.fromList refs) []))
+
+-- Assemble all tensor-producing operations in one representation. Only
+-- tensor components are inspected; lists and other scalar values stay whole.
+-- Empty outer arrays do not evaluate a generator to discover an inner shape.
+normalizeTensorWHNF :: WHNFData -> EvalM WHNFData
+normalizeTensorWHNF (Value (TensorData (Scalar value))) = normalizeTensorWHNF (Value value)
+normalizeTensorWHNF (Value (TensorData (Tensor shape cells indices))) = do
+  refs <- V.mapM (newEvaluatedObjectRef . Value) cells
+  normalizeTensorWHNF (ITensor (Tensor shape refs indices))
+normalizeTensorWHNF (ITensor (Scalar ref)) = evalRef ref >>= normalizeTensorWHNF
+normalizeTensorWHNF (ITensor (Tensor shape refs indices))
+  | any (< 0) shape || product shape /= toInteger (V.length refs) =
+      throwErrorWithTrace InconsistentTensorShape
+  | V.null refs = return (ITensor (Tensor shape refs indices))
+  | otherwise = do
+      components <- V.mapM (evalRef >=> normalizeTensorWHNF >=> component) refs
+      let (innerShape, _, innerIndices) = V.head components
+      when (V.any (\(ns, _, js) -> ns /= innerShape || js /= innerIndices) components) $
+        throwErrorWithTrace InconsistentTensorShape
+      let dimensions = shape ++ innerShape
+          cells = V.concat (map (\(_, xs, _) -> xs) (V.toList components))
+          -- Fill anonymous outer axes before appending named inner axes.
+          -- Distinct dummy numbers prevent accidental axis identification.
+          full ns js = js ++ map (DF 0) [1 .. toInteger (length ns - length js)]
+          renumber _ [] = []
+          renumber n (DF 0 _ : js) = DF 0 n : renumber (n+1) js
+          renumber n (j : js) = j : renumber n js
+          labels
+            | null innerIndices = indices
+            | otherwise = renumber 1 (full shape indices ++ full innerShape innerIndices)
+      if null dimensions && V.length cells == 1
+        then evalRef (V.head cells)
+        else return (ITensor (Tensor dimensions cells labels))
+  where
+    component (ITensor (Tensor ns xs js)) = return (ns, xs, js)
+    component value = do
+      ref <- newEvaluatedObjectRef value
+      return ([], V.singleton ref, [])
+normalizeTensorWHNF value = return value
 
 -- Refer the specified tensor index with potential overriding of the index.
 refTensorWithOverride :: TensorComponent a b => Bool -> [Index EgisonValue] -> Tensor b -> EvalM a

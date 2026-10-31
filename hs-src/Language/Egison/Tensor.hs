@@ -230,12 +230,26 @@ tFlipIndices (Tensor ns xs js) = return $ Tensor ns xs (map reverseIndex js)
 
 appendDF :: Integer -> WHNFData -> WHNFData
 appendDF id (ITensor (Tensor s xs is)) =
-  let k = fromIntegral (length s - length is)
-   in ITensor (Tensor s xs (is ++ map (DF id) [1..k]))
+  ITensor (Tensor s xs (labelAnonymous id s is))
 appendDF id (Value (TensorData (Tensor s xs is))) =
-  let k = fromIntegral (length s - length is)
-   in Value (TensorData (Tensor s xs (is ++ map (DF id) [1..k])))
+  Value (TensorData (Tensor s xs (labelAnonymous id s is)))
 appendDF _ whnf = whnf
+
+-- DF 0 marks an anonymous axis, including gaps before named inner axes.
+-- Positive identifiers distinguish temporary axes in wedge applications.
+labelAnonymous :: Integer -> Shape -> [Index a] -> [Index a]
+labelAnonymous identifier shape indices = map replace indices ++ map (DF identifier) trailing
+  where
+    replace (DF 0 number) = DF identifier number
+    replace index = index
+    trailing = [next .. next + toInteger (length shape - length indices) - 1]
+    next = 1 + maximum (0 : [number | DF 0 number <- indices])
+
+trimAnonymousTail :: [Index a] -> [Index a]
+trimAnonymousTail = reverse . dropWhile anonymous . reverse
+  where
+    anonymous (DF 0 _) = True
+    anonymous _ = False
 
 -- | Check if an index is a dummy free index
 isDF :: Index a -> Bool
@@ -251,35 +265,21 @@ compareDFNumber _ _ = EQ
 -- | Remove dummy free indices from a Tensor
 removeDFFromTensor :: Tensor a -> EvalM (Tensor a)
 removeDFFromTensor (Tensor s xs is) = do
-  let (ds, js) = partition isDF is
+  let temporary (DF identifier _) = identifier /= 0
+      temporary _ = False
+      (ds, js) = partition temporary is
   if null ds
-    then return (Tensor s xs is)
+    then return (Tensor s xs (trimAnonymousTail is))
     else do
       -- Sort DF indices by their ID number and sequence number before removing
       let sortedDs = sortBy compareDFNumber ds
       Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
-      return (Tensor s ys js)
+      return (Tensor s ys (trimAnonymousTail js))
 removeDFFromTensor t = return t  -- Scalar case
 
 removeDF :: WHNFData -> EvalM WHNFData
-removeDF (ITensor (Tensor s xs is)) = do
-  let (ds, js) = partition isDF is
-  if null ds
-    then return (ITensor (Tensor s xs is))
-    else do
-      -- Sort DF indices by their ID number and sequence number before removing
-      let sortedDs = sortBy compareDFNumber ds
-      Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
-      return (ITensor (Tensor s ys js))
-removeDF (Value (TensorData (Tensor s xs is))) = do
-  let (ds, js) = partition isDF is
-  if null ds
-    then return (Value (TensorData (Tensor s xs is)))
-    else do
-      -- Sort DF indices by their ID number and sequence number before removing
-      let sortedDs = sortBy compareDFNumber ds
-      Tensor s ys _ <- tTranspose (js ++ sortedDs) (Tensor s xs is)
-      return (Value (TensorData (Tensor s ys js)))
+removeDF (ITensor tensor) = ITensor <$> removeDFFromTensor tensor
+removeDF (Value (TensorData tensor)) = Value . TensorData <$> removeDFFromTensor tensor
 removeDF whnf = return whnf
 
 tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
@@ -453,5 +453,7 @@ toSupSub (Sup i) = SupSub i
 toSupSub (Sub i) = SupSub i
 
 complementWithDF :: Shape -> [Index a] -> [Index a]
-complementWithDF ns js' = map (DF 0) [1..k]
-  where k = fromIntegral $ length ns - length js'
+complementWithDF ns js' = map (DF 0) [next .. next+k-1]
+  where
+    k = fromIntegral $ length ns - length js'
+    next = 1 + maximum (0 : [number | DF 0 number <- js'])

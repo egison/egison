@@ -285,8 +285,17 @@ buildCallbackLiftPlan ::
     -> Maybe ([CallbackParamPlan], [CallbackParamPlan], Type)
 buildCallbackLiftPlan classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
   let actualFuncType = tiExprType funcExpr
-      (expectedParams, expectedResult) = collectFunctionType expectedCallbackType
       (actualParams, actualResult) = collectFunctionType actualFuncType
+      -- An open consumer still receives a completed scalar callback. Its
+      -- function shape need not have been fixed by another data argument.
+      completedExpected = case expectedCallbackType of
+        TVar _ | not (isPotentialScalarType classEnv constraints expectedCallbackType) ->
+          buildFunctionType
+            (map (\parameter -> if isTensorLiftableScalarType classEnv constraints parameter
+                     then normalizeTensorType (TTensor parameter) else parameter) actualParams)
+            (normalizeTensorType (TTensor actualResult))
+        _ -> expectedCallbackType
+      (expectedParams, expectedResult) = collectFunctionType completedExpected
       arity = length expectedParams
   in if arity == 0 || length actualParams < arity
        then Nothing

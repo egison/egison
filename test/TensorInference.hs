@@ -36,7 +36,37 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("a scalar component cannot join tensor components", IVectorExpr [int 1, vector])
     , ("a tensor component cannot join scalar components", IVectorExpr [vector, int 1])
     ] ++
-  [ TestLabel "incompatible tensor element is rejected" . TestCase $ do
+  [ TestLabel "standalone open consumer has a polymorphic answer" . TestCase $ do
+      (inferred, warnings) <- runInferWithWarnings
+        (inferIExpr (lambda ["g"] (IApplyExpr (var "g") [var "one"]))) inferenceState
+      assertEqual "inference emits no warnings" [] warnings
+      case inferred of
+        Left err -> assertFailure (show err)
+        Right (before, _) -> do
+          let completed ty = case ty of
+                TFun (TFun (TFun domain result) answer@(TVar _)) answer' ->
+                  domain == tensor && result == tensor && answer == answer'
+                _ -> False
+          assertBool "((Tensor Integer -> Tensor Integer) -> a) -> a" (completed (tiExprType before))
+          inserted <- fromEvalM defaultOption (insertTensorMaps before)
+          case inserted of
+            Left err -> assertFailure (show err)
+            Right after -> do
+              assertBool "insertion preserves the polymorphic answer" (completed (tiExprType after))
+              assertBool "known scalar callback is mapped" (hasTensorMap after)
+  , TestLabel "standalone unknown function receives the whole tensor" . TestCase $ do
+      (inferred, warnings) <- runInferWithWarnings
+        (inferIExpr (lambda ["k"] (IApplyExpr (var "k") [vector]))) inferenceState
+      assertEqual "inference emits no warnings" [] warnings
+      case inferred of
+        Left err -> assertFailure (show err)
+        Right (before, _) -> case tiExprType before of
+          TFun (TFun domain answer@(TVar _)) answer' -> do
+            assertEqual "whole tensor domain" tensor domain
+            assertEqual "unwrapped answer" answer answer'
+            assertBool "no speculative map" (not (hasTensorMap before))
+          ty -> assertFailure ("unexpected whole-tensor function type: " ++ show ty)
+  , TestLabel "incompatible tensor element is rejected" . TestCase $ do
       (result, _) <- runInferWithWarnings
         (inferIExpr (call "map" [var "one", ICollectionExpr
           [IVectorExpr [IConstantExpr (BoolExpr True)]]])) inferenceState
@@ -139,6 +169,13 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           letOnes (call "ones" [scalars]), listTensor, Nothing, True)
       , ("definition-time unary completion", lambda ["xs"] (call "map" [var "one", var "xs"]),
           arrow [listTensor] listTensor, Nothing, True)
+      , ("open consumer completes its scalar callback",
+          lambda ["g"] (call "one" [IApplyExpr (var "g") [var "one"]]),
+          arrow [arrow [arrow [tensor] tensor] TInt] TInt, Nothing, True)
+      , ("open consumer and whole tensor application compose",
+          IApplyExpr (lambda ["g"] (IApplyExpr (var "g") [var "one"]))
+            [lambda ["k"] (IApplyExpr (var "k") [vector])],
+          tensor, Nothing, True)
       , ("definition-time binary completion", lambda ["xs"] (call "foldl1" [var "two", var "xs"]),
           arrow [listTensor] tensor, Nothing, True)
       , ("definition-time scalar initializer", lambda ["xs"] (call "foldl" [var "two", int 0, var "xs"]),

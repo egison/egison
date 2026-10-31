@@ -1,0 +1,41 @@
+-- Scalar callbacks are completed even when the consumer is still open.
+def useScalarCallback g := g (\v -> v+10)
+assertEqual "open consumer" (useScalarCallback (\k -> k [|1,2|])) [|11,12|]
+assertEqual "nested consumer 1"
+  (useScalarCallback (\k -> (\x -> k (x+[|10,20|])) [|1,2|]))
+  [|[|21,31|],[|22,32|]|]
+assertEqual "nested consumer 2"
+  (useScalarCallback (\k -> (\x -> k [|x,x+1|]) [|1,2|]))
+  [|[|11,12|],[|12,13|]|]
+
+def generatedRows := generateTensor (\_ -> [|1,2|]) [2]
+assertEqual "generated matrix shape" (tensorShape generatedRows) [2,2]
+assertEqual "generated matrix map"
+  (tensorMap (\x -> [x]) generatedRows) [|[|[1],[2]|],[|[1],[2]|]|]
+assertEqual "explicit constructor assembly"
+  (tensorShape (tensor [2] [[|1,2|],[|1,2|]])) [2,2]
+assertEqual "map result assembly"
+  (tensorMap (\y -> [y]) (tensorMap (\x -> [|x,x+1|]) [|1,2|]))
+  [|[|[1],[2]|],[|[2],[3]|]|]
+assertEqual "lists remain scalar leaves"
+  (tensorShape (generateTensor (\_ -> [[|1,2|]]) [2])) [2]
+assertEqual "empty generation does not evaluate its body"
+  (tensorShape (generateTensor (\_ -> tensor [1] [1,2]) [0,3])) [0,3]
+assertEqual "rank zero generation" (generateTensor (\_ -> [|1,2|]) []) [|1,2|]
+assertEqual "nested maps retain variable scope"
+  (tensorMap (\inner -> tensorMap (\x -> [x]) inner) generatedRows)
+  [|[|[1],[2]|],[|[1],[2]|]|]
+
+declare symbol j: MathValue
+def namedRow := [|1,2,3|]_j
+assertEqual "generated inner indices"
+  (tensorIndices (generateTensor (\_ -> namedRow) [2])) [SubIndex j]
+def namedRows := generateTensor (\_ -> namedRow) [2]
+assertEqual "unary map preserves anonymous outer axis"
+  (tensorShape (tensorMap (\x -> [x]) namedRows)) [2,3]
+assertEqual "scalar binary map preserves anonymous outer axis"
+  (tensorShape (tensorMap2 (+) namedRows 10)) [2,3]
+assertEqual "binary map preserves anonymous outer axis"
+  (tensorShape (tensorMap2 (+) namedRows namedRows)) [2,3]
+assertEqual "map preserves named inner index"
+  (tensorIndices (tensorMap (\x -> [x]) namedRows)) [SubIndex j]

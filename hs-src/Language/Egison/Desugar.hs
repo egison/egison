@@ -1192,11 +1192,6 @@ desugar (GenerateTensorExpr fnExpr sizeExpr) =
 desugar (TensorContractExpr tExpr) =
   ITensorContractExpr <$> desugar tExpr
 
-desugar (TensorMapExpr (LambdaExpr' [x] (TensorMapExpr (LambdaExpr' [y] expr) b)) a) =
-  desugar (TensorMap2Expr (LambdaExpr' [x, y] expr) a b)
-desugar (TensorMapExpr (LambdaExpr [x] (TensorMapExpr (LambdaExpr [y] expr) b)) a) =
-  desugar (TensorMap2Expr (LambdaExpr [x, y] expr) a b)
-
 desugar (TensorMapExpr fnExpr tExpr) =
   ITensorMapExpr <$> desugar fnExpr <*> desugar tExpr
 
