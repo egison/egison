@@ -89,6 +89,17 @@ tensorMap (\x -> inc x) [| 1, 2, 3 |]
 callback の返り値が次回の accumulator 引数へ戻る場合は、その引数にも lift を伝播する。
 詳細は [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md) を参照する。
 
+高階引数の判定には、その引数の本体を推論した後の型クラス制約を使う。
+制約とは、型に対して加算などの操作が使えるという要求である。
+例えば `\x y -> x+y` では、本体から得る `AddSemigroup a` が `a` をスカラー型と
+判定する根拠になる。演算子 `(+)` を直接渡した場合と同じく、
+`def mySum xs := foldl (\x y -> x+y) 0 xs` は
+`[Tensor Integer] -> Tensor Integer` と推論する。
+ローカルの `let add := \x y -> x+y` でも同じ制約を保持するため、
+一般化の前に制約中の型変数へ現在の型代入を適用する。
+`zero` のように制約からスカラーだと分かる初期値は、テンソルのデータ引数と
+渡された関数を検査してから照合する。
+
 期待型だけでは lift 位置が分からない、ちょうど二引数のスカラー関数には、互換経路として
 `tensorMap2` で包む規則を残している。全挿入規則は
 [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md) にまとめる。

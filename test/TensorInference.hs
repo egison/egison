@@ -16,7 +16,7 @@ import Language.Egison.Type.Infer
 import Language.Egison.Type.Tensor (normalizeTensorType)
 import Language.Egison.Type.TensorMapInsertion (insertTensorMaps)
 import Language.Egison.Type.Types
-  (Type(..), TypeScheme(..), TyVar(..), freeTyVars)
+  (Type(..), TypeScheme(..), Constraint(..), TyVar(..), freeTyVars)
 
 tensorInferenceTests :: Test
 tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
@@ -143,6 +143,26 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           arrow [listTensor] tensor, Nothing, True)
       , ("definition-time scalar initializer", lambda ["xs"] (call "foldl" [var "two", int 0, var "xs"]),
           arrow [listTensor] tensor, Nothing, True)
+      , ("lambda class constraints reach definition-time fold completion",
+          lambda ["xs"] (call "foldl" [constrainedAddition, int 0, var "xs"]),
+          arrow [listTensor] tensor, Nothing, True)
+      , ("class-constrained scalar initializer waits for tensor fold data",
+          call "foldl" [var "constrainedAdd", var "constrainedZero", tensors],
+          tensor, Just (0, arrow [tensor, tensor] tensor), True)
+      , ("local lambda class constraints reach definition-time fold completion",
+          lambda ["xs"] (ILetExpr [(PDPatVar (Var "add" []), constrainedAddition)]
+            (call "foldl" [var "add", int 0, var "xs"])),
+          arrow [listTensor] tensor, Nothing, True)
+      , ("recursive local lambda constraints reach definition-time fold completion",
+          lambda ["xs"] (ILetRecExpr [(PDPatVar (Var "add" []), constrainedAddition)]
+            (call "foldl" [var "add", int 0, var "xs"])),
+          arrow [listTensor] tensor, Nothing, True)
+      , ("known scalar fold data keeps a constrained lambda scalar",
+          call "foldl" [constrainedAddition, int 0, scalars], TInt,
+          Just (0, arrow [TInt, TInt] TInt), False)
+      , ("ordinary constrained scalar application needs no map",
+          lambda ["x"] (call "constrainedAdd" [var "x", int 1]),
+          arrow [TInt] TInt, Nothing, False)
       , ("definition-time ternary completion",
           lambda ["xs", "ys", "zs"] (call "map3" [var "three", var "xs", var "ys", var "zs"]),
           arrow [listTensor, listTensor, listTensor] listTensor, Nothing, True)
@@ -198,6 +218,7 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
       in ILetRecExpr (if forward then reverse bindings else bindings) (call "ones" [tensors])
     letOnes body = ILetExpr
       [(PDPatVar (Var "ones" []), lambda ["xs"] (call "map" [var "one", var "xs"]))] body
+    constrainedAddition = lambda ["x", "y"] (call "constrainedAdd" [var "x", var "y"])
     tensor = TTensor TInt
     listTensor = TCollection tensor
     vector = IVectorExpr [int 1, int 2]
@@ -205,7 +226,12 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     scalars = ICollectionExpr [int 3, int 4]
 
 inferenceState :: InferState
-inferenceState = initialInferState { inferEnv = foldr add Env.emptyEnv bindings }
+inferenceState = initialInferState { inferEnv =
+  Env.extendEnv (Var "constrainedZero" [])
+    (Forall [] [TyVar "a"] [Constraint "AddMonoid" [a]] a) $
+  Env.extendEnv (Var "constrainedAdd" [])
+    (Forall [] [TyVar "a"] [Constraint "AddSemigroup" [a]] (arrow [a, a] a))
+    (foldr add Env.emptyEnv bindings) }
   where
     add (name, ty) = Env.extendEnv (Var name [])
       (Forall [] (Set.toList (freeTyVars ty)) [] ty)

@@ -5798,8 +5798,17 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
     rankArgument argument@(_, _, typedArg, paramType) = do
       actual <- applySubstWithConstraintsM initialSubst (tiExprType typedArg)
       expected <- applySubstWithConstraintsM initialSubst paramType
+      contextConstraints <- getConstraints
+      globalSubst <- gets inferGlobalSubst
+      let currentConstraints = map
+            (applySubstConstraint (composeSubst globalSubst initialSubst))
+            (constraints ++ contextConstraints)
       let rank
             | isFunction actual || isFunction expected = 1 :: Int
+            -- A constrained scalar variable, such as `zero`, is an
+            -- initializer rather than unresolved tensor data.
+            | TVar _ <- actual
+            , isTensorLiftableScalarType classEnv currentConstraints actual = 2
             | containsTensorData actual || not (Set.null (freeTyVars actual)) = 0
             | otherwise = 2
       return (rank, argument)
@@ -5820,12 +5829,18 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
       expectedType <-
         applySubstWithConstraintsM substitution paramType
       outerType <- applySubstWithConstraintsM substitution funcType
-      let outerConstraints =
-            map (applySubstConstraint substitution) constraints
-          Forall _ _ argConstraints _ = tiScheme updatedArg
+      -- Argument inference can add class constraints inside a lambda or a
+      -- local binding. They are not necessarily stored in that expression's
+      -- node scheme, and the caller's constraint snapshot predates them.
+      -- Resolve the current context through the same substitution as the
+      -- argument types before deciding which scalar inputs need maps.
+      contextConstraints <- getConstraints
+      globalSubst <- gets inferGlobalSubst
+      let Forall _ _ argConstraints _ = tiScheme updatedArg
+          currentSubst = composeSubst globalSubst substitution
           allConstraints =
-            outerConstraints ++
-            map (applySubstConstraint substitution) argConstraints
+            nub $ map (applySubstConstraint currentSubst)
+              (constraints ++ contextConstraints ++ argConstraints)
           checkedType =
             case typeDirectedTensorLiftType classEnv allConstraints
                    outerType index expectedType updatedArg of
@@ -6136,12 +6151,15 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
         envFreeImages <- mapM (applySubstWithConstraintsM emptySubst . TVar)
                               (Set.toList (freeVarsInEnv envNow))
         constraintsNow <- getConstraints
+        -- Constraint variables can have been renamed by unification just as
+        -- environment variables can. Generalizing their resolved images
+        -- would disconnect a local function from its class dictionaries.
+        constraintTypesNow <- mapM (applySubstRecursively finalS)
+          (concatMap constraintTypes constraintsNow)
         let envFreeCapZ = freeCapVarsInEnv envNow
             envFreeZ = Set.unions (map freeTyVars envFreeImages)
-            consFreeCaps =
-              Set.unions [ freeCapVars t | c <- constraintsNow
-                                         , t <- constraintTypes c ]
-            consFree = Set.unions [ freeTyVars t | c <- constraintsNow, t <- constraintTypes c ]
+            consFreeCaps = Set.unions (map freeCapVars constraintTypesNow)
+            consFree = Set.unions (map freeTyVars constraintTypesNow)
             genCapSet =
               rhsFreeCaps `Set.difference`
                 (envFreeCapZ `Set.union` consFreeCaps)
@@ -6321,12 +6339,12 @@ inferIRecBindingsWithContext bindings _env s ctx = do
         envFreeImages <- mapM (applySubstWithConstraintsM emptySubst . TVar)
                               (Set.toList (freeVarsInEnv envNow))
         constraintsNow <- getConstraints
+        constraintTypesNow <- mapM (applySubstRecursively finalS)
+          (concatMap constraintTypes constraintsNow)
         let envFreeCapZ = freeCapVarsInEnv envNow
             envFreeZ = Set.unions (map freeTyVars envFreeImages)
-            consFreeCaps =
-              Set.unions [ freeCapVars t | c <- constraintsNow
-                                         , t <- constraintTypes c ]
-            consFree = Set.unions [ freeTyVars t | c <- constraintsNow, t <- constraintTypes c ]
+            consFreeCaps = Set.unions (map freeCapVars constraintTypesNow)
+            consFree = Set.unions (map freeTyVars constraintTypesNow)
             genCapSet =
               groupFreeCaps `Set.difference`
                 (envFreeCapZ `Set.union` consFreeCaps)

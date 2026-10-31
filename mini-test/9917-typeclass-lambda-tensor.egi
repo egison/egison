@@ -1,0 +1,23 @@
+-- Class constraints from lambda bodies must reach higher-order completion.
+def mySum xs := foldl (\x y -> x+y) 0 xs
+def myOperatorSum xs := foldl (+) 0 xs
+def myLocalSum xs :=
+  let add := \x y -> x+y in foldl add 0 xs
+def myDoubles xs := map (\x -> x+x) xs
+def myIncrement x := x+1
+
+assertEqual "lambda fold on scalar data" (mySum [1,2]) 3
+assertEqual "lambda fold on tensor data"
+  (mySum [[|1,2|],[|10,20|]]) [|11,22|]
+assertEqual "lambda and operator folds agree"
+  (mySum [[|1,2|],[|10,20|]])
+  (myOperatorSum [[|1,2|],[|10,20|]])
+assertEqual "local lambda fold on tensor data"
+  (myLocalSum [[|1,2|],[|10,20|]]) [|11,22|]
+assertEqual "class-constrained unary lambda on tensor data"
+  (myDoubles [[|1,2|],[|10,20|]]) [[|2,4|],[|20,40|]]
+assertEqual "ordinary scalar inference" (myIncrement 2) 3
+assertEqual "standard sum keeps its constrained initializer"
+  (sum [[|1,2|],[|10,20|]]) [|11,22|]
+assertEqual "standard product keeps its constrained initializer"
+  (product [[|1,2|],[|10,20|]]) [|10,40|]
