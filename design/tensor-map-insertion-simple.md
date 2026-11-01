@@ -1,170 +1,61 @@
-# `tensorMap` 自動挿入
+# tensorMap 自動挿入
 
-この文書は、型推論後の `TIExpr` に `tensorMap` または `tensorMap2` を挿入し、
-スカラー関数をテンソルへ成分ごとに適用する現在の規則を定める。
-
-`tensorMap f x` は `x` がスカラーなら通常の `f x` と同じように振る舞い、
-`tensorMap2 f x y` も両引数がスカラーなら通常の `f x y` と同じように振る舞う。
-この性質により、縮約の途中でスカラーからテンソルへ変わる値にも同じ wrapper を使える。
-
-## 1. 処理順
-
-自動挿入は型推論の後、型クラス辞書の展開より前に行う。
+型推論は，関数適用の型と必要な変換を求め，型付き内部表現 `TIExpr` に保存する．利用者に型注釈や挿入位置を要求しない．選択した内部表現から `tensorMap`・`tensorMap2` を生成し，その後に型クラスの辞書を展開する．辞書とは，選択した要素型の加算などの実装をまとめた値である．
 
 ```text
-Infer
-  ↓ 型つき TIExpr
-TensorMapInsertion
-  ↓ tensorMap / tensorMap2 を含む TIExpr
-TypeClassExpand
-  ↓ 要素型の辞書アクセスを含む TIExpr
-Evaluation
+型と候補の推論
+  → 使用ごとの候補選択
+  → tensorMap・tensorMap2 の挿入
+  → 要素型の型クラス辞書の展開
+  → 評価
 ```
 
-先に tensor-lift を決めることで、型クラス展開は `Tensor a` ではなく、成分へ適用される
-`a` のインスタンス辞書を選べる。
+## 直接適用
 
-## 2. 直接適用
-
-関数適用 `f argument` について、仮引数型がスカラーとして確定し、実引数型が
-`Tensor a` なら、成分ごとの適用へ変換する。
+仮引数型がスカラーと決まっており，実引数がテンソルなら，関数を各成分へ適用する．未確定の仮引数には，テンソル全体を渡す候補を優先する．
 
 ```egison
-def inc (x: Integer) : Integer := x + 1
-def t := [| 1, 2, 3 |]
+(\x -> x+1) [|1,2|]
+-- tensorMap (\x -> x+1) [|1,2|]
 
-inc t
--- tensorMap (\x -> inc x) t
+\k -> k [|1,2|]
+-- (Tensor Integer -> a) -> a
 ```
 
-二つの引数を同時に持ち上げられるときは `tensorMap2` を使う。三つ以上の位置が必要なら、
-`tensorMap` と `tensorMap2` を入れ子にしたイータ展開を生成する。
+二つの成分引数には `tensorMap2` を使う．三つ以上では，添字の整列を保つように写像を組み合わせる．もともとテンソル全体を受け取る仮引数は，全体のまま渡す．
 
-## 3. スカラー型の判定
+`tensorMap` は階数0の値も受け取り，その場合は通常の関数適用として働く．階数0の受け取りと型の等式を区別し，`Tensor a` と `a` を無条件には単一化しない．
 
-`isPotentialScalarType` は、型を fresh な `Tensor a` と厳密単一化できるかで判定する。
-厳密単一化は `Tensor a` と `a` を同一視しない。
+## 高階引数と定義の候補
 
-- `Tensor t` はテンソルである。
-- `Integer` などの具体型はスカラーである。
-- 制約なしの型変数 `a` は `Tensor t` にもなれるため、スカラーと断定しない。
-- `{AddSemigroup a}` のような制約付き変数で `Tensor t` に対応するインスタンスがなければ、
-  その位置は成分型へ適用するスカラー位置である。
-
-`IO`、`IORef`、`Port`、関数型、およびこれらを内部に含む型は、スカラーに見えても
-tensor-lift しない。成分ごとの適用へ変えると制御や資源の意味が変わるためである。
-
-## 4. 高階関数の callback
-
-高階関数へ関数を引数として渡す場合は、外側の関数が期待する callback 型と、渡された関数の
-実際の型を比較する。
-
-この変換には、型推論が期待型へテンソル情報を正しく残すことが必要である。
-適用推論でデータ側のテンソル情報と持ち上げ後の戻り値型を反映する処理を、
-具体例と回帰テストとともに第9節に記す。
-
-例えば、期待 callback の第2引数が `Tensor Integer` で、渡された関数の第2引数が
-`Integer` なら、その位置を lift する。
+既知のスカラー関数を高階引数として渡す場合，入力の部分集合を成分ごとの適用へ変換できる．その関数の結果もテンソルになる．受け取り側の型変数と，ほかの引数・結果に共有された型の要求をすべて満たす候補だけが選ばれる．
 
 ```egison
-map scalarFunction tensors
--- map (\x -> tensorMap scalarFunction x) tensors
+map (\x -> x+1) [[|1,2|]]
+-- map (\x -> tensorMap (\n -> n+1) x) [[|1,2|]]
+
+foldl (+) 0 [[|1,2|],[|3,4|]]
+-- foldl (\x y -> tensorMap2 (+) x y) 0 [[|1,2|],[|3,4|]]
 ```
 
-`callbackLiftMask` は、持ち上げる callback 引数位置を固定点まで計算する。固定点とは、
-一度決めた位置から新しい必要位置を導き、増えなくなるまで繰り返した結果である。
+`filter` の述語の結果は `Bool` に固定される．`Integer -> Bool` の述語を `Tensor Integer -> Tensor Bool` に変換して渡す候補は適合しない．
 
-## 5. 返り値が次の引数へ戻る場合
+定義の既定の型は通常のものを保つ．`sum xs := foldl (+) 0 xs` は `[Integer] -> Integer` と報告し，`[Tensor Integer] -> Tensor Integer` の候補も使用可能にする．候補を必要になった参照で具体化し，一つの定義を通常版とテンソル版で併用できる．別名への束縛も候補を引き継ぐ．
 
-`foldl` や `foldr` では、callback の返り値が次回の accumulator 引数へ戻る。
-テンソル引数を一つ持ち上げると callback の返り値もテンソルになりうるため、同じ型の
-accumulator 引数も持ち上げる。
+候補は型だけでなく，変換する本体と内部制約を保持する．捕捉した単相な変数の型を参照ごとに独立にはしない．詳細は [高階引数と候補](tensor-map-higher-order-lift.md) に記す．
 
-```egison
-foldl (+) 0 [[| 1, 2 |], [| 3, 4 |]]
+## 制約の解決
 
--- 概念上の callback
-\acc x -> tensorMap2 (\a b -> a + b) acc x
-```
+引数式はソースに従って推論する．型の照合では，テンソルを含むデータ，関数引数，スカラー初期値の関係を一緒に解く．`foldl` の結果と累積値に共有する型変数は，変換後も一致させる．引数リストの途中で候補を確定せず，不一致なら推論状態を戻して選び直す．
 
-初回の `acc` はスカラー 0、次回以降はテンソルになりうるが、`tensorMap2` はどちらにも使える。
-callback の返り値がリストの要素として包まれる `map` では accumulator への戻りがないため、
-この伝播を起こさない。詳細は
-[tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md) を参照する。
+入れ子の適用でも同じ選択を行う．`map (map (\x -> x+1)) [[1],[[|2,3|]]]` では，内側の部分適用にもテンソル用の候補を選べる．利用者が期待型を指定する必要はない．
 
-## 6. 未確定な二引数関数の補完
+厳密な単一化は `Tensor a` と `a` を同一視しない．制約なしの型変数だけではスカラーと断定せず，具体型または型クラス制約を使う．`IO`，`IORef`，`Port`，関数型とこれらを含む型は自動変換から除外する．
 
-多相な `foldl1 (+)` のように、期待型へまだ具体的な `Tensor` が現れない場合は、型主導の種を
-作れない。渡された値がちょうど二引数の lift 可能なスカラー関数で、期待型のどこかが
-テンソルを取りうる場合は、補完として `tensorMap2` wrapper を作る。
+## コード生成と検証
 
-```egison
-foldl1 (+) xs
--- foldl1 (\x y -> tensorMap2 (+) x y) xs
-```
+`buildCallbackLiftPlan` と `typeDirectedTensorLiftTypes` が入力の部分集合を列挙し，`callbackLiftMask` が結果を累積値へ戻す位置への伝播を計算する．選択した型から `wrapWithTypeDirectedTensorLift` が関数を包むコードを生成する．渡す関数の式は外側で一度束縛する．
 
-期待 callback の全ての引数と返り値が、テンソルになりえない具体的な非 CAS スカラー型なら、
-この wrapper は挿入しない。型主導の wrapper が作れる場合は、常にそちらを優先する。
+明示した `tensorMap` は成分ごとの適用として扱う．生成済みの写像を二重には包まない．Wedge 適用では，二引数のスカラー関数に対応する写像と微分形式の添字の処理を使う．
 
-## 7. Wedge 適用
-
-`TIWedgeApplyExpr` の関数が二引数のスカラー関数なら、
-`TITensorMap2WedgeExpr` へ変換し、微分形式の添字を補ってから成分ごとに適用する。
-関数がテンソル全体を引数として受け取る場合は、通常の Wedge 適用を保つ。
-
-既に `tensorMap` 系の内部節へ変換済みの式は再び包まない。
-
-## 8. 実装と検証
-
-実装は `hs-src/Language/Egison/Type/TensorMapInsertion.hs` に集約する。
-
-- `shouldInsertTensorMap`: 直接適用の判定。
-- `isPotentialScalarType`: 制約を考慮したスカラー判定。
-- `callbackLiftMask`: 高階 callback の lift 位置と feedback の固定点。
-- `wrapWithTypeDirectedTensorLift`: 型主導のイータ展開。
-- `shouldUseTensorMap2Fallback`: 二引数の補完の判定。
-- `insertTensorMaps`: 変換の入口。
-
-変換順は `Type/TypedDesugar.hs` が管理する。回帰は `test/lib/math/tensor.egi` と
-`sample/math/geometry/` の縮約・微分形式・曲率計算で検証する。
-
-## 9. 高階引数の型推論と挿入の整合
-
-高階引数とは、別の関数へ引数として渡す関数である。
-
-```egison
-def constant (x : Integer) : Integer := 1
-map constant [[|1, 2|]]
--- Result: [[|1, 1|]]
--- Inferred type: [Tensor Integer]
-```
-
-引数の式自体は記述順に推論する。引数と期待型を照合する段階では、
-テンソルを含むデータと高階引数がある場合に、データ、関数、残りのデータの順に
-照合する。リストやタプルの内部の Tensor もここで扱う。
-テンソルを含むデータと高階引数が揃わない適用では、記述順に照合する。
-
-関数引数の照合では、型に基づく挿入の判定を共有する。
-`typeDirectedTensorLiftType` は、その判定が生成する関数の型だけを返す。
-例えば `Integer -> Integer` を `Tensor Integer -> Tensor Integer` に
-持ち上げる場合、後者を `map` の期待型と照合する。この照合で戻り値の型変数にも
-Tensor を反映するため、全体の型は `Tensor [Integer]` ではなく
-`[Tensor Integer]` になる。実際の式の挿入は型推論の後に行う。
-
-`foldl` や `scanl` のスカラー初期値は、高階引数の戻り値がテンソルになることを
-反映した後に照合する。スカラーを Tensor の階数0として渡す場合には、
-それを理由として適用全体を追加の Tensor で包まない。
-例えば `scanl` の戻り値は `[Tensor Integer]` になる。
-
-通常の `cabal test` は次の回帰テストを実行する。
-
-- `test/TensorInference.hs`: 推論型、挿入後の型、受け手と関数引数の型の一致、
-  挿入の有無、不正な要素型の拒否を確認する。
-- `test/lib/core/tensor-higher-order.egi`: 定数関数を使って実行結果を確認する。
-  一引数・二引数・三引数、引数順、リスト・タプル、スカラー初期値、
-  部分適用したスカラー関数、let 多相、多相な sum を含む。
-- 不要な持ち上げを防ぐため、普通のスカラーのリスト、多相な恒等関数、
-  Tensor 全体を明示的に受け取る関数についても確認する。
-
-未確定な受け取り口の補完は [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md)，
-規則と実装の対応は [tensor-inference-boundaries.md](./tensor-inference-boundaries.md) にまとめる．
+`test/TensorInference.hs` は推論型，挿入後の型，受け手との一致，不正な型の拒否を検査する．`test/lib/core/tensor-function-families.egi` は通常版とテンソル版の併用，別名，捕捉を検査する．テンソルの形状と添字は `test/lib/math/tensor.egi` と `tensor-assembly.egi`，幾何の例題でも検査する．

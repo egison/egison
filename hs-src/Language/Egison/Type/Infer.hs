@@ -47,7 +47,7 @@ module Language.Egison.Type.Infer
 import           Control.Monad              (foldM, forM, forM_, when, zipWithM, zipWithM_, unless)
 import           Control.Monad.Except       (ExceptT, runExceptT, throwError, catchError)
 import           Control.Monad.State.Strict (StateT, runStateT, get, gets, modify, put)
-import           Data.Char                  (toLower)
+import           Data.Char                  (toLower, isDigit)
 import           Data.Graph                 (SCC(..), stronglyConnComp)
 import           Data.List                  (isPrefixOf, nub, intercalate, zip4, sortOn, subsequences)
 import qualified Data.Map.Strict             as Map
@@ -62,7 +62,7 @@ import           Language.Egison.IExpr      (IExpr (..), ITopExpr (..), TITopExp
                                             , IPrimitiveDataPattern, PDPatternBase (..)
                                             , extractNameFromVar, Var (..), Index (..), stringToVar
                                             , tiExprType, mapIExprTypes, mapIPatternTypes,
-                                              mapTIExprChildren)
+                                              mapTIExprChildren, stripType)
 import           Language.Egison.Pretty     (prettyStr)
 import           Language.Egison.Type.Env
 import qualified Language.Egison.Type.Error as TE
@@ -76,7 +76,7 @@ import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstCo
                                               singletonSubst)
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.TensorMapInsertion
-                   (typeDirectedTensorLiftType, isTensorLiftableScalarType)
+                   (typeDirectedTensorLiftType, typeDirectedTensorLiftTypes, isTensorLiftableScalarType)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
@@ -148,7 +148,19 @@ permissiveInferConfig = InferConfig
 
 -- | Inference state
 data InferState = InferState
-  { inferCounter     :: Int              -- ^ Fresh variable counter
+  { inferCandidateMode :: Bool
+  , inferFamilyBuilding :: Bool
+  , inferDeferredIndices :: [(Type,[Type],Type,Bool,TypeErrorContext)]
+  , inferDeferredConversions :: [(Type, Type, TypeErrorContext)]
+  , inferRecipeRecursion :: Bool
+  , inferBlockedFamilies :: Set.Set String
+  , inferSearchActive :: Bool
+  , inferDecisionInput :: [Int]
+  , inferDecisionLog :: [(Int, Int, Bool)]
+  , inferDefinitionPreference :: Bool
+  , inferScalarRequirements :: [(Type, TypeErrorContext)]
+  , inferCandidateSiteCount :: Int
+  , inferCounter     :: Int              -- ^ Fresh variable counter
   , inferEnv         :: TypeEnv          -- ^ Current type environment
   , inferWarnings    :: [TypeWarning]    -- ^ Collected warnings
   , inferConfig      :: InferConfig      -- ^ Configuration
@@ -226,7 +238,19 @@ initialInferState = initialInferStateWithConfig defaultInferConfig
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
 initialInferStateWithConfig cfg = InferState
-  { inferCounter = 0
+  { inferCandidateMode = False
+  , inferFamilyBuilding = False
+  , inferDeferredIndices = []
+  , inferDeferredConversions = []
+  , inferRecipeRecursion = False
+  , inferBlockedFamilies = Set.empty
+  , inferSearchActive = False
+  , inferDecisionInput = []
+  , inferDecisionLog = []
+  , inferDefinitionPreference = False
+  , inferScalarRequirements = []
+  , inferCandidateSiteCount = 0
+  , inferCounter = 0
   , inferEnv = emptyEnv
   , inferWarnings = []
   , inferConfig = cfg
@@ -256,14 +280,31 @@ type Infer a = ExceptT TypeError (StateT InferState IO) a
 -- | Run type inference and also return warnings
 runInferWithWarnings :: Infer a -> InferState -> IO (Either TypeError a, [TypeWarning])
 runInferWithWarnings m st = do
-  (result, finalState) <- runStateT (runExceptT m) st
+  (result, finalState) <- runStateT (runExceptT m) (freshInitialState st)
   return (result, inferWarnings finalState)
 
 -- | Run inference and return result, warnings, and final state
 runInferWithWarningsAndState :: Infer a -> InferState -> IO (Either TypeError a, [TypeWarning], InferState)
 runInferWithWarningsAndState m st = do
-  (result, finalState) <- runStateT (runExceptT m) st
+  (result, finalState) <- runStateT (runExceptT m) (freshInitialState st)
   return (result, inferWarnings finalState, finalState)
+
+-- Fresh identities must also avoid schemes retained by earlier top-level
+-- expressions. Their quantified variables can occur in saved code templates.
+freshInitialState :: InferState -> InferState
+freshInitialState state =
+  let names (Forall capVariables variables constraints ty) =
+        let types = ty : concatMap constraintTypes constraints
+            ordinary = Set.unions (Set.fromList variables : map freeTyVars types)
+            capabilities = Set.unions (Set.fromList capVariables : map freeCapVars types)
+        in map tyVarName (Set.toList ordinary) ++
+           [name | MkCapVar name <- Set.toList capabilities]
+      suffix name = case reads (reverse (takeWhile isDigit (reverse name))) of
+        [(number, "")] -> number
+        _ -> -1
+      used = concatMap (names . snd) (envToList (inferEnv state))
+      next = 1 + maximum (-1 : map suffix used)
+  in state { inferCounter = max next (inferCounter state) }
 
 --------------------------------------------------------------------------------
 -- * Helper Functions
@@ -647,14 +688,14 @@ freshVar prefix = do
   st <- get
   let n = inferCounter st
   put st { inferCounter = n + 1 }
-  return $ TVar $ TyVar $ prefix ++ show n
+  return $ TVar $ TyVar $ prefix ++ "_" ++ show n
 
 -- | Generate a fresh flexible capability variable.
 freshCapability :: String -> Infer Capability
 freshCapability prefix = do
   st <- get
   let n = inferCounter st
-      variable = MkCapVar (prefix ++ show n)
+      variable = MkCapVar (prefix ++ "_" ++ show n)
   put st { inferCounter = n + 1 }
   return (CapVar variable)
 
@@ -1415,8 +1456,16 @@ deskolemizeAnnotationState skolems =
 withEnv :: [(String, TypeScheme)] -> Infer a -> Infer a
 withEnv bindings action = do
   oldEnv <- getEnv
-  setEnv $ extendEnvMany (map (\(name, scheme) -> (stringToVar name, scheme)) bindings) oldEnv
-  restoreInferStateAfter (setEnv oldEnv) action
+  let extended = extendEnvMany (map (\(name, scheme) -> (stringToVar name, scheme)) bindings) oldEnv
+      hidden = [name | (name, _) <- bindings, isPrefixOf "$tensorFamily$" name]
+      owners = nub [takeWhile (/= '$') (drop (length "$tensorFamily$") name) | name <- hidden]
+      withFamilies = foldl (\environment owner ->
+        registerFunctionFamily owner
+          [name | name <- hidden, isPrefixOf ("$tensorFamily$" ++ owner ++ "$") name] environment) extended owners
+  setEnv withFamilies
+  restoreInferStateAfter (do
+    current <- getEnv
+    setEnv oldEnv { functionRecipes = Map.union (functionRecipes current) (functionRecipes oldEnv) }) action
 
 -- | Run a scoped inference action and restore its surrounding state whether
 -- it succeeds or throws.  'Infer' keeps state underneath 'ExceptT', so a
@@ -2204,7 +2253,424 @@ applySubstToTIPatternM s tiPattern = do
 -- Returns the typed internal expression.
 -- This builds the recursive TIExpr structure directly during type inference
 inferIExpr :: IExpr -> Infer (TIExpr, Subst)
-inferIExpr expr = inferIExprWithContext expr emptyContext
+inferIExpr expr = do
+  (typed, substitution) <- inferIExprChoices expr
+  resolved <- applySubstToTIExprM substitution typed
+  final <- gets inferGlobalSubst
+  return (pruneUnusedFamilyMembers resolved, composeSubst final substitution)
+
+pruneUnusedFamilyMembers :: TIExpr -> TIExpr
+pruneUnusedFamilyMembers expression =
+  let node = mapTIExprChildren pruneUnusedFamilyMembers (tiExprNode expression)
+      prune bindings body =
+        let hidden (PDPatVar (Var name []), _) = (isPrefixOf "$tensorFamily$" name || isPrefixOf "$tensorCapture$" name)
+            hidden _ = False
+            ordinary = filter (not . hidden) bindings
+            candidates = filter hidden bindings
+            references = iexprFreeVarRefs . stripType
+            initial = Set.unions (references body : map (references . snd) ordinary)
+            grow selected = Set.union selected (Set.unions
+              [references value | (PDPatVar (Var name []), value) <- candidates, Set.member name selected])
+            close selected = let next = grow selected in if next == selected then selected else close next
+            needed = close initial
+            keep (PDPatVar (Var name []), _) = Set.member name needed
+            keep _ = False
+        in filter (\binding -> not (hidden binding) || keep binding) bindings
+      result = case node of
+        TILetExpr bindings body -> TILetExpr (prune bindings body) body
+        TILetRecExpr bindings body -> TILetRecExpr (prune bindings body) body
+        other -> other
+  in expression { tiExprNode = result }
+
+inferIExprChoices :: IExpr -> Infer (TIExpr, Subst)
+inferIExprChoices expr = do
+  active <- gets inferSearchActive
+  if active then inferIExprWithContext expr emptyContext else
+    catchError (searchFirst (inferIExprWithContext expr emptyContext)) (\ordinaryError -> do
+      saved <- get
+      modify (\state -> state { inferCandidateMode = True })
+      catchError
+        (do result <- searchFirst (inferIExprWithContext expr emptyContext)
+            modify (\state -> state { inferCandidateMode = inferCandidateMode saved })
+            return result)
+        (\_ -> put saved >> throwError ordinaryError))
+
+chooseCandidate :: [a] -> Infer a
+chooseCandidate [] = error "empty candidate family"
+chooseCandidate [candidate] = return candidate
+chooseCandidate candidates = do
+  st <- get
+  let (choice, remaining) = case inferDecisionInput st of
+        selected:rest -> (selected, rest)
+        [] -> (0, [])
+  if choice >= length candidates then error "candidate choice outside its domain" else do
+    put st { inferDecisionInput = remaining,
+      inferDecisionLog = inferDecisionLog st ++ [(choice, length candidates, inferDefinitionPreference st)] }
+    return (candidates !! choice)
+
+-- Definition choices precede choices for one use. Within each tier, try
+-- fewer alternatives before extending a longer decision prefix.
+withDefinitionPreference :: Infer a -> Infer a
+withDefinitionPreference action = do
+  old <- gets inferDefinitionPreference
+  specialized <- gets (not . Set.null . inferBlockedFamilies)
+  let restore = modify (\state -> state { inferDefinitionPreference = old })
+  modify (\state -> state { inferDefinitionPreference = not specialized })
+  restoreInferStateAfter restore action
+
+decisionBranches :: [(Int, Int, Bool)] -> [[(Int, Bool)]]
+decisionBranches decisions =
+  [ [(choice,ordinary) | (choice,_,ordinary) <- take position decisions] ++ [(alternative,preferred)]
+  | (position, (selected, count, preferred)) <- reverse (zip [0..] decisions)
+  , alternative <- [selected + 1 .. count - 1] ]
+
+searchPriority :: [(Int, Bool)] -> (Int, Int, Int, [Int])
+searchPriority branch =
+  (length [() | (choice,True) <- branch,choice /= 0],
+   length [() | (choice,_) <- branch,choice /= 0],length branch,map fst branch)
+
+validateScalarRequirements :: Int -> Infer ()
+validateScalarRequirements previous = do
+  state <- get
+  let constraints = map (applySubstConstraint (inferGlobalSubst state)) (inferConstraints state)
+  forM_ (drop previous (inferScalarRequirements state)) $ \(component, context) -> do
+    resolved <- applySubstWithConstraintsM emptySubst component
+    unless (isTensorLiftableScalarType (inferClassEnv state) constraints resolved) $
+      throwError (TE.TypeMismatch resolved resolved
+        "automatic callback conversion requires a scalar component type" context)
+
+callbackComponentRequirements :: Type -> Type -> [Type]
+callbackComponentRequirements (TFun actual rest) (TFun selected selectedRest) =
+  [actual | actual /= selected, case selected of TTensor _ -> True; _ -> False] ++
+    callbackComponentRequirements rest selectedRest
+callbackComponentRequirements _ _ = []
+
+-- | An application keeps the supplied and receiving types distinct until
+-- the surrounding use has supplied its equations. The final insertion pass
+-- reconstructs the wrapper from those same two types.
+solveDeferredConversions :: Int -> Infer ()
+solveDeferredConversions previous = do
+  pending <- gets (drop previous . inferDeferredConversions)
+  modify (\state -> state { inferDeferredConversions = take previous (inferDeferredConversions state) })
+  solve pending
+  where
+    solve [] = return ()
+    solve pending = do
+      resolved <- mapM (\(source,target,context) -> do
+        source' <- applySubstWithConstraintsM emptySubst source
+        target' <- applySubstWithConstraintsM emptySubst target
+        return (source',target',context)) pending
+      let structure = conversionStructure resolved
+          arity ty = length (domains (applySubst structure (project ty)))
+          domains (TFun parameter result) = parameter : domains result
+          domains _ = []
+          known (source,target,_) = arity source + arity target > 0
+          ready = filter known resolved
+          later = filter (not . known) resolved
+      planned <- forM (ready ++ later) $ \condition@(source,target,context) -> do
+        classes <- getClassEnv
+        constraints <- getConstraints
+        let count = max (arity source) (arity target)
+            unify = TU.unifyStrictWithConstraints classes constraints
+            native = [(substitution,[]) | Right substitution <- [unify source target]]
+            promotions = [(substitution,[]) |
+              normalizeTensorType (TTensor source) /= source,
+              Right substitution <- [unify (normalizeTensorType (TTensor source)) target]]
+        mapped <- fmap concat $ forM [1..count] $ \width -> do
+          parameters <- mapM (const (freshVar "mappedComponent")) [1..width]
+          result <- freshVar "mappedResult"
+          let input = foldr TFun result parameters
+          return [(composeSubst second first,requirements) |
+            Right first <- [unify source input],
+            mask <- sequence (replicate width [False,True]), or mask,
+            let output = foldr TFun (normalizeTensorType (TTensor result))
+                  (zipWith (\chosen ty -> if chosen then normalizeTensorType (TTensor ty) else ty)
+                    mask parameters),
+            Right second <- [unify (applySubst first target) (applySubst first output)],
+            let substitution = composeSubst second first,
+            let requirements = [(ty,context) | (True,ty) <- zip mask parameters],
+            all (\(ty,_) -> case normalizeTensorType (applySubst substitution ty) of
+              TTensor{} -> False
+              _ -> True) requirements]
+        return (condition,native ++ promotions ++ mapped)
+      case sortOn (length . snd) planned of
+        [] -> return ()
+        ((source,target,context),options):rest -> do
+          when (null options) $ throwError (UnificationError source target context)
+          (substitution,requirements) <- chooseCandidate options
+          recordGlobalSubst context substitution
+          modify (\state -> state { inferScalarRequirements =
+            inferScalarRequirements state ++ requirements })
+          solve (map fst rest)
+
+-- | Only the possible number of function arguments is read from this
+-- auxiliary projection. Full types retain every Tensor and are checked by
+-- strict unification; structural hints never justify type compatibility.
+conversionStructure :: [(Type, Type, TypeErrorContext)] -> Subst
+conversionStructure requirements = loop emptySubst
+  [(project source,project target) | (source,target,_) <- requirements]
+  where
+    loop substitution [] = substitution
+    loop substitution ((left,right):rest) =
+      let l = applySubst substitution left
+          r = applySubst substitution right
+          bind variable ty
+            | ty == TVar variable = loop substitution rest
+            | variable `Set.member` freeTyVars ty = loop substitution rest
+            | otherwise = loop (composeSubst (singletonSubst variable ty) substitution) rest
+          descend pairs = loop substitution (pairs ++ rest)
+      in case (l,r) of
+        (TVar variable,ty) -> bind variable ty
+        (ty,TVar variable) -> bind variable ty
+        (TFun a b,TFun c d) -> descend [(a,c),(b,d)]
+        (TCollection a,TCollection b) -> descend [(a,b)]
+        (TTuple a,TTuple b) | length a == length b -> descend (zip a b)
+        (TInductive n a,TInductive m b) | n == m && length a == length b -> descend (zip a b)
+        (THash a b,THash c d) -> descend [(a,c),(b,d)]
+        (TIO a,TIO b) -> descend [(a,b)]
+        (TIORef a,TIORef b) -> descend [(a,b)]
+        _ -> loop substitution rest
+
+project :: Type -> Type
+project ty = case ty of
+  TTensor component -> project component
+  TFun argument result -> TFun (project argument) (project result)
+  TCollection element -> TCollection (project element)
+  TTuple elements -> TTuple (map project elements)
+  TInductive name elements -> TInductive name (map project elements)
+  THash key value -> THash (project key) (project value)
+  TIO value -> TIO (project value)
+  TIORef value -> TIORef (project value)
+  other -> other
+
+-- Index variables are classified after their uses have constrained their
+-- types. Integer variables select coordinates; mathematical symbols keep axes.
+solveDeferredIndices :: Int -> Infer ()
+solveDeferredIndices previous = do
+  pending <- gets (drop previous . inferDeferredIndices)
+  modify (\state -> state { inferDeferredIndices = take previous (inferDeferredIndices state) })
+  forM_ pending $ \(base,indexTypes,result,quoted,context) -> do
+    source <- normalizeInductiveTypes <$> applySubstWithConstraintsM emptySubst base
+    inputs <- mapM (fmap normalizeInductiveTypes . applySubstWithConstraintsM emptySubst) indexTypes
+    actual <- applySubstWithConstraintsM emptySubst result
+    classes <- getClassEnv
+    constraints <- getConstraints
+    let strict left right = do
+          l <- applySubstWithConstraintsM emptySubst left
+          r <- applySubstWithConstraintsM emptySubst right
+          case TU.unifyStrictWithConstraints classes constraints l r of
+            Left _ -> throwError (UnificationError l r context)
+            Right delta -> recordGlobalSubst context delta
+        integer TInt = True
+        integer _ = False
+        couldBeInteger TInt = True
+        couldBeInteger TVar{} = True
+        couldBeInteger _ = False
+        alternatives = case normalizeTensorType source of
+          TTensor element ->
+            let tensor = normalizeTensorType (TTensor element)
+            in if quoted || not (all couldBeInteger inputs) then [(False,tensor)]
+              else if all integer inputs then [(True,element),(False,tensor)]
+              else [(False,tensor),(True,element)]
+          TCollection element -> [(False,element)]
+          THash _ element -> [(False,element)]
+          other -> [(False,other)]
+        feasible = [(numeric,target) | (numeric,target) <- alternatives,
+          Right _ <- [TU.unifyStrictWithConstraints classes constraints actual target]]
+    case feasible of
+      [] -> throwError (UnificationError actual
+        (case alternatives of (_,target):_ -> target; [] -> source) context)
+      first:rest -> do
+        mode <- gets inferCandidateMode
+        (numeric,target) <- if mode then chooseCandidate (first:rest) else return first
+        when numeric $ mapM_ (\indexType -> strict indexType TInt) inputs
+        strict actual target
+
+closeGeneralizedIndices :: Type -> Infer ()
+closeGeneralizedIndices expressionType = do
+  pending <- gets inferDeferredIndices
+  environment <- getEnv
+  images <- mapM (applySubstWithConstraintsM emptySubst . TVar)
+    (Set.toList (freeVarsInEnv environment))
+  result <- applySubstWithConstraintsM emptySubst expressionType
+  let generalized = freeTyVars result `Set.difference` Set.unions (map freeTyVars images)
+  resolved <- forM pending $ \(base,inputs,target,quoted,context) -> do
+    base' <- applySubstWithConstraintsM emptySubst base
+    inputs' <- mapM (applySubstWithConstraintsM emptySubst) inputs
+    target' <- applySubstWithConstraintsM emptySubst target
+    return (base',inputs',target',quoted,context)
+  let touches (base,inputs,target,_,_) = not (Set.null
+        (Set.intersection generalized (Set.unions (map freeTyVars (base:target:inputs)))))
+      shared = filter (not . touches) resolved
+      local = filter touches resolved
+  modify (\state -> state { inferDeferredIndices = shared ++ local })
+  solveDeferredIndices (length shared)
+
+-- | Settle a definition's own conversion choices before quantifying its
+-- variables. Conditions involving captured monotypes remain shared with the
+-- enclosing use; they are never copied by independent let instantiations.
+closeGeneralizedConversions :: Int -> Type -> Infer ()
+closeGeneralizedConversions previous expressionType = do
+  closeGeneralizedIndices expressionType
+  pending <- gets inferDeferredConversions
+  environment <- getEnv
+  images <- mapM (applySubstWithConstraintsM emptySubst . TVar)
+    (Set.toList (freeVarsInEnv environment))
+  result <- applySubstWithConstraintsM emptySubst expressionType
+  let generalized = freeTyVars result `Set.difference` Set.unions (map freeTyVars images)
+  resolved <- forM (drop previous pending) $ \(source,target,context) -> do
+    source' <- applySubstWithConstraintsM emptySubst source
+    target' <- applySubstWithConstraintsM emptySubst target
+    return (source',target',context)
+  let touches (source,target,_) = not (Set.null
+        (Set.intersection generalized (Set.union (freeTyVars source) (freeTyVars target))))
+      shared = filter (not . touches) resolved
+      local = filter touches resolved
+  modify (\state -> state { inferDeferredConversions = take previous pending ++ shared ++ local })
+  solveDeferredConversions (previous + length shared)
+
+searchFirst :: Infer a -> Infer a
+searchFirst action = do
+  saved <- get
+  let loop _ [] firstError = put saved >> either throwError return firstError
+      loop seen (path:pending) firstError
+        | Set.member path seen = loop seen pending firstError
+        | otherwise = do
+            nextFresh <- gets inferCounter
+            put saved { inferSearchActive = True, inferDecisionInput = map fst path,
+              inferDecisionLog = [], inferCounter = max nextFresh (inferCounter saved) }
+            outcome <- catchError (Right <$> (action <*
+              solveDeferredIndices (length (inferDeferredIndices saved)) <*
+              solveDeferredConversions (length (inferDeferredConversions saved)) <*
+              validateScalarRequirements (length (inferScalarRequirements saved)))) (return . Left)
+            final <- get
+            case outcome of
+              Right value -> do
+                put final { inferSearchActive = inferSearchActive saved,
+                  inferDecisionInput = inferDecisionInput saved,
+                  inferDecisionLog = inferDecisionLog saved,
+                  inferScalarRequirements = inferScalarRequirements saved,
+                  inferDeferredConversions = inferDeferredConversions saved,
+                  inferDeferredIndices = inferDeferredIndices saved }
+                return value
+              Left err -> loop (Set.insert path seen)
+                (sortOn searchPriority
+                  (decisionBranches (inferDecisionLog final) ++ pending)) (Left err)
+  loop Set.empty [[]] (error "candidate search has not run")
+
+-- A template is instantiated only when the native member is insufficient.
+-- Captured values are bound at the definition site, before any later shadowing.
+freshFamilyName :: String -> String -> Infer String
+freshFamilyName prefix owner = do
+  counter <- gets inferCounter
+  modify (\state -> state { inferCounter = counter + 1 })
+  environment <- getEnv
+  let name = prefix ++ owner ++ "$" ++ show counter
+  case lookupEnv (Var name []) environment of
+    Just _ -> freshFamilyName prefix owner
+    Nothing -> case lookupFunctionRecipe name environment of
+      Just _ -> freshFamilyName prefix owner
+      Nothing -> return name
+
+buildFunctionFamily :: Bool -> String -> IExpr -> TIExpr -> Int -> Infer [(String, TypeScheme, TIExpr)]
+buildFunctionFamily recursive owner expression native previousSites =
+  buildFunctionFamilySource owner
+    (if recursive then ILetRecExpr [(PDPatVar (Var owner []), expression)] (IVarExpr owner)
+     else expression) native previousSites
+
+buildFunctionFamilySource :: String -> IExpr -> TIExpr -> Int -> Infer [(String, TypeScheme, TIExpr)]
+buildFunctionFamilySource owner body native previousSites = do
+  environment <- getEnv
+  forwarded <- case body of
+    IVarExpr original -> forM (lookupFunctionFamily original environment) $ \member ->
+      case (lookupFunctionRecipe member environment,lookupEnv (Var member []) environment) of
+        (Just recipe,Just scheme) -> do
+          name <- freshFamilyName "$tensorFamily$" owner
+          modify (\state -> state { inferEnv = storeFunctionRecipe name recipe (inferEnv state) })
+          return [(name,scheme,native)]
+        _ -> return []
+    _ -> return []
+  if not (null (concat forwarded)) then return (concat forwarded)
+    else buildFunctionFamilyBody owner body native previousSites
+
+buildFunctionFamilyBody :: String -> IExpr -> TIExpr -> Int -> Infer [(String, TypeScheme, TIExpr)]
+buildFunctionFamilyBody owner body native previousSites = do
+  state <- get
+  rootType <- applySubstWithConstraintsM emptySubst (tiExprType native)
+  let functionalParameters = hasFunctionParameters rootType
+  if isPrefixOf "$tensorCapture$" owner || Set.member owner (inferBlockedFamilies state) ||
+      (inferCandidateSiteCount state == previousSites && not functionalParameters)
+    then return []
+    else do
+      environment <- getEnv
+      captures <- fmap concat $ forM (Set.toList (iexprFreeVarRefs body)) $ \original ->
+        case lookupEnv (Var original []) environment of
+          Nothing -> return []
+          Just scheme -> do
+            alias <- freshFamilyName "$tensorCapture$" owner
+            return [(original, alias, scheme)]
+      name <- freshFamilyName "$tensorFamily$" owner
+      let aliases = [(alias, lookupFunctionFamily original environment) |
+            (original, alias, _) <- captures]
+          recipe = FunctionRecipe body captures aliases
+      modify (\current -> current { inferEnv = storeFunctionRecipe name recipe (inferEnv current) })
+      native' <- applySubstToTIExprM emptySubst native
+      envImages <- mapM (applySubstWithConstraintsM emptySubst . TVar)
+        (Set.toList (freeVarsInEnv environment))
+      let ty = tiExprType native'
+          Forall _ _ constraints _ = tiScheme native'
+          variables = Set.toList (Set.difference (freeTyVars ty) (Set.unions (map freeTyVars envImages)))
+          capabilities = Set.toList (Set.difference (freeCapVars ty) (freeCapVarsInEnv environment))
+          scheme = Forall capabilities variables constraints ty
+          trees = [(alias, captured, TIExpr captured (TIVarExpr original)) |
+            (original, alias, captured) <- captures]
+      return (trees ++ [(name, scheme, native')])
+
+-- Function-valued parameters can reveal a conversion site only after its
+-- body has been solved. Keep the source; no arity is fixed in its template.
+hasFunctionParameters :: Type -> Bool
+hasFunctionParameters (TFun TFun{} _) = True
+hasFunctionParameters (TFun _ result) = hasFunctionParameters result
+hasFunctionParameters _ = False
+
+instantiateFunctionRecipe :: String -> FunctionRecipe -> TypeErrorContext -> Infer (TIExpr, Subst)
+instantiateFunctionRecipe owner recipe context = do
+  environment <- getEnv
+  oldMode <- gets inferCandidateMode
+  oldBuilding <- gets inferFamilyBuilding
+  oldRecursion <- gets inferRecipeRecursion
+  oldBlocked <- gets inferBlockedFamilies
+  oldPreference <- gets inferDefinitionPreference
+  let captures = recipeCaptures recipe
+      bindings = [(alias, scheme) | (_, alias, scheme) <- captures]
+      source = ILetExpr [(PDPatVar (Var original []), IVarExpr alias) |
+        (original, alias, _) <- captures] (recipeExpression recipe)
+      recursiveNames = case recipeExpression recipe of
+        ILetRecExpr group _ -> Set.fromList (concatMap (primitivePatternNames . fst) group)
+        _ -> Set.empty
+      restore = modify (\state -> state { inferEnv = environment,
+        inferCandidateMode = oldMode, inferFamilyBuilding = oldBuilding,
+        inferRecipeRecursion = oldRecursion,
+        inferBlockedFamilies = oldBlocked,
+        inferDefinitionPreference = oldPreference })
+  restoreInferStateAfter restore $ withEnv bindings $ do
+    current <- getEnv
+    setEnv (foldl (\env (alias, members) -> registerFunctionFamily alias members env)
+      current (recipeFamilies recipe))
+    modify (\state -> state { inferCandidateMode = True, inferFamilyBuilding = False,
+      inferDefinitionPreference = False,
+      inferRecipeRecursion = not (Set.null recursiveNames),
+      inferBlockedFamilies = Set.insert owner (Set.union recursiveNames oldBlocked) })
+    (typed, substitution) <- inferIExprWithContext source context
+    resolved <- applySubstToTIExprM substitution typed
+    return (resolved, substitution)
+
+installFunctionFamily :: String -> [(String, TypeScheme, TIExpr)] -> Infer ()
+installFunctionFamily owner members = do
+  environment <- getEnv
+  let extended = foldl (\env (name, scheme, _) -> extendEnv (Var name []) scheme env) environment members
+  setEnv (registerFunctionFamily owner [name | (name, _, _) <- members, isPrefixOf "$tensorFamily$" name] extended)
+
 
 -- | Infer type for IExpr with context information
 -- Returns the typed internal expression.
@@ -2228,9 +2694,20 @@ inferIExprInContext expr ctx = case expr of
         let scheme = Forall [] [] [] TAny
         return (TIExpr scheme (TIVarExpr name), emptySubst)
       else do
-        (ty, constraints) <- lookupVarWithConstraints name
-        let scheme = Forall [] [] constraints ty
-        return (TIExpr scheme (TIVarExpr name), emptySubst)
+        environment <- getEnv
+        let members = lookupFunctionFamily name environment
+        when (not (null members)) $
+          modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
+        candidateMode <- gets inferCandidateMode
+        selected <- if candidateMode then chooseCandidate (name : members) else return name
+        case lookupFunctionRecipe selected environment of
+          Just recipe -> do
+            let owner = takeWhile (/= '$') (drop (length "$tensorFamily$") selected)
+            instantiateFunctionRecipe owner recipe ctx
+          Nothing -> do
+            (ty, constraints) <- lookupVarWithConstraints selected
+            let scheme = Forall [] [] constraints ty
+            return (TIExpr scheme (TIVarExpr selected), emptySubst)
   
   -- Tuples
   ITupleExpr elems -> do
@@ -3383,25 +3860,34 @@ inferIExprInContext expr ctx = case expr of
     indicesTI <- mapM (traverse (\idxExpr -> do
       (idxTI, _) <- inferIExprWithContext idxExpr exprCtx
       return idxTI)) indices
-    -- Check if all indices are concrete (constants) or symbolic (variables)
-    let isSymbolicIndex idx = case idx of
-          Sub (TIExpr _ (TIVarExpr _)) -> True
-          Sup (TIExpr _ (TIVarExpr _)) -> True
-          SupSub (TIExpr _ (TIVarExpr _)) -> True
-          User (TIExpr _ (TIVarExpr _)) -> True
-          _ -> False
-        hasSymbolicIndex = any isSymbolicIndex indicesTI
-    -- For tensors with symbolic indices, keep the tensor type
-    -- For concrete indices (numeric), return element type
-    let resultType = case baseType of
-          TTensor elemType -> 
-            if hasSymbolicIndex
-              then TTensor elemType  -- Symbolic index: keep tensor type
-              else elemType           -- Concrete index: element access
-          TCollection elemType -> elemType
-          THash _keyType valType -> valType  -- Hash access returns value type
-          _ -> baseType  -- Fallback: return base type
-    return (mkTIExpr resultType (TIIndexedExpr override baseTI indicesTI), s)
+    resultType <- freshVar "indexedResult"
+    let arguments = concatMap (foldMap (:[])) indicesTI
+        quoted (TIExpr _ (TIQuoteExpr _)) = True
+        quoted _ = False
+        simple (Sub _) = True
+        simple (Sup _) = True
+        simple (SupSub _) = True
+        simple (User _) = True
+        simple _ = False
+        symbolic = any quoted arguments || not (all simple indicesTI)
+    source <- normalizeInductiveTypes <$> applySubstWithConstraintsM s baseType
+    inputTypes <- mapM (fmap normalizeInductiveTypes . applySubstWithConstraintsM s . tiExprType) arguments
+    let open TVar{} = True
+        open _ = False
+        concreteResult = case source of
+          TTensor element | symbolic || not (any open inputTypes) ->
+            Just (if not symbolic && all (== TInt) inputTypes then element else TTensor element)
+          TCollection element -> Just element
+          THash _ element -> Just element
+          _ -> Nothing
+    selected <- case concreteResult of
+      Just concrete -> return concrete
+      Nothing -> do
+        modify (\state -> state { inferDeferredIndices = inferDeferredIndices state ++
+          [(baseType,map tiExprType arguments,resultType,symbolic,exprCtx)] })
+        return resultType
+    modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
+    return (mkTIExpr selected (TIIndexedExpr override baseTI indicesTI), s)
   
   -- Subrefs expression (subscript references)
   ISubrefsExpr override baseExpr refExpr -> do
@@ -3609,6 +4095,9 @@ data ConstraintStateSnapshot = ConstraintStateSnapshot
   { snapshotConstraints :: [Constraint]
   , snapshotGlobalSubst :: Subst
   , snapshotWarnings :: [TypeWarning]
+  , snapshotDeferredIndices :: [(Type,[Type],Type,Bool,TypeErrorContext)]
+  , snapshotDeferredConversions :: [(Type, Type, TypeErrorContext)]
+  , snapshotScalarRequirements :: [(Type, TypeErrorContext)]
   }
 
 saveConstraintState :: Infer ConstraintStateSnapshot
@@ -3618,6 +4107,9 @@ saveConstraintState = do
     { snapshotConstraints = inferConstraints state
     , snapshotGlobalSubst = inferGlobalSubst state
     , snapshotWarnings = inferWarnings state
+    , snapshotDeferredIndices = inferDeferredIndices state
+    , snapshotDeferredConversions = inferDeferredConversions state
+    , snapshotScalarRequirements = inferScalarRequirements state
     }
 
 restoreConstraintState :: ConstraintStateSnapshot -> Infer ()
@@ -3626,6 +4118,9 @@ restoreConstraintState snapshot =
     { inferConstraints = snapshotConstraints snapshot
     , inferGlobalSubst = snapshotGlobalSubst snapshot
     , inferWarnings = snapshotWarnings snapshot
+    , inferDeferredIndices = snapshotDeferredIndices snapshot
+    , inferDeferredConversions = snapshotDeferredConversions snapshot
+    , inferScalarRequirements = snapshotScalarRequirements snapshot
     }
 
 -- | Align two pattern capabilities in the capability solver and publish the
@@ -5742,7 +6237,7 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
       _ -> throwError e
 
 -- | Use a known consumer result before deciding whether an inner callback
--- needs definition-time tensor completion. For example, in
+-- needs a retained higher-order conversion candidate. For example, in
 -- @dp vars (map unique cnf)@ the expected @[[Integer]]@ fixes the result of
 -- @map@ before its otherwise open callback type could acquire Tensor indices.
 -- Closed tensor-free result types supply this context, including MathValue
@@ -5819,6 +6314,47 @@ inferIApplicationArguments
   -> TypeErrorContext
   -> Infer (TIExpr, Subst)
 inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
+  candidateMode <- gets inferCandidateMode
+  environment <- getEnv
+  evidence <- forM args $ \argument -> case argument of
+    IVectorExpr{} -> return True
+    ITensorExpr{} -> return True
+    IGenerateTensorExpr{} -> return True
+    IIndexedExpr{} -> return True
+    IApplyExpr{} -> return True
+    IVarExpr name -> case lookupEnv (Var name []) environment of
+      Just (Forall _ variables _ ty) -> do
+        resolved <- if null variables then applySubstWithConstraintsM initSubst ty else return ty
+        return (case resolved of TTensor{} -> True; _ -> False)
+      Nothing -> return False
+    _ -> return False
+  sourceType <- applySubstWithConstraintsM initSubst funcType
+  let functional = case sourceType of TFun{} -> True; TVar{} -> True; _ -> False
+  deferred <- if candidateMode && functional && or evidence
+    then chooseCandidate (if any pendingTensorResult args then [True,False] else [False,True]) else return False
+  if not deferred then inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx else do
+    parameters <- mapM (const (freshVar "mappedParameter")) args
+    result <- freshVar "mappedResult"
+    let destination = foldr TFun result parameters
+        Forall _ _ functionConstraints _ = tiScheme funcTIExpr
+    modify (\state -> state { inferDeferredConversions = inferDeferredConversions state ++
+      [(sourceType,destination,ctx)] })
+    arguments <- zipWithM (\parameter argument -> inferApplicationArgument parameter argument ctx) parameters args
+    let typed = map fst arguments
+        substitution = foldr composeSubst initSubst (map snd arguments)
+    classes <- getClassEnv
+    constraints <- getConstraints
+    (final,flag) <- checkApplicationArgumentsLifting classes (functionConstraints ++ constraints)
+      destination args typed parameters substitution False ctx
+    finishApplication classes functionConstraints result funcTIExpr typed final flag
+  where
+    pendingTensorResult IIndexedExpr{} = True
+    pendingTensorResult IApplyExpr{} = True
+    pendingTensorResult _ = False
+
+-- Keep ordinary application inference independent of deferred head conversion.
+inferNativeApplicationArguments :: TIExpr -> Type -> [IExpr] -> Subst -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx = do
   paramVars <-
     mapM (\index -> freshVar ("param" ++ show index)) [1 .. length args]
   resultType <- freshVar "result"
@@ -5948,8 +6484,30 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
                    outerType index expectedType updatedArg of
               Just liftedType -> liftedType
               Nothing -> inferredType
+      candidateMode <- gets inferCandidateMode
+      let alternatives = nub (checkedType : typeDirectedTensorLiftTypes allowUnknown
+            classEnv allConstraints outerType index expectedType updatedArg)
+      when (case inferredType of TFun{} -> True; _ -> length alternatives > 1) $
+        modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
+      let functionOrOpen TFun{} = True
+          functionOrOpen TVar{} = True
+          functionOrOpen _ = False
+          canDefer = candidateMode && functionOrOpen inferredType &&
+            functionOrOpen expectedType && not (index `Set.member` forced)
+          choices = map Just alternatives ++ [Nothing | canDefer]
+      selection <- if candidateMode then chooseCandidate choices else return (Just checkedType)
+      selectedType <- case selection of
+        Just ty -> return ty
+        Nothing -> do
+          destination <- freshVar "convertedFunction"
+          modify (\state -> state { inferDeferredConversions = inferDeferredConversions state ++
+            [(inferredType, destination, ctx)] })
+          return destination
+      let requirements = callbackComponentRequirements inferredType selectedType
+      modify (\state -> state { inferScalarRequirements = inferScalarRequirements state ++
+        [(component,ctx) | component <- requirements] })
       (checkingSubst, argumentFlag) <-
-        case checkedType of
+        case selectedType of
           TTensor element
             | index `Set.member` forced -> do
                 -- A lifted position: the element meets the parameter.
@@ -5961,7 +6519,7 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
           _ ->
             solveApplicationArgument
               classEnv allConstraints sourceArg updatedArg
-              checkedType expectedType ctx
+              selectedType expectedType ctx
       let finalSubst = composeSubst checkingSubst substitution
       return (finalSubst, flag || argumentFlag)
 
@@ -5974,27 +6532,49 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
 -- @h : a -> (a -> Integer) -> Integer@.  The lift set is then the unique
 -- subset-least set of tensor arguments whose lifting makes the check succeed
 -- with every lifted parameter a scalar type under the final substitution.
--- A program the ordinary check accepts keeps its lift set: the arguments it
--- lifts have scalar parameters already, so every such set contains them.
+-- The native choice is preferred. Other lift sets are retained for a later
+-- enclosing constraint; their scalar conditions are checked after that use
+-- has been solved.
 checkApplicationArgumentsLifting
   :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
   -> Subst -> Bool -> TypeErrorContext -> Infer (Subst, Bool)
 checkApplicationArgumentsLifting classEnv constraints funcType sources typedArgs params initialSubst initialFlag ctx = do
-  saved <- get
-  check Set.empty `catchError` \err -> do
-    candidates <- tensorPositions
-    successes <- fmap concat $ forM (filter (not . null) (subsequences candidates)) $ \subset -> do
-      restore saved
-      (do
-          result <- check (Set.fromList subset)
-          justified <- liftJustified subset result
-          return [Set.fromList subset | justified])
-        `catchError` \_ -> return []
-    restore saved
-    case [ least | least <- successes, all (least `Set.isSubsetOf`) successes ] of
-      least : _ -> check least
-      [] -> throwError err
+  candidates <- tensorPositions
+  currentParameters <- mapM (applySubstWithConstraintsM initialSubst) params
+  let openTensorPositions = [index | index <- candidates,
+        case drop index currentParameters of
+          TTensor{} : _ -> False
+          _ : _ -> True
+          [] -> False]
+  unless (null openTensorPositions) $
+    modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
+  candidateMode <- gets inferCandidateMode
+  if candidateMode then do
+    subset <- chooseCandidate (subsequences openTensorPositions)
+    result@(finalSubst, _) <- check (Set.fromList subset)
+    parameters <- mapM (applySubstWithConstraintsM finalSubst) params
+    modify (\state -> state { inferScalarRequirements = inferScalarRequirements state ++
+      [(parameters !! index,ctx) | index <- subset] })
+    return result
+  else ordinary
   where
+    ordinary = do
+      saved <- get
+      ordinaryFrom saved
+    ordinaryFrom saved = do
+      check Set.empty `catchError` \err -> do
+        candidates <- tensorPositions
+        successes <- fmap concat $ forM (filter (not . null) (subsequences candidates)) $ \subset -> do
+          restore saved
+          (do
+              result <- check (Set.fromList subset)
+              justified <- liftJustified subset result
+              return [Set.fromList subset | justified])
+            `catchError` \_ -> return []
+        restore saved
+        case [ least | least <- successes, all (least `Set.isSubsetOf`) successes ] of
+          least : _ -> check least
+          [] -> throwError err
     check forced =
       checkApplicationArguments classEnv constraints funcType sources typedArgs params
         initialSubst initialFlag forced ctx
@@ -6206,8 +6786,10 @@ applySubstRecursively = applySubstWithConstraintsM
 inferIBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
 inferIBindingsWithContext [] _env s _ctx = return ([], [], s)
 inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
+  previousSites <- gets inferCandidateSiteCount
+  previousConversions <- gets (length . inferDeferredConversions)
   -- Infer the type of the expression
-  (exprTI, s1) <- inferIExprWithContext expr ctx
+  (exprTI, s1) <- withDefinitionPreference (inferIExprWithContext expr ctx)
   exprType <- case pat of
     -- This is the core let form.  Wildcard and destructuring bindings are
     -- also used internally to elaborate function-parameter patterns; their
@@ -6227,6 +6809,7 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   -- Apply all substitutions recursively until fixed point
   -- This ensures nested type variables are fully resolved (e.g., for sortWithSign)
   let finalS = composeSubst s3 s12
+  withDefinitionPreference (closeGeneralizedConversions previousConversions exprType)
   finalExprType <- applySubstRecursively finalS exprType
 
   -- Let-generalization (paper T-LET, standard Hindley-Milner): quantify the
@@ -6280,10 +6863,16 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
 
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
+  members <- case (pat, finalExprType) of
+    (PDPatVar (Var owner []), TFun{}) -> buildFunctionFamily False owner expr exprTI previousSites
+    _ -> return []
+  let familyBindings = [(name, scheme) | (name, scheme, _) <- members]
+      familyTrees = [(PDPatVar (Var name []), candidate) | (name, _, candidate) <- members]
   (restBindingTIs, restBindings, s2') <-
-    withEnv extendedEnvList $
+    withEnv (familyBindings ++ extendedEnvList) $
       inferIBindingsWithContext bs env s' ctx
-  return ((pat, exprTI) : restBindingTIs, bindings ++ restBindings, s2')
+  return ((pat, exprTI) : familyTrees ++ restBindingTIs,
+    familyBindings ++ bindings ++ restBindings, s2')
   where
     -- Infer the type that a pattern expects
     inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
@@ -6335,7 +6924,37 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
 -- | Infer letrec bindings (recursive) with context
 -- Returns bindings with their inferred type annotations.
 inferIRecBindingsWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
-inferIRecBindingsWithContext bindings _env s ctx = do
+inferIRecBindingsWithContext bindings environment substitution context = do
+  specialized <- gets inferRecipeRecursion
+  let indexed = zip [0 :: Int ..] bindings
+      owners = Map.fromList [(name,index) | (index,(pattern,_)) <- indexed,
+        name <- primitivePatternNames pattern]
+      vertices = [(index,index,[dependency | name <- Set.toList (iexprFreeVarRefs expression),
+        Just dependency <- [Map.lookup name owners]]) | (index,(_,expression)) <- indexed]
+      component (AcyclicSCC index) = [bindings !! index]
+      component (CyclicSCC indices) = [bindings !! index | index <- sortOn id indices]
+      groups = map component (stronglyConnComp vertices)
+      inferGroups [] current = return ([],[],current)
+      inferGroups (group:rest) current = do
+        (typed,names,next) <- inferIRecBindingGroupWithContext group environment current context
+        (later,other,final) <- withEnv names (inferGroups rest next)
+        return (typed ++ later,names ++ other,final)
+      sourcePosition (pattern,_) = minimum (length bindings :
+        [index | name <- primitivePatternNames pattern, Just index <- [Map.lookup name owners]])
+  if not specialized && length groups > 1
+    then do
+      (typed,names,final) <- inferGroups groups substitution
+      return (sortOn sourcePosition typed,names,final)
+    else inferIRecBindingGroupWithContext bindings environment substitution context
+
+-- Mutually recursive definitions share monotypes. Independent components are
+-- generalized before their dependents are checked, as in ordinary HM inference.
+inferIRecBindingGroupWithContext :: [IBindingExpr] -> TypeEnv -> Subst -> TypeErrorContext -> Infer ([TIBindingExpr], [(String, TypeScheme)], Subst)
+inferIRecBindingGroupWithContext bindings _env s ctx = do
+  specialized <- gets inferRecipeRecursion
+  modify (\state -> state { inferRecipeRecursion = False })
+  previousConversions <- gets (length . inferDeferredConversions)
+  previousSites <- gets inferCandidateSiteCount
   -- Create placeholders with fresh type variables
   placeholders <- mapM (\(pat, _) -> do
     (patternType, s1) <- inferPatternType pat
@@ -6374,10 +6993,10 @@ inferIRecBindingsWithContext bindings _env s ctx = do
                   checkRecursiveGroupValueRoot
                     name cycleMembers expr ctx
             _ -> return ()
-          (typed, substitution) <- inferIExprWithContext expr ctx
+          (typed, substitution) <- withDefinitionPreference (inferIExprWithContext expr ctx)
           -- Make each completed definition visible before its dependents are
           -- checked. Otherwise a known scalar function remains a placeholder
-          -- during definition-time completion in another local binding.
+          -- while constructing a conversion candidate in another local binding.
           placeholder <- applySubstWithConstraintsM substitution (placeholderTypes !! index)
           actual <- applySubstWithConstraintsM substitution (tiExprType typed)
           tied <- unifyTypesWithContext actual placeholder ctx
@@ -6410,6 +7029,10 @@ inferIRecBindingsWithContext bindings _env s ctx = do
   
   let finalS = foldr composeSubst s1 unifySubsts
 
+  -- A copied recursive group is one monomorphic specialization of a family.
+  -- Its constraints remain shared with the incoming arguments of that use.
+  unless specialized $
+    withDefinitionPreference (closeGeneralizedConversions previousConversions (TTuple exprTypes))
   -- Re-extract bindings with fully resolved types
   exprTypes' <- mapM (applySubstRecursively finalS) exprTypes
   -- Let-generalization (paper T-LET, standard Hindley-Milner; the surface
@@ -6434,7 +7057,7 @@ inferIRecBindingsWithContext bindings _env s ctx = do
       groupFree = Set.unions (map freeTyVars exprTypes')
       monoExtract = concat $ zipWith (\(pat, _, _) ty -> extractIBindingsFromPattern pat ty) placeholders exprTypes'
   finalBindings <-
-    if Set.null groupFreeCaps && Set.null groupFree
+    if specialized || (Set.null groupFreeCaps && Set.null groupFree)
       then return monoExtract
       else do
         envNow <- getEnv
@@ -6468,7 +7091,17 @@ inferIRecBindingsWithContext bindings _env s ctx = do
         return (concat (zipWith3 genOne placeholders exprTypes' bindings))
   let transformedBindings = zipWith (\(pat, _) exprTI -> (pat, exprTI)) bindings exprTIs
 
-  return (transformedBindings, finalBindings, finalS)
+  families <- withEnv finalBindings $ fmap concat $ forM (zip3 bindings exprTypes' exprTIs) $
+    \((pattern, _), ty, native) -> case (pattern, ty) of
+      (PDPatVar (Var owner []), TFun{}) -> do
+        members <- buildFunctionFamilySource owner
+          (ILetRecExpr bindings (IVarExpr owner)) native previousSites
+        installFunctionFamily owner members
+        return members
+      _ -> return []
+  let familyBindings = [(name, scheme) | (name, scheme, _) <- families]
+      familyTrees = [(PDPatVar (Var name []), candidate) | (name, _, candidate) <- families]
+  return (transformedBindings ++ familyTrees, familyBindings ++ finalBindings, finalS)
   where
     -- Infer the type that a pattern expects (same as in inferIBindingsWithContext)
     inferPatternType :: IPrimitiveDataPattern -> Infer (Type, Subst)
@@ -6609,7 +7242,48 @@ warnOnClassMethodShadow (Var defName _) = do
     []      -> return ()
 
 inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
-inferITopExpr topExpr = case topExpr of
+inferITopExpr topExpr = do
+  active <- gets inferSearchActive
+  (typed,substitution) <- if active then inferITopExprCandidates topExpr else
+    catchError (searchFirst (inferITopExprCandidates topExpr)) (\ordinaryError -> do
+      saved <- get
+      modify (\state -> state { inferCandidateMode = True })
+      catchError
+        (do result <- searchFirst (inferITopExprCandidates topExpr)
+            modify (\state -> state { inferCandidateMode = inferCandidateMode saved })
+            return result)
+        (\_ -> put saved >> throwError ordinaryError))
+
+  global <- gets inferGlobalSubst
+  let final = composeSubst global substitution
+      resolve top = case top of
+        TIDefine scheme variable body -> TIDefine scheme variable <$> applySubstToTIExprM final body
+        TIDefineMany bindings -> TIDefineMany <$> mapM (\(variable,body) -> do
+          resolved <- applySubstToTIExprM final body
+          return (variable,resolved)) bindings
+        TITest body -> TITest . pruneUnusedFamilyMembers <$> applySubstToTIExprM final body
+        TIExecute body -> TIExecute . pruneUnusedFamilyMembers <$> applySubstToTIExprM final body
+        other -> return other
+  completed <- mapM resolve typed
+  return (completed,final)
+
+inferITopExprCandidates :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
+inferITopExprCandidates topExpr = do
+  previousSites <- gets inferCandidateSiteCount
+  result <- inferITopExprBody topExpr
+  building <- gets inferFamilyBuilding
+  case (topExpr, result) of
+    (IDefine (Var owner []) expression, (Just (TIDefine _ variable typed), substitution))
+      | not building, TFun{} <- tiExprType typed -> do
+          members <- buildFunctionFamily True owner expression typed previousSites
+          installFunctionFamily owner members
+          if null members then return result else
+            return (Just (TIDefineMany ((variable, typed) :
+              [(Var name [], candidate) | (name, _, candidate) <- members])), substitution)
+    _ -> return result
+
+inferITopExprBody :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
+inferITopExprBody topExpr = case topExpr of
   IDefine var expr -> do
     warnOnClassMethodShadow var
     -- Harvest matcher clause shapes for the Egison interpreter's use-site safeguard:
@@ -6690,6 +7364,9 @@ inferITopExpr topExpr = case topExpr of
         finalSubst <-
           closeAnnotatedTypeVariables
             annotationSkolems finalSubst0 exprCtx
+
+        solveDeferredIndices 0
+        solveDeferredConversions 0
 
         -- Reject the definition if its body needs constraints (on the
         -- signature's type variables) that the signature does not declare
@@ -6781,6 +7458,8 @@ inferITopExpr topExpr = case topExpr of
         -- stale type variables in their constraints, and the generalized scheme
         -- below is built from variables that no longer match the nodes —
         -- TypeClassExpand then emits unbound dictionary references.
+        solveDeferredIndices 0
+        solveDeferredConversions 0
         exprTI' <- applySubstToTIExprM subst exprTI
         let exprType = tiExprType exprTI'
         constraints <- getConstraints  -- Collect constraints from type inference
@@ -6937,6 +7616,8 @@ inferITopExpr topExpr = case topExpr of
               emptyContext
             checkAnnotationIdentity
               annotationSkolems finalSubst usesExtension emptyContext
+            solveDeferredIndices 0
+            solveDeferredConversions 0
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             -- The monomorphic entry above is scoped to checking this body.
             -- Restore the declared polymorphic scheme for later definitions
@@ -6969,6 +7650,8 @@ inferITopExpr topExpr = case topExpr of
             -- type variables in their constraints, or TypeClassExpand emits
             -- unbound dictionary references (e.g. inside `declare rule`
             -- generated bodies, which arrive here via IDefineMany).
+            solveDeferredIndices 0
+            solveDeferredConversions 0
             exprTI' <- applySubstToTIExprM finalSubst exprTI
             let exprType = tiExprType exprTI'
             constraints <- getConstraints

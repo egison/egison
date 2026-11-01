@@ -14,6 +14,11 @@ module Language.Egison.Type.Env
   , lookupEnvExact
   , removeFromEnv
   , envToList
+  , registerFunctionFamily
+  , FunctionRecipe(..)
+  , storeFunctionRecipe
+  , lookupFunctionRecipe
+  , lookupFunctionFamily
   , freeVarsInEnv
   , freeCapVarsInEnv
   , generalize
@@ -57,7 +62,7 @@ import qualified Data.Map.Strict            as Map
 import           Data.Set                   (Set)
 import qualified Data.Set                   as Set
 
-import           Language.Egison.IExpr      (Var(..), Index(..))
+import           Language.Egison.IExpr      (Var(..), Index(..), IExpr)
 import           Language.Egison.VarEntry   (VarEntry(..))
 import           Language.Egison.Type.Types (capabilityForName)
 import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
@@ -72,8 +77,30 @@ import           Language.Egison.Type.Types (Capability (..), CapVar, TyVar,
 -- | Type environment: uses same data structure as evaluation environment
 -- Maps base variable names to all bindings with that name
 -- VarEntry list is sorted by index length (shortest first) for efficient prefix matching
-newtype TypeEnv = TypeEnv { unTypeEnv :: Map String [VarEntry TypeScheme] }
+data TypeEnv = TypeEnv
+  { unTypeEnv :: Map String [VarEntry TypeScheme]
+  , functionFamilies :: Map String [String]
+  , functionRecipes :: Map String FunctionRecipe
+  }
   deriving (Eq, Show)
+
+-- | A lexical code template. Captured values have unique bindings at the
+-- definition site; their monomorphic type variables remain shared.
+data FunctionRecipe = FunctionRecipe
+  { recipeExpression :: IExpr
+  , recipeCaptures :: [(String, String, TypeScheme)]
+  , recipeFamilies :: [(String, [String])]
+  } deriving Show
+
+instance Eq FunctionRecipe where
+  left == right = show left == show right
+
+storeFunctionRecipe :: String -> FunctionRecipe -> TypeEnv -> TypeEnv
+storeFunctionRecipe name recipe environment =
+  environment { functionRecipes = Map.insert name recipe (functionRecipes environment) }
+
+lookupFunctionRecipe :: String -> TypeEnv -> Maybe FunctionRecipe
+lookupFunctionRecipe name environment = Map.lookup name (functionRecipes environment)
 
 -- | Signatures used for declared pattern constructors or for pattern-function
 -- headers, depending on the owning state field.  Finalized pattern functions
@@ -103,16 +130,24 @@ newtype PatternFunctionEnv = PatternFunctionEnv
 
 -- | Empty type environment
 emptyEnv :: TypeEnv
-emptyEnv = TypeEnv Map.empty
+emptyEnv = TypeEnv Map.empty Map.empty Map.empty
 
 -- | Extend the environment with a new binding
 extendEnv :: Var -> TypeScheme -> TypeEnv -> TypeEnv
-extendEnv (Var name indices) scheme (TypeEnv env) =
+extendEnv (Var name indices) scheme (TypeEnv env families recipes) =
   let entry = VarEntry indices scheme
       newEntries = case Map.lookup name env of
         Nothing -> [entry]
         Just existingEntries -> sortOn (length . veIndices) (entry : existingEntries)
-  in TypeEnv $ Map.insert name newEntries env
+  in TypeEnv (Map.insert name newEntries env) (Map.delete name families) recipes
+
+-- | Families reference hidden implementations in the same lexical scope.
+registerFunctionFamily :: String -> [String] -> TypeEnv -> TypeEnv
+registerFunctionFamily name candidates (TypeEnv env families recipes) =
+  TypeEnv env (Map.insert name candidates families) recipes
+
+lookupFunctionFamily :: String -> TypeEnv -> [String]
+lookupFunctionFamily name (TypeEnv _ families _) = Map.findWithDefault [] name families
 
 -- | Extend the environment with multiple bindings
 extendEnvMany :: [(Var, TypeScheme)] -> TypeEnv -> TypeEnv
@@ -125,7 +160,7 @@ extendEnvMany bindings env = foldr (uncurry extendEnv) env bindings
 -- through the prefix/suffix fallbacks of 'lookupEnv'; the two are distinct
 -- variables (the runtime environment also keeps them separate).
 lookupEnvExact :: Var -> TypeEnv -> Maybe TypeScheme
-lookupEnvExact (Var name indices) (TypeEnv env) =
+lookupEnvExact (Var name indices) (TypeEnv env _ _) =
   case Map.lookup name env of
     Nothing -> Nothing
     Just entries ->
@@ -140,7 +175,7 @@ lookupEnvExact (Var name indices) (TypeEnv env) =
 --   3. Try suffix removal (find shorter indices, pick longest match)
 -- No recursion is used; all matching is done in a single pass to avoid infinite loops.
 lookupEnv :: Var -> TypeEnv -> Maybe TypeScheme
-lookupEnv (Var name targetIndices) (TypeEnv env) =
+lookupEnv (Var name targetIndices) (TypeEnv env _ _) =
   case Map.lookup name env of
     Nothing -> Nothing
     Just entries ->
@@ -161,7 +196,7 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
       case [veValue e | e <- entries, veIndices e == indices] of
         (scheme:_) -> Just scheme
         [] -> Nothing
-    
+
     -- Prefix matching: find shortest entry where target indices are a prefix
     -- Example: target [a] matches [i, j] in e_i_j (shortest match)
     findPrefixMatch :: [Index (Maybe Var)] -> [VarEntry TypeScheme] -> Maybe TypeScheme
@@ -170,7 +205,7 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
       case [veValue e | e <- entries, isPrefixOfIndices indices (veIndices e)] of
         (scheme:_) -> Just scheme
         [] -> Nothing
-    
+
     -- Suffix removal: find longest entry where stored indices are a prefix of target
     -- Example: target [i,j,k] matches e_i_j (stored [i,j]); prefer e_i_j over e_i
     -- Single pass, no recursion - safe from infinite loops
@@ -180,19 +215,19 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
       in case sortByIndexLengthDesc suffixMatches of
         (e:_) -> Just (veValue e)
         [] -> Nothing
-    
+
     -- stored is prefix of target: stored has fewer indices, first part of target matches
     storedIsPrefixOfTarget :: [Index (Maybe Var)] -> [Index (Maybe Var)] -> Bool
     storedIsPrefixOfTarget stored target =
       not (null target) &&
       length stored < length target &&
       stored == take (length stored) target
-    
+
     -- Sort by descending index length, preserving insertion order for equal lengths
     -- so that local bindings (added later via extendEnv) come before global ones
     sortByIndexLengthDesc :: [VarEntry TypeScheme] -> [VarEntry TypeScheme]
     sortByIndexLengthDesc = sortBy (\a b -> compare (Down (length (veIndices a))) (Down (length (veIndices b))))
-    
+
     -- Check if target is a prefix of candidate (for prefix matching)
     -- Example: [a] is prefix of [i, j]
     -- IMPORTANT: target must be non-empty to avoid matching everything
@@ -204,18 +239,18 @@ lookupEnv (Var name targetIndices) (TypeEnv env) =
 
 -- | Remove a variable from the environment
 removeFromEnv :: Var -> TypeEnv -> TypeEnv
-removeFromEnv (Var name indices) (TypeEnv env) =
+removeFromEnv (Var name indices) (TypeEnv env families recipes) =
   case Map.lookup name env of
-    Nothing -> TypeEnv env
+    Nothing -> TypeEnv env families recipes
     Just entries ->
       let newEntries = [e | e <- entries, veIndices e /= indices]
       in if null newEntries
-         then TypeEnv $ Map.delete name env
-         else TypeEnv $ Map.insert name newEntries env
+         then TypeEnv (Map.delete name env) (Map.delete name families) recipes
+         else TypeEnv (Map.insert name newEntries env) (Map.delete name families) recipes
 
 -- | Convert environment to list
 envToList :: TypeEnv -> [(Var, TypeScheme)]
-envToList (TypeEnv env) =
+envToList (TypeEnv env _ _) =
   [ (Var name (veIndices entry), veValue entry)
   | (name, entries) <- Map.toList env
   , entry <- entries
@@ -223,10 +258,10 @@ envToList (TypeEnv env) =
 
 -- | Get free type variables in the environment
 freeVarsInEnv :: TypeEnv -> Set TyVar
-freeVarsInEnv (TypeEnv env) = 
+freeVarsInEnv (TypeEnv env _ _) =
   Set.unions $ map freeVarsInScheme $ concat $ Map.elems env
   where
-    freeVarsInScheme entry = 
+    freeVarsInScheme entry =
       let Forall _ vs cs t = veValue entry
           vars = freeTyVars t `Set.union`
                  Set.unions (map (Set.unions . map freeTyVars . constraintTypes) cs)
@@ -234,7 +269,7 @@ freeVarsInEnv (TypeEnv env) =
 
 -- | Get free capability variables in the environment.
 freeCapVarsInEnv :: TypeEnv -> Set CapVar
-freeCapVarsInEnv (TypeEnv env) =
+freeCapVarsInEnv (TypeEnv env _ _) =
   Set.unions $ map freeVarsInScheme $ concat $ Map.elems env
   where
     freeVarsInScheme entry =

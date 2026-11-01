@@ -49,7 +49,7 @@ assertEqual "polymorphic sum on scalars" (regressionTensorSum [1, 2, 3]) 6
 assertEqual "polymorphic sum on tensors"
   (regressionTensorSum [[|1, 2|], [|10, 20|]]) [|11, 22|]
 
--- Definitions must record the same Tensor domains as their generated wrappers.
+-- Definitions retain native types and select compatible conversions at each use.
 def regressionTensorOnes xs := map regressionTensorOne xs
 def regressionTensorBinary xs := foldl1 regressionTensorTwo xs
 def regressionTensorInitial xs := foldl regressionTensorTwo 0 xs
@@ -62,22 +62,22 @@ def regressionTensorToBool (x : Integer) : Bool := True
 def regressionTensorToBool2 (x : Integer) (y : Integer) : Bool := True
 def regressionTensorExplicit x := tensorMap regressionTensorToBool x
 
-assertEqual "definition-time unary completion on scalars"
+assertEqual "retained unary function on scalars"
   (regressionTensorOnes [1, 2]) [1, 1]
-assertEqual "definition-time unary completion on tensors"
+assertEqual "retained unary function on tensors"
   (regressionTensorOnes [[|1, 2|]]) [[|1, 1|]]
-assertEqual "definition-time binary completion"
+assertEqual "retained binary callback"
   (regressionTensorBinary [[|1, 2|], [|3, 4|]]) [|1, 1|]
-assertEqual "definition-time scalar initial accumulator"
+assertEqual "retained fold with scalar initializer"
   (regressionTensorInitial [[|1, 2|], [|3, 4|]]) [|1, 1|]
-assertEqual "definition-time scan keeps Tensor inside list"
+assertEqual "retained scan keeps Tensor inside list"
   (regressionTensorScan [[|1, 2|]]) [0, [|1, 1|]]
-assertEqual "definition-time ternary completion with mixed inputs"
+assertEqual "retained ternary callback with mixed inputs"
   (regressionTensorTernary [[|1, 2|]] [3] [[|4, 5|]])
   (map3 regressionTensorThree [[|1, 2|]] [3] [[|4, 5|]])
-assertEqual "definition-time partially applied function"
+assertEqual "retained partially applied function"
   (regressionTensorPartial [[|1, 2|]]) [[|1, 1|]]
-assertEqual "definition-time list result stays inside Tensor"
+assertEqual "retained list result stays inside Tensor"
   (regressionTensorLists [[|1, 2|]]) [[|[1], [2]|]]
 assertEqual "explicit map checks its scalar result"
   (tensorMap regressionTensorToBool 1) True

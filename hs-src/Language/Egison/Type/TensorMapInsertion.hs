@@ -2,23 +2,15 @@
 Module      : Language.Egison.Type.TensorMapInsertion
 Licence     : MIT
 
-This module implements automatic tensorMap insertion for Phase 7 of the Egison compiler.
+This module reconstructs automatic tensorMap insertions from inferred types.
 This is the first step of TypedDesugar, before type class expansion.
 When a function expects a scalar type (e.g., Integer) but receives a Tensor type,
 this module automatically inserts tensorMap to apply the function element-wise.
 
-Four implementation forms:
-1. Direct application: When argument is Tensor and parameter expects scalar,
-   wrap the application with tensorMap.
-2. Type-directed higher-order lifting: when a scalar function is passed to a
-   callback position that expects tensor arguments, eta-expand it and map those
-   tensor arguments back to scalar arguments.
-3. Feedback-aware higher-order lifting: when a lifted callback result feeds
-   back into a callback parameter, e.g. the accumulator in foldl, lift that
-   parameter too.
-4. Definition-time completion: inference establishes Tensor domains for open
-   higher-order parameters before generalization, at arbitrary arity. Insertion
-   reconstructs those wrappers from the recorded consumer type.
+Inference records the supplied function type, its receiving type, and the
+result type of each application. Insertion reconstructs the selected conversion
+after shared constraints have been solved. Curried partial applications may
+require more converted parameters than the arguments already supplied.
 
 Tensor maps apply the function normally to scalar inputs. For multiple Tensor
 operands, tensorMap2 aligns shared indices; arbitrary nesting of unary maps
@@ -28,10 +20,6 @@ Example:
   def f (x : Integer) : Integer := x
   def t1 := [| 1, 2 |]
   f t1  --=>  tensorMap (\t1e -> f t1e) t1
-
-  def sumElements xs := foldl1 (+) xs
-  -- Inferred: {AddSemigroup a} [Tensor a] -> Tensor a
-  -- Body: foldl1 (\x y -> tensorMap2 (+) x y) xs
 
   map inc [t1]
   --=>  map (\x -> tensorMap inc x) [t1]
@@ -46,6 +34,7 @@ Example:
 module Language.Egison.Type.TensorMapInsertion
   ( insertTensorMaps
   , typeDirectedTensorLiftType
+  , typeDirectedTensorLiftTypes
   , isTensorLiftableScalarType
   ) where
 
@@ -65,8 +54,6 @@ import           Language.Egison.Type.Unify as Unify (unifyStrictWithConstraints
 --------------------------------------------------------------------------------
 
 -- | Check if tensorMap should be inserted for an argument
--- This implements the type-tensor-simple.md specification
---
 -- TensorMap should be inserted when:
 -- 1. paramType does NOT unify with Tensor a (i.e., paramType is a scalar type)
 -- 2. AND argType does unify with Tensor a (i.e., argType is a tensor type)
@@ -133,14 +120,14 @@ isPotentialScalarType classEnv constraints ty =
        Left _  -> True   -- Cannot unify with Tensor a → is scalar
 
 -- | Exclude effectful/resource-like types from automatic lifting. These
--- types are not tensors, but wrapping callbacks such as `io : IO a -> a` would
+-- types can contain effects; wrapping callbacks such as `io : IO a -> a` would
 -- change control-flow behavior in ordinary higher-order applications.
 containsNonLiftableType :: Type -> Bool
 containsNonLiftableType ty = case ty of
   TIO _ -> True
   TIORef _ -> True
   TPort -> True
-  TFun _ _ -> True
+  TFun parameter result -> containsNonLiftableType parameter || containsNonLiftableType result
   TTuple ts -> any containsNonLiftableType ts
   TCollection t -> containsNonLiftableType t
   TInductive _ ts -> any containsNonLiftableType ts
@@ -156,6 +143,14 @@ isTensorLiftableScalarType :: ClassEnv -> [Constraint] -> Type -> Bool
 isTensorLiftableScalarType classEnv constraints ty =
   isPotentialScalarType classEnv constraints ty &&
   not (containsNonLiftableType ty)
+
+-- Unresolved component types are retained as conditional candidates.
+-- Inference validates these scalar obligations after the whole use is solved.
+candidateScalarType :: Maybe [Bool] -> ClassEnv -> [Constraint] -> Type -> Bool
+candidateScalarType selected classes constraints ty =
+  case (selected, ty) of
+    (Just _, TVar _) -> True
+    _ -> isTensorLiftableScalarType classes constraints ty
 
 -- | Split a curried function type into its argument types and result type.
 collectFunctionType :: Type -> ([Type], Type)
@@ -227,7 +222,8 @@ callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType =
 -- the surrounding higher-order function feeds that result back, propagate the
 -- lift to callback parameters whose expected type is the callback result type.
 callbackLiftMask ::
-    ClassEnv
+    Maybe [Bool]
+    -> ClassEnv
     -> [Constraint]
     -> Bool
     -> [Type]
@@ -235,11 +231,14 @@ callbackLiftMask ::
     -> [Type]
     -> Type
     -> [Bool]
-callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedResult actualParams actualResult =
-  let directMask = zipWith (isDirectLiftSeed classEnv constraints) expectedParams actualParams
+callbackLiftMask selected classEnv constraints resultFeedsBack expectedParams expectedResult actualParams actualResult =
+  let scalar = candidateScalarType selected classEnv constraints
+      directMask = zipWith (\expected actual -> case expected of
+        TTensor _ -> scalar actual
+        _ -> False) expectedParams actualParams
       unresolvedScalar expected actual = case expected of
         TVar _ -> not (isPotentialScalarType classEnv constraints expected)
-          && isTensorLiftableScalarType classEnv constraints actual
+          && scalar actual
         _ -> False
       resultAdmitsCompletion = case expectedResult of
         TVar _ -> not (isPotentialScalarType classEnv constraints expectedResult)
@@ -247,10 +246,11 @@ callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedRes
         _ -> False
       initialMask
         | any id directMask = directMask
-        | resultAdmitsCompletion = zipWith unresolvedScalar expectedParams actualParams
+        | resultAdmitsCompletion, Just mask <- selected =
+            zipWith (&&) mask (zipWith unresolvedScalar expectedParams actualParams)
         | otherwise = map (const False) expectedParams
       resultCanBecomeTensor mask =
-        any id mask && isTensorLiftableScalarType classEnv constraints actualResult
+        any id mask && scalar actualResult
       step mask =
         zipWith3
           (\already expectedParam actualParam ->
@@ -258,7 +258,7 @@ callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedRes
              ( resultFeedsBack
              && resultCanBecomeTensor mask
              && sameNormalizedType expectedParam expectedResult
-             && isTensorLiftableScalarType classEnv constraints actualParam))
+             && scalar actualParam))
           mask
           expectedParams
           actualParams
@@ -271,7 +271,8 @@ callbackLiftMask classEnv constraints resultFeedsBack expectedParams expectedRes
 -- argument position. The plan is absent when the expected callback type does
 -- not force any tensor lifting.
 buildCallbackLiftPlan ::
-    Bool
+    Maybe [Bool]
+    -> Bool
     -> ClassEnv
     -> [Constraint]
     -> Type
@@ -279,21 +280,21 @@ buildCallbackLiftPlan ::
     -> Type
     -> TIExpr
     -> Maybe ([CallbackParamPlan], [CallbackParamPlan], Type)
-buildCallbackLiftPlan allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
+buildCallbackLiftPlan selected allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
   let actualFuncType = tiExprType funcExpr
       (actualParams, actualResult) = collectFunctionType actualFuncType
-      -- An open consumer still receives a completed scalar callback. Its
-      -- function shape need not have been fixed by another data argument.
-      completedExpected = case expectedCallbackType of
-        TVar _ | allowUnknown
-               && not (any containsNonLiftableType actualParams)
-               && not (isPotentialScalarType classEnv constraints expectedCallbackType) ->
+      -- An optional candidate can determine an open consumer's function
+      -- shape. The native member keeps its ordinary scalar function.
+      candidateExpected = case expectedCallbackType of
+        TVar _ | allowUnknown, Just mask <- selected
+               , not (any containsNonLiftableType actualParams)
+               , not (isPotentialScalarType classEnv constraints expectedCallbackType) ->
           buildFunctionType
-            (map (\parameter -> if isTensorLiftableScalarType classEnv constraints parameter
-                     then normalizeTensorType (TTensor parameter) else parameter) actualParams)
+            (zipWith (\chosen parameter -> if chosen && candidateScalarType selected classEnv constraints parameter
+                     then normalizeTensorType (TTensor parameter) else parameter) mask actualParams)
             (normalizeTensorType (TTensor actualResult))
         _ -> expectedCallbackType
-      (expectedParams, expectedResult) = collectFunctionType completedExpected
+      (expectedParams, expectedResult) = collectFunctionType candidateExpected
       arity = length expectedParams
   in if arity == 0 || length actualParams < arity
        then Nothing
@@ -303,6 +304,7 @@ buildCallbackLiftPlan allowUnknown classEnv constraints outerFuncType callbackAr
                callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType
              liftMask =
                callbackLiftMask
+                 selected
                  classEnv
                  constraints
                  resultFeedsBack
@@ -356,7 +358,7 @@ insertTensorMaps tiExpr = do
 -- maps the scalar function over that tensor argument.
 wrapWithTypeDirectedTensorLift :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe TIExpr
 wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
-  case buildCallbackLiftPlan False classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
+  case buildCallbackLiftPlan Nothing False classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
     Nothing -> Nothing
     Just (callbackParams, liftedParams, resultType) ->
       -- Bind the supplied expression outside generated parameters. This is a
@@ -379,10 +381,22 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
 typeDirectedTensorLiftType :: Bool -> ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe Type
 typeDirectedTensorLiftType allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr = do
   (callbackParams, _, resultType) <-
-    buildCallbackLiftPlan allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr
+    buildCallbackLiftPlan Nothing allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr
   return $ buildFunctionType
     (map callbackParamOuterType callbackParams)
     (normalizeTensorType (TTensor resultType))
+
+-- | Every permitted input subset is retained. The receiving function's
+-- ordinary type equations decide whether its result can become a tensor.
+typeDirectedTensorLiftTypes :: Bool -> ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> [Type]
+typeDirectedTensorLiftTypes allowUnknown classEnv constraints outer index expected actual =
+  nub [ buildFunctionType (map callbackParamOuterType parameters) (normalizeTensorType (TTensor result))
+      | mask <- masks (length (fst (collectFunctionType (tiExprType actual))))
+      , Just (parameters, _, result) <-
+          [buildCallbackLiftPlan (Just mask) allowUnknown classEnv constraints outer index expected actual] ]
+  where
+    masks 0 = [[]]
+    masks n = [flag : rest | flag <- [False, True], rest <- masks (n-1)]
 
 -- | Build the body of a generated callback wrapper.
 buildTypeDirectedTensorLiftBody ::
@@ -474,9 +488,8 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams (param1:param
        (Forall [] [] [] mappedType)
        (TITensorMap2Expr lambdaExpr (callbackParamOuterExpr param1) (callbackParamOuterExpr param2))
 
--- | Adapt only from the inferred consumer type. Definition-time completion
--- is performed by the shared type calculation during inference, so there is
--- no insertion-only fallback with an unrelated recorded type.
+-- | Reconstruct the conversion selected by the shared type constraints.
+-- The supplied expression retains its own function type.
 wrapFunctionArgumentIfNeeded :: ClassEnv -> [Constraint] -> Type -> Int -> Maybe Type -> TIExpr -> TIExpr
 wrapFunctionArgumentIfNeeded classEnv constraints outerFuncType argIndex expectedArgType tiExpr
   = case expectedArgType of
@@ -523,15 +536,21 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
             func' <- insertTensorMapsWithConstraints env cs func
             args' <- mapM (insertTensorMapsWithConstraints env cs) args
 
-            -- Apply simplified approach: wrap binary function arguments with tensorMap2
-            -- This handles cases like `foldl (+) 0 xs` where (+) needs to be wrapped because (+) is a binary function that takes two scalar arguments
-            -- and `map f xs` where f is a unary scalar function that may receive tensor elements.
-            -- But `foldl1 (.) [t1, t2]` should not be wrapped with tensorMap2 because (.) is a binary function that takes two tensor arguments
-            -- IMPORTANT: Include each argument's own constraints when deciding if it needs wrapping
+            -- Reconstruct only the selected callback conversions. Retain
+            -- each argument's own scalar type-class constraints.
             let (Forall _ _ funcConstraints _) = tiScheme func'
                 baseConstraints = cs ++ funcConstraints
                 -- For each argument, merge base constraints with the argument's own constraints
-                funcType = tiExprType func'
+                desiredType = foldr TFun (tiExprType tiExpr) (map tiExprType args')
+                needsPartialConversion = case tiExprType tiExpr of
+                  TFun{} -> any (\argument -> case tiExprType argument of TTensor{} -> True; _ -> False) args'
+                  _ -> False
+                converted = if needsPartialConversion then
+                    wrapFunctionArgumentIfNeeded env baseConstraints
+                      (TFun desiredType (tiExprType tiExpr)) 0 (Just desiredType) func'
+                  else func'
+                function = if tiExprType converted == desiredType then converted else func'
+                funcType = tiExprType function
                 wrapArg (index, arg) =
                   let (Forall _ _ argConstraints _) = tiScheme arg
                       argAllConstraints = nub (baseConstraints ++ argConstraints)
@@ -546,10 +565,10 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
             let argTypes = map tiExprType args''
 
             -- Normal processing: check if tensorMap is needed based on parameter types
-            result <- wrapWithTensorMapIfNeeded env baseConstraints func' funcType args'' argTypes
+            result <- wrapWithTensorMapIfNeeded env baseConstraints function funcType args'' argTypes
             case result of
               Just wrappedNode -> return wrappedNode
-              Nothing -> return $ TIApplyExpr func' args''
+              Nothing -> return $ TIApplyExpr function args''
       
       -- Collections
       TITupleExpr exprs -> do

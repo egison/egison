@@ -1,0 +1,26 @@
+def familySum xs := foldl (+) 0 xs
+def familyInc x := x+1
+def familyIncrements xs := map familyInc xs
+assertEqual "scalar sum" (familySum [1,2]) 3
+assertEqual "tensor sum" (familySum [[|1,2|],[|3,4|]]) [|4,6|]
+assertEqual "scalar increments" (familyIncrements [1,2]) [2,3]
+assertEqual "tensor increments" (familyIncrements [[|1,2|],[|3,4|]]) [[|2,3|],[|4,5|]]
+assertEqual "independent uses"
+  (familySum [1,2],familySum [[|1,2|],[|3,4|]])
+  (3,[|4,6|])
+assertEqual "local candidates"
+  (let f xs := foldl (+) 0 xs in
+    (f [1,2], f [[|1,2|],[|3,4|]]))
+  (3,[|4,6|])
+assertEqual "alias candidates"
+  (let f := familySum in (f [1,2],f [[|1,2|],[|3,4|]]))
+  (3,[|4,6|])
+assertEqual "capture remains in the defining scope"
+  (let n := 10 in
+    let f xs := map (\x -> x+n) xs in
+      let n := True in (f [1,2], f [[|1,2|],[|3,4|]]))
+  ([11,12], [[|11,12|],[|13,14|]])
+assertEqual "captured scalar callback is shared"
+  ((\h -> let f xs := foldl (\a b -> h a b) 0 xs in
+    (f [1,2], f [[|1,2|],[|3,4|]])) (+))
+  (3,[|4,6|])
