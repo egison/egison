@@ -1753,6 +1753,37 @@ recordGlobalSubst _ substitution =
   modify $ \state -> state
     { inferGlobalSubst = composeSubst substitution (inferGlobalSubst state) }
 
+-- Adjacent Tensor constructors are normalized. A variable below a common
+-- Tensor head can therefore denote either the component or a Tensor of it.
+-- Keep these alternatives until the surrounding constraints have been solved.
+tensorEqualitySeeds :: Type -> Type -> [Subst]
+tensorEqualitySeeds left right = go (normalizeTensorType left) (normalizeTensorType right)
+  where
+    go (TTensor a) (TTensor b)
+      | a == b = [emptySubst]
+      | otherwise = nub (go a b ++ bindTensor a b ++ bindTensor b a)
+    go (TFun a b) (TFun c d) = pairs [(a,c),(b,d)]
+    go (TCollection a) (TCollection b) = go a b
+    go (TTuple a) (TTuple b) | length a == length b = pairs (zip a b)
+    go (TInductive n a) (TInductive m b)
+      | n == m, length a == length b = pairs (zip a b)
+    go (THash a b) (THash c d) = pairs [(a,c),(b,d)]
+    go (TMatcher _ a) (TMatcher _ b) = go a b
+    go (TIO a) (TIO b) = go a b
+    go (TIORef a) (TIORef b) = go a b
+    go (TFrac a) (TFrac b) = go a b
+    go (TTerm a _) (TTerm b _) = go a b
+    go (TPoly a _) (TPoly b _) = go a b
+    go _ _ = [emptySubst]
+    bindTensor (TVar name) component
+      | name `Set.notMember` freeTyVars component =
+          [singletonSubst name (normalizeTensorType (TTensor component))]
+    bindTensor _ _ = []
+    pairs [] = [emptySubst]
+    pairs ((a,b):rest) = nub
+      [composeSubst later first | first <- go a b,
+        later <- pairs [(applySubst first x,applySubst first y) | (x,y) <- rest]]
+
 -- | Solve ordinary equality with the synchronized TypePM relation.  Egison
 -- extensions are selected only by a positive extension witness, such as a
 -- numeric/CAS/tensor representation type; failure of the core relation is
@@ -1765,29 +1796,36 @@ solveTypes
   -> TypeErrorContext
   -> Infer (Subst, Bool)
 solveTypes classEnv constraints left right ctx = do
-  case TU.unifyWithConstraints classEnv constraints left right of
-    Right result -> commit result
-    Left (TU.OccursCheck variable (TTensor (TVar same)))
-      | variable == same -> do
-          -- With Tensor (Tensor a) = Tensor a, this equation has tensor-
-          -- headed solutions; it is not an infinite structural type.
-          element <- freshVar "tensorElement"
-          let tensorSubst = singletonSubst variable (TTensor element)
-          (substitution, unwrapped) <- solveTypes classEnv
-            (map (applySubstConstraint tensorSubst) constraints)
-            (applySubst tensorSubst left) (applySubst tensorSubst right) ctx
-          commit (composeSubst substitution tensorSubst, unwrapped)
-    Left (TU.TypeMismatch mismatchLeft mismatchRight)
-      | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
-          warnOutsideEgisonCore
-            ("rigid annotation variable is used through Egison's extended " ++
-             "numeric/CAS/tensor typing relation: `" ++
-             TP.prettyType mismatchLeft ++ " ~ " ++
-             TP.prettyType mismatchRight ++ "`")
-            ctx
-          commit (emptySubst, False)
-    Left err -> throwUnifyError ctx err
+  let alternatives = nub [(composeSubst substitution seed,unwrapped) |
+        seed <- tensorEqualitySeeds left right,
+        Right (substitution,unwrapped) <- [TU.unifyWithConstraints classEnv
+          (map (applySubstConstraint seed) constraints) (applySubst seed left) (applySubst seed right)]]
+  case alternatives of
+    _:_ -> chooseCandidate alternatives >>= commit
+    [] -> fallback
   where
+    fallback = case TU.unifyWithConstraints classEnv constraints left right of
+      Right result -> commit result
+      Left (TU.OccursCheck variable (TTensor (TVar same)))
+        | variable == same -> do
+            -- With Tensor (Tensor a) = Tensor a, this equation has tensor-
+            -- headed solutions; it is not an infinite structural type.
+            element <- freshVar "tensorElement"
+            let tensorSubst = singletonSubst variable (TTensor element)
+            (substitution, unwrapped) <- solveTypes classEnv
+              (map (applySubstConstraint tensorSubst) constraints)
+              (applySubst tensorSubst left) (applySubst tensorSubst right) ctx
+            commit (composeSubst substitution tensorSubst, unwrapped)
+      Left (TU.TypeMismatch mismatchLeft mismatchRight)
+        | skolemExtensionMismatch constraints mismatchLeft mismatchRight -> do
+            warnOutsideEgisonCore
+              ("rigid annotation variable is used through Egison's extended " ++
+               "numeric/CAS/tensor typing relation: `" ++
+               TP.prettyType mismatchLeft ++ " ~ " ++
+               TP.prettyType mismatchRight ++ "`")
+              ctx
+            commit (emptySubst, False)
+      Left err -> throwUnifyError ctx err
     commit result@(substitution, _) = do
       recordGlobalSubst ctx substitution
       return result
@@ -2379,8 +2417,12 @@ solveDeferredConversions previous = do
         mapped <- fmap concat $ forM [1..count] $ \width -> do
           parameters <- mapM (const (freshVar "mappedComponent")) [1..width]
           result <- freshVar "mappedResult"
-          let input = foldr TFun result parameters
           return [(composeSubst second first,requirements) |
+            layers <- sequence (replicate (width - 1) [False,True]),
+            let input = foldr (\(parameter,layer) rest ->
+                  let function = TFun parameter rest in
+                  if layer then normalizeTensorType (TTensor function) else function)
+                  result (zip parameters (False : layers)),
             Right first <- [unify source input],
             mask <- sequence (replicate width [False,True]), or mask,
             let output = foldr TFun (normalizeTensorType (TTensor result))
@@ -6128,7 +6170,7 @@ inferTensorMapApplication function operands ctx = do
       actual <- normalizeTensorType <$> applySubstWithConstraintsM substitution (tiExprType operand)
       expected <- normalizeTensorType <$> applySubstWithConstraintsM substitution parameter
       let (input, required, mapsTensor) = case actual of
-            TTensor element -> (element, expected, True)
+            TTensor _ -> (actual, normalizeTensorType (TTensor expected), True)
             TVar _ -> (actual, normalizeTensorType (TTensor expected), True)
             _ -> (actual, expected, False)
           currentConstraints = map (applySubstConstraint substitution) constraints
@@ -6163,31 +6205,42 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
       expectedType <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst expected0
       global <- gets inferGlobalSubst
       let currentConstraints = map (applySubstConstraint global) constraints
-      case TU.unifyStrictWithConstraints classEnv currentConstraints actual expectedType of
-        Right substitution -> do
+      let candidates = nub [composeSubst substitution seed |
+            seed <- tensorEqualitySeeds actual expectedType,
+            Right substitution <- [TU.unifyStrictWithConstraints classEnv
+              (map (applySubstConstraint seed) currentConstraints)
+              (applySubst seed actual) (applySubst seed expectedType)]]
+      case candidates of
+        _:_ -> do
+          substitution <- chooseCandidate candidates
           recordGlobalSubst ctx substitution
           return (substitution, False)
-        Left strictError -> case (actual, expectedType) of
-          (TTensor element, TTensor required) -> align False element required
-          (_, TTensor required) -> align False actual required
-          (TTensor element, _)
-            | allowMap && isTensorLiftableScalarType classEnv currentConstraints expectedType -> do
-                (substitution, _) <- align False element expectedType
-                return (substitution, True)
-            | otherwise -> throwUnifyError ctx strictError
-          (TCollection element, TCollection required) -> align False element required
-          (TTuple elements, TTuple required)
-            | length elements == length required -> alignMany (zip elements required)
-          (TInductive name elements, TInductive name' required)
-            | name == name', length elements == length required -> alignMany (zip elements required)
-          (TFun domain codomain, TFun requiredDomain requiredCodomain) ->
-            -- Function domains are contravariant; results are covariant.
-            alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
-          _ -> do
-            -- Retain ordinary matcher/CAS equality and annotation handling,
-            -- but never admit an unaccounted-for Tensor erasure below them.
-            result@(_, erased) <- solveTypes classEnv currentConstraints actual expectedType ctx
-            if erased then throwUnifyError ctx strictError else return result
+        [] -> case TU.unifyStrictWithConstraints classEnv currentConstraints actual expectedType of
+          Right substitution -> do
+            recordGlobalSubst ctx substitution
+            return (substitution,False)
+          Left strictError -> fallback allowMap strictError actual expectedType currentConstraints
+    fallback allowMap strictError actual expectedType currentConstraints = case (actual, expectedType) of
+      (TTensor element, TTensor required) -> align False element required
+      (_, TTensor required) -> align False actual required
+      (TTensor element, _)
+        | allowMap && isTensorLiftableScalarType classEnv currentConstraints expectedType -> do
+            (substitution, _) <- align False element expectedType
+            return (substitution, True)
+        | otherwise -> throwUnifyError ctx strictError
+      (TCollection element, TCollection required) -> align False element required
+      (TTuple elements, TTuple required)
+        | length elements == length required -> alignMany (zip elements required)
+      (TInductive name elements, TInductive name' required)
+        | name == name', length elements == length required -> alignMany (zip elements required)
+      (TFun domain codomain, TFun requiredDomain requiredCodomain) ->
+        -- Function domains are contravariant; results are covariant.
+        alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
+      _ -> do
+        -- Retain ordinary matcher/CAS equality and annotation handling,
+        -- but never admit an unaccounted-for Tensor erasure below them.
+        result@(_, erased) <- solveTypes classEnv currentConstraints actual expectedType ctx
+        if erased then throwUnifyError ctx strictError else return result
 
     alignMany = foldM step (emptySubst, False)
       where

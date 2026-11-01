@@ -24,3 +24,21 @@ assertEqual "captured scalar callback is shared"
   ((\h -> let f xs := foldl (\a b -> h a b) 0 xs in
     (f [1,2], f [[|1,2|],[|3,4|]])) (+))
   (3,[|4,6|])
+
+assertEqual "curried callback crosses a tensor-valued function result"
+  ((\g h -> (g h, tensorMap (\f -> f 10) (h 1)))
+    (\k -> k [|1,2|] [|10,20|])
+    (\x -> tensor [] [\y -> x+y]))
+  ([|11,22|],11)
+
+assertEqual "curried callback preserves a whole tensor argument"
+  ((\g h -> (g h, tensorMap (\f -> f [|10,20|]) (h 1)))
+    (\k -> k [|1,2|] [|10,20|])
+    (\x -> tensor [] [\t -> x + head (tensorShape t)]))
+  ([|3,4|],3)
+
+assertEqual "curried callback crosses two tensor-valued function results"
+  ((\g h -> (g h, tensorMap (\f -> f 100) (tensorMap (\f -> f 10) (h 1))))
+    (\k -> k [|1,2|] [|10,20|] [|100,200|])
+    (\x -> tensor [] [\y -> tensor [] [\z -> x+y+z]]))
+  ([|111,222|],111)

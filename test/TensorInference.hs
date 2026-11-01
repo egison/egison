@@ -548,6 +548,14 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           call "map" [lambda ["f"] (call "f" [int 1]),
             ICollectionExpr [IVectorExpr [var "one", var "one"]]],
           TCollection tensor, Nothing, True)
+      , ("an unconstrained constant callback receives the whole tensor",
+          call "genericTensorCallbackConsumer" [lambda ["x"] (int 1)],
+          tensor, Nothing, False)
+      , ("a scalar callback applies arguments across a tensor-valued function result",
+          call "tensorCallbackConsumer2" [lambda ["x"]
+            (ITensorExpr (ICollectionExpr [])
+              (ICollectionExpr [lambda ["y"] (call "two" [var "x",var "y"])]))],
+          tensor, Nothing, True)
       , ("a callback can return a tensor of functions",
           call "functionTensorLists" [call "map" [var "two", tensors]],
           TInt, Nothing, True)
@@ -696,7 +704,7 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
         in ILetExpr [(PDPatVar (Var "invoke" []),lambda ["g", "h"] body)]
           (call ("functionPair" ++ show arity)
             [call "invoke" [var ("functionConsumer" ++ show arity),var ("function" ++ show arity)]]),
-        TInt, Nothing, True) | arity <- [1..5]]
+        TInt, Nothing, True) | arity <- [1 :: Int ..5]]
 
     checkCase (label, source, expectedResult, callback, needsMap) =
       TestLabel label . TestCase $ do
@@ -762,7 +770,7 @@ inferenceState = initialInferState { inferEnv =
       [[("function" ++ show arity,arrow (replicate arity TInt) TInt),
         ("functionConsumer" ++ show arity,arrow [arrow (replicate arity tensor) tensor] tensor),
         ("functionPair" ++ show arity,arrow [TTuple [tensor,arrow (replicate (arity-1) TInt) TInt]] TInt)]
-       | arity <- [1..5]])) }
+       | arity <- [1 :: Int ..5]])) }
   where
     add (name, ty) = Env.extendEnv (Var name [])
       (Forall [] (Set.toList (freeTyVars ty)) [] ty)
@@ -800,6 +808,7 @@ inferenceState = initialInferState { inferEnv =
       , ("scalarNestedList", arrow [TCollection (TCollection TInt)] (TCollection (TCollection TInt)))
       , ("scalarListResult", arrow [TInt] (TCollection TInt))
       , ("functionTensorLists", arrow [TCollection (TTensor (arrow [TInt] TInt))] TInt)
+      , ("genericTensorCallbackConsumer", arrow [arrow [TTensor a] tensor] tensor)
       , ("tensorCallbackConsumer", arrow [arrow [tensor] tensor] tensor)
       , ("tensorCallbackConsumer2", arrow [arrow [tensor, tensor] tensor] tensor)
       , ("polymorphicFunctionResult", arrow [TInt] a)

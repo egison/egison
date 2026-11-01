@@ -159,6 +159,20 @@ collectFunctionType (TFun param result) =
   in (param : params, finalResult)
 collectFunctionType ty = ([], ty)
 
+collectCallableFunctionType :: Type -> ([Type], Type)
+collectCallableFunctionType (TFun param result) =
+  let (params, finalResult) = collectFunctionResult result
+  in (param : params, finalResult)
+collectCallableFunctionType ty = ([], ty)
+
+-- A partial result can store the functions for the remaining arguments.
+-- Applying those functions retains the tensor shape in the final result.
+collectFunctionResult :: Type -> ([Type], Type)
+collectFunctionResult (TTensor component) =
+  let (params, result) = collectFunctionResult component
+  in (params, normalizeTensorType (TTensor result))
+collectFunctionResult ty = collectCallableFunctionType ty
+
 -- | Build a curried function type from argument types and a result type.
 buildFunctionType :: [Type] -> Type -> Type
 buildFunctionType params result = foldr TFun result params
@@ -168,6 +182,8 @@ applyNArgType :: Type -> Int -> Type
 applyNArgType ty 0 = ty
 applyNArgType (TFun _ result) n
   | n > 0 = applyNArgType result (n - 1)
+applyNArgType (TTensor component) n
+  | n > 0 = normalizeTensorType (TTensor (applyNArgType component n))
 applyNArgType ty _ = ty
 
 -- | A parameter in a generated higher-order callback wrapper.
@@ -195,19 +211,8 @@ sameNormalizedType :: Type -> Type -> Bool
 sameNormalizedType ty1 ty2 =
   normalizeTensorType ty1 == normalizeTensorType ty2
 
--- | A scalar callback can receive a known Tensor, or acquire the common
--- Tensor domain while its consumer parameter is still unconstrained.
--- Inference records this domain before generalizing a surrounding definition;
--- insertion subsequently reconstructs the same wrapper from the final types.
-isDirectLiftSeed :: ClassEnv -> [Constraint] -> Type -> Type -> Bool
-isDirectLiftSeed classEnv constraints expectedParam actualParam =
-  case expectedParam of
-    TTensor _ -> isTensorLiftableScalarType classEnv constraints actualParam
-    _ -> False
-
--- | Detect whether a callback's result is fed back by the surrounding
--- higher-order function as a naked value. This distinguishes reductions like
--- foldl/foldr/scanl from maps, whose callback result only appears under a list.
+-- | Locate the result type shared by the receiving function's other positions.
+-- Its ordinary equations can require several callback inputs to change together.
 callbackResultFeedsBack :: Type -> Int -> Type -> Bool
 callbackResultFeedsBack outerFuncType callbackArgIndex expectedCallbackType =
   let (outerParams, outerResult) = collectFunctionType outerFuncType
@@ -282,7 +287,7 @@ buildCallbackLiftPlan ::
     -> Maybe ([CallbackParamPlan], [CallbackParamPlan], Type)
 buildCallbackLiftPlan selected allowUnknown classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
   let actualFuncType = tiExprType funcExpr
-      (actualParams, actualResult) = collectFunctionType actualFuncType
+      (actualParams, actualResult) = collectCallableFunctionType actualFuncType
       -- An optional candidate can determine an open consumer's function
       -- shape. The native member keeps its ordinary scalar function.
       candidateExpected = case expectedCallbackType of
@@ -358,7 +363,12 @@ insertTensorMaps tiExpr = do
 -- maps the scalar function over that tensor argument.
 wrapWithTypeDirectedTensorLift :: ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> Maybe TIExpr
 wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr =
-  case buildCallbackLiftPlan Nothing False classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
+  let (expectedParams,_) = collectFunctionType expectedCallbackType
+      (actualParams,_) = collectCallableFunctionType (tiExprType funcExpr)
+      selected = zipWith (\expected actual -> case expected of
+        TTensor component -> sameNormalizedType component actual
+        _ -> False) expectedParams actualParams
+  in case buildCallbackLiftPlan (Just selected) False classEnv constraints outerFuncType callbackArgIndex expectedCallbackType funcExpr of
     Nothing -> Nothing
     Just (callbackParams, liftedParams, resultType) ->
       -- Bind the supplied expression outside generated parameters. This is a
@@ -372,7 +382,9 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
           lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
           wrapper = TIExpr lambdaScheme lambdaNode
-      in Just $ TIExpr lambdaScheme (TILetExpr [(PDPatVar functionVar, funcExpr)] wrapper)
+      in if sameNormalizedType lambdaType expectedCallbackType
+           then Just $ TIExpr lambdaScheme (TILetExpr [(PDPatVar functionVar, funcExpr)] wrapper)
+           else Nothing
 
 -- | Predict the type of the same wrapper during application inference.
 -- No expression is inserted here: inference checks this type against the
@@ -391,7 +403,7 @@ typeDirectedTensorLiftType allowUnknown classEnv constraints outerFuncType callb
 typeDirectedTensorLiftTypes :: Bool -> ClassEnv -> [Constraint] -> Type -> Int -> Type -> TIExpr -> [Type]
 typeDirectedTensorLiftTypes allowUnknown classEnv constraints outer index expected actual =
   nub [ buildFunctionType (map callbackParamOuterType parameters) (normalizeTensorType (TTensor result))
-      | mask <- masks (length (fst (collectFunctionType (tiExprType actual))))
+      | mask <- masks (length (fst (collectCallableFunctionType (tiExprType actual))))
       , Just (parameters, _, result) <-
           [buildCallbackLiftPlan (Just mask) allowUnknown classEnv constraints outer index expected actual] ]
   where
@@ -412,7 +424,26 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [] scalarArgs
           Just scalarArg -> scalarArg
           Nothing -> callbackParamOuterExpr param
       args = map argFor callbackParams
-  in TIExpr (Forall [] [] [] resultType) (TIApplyExpr funcExpr args)
+      applyArgument current (index, argument) = case tiExprType current of
+        TTensor (TFun parameter result) ->
+          let componentName = "tmap_function_component" ++ show index
+              componentVar = Var componentName []
+              componentType = TFun parameter result
+              component = mkVarTIExpr componentName componentType
+              applied = TIExpr (Forall [] [] [] result) (TIApplyExpr component [argument])
+              callbackType = TFun componentType result
+              callback = TIExpr (Forall [] [] [] callbackType)
+                (TILambdaExpr Nothing [componentVar] applied)
+          in TIExpr (Forall [] [] [] (normalizeTensorType (TTensor result)))
+               (TITensorMapExpr callback current)
+        TFun _ result -> TIExpr (Forall [] [] [] result) (TIApplyExpr current [argument])
+        _ -> TIExpr (Forall [] [] [] resultType) (TIApplyExpr current [argument])
+  in if any intermediateTensor (take (length args - 1) (drop 1 (scanl (\ty _ -> applyNArgType ty 1) (tiExprType funcExpr) args)))
+       then foldl applyArgument funcExpr (zip [0 :: Int ..] args)
+       else TIExpr (Forall [] [] [] resultType) (TIApplyExpr funcExpr args)
+  where
+    intermediateTensor TTensor{} = True
+    intermediateTensor _ = False
 buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [param] scalarArgs =
   let index = callbackParamIndex param
       scalarName = "tmap_elem" ++ show (index + 1)
