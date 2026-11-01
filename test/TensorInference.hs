@@ -56,8 +56,6 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
     , ("nested MathValue function result does not erase Tensor",
         call "mathFunctionConsumer" [call "id" [var "mathTensorResult"]])
     , ("tensor predicate cannot replace a scalar predicate", call "filter" [var "toBool", tensors])
-    , ("a scalar predicate body is not reinterpreted as tensor input",
-        call "filter" [lambda ["x"] (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))), tensors])
     , ("a scalar component cannot join tensor components", IVectorExpr [int 1, vector])
     , ("a tensor component cannot join scalar components", IVectorExpr [vector, int 1])
     , ("joined tensor elements cannot enter a scalar list consumer",
@@ -529,6 +527,18 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           arrow [TCollection TInt] (TCollection TInt),
           Nothing,
           False)
+      , ("a predicate body maps arithmetic while preserving Bool",
+          call "filter" [lambda ["x"] (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))), tensors],
+          listTensor, Just (0,arrow [tensor] TBool), True)
+      , ("a tensor-free predicate body keeps its native domain",
+          lambda ["xs"] (call "filter" [lambda ["x"]
+            (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))),var "xs"]),
+          arrow [TCollection TInt] (TCollection TInt), Nothing, False)
+      , ("a named predicate retains its body conversion candidate",
+          ILetExpr [(PDPatVar (Var "predicate" []),lambda ["x"]
+            (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))))]
+            (call "filter" [var "predicate",tensors]),
+          listTensor, Nothing, True)
       , ("scalar predicate keeps its ordinary type",
           lambda ["xs"] (call "filter" [var "toBool", var "xs"]),
           arrow [TCollection TInt] (TCollection TInt),
@@ -857,6 +867,7 @@ hasTensorMap expression = case tiExprNode expression of
   TITensorMap2Expr{} -> True
   TIApplyExpr fn args -> any hasTensorMap (fn : args)
   TILambdaExpr _ _ body -> hasTensorMap body
+  TISeqExpr first second -> hasTensorMap first || hasTensorMap second
   TILetExpr bindings body -> any (hasTensorMap . snd) bindings || hasTensorMap body
   TILetRecExpr bindings body -> any (hasTensorMap . snd) bindings || hasTensorMap body
   TITupleExpr elements -> any hasTensorMap elements

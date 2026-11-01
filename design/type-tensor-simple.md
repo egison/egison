@@ -93,6 +93,8 @@ tensorMap (\x -> inc x) [| 1, 2, 3 |]
 
 高階引数とは，別の関数へ引数として渡す関数である．その変換候補は，受け取り側の型変数と共有制約をすべて満たす場合に使用できる．`map` は入力と結果の型変数をテンソル型にできる．`foldl` は結果と累積値の型を共有するため，必要な変換を両方へ伝える．`filter` の結果は `Bool` に固定され，`Tensor Bool` にできない．
 
+述語の本体内の写像は，返り値を `Bool` に保てる場合に許す．例えば `filter (\x -> let unused := x+1 in True) [[|1,2|]]` は，加算だけへ `tensorMap` を挿入し，述語を `Tensor Integer -> Bool` とできる．別名で定義した述語も，既知の本体からこの候補を生成する．述語全体を写像して `Tensor Bool` を返す変換とは別に検査する．
+
 ```egison
 def mySum xs := foldl (\x y -> x+y) 0 xs
 -- 通常の型：[Integer] -> Integer

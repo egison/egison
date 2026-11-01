@@ -574,7 +574,7 @@ insertTensorMapsInExpr classEnv scheme tiExpr = do
                 -- For each argument, merge base constraints with the argument's own constraints
                 desiredType = foldr TFun (tiExprType tiExpr) (map tiExprType args')
                 needsPartialConversion = case tiExprType tiExpr of
-                  TFun{} -> any (\argument -> case tiExprType argument of TTensor{} -> True; _ -> False) args'
+                  TFun{} -> True
                   _ -> False
                 converted = if needsPartialConversion then
                     wrapFunctionArgumentIfNeeded env baseConstraints

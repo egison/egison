@@ -2851,6 +2851,8 @@ inferIExprInContext expr ctx = case expr of
   -- Lambda
   ILambdaExpr mVar params body -> do
     let exprCtx = withExpr (prettyStr expr) ctx
+    -- Later uses can select maps inside the body while preserving its result.
+    modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + length params })
     argTypes <- mapM (const (freshVar "arg")) params
     inferLambdaWithArgumentTypes mVar params argTypes body exprCtx
 
@@ -6383,8 +6385,8 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
     _ -> return False
   sourceType <- applySubstWithConstraintsM initSubst funcType
   let functional = case sourceType of TFun{} -> True; TVar{} -> True; _ -> False
-  deferred <- if candidateMode && functional && or evidence
-    then chooseCandidate (if any pendingTensorResult args then [True,False] else [False,True]) else return False
+  deferred <- if candidateMode && functional
+    then chooseCandidate (if or evidence && any pendingTensorResult args then [True,False] else [False,True]) else return False
   if not deferred then inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx else do
     parameters <- mapM (const (freshVar "mappedParameter")) args
     result <- freshVar "mappedResult"

@@ -42,3 +42,12 @@ assertEqual "curried callback crosses two tensor-valued function results"
     (\k -> k [|1,2|] [|10,20|] [|100,200|])
     (\x -> tensor [] [\y -> tensor [] [\z -> x+y+z]]))
   ([|111,222|],111)
+
+assertEqual "predicate body retains Bool with tensor arithmetic"
+  (filter (\x -> let unused := x+1 in True) [[|1,2|],[|3,4|]])
+  [[|1,2|],[|3,4|]]
+
+def familyPredicate x := let unused := x+1 in True
+assertEqual "named predicate retains its body conversion"
+  (filter familyPredicate [[|1,2|],[|3,4|]])
+  [[|1,2|],[|3,4|]]
