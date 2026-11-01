@@ -51,3 +51,25 @@ def familyPredicate x := let unused := x+1 in True
 assertEqual "named predicate retains its body conversion"
   (filter familyPredicate [[|1,2|],[|3,4|]])
   [[|1,2|],[|3,4|]]
+
+def familyListShape xs :=
+  let shape := tensorShape xs in
+    match xs as list something with
+      | [] -> shape
+      | $first :: $rest -> shape
+      else []
+assertEqual "later list pattern resolves scalar completion at tensorShape"
+  (familyListShape [1,2])
+  []
+
+assertEqual "a generic callback does not acquire its input axes"
+  ((\k -> tensorShape (k [|1,2|])) (\ignored -> 1))
+  []
+
+assertEqual "tensor function results retain scalar callback arguments"
+  ((\k -> tensorShape (k 1 2)) (\x -> tensor [] [\y -> x+y]))
+  []
+
+assertEqual "a tensor of functions is mapped at the scalar argument position"
+  ((\k -> length (tensorShape (k 1))) [| (\x -> x+1), (\x -> x+10) |])
+  [|0,0|]

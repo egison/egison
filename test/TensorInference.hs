@@ -158,7 +158,10 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
   ]
   where
     cases =
-      [ ("concatenation preserves a right tensor element",
+      [ ("a later list use resolves scalar completion at tensorShape",
+          IApplyExpr (lambda ["x"] (ITupleExpr [call "tensorShape" [var "x"],IJoinExpr (var "x") (ICollectionExpr [])])) [scalars],
+          TTuple [TCollection TInt,TCollection TInt],Nothing,False)
+      , ("concatenation preserves a right tensor element",
           IJoinExpr scalars tensors,
           listTensor,
           Nothing,
@@ -527,6 +530,15 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           arrow [TCollection TInt] (TCollection TInt),
           Nothing,
           False)
+      , ("a tensor function result adapts to scalar callback arguments",
+          call "nativeTensorConsumer2" [var "nativeTensorFunctionResult"],
+          tensor,Just (0,arrow [TInt,TInt] tensor),True)
+      , ("a tensor of functions adapts to scalar callback arguments",
+          call "nativeTensorConsumer2" [var "nativeTensorFunctionRoot"],
+          tensor,Nothing,True)
+      , ("a generic callback takes the tensor whole and returns a scalar coefficient",
+          call "functionConsumer1" [lambda ["ignored"] (int 1)],
+          tensor,Just (0,arrow [tensor] tensor),False)
       , ("a predicate body maps arithmetic while preserving Bool",
           call "filter" [lambda ["x"] (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))), tensors],
           listTensor, Just (0,arrow [tensor] TBool), True)
@@ -790,7 +802,11 @@ inferenceState = initialInferState { inferEnv =
     d = TVar (TyVar "d")
     tensor = TTensor TInt
     bindings =
-      [ ("consumeAny", arrow [a] TInt)
+      [ ("nativeTensorConsumer2", arrow [arrow [TInt,TInt] tensor] tensor)
+      , ("nativeTensorFunctionResult", arrow [TInt] (TTensor (arrow [TInt] TInt)))
+      , ("nativeTensorFunctionRoot", TTensor (arrow [TInt,TInt] TInt))
+      , ("tensorShape", arrow [TTensor a] (TCollection TInt))
+      , ("consumeAny", arrow [a] TInt)
       , ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
       , ("apply", arrow [arrow [a] b, a] b)
       , ("dataCallback", arrow [a, arrow [a] TInt] TInt)

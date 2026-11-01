@@ -6207,11 +6207,16 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
       expectedType <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst expected0
       global <- gets inferGlobalSubst
       let currentConstraints = map (applySubstConstraint global) constraints
-      let candidates = nub [composeSubst substitution seed |
-            seed <- tensorEqualitySeeds actual expectedType,
+      let solve left right = [composeSubst substitution seed |
+            seed <- tensorEqualitySeeds left right,
             Right substitution <- [TU.unifyStrictWithConstraints classEnv
               (map (applySubstConstraint seed) currentConstraints)
-              (applySubst seed actual) (applySubst seed expectedType)]]
+              (applySubst seed left) (applySubst seed right)]]
+          coefficient = case (actual, expectedType) of
+            (TTensor{}, _) -> []
+            (_, TTensor required) -> solve actual required
+            _ -> []
+          candidates = nub (solve actual expectedType ++ coefficient)
       case candidates of
         _:_ -> do
           substitution <- chooseCandidate candidates

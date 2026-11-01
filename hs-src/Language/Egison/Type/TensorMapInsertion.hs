@@ -255,7 +255,8 @@ callbackLiftMask selected classEnv constraints resultFeedsBack expectedParams ex
             zipWith (&&) mask (zipWith unresolvedScalar expectedParams actualParams)
         | otherwise = map (const False) expectedParams
       resultCanBecomeTensor mask =
-        any id mask && scalar actualResult
+        (any id mask || (case selected of Just _ -> resultAdmitsCompletion; Nothing -> False))
+          && scalar actualResult
       step mask =
         zipWith3
           (\already expectedParam actualParam ->
@@ -273,8 +274,8 @@ callbackLiftMask selected classEnv constraints resultFeedsBack expectedParams ex
   in go initialMask
 
 -- | Build a wrapper plan for a scalar callback passed to a higher-order
--- argument position. The plan is absent when the expected callback type does
--- not force any tensor lifting.
+-- argument position. The receiving type can require input maps, scalar-result
+-- completion, or applications through tensor-valued function results.
 buildCallbackLiftPlan ::
     Maybe [Bool]
     -> Bool
@@ -320,7 +321,16 @@ buildCallbackLiftPlan selected allowUnknown classEnv constraints outerFuncType c
              callbackParams = zipWith3 mkCallbackParamPlan [0..] actualParamsForArity liftMask
              liftedParams = filter callbackParamNeedsLift callbackParams
              resultType = applyNArgType actualFuncType arity
-         in if null liftedParams
+             completesResult =
+               not (sameNormalizedType resultType expectedResult) &&
+               sameNormalizedType (normalizeTensorType (TTensor resultType)) expectedResult
+             mapsReturnedFunctions = case actualFuncType of
+               TFun{} -> any isTensorHead
+                 (take (arity-1) (tail (scanl (\ty _ -> applyNArgType ty 1) actualFuncType expectedParams)))
+               _ -> False
+             isTensorHead TTensor{} = True
+             isTensorHead _ = False
+         in if null liftedParams && not completesResult && not mapsReturnedFunctions
               then Nothing
               else Just (callbackParams, liftedParams, resultType)
 
@@ -377,7 +387,13 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
       let functionName = "tmap_function"
           functionVar = Var functionName []
           functionRef = mkVarTIExpr functionName (tiExprType funcExpr)
-          body = buildTypeDirectedTensorLiftBody functionRef resultType callbackParams liftedParams []
+          applied = buildTypeDirectedTensorLiftBody functionRef resultType callbackParams liftedParams []
+          tensorResult = normalizeTensorType (TTensor resultType)
+          body = if null liftedParams && not (sameNormalizedType (tiExprType applied) tensorResult)
+            then let shape = TIExpr (Forall [] [] [] (TCollection TInt)) (TICollectionExpr [])
+                     cells = TIExpr (Forall [] [] [] (TCollection (tiExprType applied))) (TICollectionExpr [applied])
+                 in TIExpr (Forall [] [] [] tensorResult) (TITensorExpr shape cells)
+            else applied
           lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
           lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
@@ -438,7 +454,7 @@ buildTypeDirectedTensorLiftBody funcExpr resultType callbackParams [] scalarArgs
                (TITensorMapExpr callback current)
         TFun _ result -> TIExpr (Forall [] [] [] result) (TIApplyExpr current [argument])
         _ -> TIExpr (Forall [] [] [] resultType) (TIApplyExpr current [argument])
-  in if any intermediateTensor (take (length args - 1) (drop 1 (scanl (\ty _ -> applyNArgType ty 1) (tiExprType funcExpr) args)))
+  in if intermediateTensor (tiExprType funcExpr) || any intermediateTensor (take (length args - 1) (drop 1 (scanl (\ty _ -> applyNArgType ty 1) (tiExprType funcExpr) args)))
        then foldl applyArgument funcExpr (zip [0 :: Int ..] args)
        else TIExpr (Forall [] [] [] resultType) (TIApplyExpr funcExpr args)
   where
