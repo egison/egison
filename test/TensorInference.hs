@@ -551,6 +551,11 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
             (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))))]
             (call "filter" [var "predicate",tensors]),
           listTensor, Nothing, True)
+      , ("a saved list retains its predicate body conversion candidate",
+          ILetExpr [(PDPatVar (Var "predicates" []), ICollectionExpr [lambda ["x"]
+            (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True)))])]
+            (call "filter" [call "head" [var "predicates"], tensors]),
+          listTensor, Nothing, True)
       , ("scalar predicate keeps its ordinary type",
           lambda ["xs"] (call "filter" [var "toBool", var "xs"]),
           arrow [TCollection TInt] (TCollection TInt),
@@ -808,6 +813,7 @@ inferenceState = initialInferState { inferEnv =
       , ("tensorShape", arrow [TTensor a] (TCollection TInt))
       , ("consumeAny", arrow [a] TInt)
       , ("map", arrow [arrow [a] b, TCollection a] (TCollection b))
+      , ("head", arrow [TCollection a] a)
       , ("apply", arrow [arrow [a] b, a] b)
       , ("dataCallback", arrow [a, arrow [a] TInt] TInt)
       , ("iterate", arrow [arrow [a] a, a] (TCollection a))

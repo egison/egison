@@ -2675,6 +2675,17 @@ hasFunctionParameters (TFun TFun{} _) = True
 hasFunctionParameters (TFun _ result) = hasFunctionParameters result
 hasFunctionParameters _ = False
 
+-- Containers can retain bodies whose function inputs are converted after
+-- extraction. Mutable cells and actions are not duplicated as templates.
+containsFunctionValue :: Type -> Bool
+containsFunctionValue TFun{} = True
+containsFunctionValue (TCollection element) = containsFunctionValue element
+containsFunctionValue (TTuple elements) = any containsFunctionValue elements
+containsFunctionValue (TTensor element) = containsFunctionValue element
+containsFunctionValue (TInductive _ arguments) = any containsFunctionValue arguments
+containsFunctionValue (THash key value) = containsFunctionValue key || containsFunctionValue value
+containsFunctionValue _ = False
+
 instantiateFunctionRecipe :: String -> FunctionRecipe -> TypeErrorContext -> Infer (TIExpr, Subst)
 instantiateFunctionRecipe owner recipe context = do
   environment <- getEnv
@@ -6924,7 +6935,8 @@ inferIBindingsWithContext ((pat, expr):bs) env s ctx = do
   _env' <- getEnv
   let extendedEnvList = bindings  -- Already a list of (String, TypeScheme)
   members <- case (pat, finalExprType) of
-    (PDPatVar (Var owner []), TFun{}) -> buildFunctionFamily False owner expr exprTI previousSites
+    (PDPatVar (Var owner []), ty) | containsFunctionValue ty ->
+      buildFunctionFamily False owner expr exprTI previousSites
     _ -> return []
   let familyBindings = [(name, scheme) | (name, scheme, _) <- members]
       familyTrees = [(PDPatVar (Var name []), candidate) | (name, _, candidate) <- members]
@@ -7153,7 +7165,7 @@ inferIRecBindingGroupWithContext bindings _env s ctx = do
 
   families <- withEnv finalBindings $ fmap concat $ forM (zip3 bindings exprTypes' exprTIs) $
     \((pattern, _), ty, native) -> case (pattern, ty) of
-      (PDPatVar (Var owner []), TFun{}) -> do
+      (PDPatVar (Var owner []), resultType) | containsFunctionValue resultType -> do
         members <- buildFunctionFamilySource owner
           (ILetRecExpr bindings (IVarExpr owner)) native previousSites
         installFunctionFamily owner members
@@ -7334,7 +7346,7 @@ inferITopExprCandidates topExpr = do
   building <- gets inferFamilyBuilding
   case (topExpr, result) of
     (IDefine (Var owner []) expression, (Just (TIDefine _ variable typed), substitution))
-      | not building, TFun{} <- tiExprType typed -> do
+      | not building, containsFunctionValue (tiExprType typed) -> do
           members <- buildFunctionFamily True owner expression typed previousSites
           installFunctionFamily owner members
           if null members then return result else

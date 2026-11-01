@@ -52,6 +52,16 @@ assertEqual "named predicate retains its body conversion"
   (filter familyPredicate [[|1,2|],[|3,4|]])
   [[|1,2|],[|3,4|]]
 
+assertEqual "a saved predicate list retains body conversion"
+  (let predicates := [\x -> let unused := x+1 in True] in
+    filter (head predicates) [[|1,2|],[|3,4|]])
+  [[|1,2|],[|3,4|]]
+
+def familyPredicates := [\x -> let unused := x+1 in True]
+assertEqual "a top-level predicate list retains body conversion"
+  (filter (head familyPredicates) [[|1,2|],[|3,4|]])
+  [[|1,2|],[|3,4|]]
+
 def familyListShape xs :=
   let shape := tensorShape xs in
     match xs as list something with
