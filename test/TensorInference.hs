@@ -602,6 +602,12 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
               call "scalarList" [ICollectionExpr [call "h" [int 1]]]]))
             [lambda ["k"] (call "k" [vector]), var "one"],
           TTuple [tensor, TCollection TInt], Nothing, True)
+      , ("a saved list adapts a callback whose function result is fixed at its use",
+          ILetExpr [(PDPatVar (Var "invokers" []), ICollectionExpr [lambda ["g", "h"]
+            (ITupleExpr [call "g" [var "h"], call "h" [int 1]])])]
+            (call "typedFunctionPair" [IApplyExpr (call "head" [var "invokers"])
+              [var "tensorCallbackConsumer2",var "two"]]),
+          TInt, Nothing, True)
       , ("a retained definition adapts an unknown callback to an opaque consumer",
           ILetExpr [(PDPatVar (Var "invoke" []), lambda ["g", "h"]
             (ITupleExpr [call "g" [var "h"],
