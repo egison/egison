@@ -119,3 +119,18 @@ assertEqual "n-ary completion preserves its original function binding"
   (let keptFour := regressionTensorFour
        applyFour ws xs ys zs := map4 keptFour ws xs ys zs
     in applyFour [[|1,2|]] [3] [[|4,5|]] [6]) [[|14,16|]]
+
+-- A source can have a typing without implicit mapping while inference
+-- prefers a scalar function domain and inserts another tensorMap.
+-- The corresponding core typing is proved in type-tensor-mech's
+-- ExplicitCoreExample.source_typed; these checks exercise public Egison.
+
+assertEqual "constant function receives an unconstrained tensor whole"
+  ((\x -> 0) [|1, 2|]) 0
+
+assertEqual "explicit tensorMap applies the constant function to each component"
+  (tensorMap (\x -> 0) [|1, 2|]) [|0, 0|]
+
+assertEqual "explicit map elsewhere does not prevent implicit mapping"
+  ((\f -> let ys := tensorMap f [|1, 2|] in f [|1, 2|]) (\x -> 0))
+  [|0, 0|]
