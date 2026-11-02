@@ -131,41 +131,80 @@ tIntRef1 (m:ms) t = tIntRef' m t >>= tIntRef1 ms
 pattern SupOrSubIndex :: a -> Index a
 pattern SupOrSubIndex i <- (extractSupOrSubIndex -> Just i)
 
+-- Resolve references on dimensions even when an outer axis has no cells.
+-- This retains trailing dimensions and checks later numeric references.
+isReferenceSymbol :: EgisonValue -> Bool
+isReferenceSymbol (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ _ _, 1)]])) = True
+isReferenceSymbol _ = False
+
+referenceInteger :: EgisonValue -> Maybe Integer
+referenceInteger (CASData (CASPoly [CASTerm (CASInteger m) []])) = Just m
+referenceInteger (CASData (CASInteger m)) = Just m
+referenceInteger (CASData (CASPoly [])) = Just 0
+referenceInteger _ = Nothing
+
+emptyReference :: [Index EgisonValue] -> Shape -> [Index EgisonValue]
+               -> EvalM (Shape, [Index EgisonValue])
+emptyReference [] ns js = return (ns, js)
+emptyReference idxs [] js = tooManyIndices idxs js
+emptyReference (s@(SupOrSubIndex val):ms) (n:ns) js
+  | isReferenceSymbol val = do
+      (shape, indices) <- emptyReference ms ns (cdr js)
+      return (n:shape, s:indices)
+  | Just i <- referenceInteger val =
+      if 0 < i && i <= n
+        then emptyReference ms ns (cdr js)
+        else throwErrorWithTrace (TensorIndexOutOfBounds i n)
+emptyReference (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) shape@(size:ns) js = do
+  m <- fromEgison mVal
+  n <- fromEgison nVal
+  if m > n
+    then return (replicate (length shape) 0, [])
+    else if m <= 0 || m > size
+      then throwErrorWithTrace (TensorIndexOutOfBounds m size)
+      else if n > size
+        then throwErrorWithTrace (TensorIndexOutOfBounds (size + 1) size)
+        else do
+          (rest, indices) <- emptyReference ms ns (cdr js)
+          symId <- fresh
+          let index = symbolCASData "" (":::" ++ symId)
+              entry = case s of
+                Sub{} -> Sub index
+                Sup{} -> Sup index
+                SupSub{} -> SupSub index
+                _ -> s
+          return ((n - m + 1):rest, entry:indices)
+emptyReference _ _ _ = throwError $ Default "Tensor index must be an integer or a single symbol."
+
+tooManyIndices :: [Index EgisonValue] -> [Index EgisonValue] -> EvalM a
+tooManyIndices idxs js = throwError . Default $
+  "Too many tensor indices: tensor has rank " ++ show (length js) ++
+  " but " ++ show (length idxs + length js) ++ " indices given (" ++
+  show (length idxs) ++ " excess)."
+
 tref :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
 tref [] (Tensor [] xs _)
   | V.length xs == 1 = return $ Scalar (xs V.! 0)
   | otherwise = throwErrorWithTrace (EgisonBug "sevaral elements in scalar tensor")
 tref [] t = return t
+tref entries (Tensor ns xs js) | V.null xs && 0 `elem` ns = do
+  (shape, indices) <- emptyReference entries ns js
+  return $ Tensor shape V.empty indices
 -- Reject: too many indices for the tensor's rank.
 -- E.g. `B_j_k` where B is rank 1 (Vector). Without this, the recursion
 -- bottoms out at a scalar with leftover indices and falls through to the
 -- generic "must be integer or single symbol" error, which hides the real
 -- problem. Give a precise message instead.
-tref idxs (Tensor [] _ js) =
-  throwError . Default $
-    "Too many tensor indices: tensor has rank " ++ show (length js) ++
-    " but " ++ show (length idxs + length js) ++ " indices given (" ++
-    show (length idxs) ++ " excess)."
+tref idxs (Tensor [] _ js) = tooManyIndices idxs js
 tref (s@(SupOrSubIndex val):ms) (Tensor (_:ns) xs js)
-  | isCASSymbol val = do
+  | isReferenceSymbol val = do
       let yss = split (product ns) xs
       ts <- mapM (\ys -> tref ms (Tensor ns ys (cdr js))) yss
       tConcat s ts
- where
-  isCASSymbol (CASData (CASPoly [CASTerm (CASInteger 1) [(CAS.Symbol _ _ _, 1)]])) = True
-  isCASSymbol _ = False
+
 tref (SupOrSubIndex val:ms) t
-  | Just m <- extractCASInteger val = tIntRef' m t >>= tref ms
- where
-  extractCASInteger (CASData (CASPoly [CASTerm (CASInteger m) []])) = Just m
-  extractCASInteger (CASData (CASInteger m)) = Just m
-  extractCASInteger _ = Nothing
-tref (SupOrSubIndex val:_) _
-  | isCASZero val = throwError $ Default "tensor index out of bounds: 0"
- where
-  isCASZero (CASData (CASInteger 0)) = True
-  isCASZero (CASData (CASPoly [])) = True
-  isCASZero _ = False
+  | Just m <- referenceInteger val = tIntRef' m t >>= tref ms
+
 tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
   m <- fromEgison mVal
   n <- fromEgison nVal
@@ -395,14 +434,21 @@ tContract t = do
     _ -> return [t']
 
 tContract' :: Tensor a -> EvalM (Tensor a)
-tContract' t@(Tensor ns _ js) =
+tContract' t@(Tensor ns cells js) =
   match dfs js (List M.Something)
     [ [mc| $hjs ++ $a : $mjs ++ ?(p a) : $tjs -> do
              let m = fromIntegral (length hjs)
-             xs' <- mapM (\i -> tref (hjs ++ (Sub (intToCASData i) : mjs)
-                                          ++ (Sub (intToCASData i) : tjs)) t)
-                         [1..(ns !! m)]
-             tConcat a xs' >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
+                 later = m + 1 + length mjs
+             if V.null cells && 0 `elem` ns
+               then if ns !! m > ns !! later
+                 then throwErrorWithTrace (TensorIndexOutOfBounds (ns !! later + 1) (ns !! later))
+                 else tContract' (Tensor (take later ns ++ drop (later + 1) ns)
+                                   V.empty (hjs ++ a : mjs ++ tjs))
+               else do
+                 xs' <- mapM (\i -> tref (hjs ++ (Sub (intToCASData i) : mjs)
+                                              ++ (Sub (intToCASData i) : tjs)) t)
+                             [1..(ns !! m)]
+                 tConcat a xs' >>= tTranspose (hjs ++ a : mjs ++ tjs) >>= tContract' |]
     , [mc| _ -> return t |]
     ]
  where
@@ -414,14 +460,12 @@ tContract' t@(Tensor ns _ js) =
 tContract' val = return val
 
 tConcat :: Index EgisonValue -> [Tensor a] -> EvalM (Tensor a)
-tConcat s (Tensor ns@(0:_) _ js:_) = return $ Tensor (0:ns) V.empty (s:js)
 tConcat s ts@(Tensor ns _ js:_) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) (s:js)
 tConcat s ts = do
   ts' <- mapM getScalar ts
   return $ Tensor [fromIntegral (length ts)] (V.fromList ts') [s]
 
 tConcat' :: [Tensor a] -> EvalM (Tensor a)
-tConcat' (Tensor ns@(0:_) _ _ : _) = return $ Tensor (0:ns) V.empty []
 tConcat' ts@(Tensor ns _ _ : _) = return $ Tensor (fromIntegral (length ts):ns) (V.concat (map tToVector ts)) []
 tConcat' ts = do
   ts' <- mapM getScalar ts
