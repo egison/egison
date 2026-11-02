@@ -366,7 +366,7 @@ hasPatternHoleBeforePrimitiveValuePattern = snd . visit False
       in (seenHole'', violation || laterViolation)
 
 -- | Render a primitive-pattern pattern without losing its tree shape.
--- 'Pretty PrimitivePatPattern' historically omits parentheses around nested
+-- 'Pretty PrimitivePatPattern' omits parentheses around nested
 -- constructors, which makes (for example) @join $ (cons #$val $)@ look flat
 -- in a diagnostic. Outside-core warnings need a round-trippable account of
 -- the boundary that was actually encountered.

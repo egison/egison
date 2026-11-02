@@ -515,9 +515,9 @@ persistSuccessfulInferState finalState = do
   setPatternFuncEnv (inferPatternFuncEnv finalState)
   setMatcherShapeEnv (inferMatcherShapes finalState)
 
--- | Report a type error.  Permissive mode keeps the historical untyped
--- fallback, while strict mode must stop before an ill-typed expression can
--- enter the runtime environment.
+-- | Report a type error. Permissive mode evaluates the original expression
+-- after reporting the error. Strict mode stops before the expression enters
+-- the runtime environment.
 handleTypeError :: Bool -> TypeError -> PipelineAccum -> TopExpr -> Bool -> EvalM PipelineAccum
 handleTypeError permissive err acc expr printValues = do
   let message = "Type error:\n" ++ formatTypeError err
