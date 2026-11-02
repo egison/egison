@@ -112,6 +112,11 @@ tensorShapeValidationTests = TestLabel "Tensor shape validation" . TestList $
       , ("rank zero applies generator", "generateTensor (\\_ -> tensor [1] [1,2]) []", inconsistent)
       , ("empty tensor literal", "[||]", positive)
       , ("nested empty tensor literal", "[|[||]|]", positive)
+      , ("different component lengths", "[|[|1,2|],[|3|]|]", inconsistent)
+      , ("different component ranks", "[|[|1,2|],[|[|3,4|],[|5,6|]|]|]", inconsistent)
+      , ("different mapped result shapes", "tensorMap (\\f -> f 1) [|(\\x -> [|x|]),(\\x -> [|x,x|])|]", inconsistent)
+      , ("different lifted result shapes", "(\\t -> [|(\\x -> [|x+1|]) t,t|]) [|1,2|]", inconsistent)
+      , ("different stored component shapes", "tensor [2] [[|1,2|],[|3|]]", inconsistent)
       , ("empty index range", "[|1,2,3|]_(3,2)", "Tensor range must be nonempty")
       ]
   ]
