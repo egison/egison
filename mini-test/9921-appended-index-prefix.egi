@@ -1,0 +1,22 @@
+-- Appended references retain the leading named axes and replace all old
+-- names beyond that prefix, including indices introduced by nested arrays.
+
+assertEqual "append starts at the first anonymous axis"
+  (show (withSymbols [i,j] (tensorIndices (([|[|1,2|]_i,[|3,4|]_i|])..._j))))
+  "[SubIndex j]"
+
+assertEqual "numeric append erases the old inner name"
+  (withSymbols [i] (tensorIndices (([|[|1,2|]_i,[|3,4|]_i|])..._1)))
+  []
+
+assertEqual "numeric append selects the expected row"
+  (withSymbols [i] (tensorToList (([|[|1,2|]_i,[|3,4|]_i|])..._2)))
+  [3,4]
+
+assertEqual "append preserves an existing named prefix"
+  (show (withSymbols [i,j] (tensorIndices (([|[|1,2|],[|3,4|]|]_i)...~j))))
+  "[SubIndex i, SupIndex j]"
+
+assertEqual "appending a repeated name selects the diagonal"
+  (withSymbols [i] (tensorToList (([|[|1,2|],[|3,4|]|]_i)..._i)))
+  [1,4]

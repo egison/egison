@@ -1725,7 +1725,12 @@ refTensorWithOverride :: TensorComponent a b => Bool -> [Index EgisonValue] -> T
 refTensorWithOverride override js (Tensor ns xs is) =
   tref js' (Tensor ns xs js') >>= tContract' >>= fromTensor
     where
-      js' = if override then js else is ++ js
+      -- An appended suffix retains only the leading named axes.  DF
+      -- marks anonymous dimensions and is not a surface reference entry.
+      -- Names after the first anonymous axis are replaced, as in tref.
+      js' = if override then js else takeWhile named is ++ js
+      named (DF _ _) = False
+      named _ = True
 
 makeBindings :: [Var] -> [ObjectRef] -> EvalM [Binding]
 makeBindings vs refs = zipWithM makeBinding vs refs >>= return . concat
