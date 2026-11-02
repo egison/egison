@@ -19,8 +19,7 @@ assertEqual "map result assembly"
   [|[|[1],[2]|],[|[2],[3]|]|]
 assertEqual "lists remain scalar leaves"
   (tensorShape (generateTensor (\_ -> [[|1,2|]]) [2])) [2]
-assertEqual "empty generation does not evaluate its body"
-  (tensorShape (generateTensor (\_ -> tensor [1] [1,2]) [0,3])) [0,3]
+-- Rejection before applying an invalid generator is checked in Test.hs.
 assertEqual "rank zero generation" (generateTensor (\_ -> [|1,2|]) []) [|1,2|]
 assertEqual "nested maps retain variable scope"
   (tensorMap (\inner -> tensorMap (\x -> [x]) inner) generatedRows)

@@ -194,6 +194,7 @@ evalExprShallow env (ITensorExpr nsExpr xsExpr) = do
   ns <- (collectionToRefs nsWhnf >>= fromMList >>= mapM evalRefDeep >>= mapM fromEgison) :: EvalM [Integer]
   xsWhnf <- evalExprShallow env xsExpr
   xs <- collectionToRefs xsWhnf >>= fromMList >>= mapM evalRef
+  checkPositiveTensorShape ns
   if product ns == toInteger (length xs)
     then makeITensorFromWHNF ns xs
     else throwErrorWithTrace InconsistentTensorShape
@@ -546,6 +547,7 @@ evalExprShallow env (IMatcherExpr info) = return $ Value $ UserMatcher env info
 evalExprShallow env (IGenerateTensorExpr fnExpr shapeExpr) = do
   shape <- evalExprDeep env shapeExpr >>= collectionToList
   ns    <- mapM fromEgison shape :: EvalM Shape
+  checkPositiveTensorShape ns
   xs    <- mapM (evalWithIndex env . map CASInteger) (enumTensorIndices ns)
   newITensor ns xs
  where
@@ -1675,15 +1677,20 @@ makeITensorFromWHNF s xs = do
   xs' <- mapM newEvaluatedObjectRef xs
   newITensor s xs'
 
--- A rank-zero tensor is its sole scalar component.  Do not use the component
--- count alone here: shapes [0] and [1] are still rank-one tensors.
+-- The empty shape denotes rank zero; every actual axis must be nonempty.
+checkPositiveTensorShape :: Shape -> EvalM ()
+checkPositiveTensorShape shape =
+  when (any (<= 0) shape) $
+    throwError (Default "Tensor axis lengths must be positive")
+
+-- A rank-zero tensor is its sole component; a shape [1] stays rank one.
 newITensor :: Shape -> [ObjectRef] -> EvalM WHNFData
 newITensor [] [ref] = evalRef ref
 newITensor s refs = normalizeTensorWHNF (ITensor (Tensor s (V.fromList refs) []))
 
 -- Assemble all tensor-producing operations in one representation. Only
 -- tensor components are inspected; lists and other scalar values stay whole.
--- Empty outer arrays do not evaluate a generator to discover an inner shape.
+-- Dimension validation precedes inspection of the component shapes.
 normalizeTensorWHNF :: WHNFData -> EvalM WHNFData
 normalizeTensorWHNF (Value (TensorData (Scalar value))) = normalizeTensorWHNF (Value value)
 normalizeTensorWHNF (Value (TensorData (Tensor shape cells indices))) = do
@@ -1691,9 +1698,9 @@ normalizeTensorWHNF (Value (TensorData (Tensor shape cells indices))) = do
   normalizeTensorWHNF (ITensor (Tensor shape refs indices))
 normalizeTensorWHNF (ITensor (Scalar ref)) = evalRef ref >>= normalizeTensorWHNF
 normalizeTensorWHNF (ITensor (Tensor shape refs indices))
-  | any (< 0) shape || product shape /= toInteger (V.length refs) =
+  | any (<= 0) shape = throwError (Default "Tensor axis lengths must be positive")
+  | product shape /= toInteger (V.length refs) =
       throwErrorWithTrace InconsistentTensorShape
-  | V.null refs = return (ITensor (Tensor shape refs indices))
   | otherwise = do
       components <- V.mapM (evalRef >=> normalizeTensorWHNF >=> component) refs
       let (innerShape, _, innerIndices) = V.head components

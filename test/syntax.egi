@@ -457,9 +457,7 @@ assertEqual "rank-one singleton generated value remains a tensor"
   (generateTensor (\[x] -> x) [1])
   [| 1 |]
 
-assertEqual "empty rank-one generated value remains a tensor"
-  (show (generateTensor (\_ -> 42) [0]))
-  "[|  |]"
+-- Zero-axis generation is rejected by Tensor shape validation in Test.hs.
 
 assertEqual "tensor"
   (tensor [2, 5] [1, 2, 3, 4, 5, 2, 4, 6, 8, 10])

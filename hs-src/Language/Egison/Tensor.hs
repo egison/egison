@@ -155,11 +155,11 @@ emptyReference (s@(SupOrSubIndex val):ms) (n:ns) js
       if 0 < i && i <= n
         then emptyReference ms ns (cdr js)
         else throwErrorWithTrace (TensorIndexOutOfBounds i n)
-emptyReference (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) shape@(size:ns) js = do
+emptyReference (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) (size:ns) js = do
   m <- fromEgison mVal
   n <- fromEgison nVal
   if m > n
-    then return (replicate (length shape) 0, [])
+    then throwError (Default "Tensor range must be nonempty")
     else if m <= 0 || m > size
       then throwErrorWithTrace (TensorIndexOutOfBounds m size)
       else if n > size
@@ -205,12 +205,11 @@ tref (s@(SupOrSubIndex val):ms) (Tensor (_:ns) xs js)
 tref (SupOrSubIndex val:ms) t
   | Just m <- referenceInteger val = tIntRef' m t >>= tref ms
 
-tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@(Tensor is _ _) = do
+tref (s@(SupOrSubIndex (Tuple [mVal, nVal])):ms) t@Tensor{} = do
   m <- fromEgison mVal
   n <- fromEgison nVal
   if m > n
-    then
-      return (Tensor (replicate (length is) 0) V.empty [])
+    then throwError (Default "Tensor range must be nonempty")
     else do
       ts <- mapM (\i -> tIntRef' i t >>= tref ms) [m..n]
       symId <- fresh

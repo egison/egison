@@ -48,7 +48,6 @@ import           Language.Egison.Type.Subst     (applyCapSubstToType,
                                                   applyCapSubst,
                                                   applySubst,
                                                   applyTypeSubst,
-                                                  emptySubst,
                                                   singletonCapSubst,
                                                   singletonSubst)
 import           Language.Egison.Type.Types     (CapVar (..),
@@ -58,8 +57,7 @@ import           Language.Egison.Type.Types     (CapVar (..),
                                                   TyVar (..), Type (..),
                                                   patFuncSchemeTargetScheme,
                                                   mkDataType,
-                                                  normalizeMatcherTuples,
-                                                  tyVarName)
+                                                  normalizeMatcherTuples)
 import           Language.Egison.Type.Unify     (unify, unifyCapability,
                                                   unifyWithConstraints)
 
@@ -93,8 +91,44 @@ main = do
          , capabilityMguTests
          , failedInferAtomicityTests
          , tensorInferenceTests
+         , tensorShapeValidationTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
+
+-- Runtime shape errors must be distinct from component evaluation errors.
+tensorShapeValidationTests :: Test
+tensorShapeValidationTests = TestLabel "Tensor shape validation" . TestList $
+  [ rejects name source diagnostic
+  | (name, source, diagnostic) <-
+      [ ("zero generator axis", "generateTensor (\\_ -> 42) [0]", positive)
+      , ("negative generator axis", "generateTensor (\\_ -> 42) [-1]", positive)
+      , ("empty inner axis", "generateTensor (\\_ -> 42) [2,0,3]", positive)
+      , ("invalid shape does not apply generator", "generateTensor (\\_ -> tensor [1] [1,2]) [0,3]", positive)
+      , ("zero constructor axis", "tensor [0,3] []", positive)
+      , ("negative constructor axis", "tensor [-1] []", positive)
+      , ("shape checked before component count", "tensor [0] [42]", positive)
+      , ("components evaluated before shape check", "tensor [0] [tensor [1] [1,2]]", inconsistent)
+      , ("rank zero requires one component", "tensor [] []", inconsistent)
+      , ("rank zero applies generator", "generateTensor (\\_ -> tensor [1] [1,2]) []", inconsistent)
+      , ("empty tensor literal", "[||]", positive)
+      , ("nested empty tensor literal", "[|[||]|]", positive)
+      , ("empty index range", "[|1,2,3|]_(3,2)", "Tensor range must be nonempty")
+      ]
+  ]
+  where
+    positive = "Tensor axis lengths must be positive"
+    inconsistent = "Inconsistent tensor shape"
+    rejects name source diagnostic = TestLabel name . TestCase $ do
+      result <- fromEvalM defaultOption { optNoPrelude = True } $ do
+        env <- initialEnv
+        expressions <- readTopExprs source
+        _ <- evalTopExprsNoPrint env
+          (map Load coreLibraries ++ [Load "lib/math/normalize.egi"] ++ expressions)
+        return ()
+      case result of
+        Left err -> assertBool ("unexpected diagnostic: " ++ show err)
+                      (diagnostic `isInfixOf` show err)
+        Right _ -> assertFailure ("invalid shape accepted: " ++ source)
 
 cliWarningFlagParsingTests :: Test
 cliWarningFlagParsingTests =
