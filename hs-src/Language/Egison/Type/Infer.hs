@@ -149,6 +149,7 @@ permissiveInferConfig = InferConfig
 -- | Inference state
 data InferState = InferState
   { inferCandidateMode :: Bool
+  , inferWithoutTensorMaps :: Bool -- Explicit source maps remain permitted.
   , inferFamilyBuilding :: Bool
   , inferDeferredIndices :: [(Type,[Type],Type,Bool,TypeErrorContext)]
   , inferDeferredConversions :: [(Type, Type, TypeErrorContext)]
@@ -239,6 +240,7 @@ initialInferState = initialInferStateWithConfig defaultInferConfig
 initialInferStateWithConfig :: InferConfig -> InferState
 initialInferStateWithConfig cfg = InferState
   { inferCandidateMode = False
+  , inferWithoutTensorMaps = False
   , inferFamilyBuilding = False
   , inferDeferredIndices = []
   , inferDeferredConversions = []
@@ -2320,18 +2322,31 @@ pruneUnusedFamilyMembers expression =
         other -> other
   in expression { tiExprNode = result }
 
+-- | Search the entire expression without implicit tensor maps before
+-- considering automatic insertion. A failed phase restores every shared
+-- constraint and candidate decision; a later use can therefore choose a
+-- different typing of an earlier definition.
+searchTypingPhases :: Infer a -> Infer a
+searchTypingPhases action = do
+  saved <- get
+  let run withoutMaps candidates = do
+        put saved { inferWithoutTensorMaps = withoutMaps,
+          inferCandidateMode = candidates }
+        result <- searchFirst action
+        modify (\state -> state {
+          inferWithoutTensorMaps = inferWithoutTensorMaps saved,
+          inferCandidateMode = inferCandidateMode saved })
+        return result
+  catchError (run True False) (\_ ->
+    catchError (run True True) (\_ ->
+      catchError (run False False) (\ordinaryError ->
+        catchError (run False True) (\_ -> put saved >> throwError ordinaryError))))
+
 inferIExprChoices :: IExpr -> Infer (TIExpr, Subst)
 inferIExprChoices expr = do
   active <- gets inferSearchActive
-  if active then inferIExprWithContext expr emptyContext else
-    catchError (searchFirst (inferIExprWithContext expr emptyContext)) (\ordinaryError -> do
-      saved <- get
-      modify (\state -> state { inferCandidateMode = True })
-      catchError
-        (do result <- searchFirst (inferIExprWithContext expr emptyContext)
-            modify (\state -> state { inferCandidateMode = inferCandidateMode saved })
-            return result)
-        (\_ -> put saved >> throwError ordinaryError))
+  if active then inferIExprWithContext expr emptyContext
+    else searchTypingPhases (inferIExprWithContext expr emptyContext)
 
 chooseCandidate :: [a] -> Infer a
 chooseCandidate [] = error "empty candidate family"
@@ -2414,7 +2429,8 @@ solveDeferredConversions previous = do
             promotions = [(substitution,[]) |
               normalizeTensorType (TTensor source) /= source,
               Right substitution <- [unify (normalizeTensorType (TTensor source)) target]]
-        mapped <- fmap concat $ forM [1..count] $ \width -> do
+        withoutMaps <- gets inferWithoutTensorMaps
+        mapped <- fmap concat $ forM (if withoutMaps then [] else [1..count]) $ \width -> do
           parameters <- mapM (const (freshVar "mappedComponent")) [1..width]
           result <- freshVar "mappedResult"
           return [(composeSubst second first,requirements) |
@@ -2752,7 +2768,11 @@ inferIExprInContext expr ctx = case expr of
         when (not (null members)) $
           modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
         candidateMode <- gets inferCandidateMode
-        selected <- if candidateMode then chooseCandidate (name : members) else return name
+        withoutMaps <- gets inferWithoutTensorMaps
+        -- The no-insertion phase checks the written binding. Selecting a
+        -- generated definition alternative belongs to automatic insertion.
+        selected <- if candidateMode && not withoutMaps
+          then chooseCandidate (name : members) else return name
         case lookupFunctionRecipe selected environment of
           Just recipe -> do
             let owner = takeWhile (/= '$') (drop (length "$tensorFamily$") selected)
@@ -6216,6 +6236,12 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
     align allowMap actual0 expected0 = do
       actual <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst actual0
       expectedType <- normalizeTensorType <$> applySubstWithConstraintsM emptySubst expected0
+      withoutMaps <- gets inferWithoutTensorMaps
+      -- A symbolic index cannot certify an Integer-specialized function's
+      -- no-insertion typing. The automatic phase can select its symbolic
+      -- definition alternative, whose result retains the tensor axes.
+      when (withoutMaps && actual == TMathValue && expectedType == TInt) $
+        throwError (UnificationError actual expectedType ctx)
       global <- gets inferGlobalSubst
       let currentConstraints = map (applySubstConstraint global) constraints
       let solve left right = [composeSubst substitution seed |
@@ -6244,6 +6270,8 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
       (TTensor element, _)
         | allowMap && isTensorLiftableScalarType classEnv currentConstraints expectedType -> do
             (substitution, _) <- align False element expectedType
+            withoutMaps <- gets inferWithoutTensorMaps
+            when withoutMaps $ throwUnifyError ctx strictError
             return (substitution, True)
         | otherwise -> throwUnifyError ctx strictError
       (TCollection element, TCollection required) -> align False element required
@@ -6251,9 +6279,12 @@ solveApplicationArgument classEnv constraints _source _typed inferred expected c
         | length elements == length required -> alignMany (zip elements required)
       (TInductive name elements, TInductive name' required)
         | name == name', length elements == length required -> alignMany (zip elements required)
-      (TFun domain codomain, TFun requiredDomain requiredCodomain) ->
-        -- Function domains are contravariant; results are covariant.
-        alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
+      (TFun domain codomain, TFun requiredDomain requiredCodomain) -> do
+        -- A no-insertion typing retains the function's written type.
+        -- Automatic checking may instead reconstruct a callback wrapper.
+        withoutMaps <- gets inferWithoutTensorMaps
+        if withoutMaps then throwUnifyError ctx strictError
+          else alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
       _ -> do
         -- Retain ordinary matcher/CAS equality and annotation handling,
         -- but never admit an unaccounted-for Tensor erasure below them.
@@ -6401,7 +6432,8 @@ inferIApplicationArguments funcTIExpr funcType args initSubst ctx = do
     _ -> return False
   sourceType <- applySubstWithConstraintsM initSubst funcType
   let functional = case sourceType of TFun{} -> True; TVar{} -> True; _ -> False
-  deferred <- if candidateMode && functional
+  withoutMaps <- gets inferWithoutTensorMaps
+  deferred <- if candidateMode && not withoutMaps && functional
     then chooseCandidate (if or evidence && any pendingTensorResult args then [True,False] else [False,True]) else return False
   if not deferred then inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx else do
     parameters <- mapM (const (freshVar "mappedParameter")) args
@@ -6550,20 +6582,23 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
           allowUnknown = case expectedType of
             TVar variable -> variable `Set.member` surroundingVariables
             _ -> False
-          checkedType =
+          inferredChoice =
             case typeDirectedTensorLiftType allowUnknown classEnv allConstraints
                    outerType index expectedType updatedArg of
               Just liftedType -> liftedType
               Nothing -> inferredType
       candidateMode <- gets inferCandidateMode
-      let alternatives = nub (checkedType : typeDirectedTensorLiftTypes allowUnknown
-            classEnv allConstraints outerType index expectedType updatedArg)
+      withoutMaps <- gets inferWithoutTensorMaps
+      let checkedType = if withoutMaps then inferredType else inferredChoice
+          alternatives = if withoutMaps then [inferredType] else
+            nub (checkedType : typeDirectedTensorLiftTypes allowUnknown
+              classEnv allConstraints outerType index expectedType updatedArg)
       when (case inferredType of TFun{} -> True; _ -> length alternatives > 1) $
         modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
       let functionOrOpen TFun{} = True
           functionOrOpen TVar{} = True
           functionOrOpen _ = False
-          canDefer = candidateMode && functionOrOpen inferredType &&
+          canDefer = candidateMode && not withoutMaps && functionOrOpen inferredType &&
             functionOrOpen expectedType && not (index `Set.member` forced)
           choices = map Just alternatives ++ [Nothing | canDefer]
       selection <- if candidateMode then chooseCandidate choices else return (Just checkedType)
@@ -6620,8 +6655,9 @@ checkApplicationArgumentsLifting classEnv constraints funcType sources typedArgs
   unless (null openTensorPositions) $
     modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + 1 })
   candidateMode <- gets inferCandidateMode
+  withoutMaps <- gets inferWithoutTensorMaps
   if candidateMode then do
-    subset <- chooseCandidate (subsequences openTensorPositions)
+    subset <- chooseCandidate (if withoutMaps then [[]] else subsequences openTensorPositions)
     result@(finalSubst, _) <- check (Set.fromList subset)
     parameters <- mapM (applySubstWithConstraintsM finalSubst) params
     modify (\state -> state { inferScalarRequirements = inferScalarRequirements state ++
@@ -6687,6 +6723,10 @@ finishApplication
   -> Infer (TIExpr, Subst)
 finishApplication classEnv funcConstraints resultType funcTIExpr
                   argTIExprs finalSubst tensorFlag = do
+  withoutMaps <- gets inferWithoutTensorMaps
+  when (withoutMaps && tensorFlag) $
+    throwError (TE.TypeMismatch resultType resultType
+      "application requires automatic tensorMap insertion" emptyContext)
   baseResultType <- applySubstWithConstraintsM finalSubst resultType
   let finalType
         | tensorFlag && not (Types.isTensorType baseResultType) =
@@ -7316,15 +7356,8 @@ warnOnClassMethodShadow (Var defName _) = do
 inferITopExpr :: ITopExpr -> Infer (Maybe TITopExpr, Subst)
 inferITopExpr topExpr = do
   active <- gets inferSearchActive
-  (typed,substitution) <- if active then inferITopExprCandidates topExpr else
-    catchError (searchFirst (inferITopExprCandidates topExpr)) (\ordinaryError -> do
-      saved <- get
-      modify (\state -> state { inferCandidateMode = True })
-      catchError
-        (do result <- searchFirst (inferITopExprCandidates topExpr)
-            modify (\state -> state { inferCandidateMode = inferCandidateMode saved })
-            return result)
-        (\_ -> put saved >> throwError ordinaryError))
+  (typed,substitution) <- if active then inferITopExprCandidates topExpr
+    else searchTypingPhases (inferITopExprCandidates topExpr)
 
   global <- gets inferGlobalSubst
   let final = composeSubst global substitution

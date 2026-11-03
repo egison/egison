@@ -158,7 +158,17 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
   ]
   where
     cases =
-      [ ("a later list use resolves scalar completion at tensorShape",
+      [ ("whole-source no-insertion typing precedes scalar preference",
+          IApplyExpr (lambda ["f"] (ILetExpr
+            [(PDPatVar (Var "ys" []), ITensorMapExpr (var "f") vector)]
+            (call "f" [vector]))) [lambda ["x"] (int 0)],
+          TInt, Nothing, True)
+      , ("explicit scalar callbacks preserve whole-tensor application",
+          IApplyExpr (lambda ["f"] (ILetExpr
+            [(PDPatVar (Var "ys" []), ITensorMapExpr (lambda ["x"] (call "f" [var "x"])) vector)]
+            (call "f" [vector]))) [lambda ["x"] (int 0)],
+          TInt, Nothing, True)
+      , ("a later list use resolves scalar completion at tensorShape",
           IApplyExpr (lambda ["x"] (ITupleExpr [call "tensorShape" [var "x"],IJoinExpr (var "x") (ICollectionExpr [])])) [scalars],
           TTuple [TCollection TInt,TCollection TInt],Nothing,False)
       , ("concatenation preserves a right tensor element",
