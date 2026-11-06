@@ -28,9 +28,8 @@ module Language.Egison.Type.Types
   , TensorShape(..)
   , ShapeDimType(..)
   , Constraint(..)
-  , constraintType  -- backward-compat: head of constraintTypes
+  , constraintType
   , ClassInfo(..)
-  , classParam
   , InstanceInfo(..)
   , instType
   , freshCapVar
@@ -311,13 +310,6 @@ data ClassInfo = ClassInfo
   , classParams  :: [TyVar]            -- ^ Type parameters (e.g. ['a'] in "class Eq a"; ['a','b'] in "class Embed a b")
   , classMethods :: [(String, Type)]   -- ^ Method names and their types
   } deriving (Eq, Show, Generic)
-
--- | First parameter of a nonempty class parameter list.
--- Multi-parameter classes use `classParams` for the complete parameter list.
-classParam :: ClassInfo -> TyVar
-classParam ci = case classParams ci of
-  (p:_) -> p
-  []    -> error "classParam: class with no type parameters"
 
 -- | Information about a type class instance
 data InstanceInfo = InstanceInfo

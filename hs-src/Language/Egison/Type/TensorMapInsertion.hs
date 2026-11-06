@@ -290,7 +290,7 @@ buildCallbackLiftPlan selected allowUnknown classEnv constraints outerFuncType c
   let actualFuncType = tiExprType funcExpr
       (actualParams, actualResult) = collectCallableFunctionType actualFuncType
       -- An optional candidate can determine an open consumer's function
-      -- shape. The native member keeps its ordinary scalar function.
+      -- shape. Choosing no conversion preserves the supplied function type.
       candidateExpected = case expectedCallbackType of
         TVar _ | allowUnknown, Just mask <- selected
                , not (any containsNonLiftableType actualParams)
@@ -942,11 +942,11 @@ wrapWithTensorMapRecursive classEnv constraints currentFunc currentType (arg1:re
                 
                 _ -> do
                   -- Only first argument needs tensorMap → use regular tensorMap
-                  insertSingleTensorMap classEnv constraints currentFunc currentType arg1 argType1 restArgs restArgTypes
+                  insertSingleTensorMap classEnv constraints currentFunc arg1 argType1 restArgs restArgTypes
             
             _ -> do
               -- No more arguments or types → use regular tensorMap for first argument
-              insertSingleTensorMap classEnv constraints currentFunc currentType arg1 argType1 restArgs restArgTypes
+              insertSingleTensorMap classEnv constraints currentFunc arg1 argType1 restArgs restArgTypes
         
         else do
           -- First argument doesn't need tensorMap, apply normally and continue
@@ -965,13 +965,12 @@ insertSingleTensorMap ::
     ClassEnv
     -> [Constraint]
     -> TIExpr          -- Current function expression
-    -> Type            -- Current function type
     -> TIExpr          -- Tensor argument
     -> Type            -- Tensor argument type
     -> [TIExpr]        -- Remaining arguments
     -> [Type]          -- Remaining argument types
     -> EvalM TIExprNode
-insertSingleTensorMap classEnv constraints currentFunc _currentType arg argType restArgs restArgTypes = do
+insertSingleTensorMap classEnv constraints currentFunc arg argType restArgs restArgTypes = do
   let varName = "tmapVar" ++ show (length restArgs)
       var = Var varName []
 

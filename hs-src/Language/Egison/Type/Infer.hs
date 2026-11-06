@@ -6,11 +6,10 @@ This module provides type inference for IExpr (Internal Expression).
 Inference constructs a typed internal expression and a type substitution
 from the desugared IExpr.
 
-This module consolidates all type inference functionality, including:
-  - Hindley-Milner type inference
-  - Type class constraint collection
-  - Infer monad and state management
-  - All helper functions
+Combined inference searches the complete expression using inference without
+insertion before trying inference with automatic insertion. Within each
+search, shared type substitutions and type class constraints relate definitions
+to their uses.
 
 Each TIExpr node retains its inferred type scheme. TensorMapInsertion and
 TypeClassExpand consume these annotations for type-directed transformations.
@@ -134,7 +133,7 @@ defaultInferConfig = InferConfig
   , cfgMatchWithoutElseWarnings = False
   }
 
--- | Permissive configuration (for gradual adoption)
+-- | Report unbound variables as warnings and collect diagnostics.
 permissiveInferConfig :: InferConfig
 permissiveInferConfig = InferConfig
   { cfgPermissive = True
@@ -2322,8 +2321,8 @@ pruneUnusedFamilyMembers expression =
         other -> other
   in expression { tiExprNode = result }
 
--- | Search the entire expression without implicit tensor maps before
--- considering automatic insertion. A failed phase restores every shared
+-- | Prefer inference without insertion over inference with automatic
+-- insertion for the entire expression. A failed phase restores every shared
 -- constraint and candidate decision; a later use can therefore choose a
 -- different typing of an earlier definition.
 searchTypingPhases :: Infer a -> Infer a
@@ -2616,8 +2615,8 @@ searchFirst action = do
                   (decisionBranches (inferDecisionLog final) ++ pending)) (Left err)
   loop Set.empty [[]] (error "candidate search has not run")
 
--- A template is instantiated only when the native member is insufficient.
--- Captured values are bound at the definition site, before any later shadowing.
+-- Names for stored definitions and captured values are fresh in both the
+-- type environment and the table of stored definition bodies.
 freshFamilyName :: String -> String -> Infer String
 freshFamilyName prefix owner = do
   counter <- gets inferCounter
@@ -2651,6 +2650,8 @@ buildFunctionFamilySource owner body native previousSites = do
   if not (null (concat forwarded)) then return (concat forwarded)
     else buildFunctionFamilyBody owner body native previousSites
 
+-- Bind captured values at the definition site, so later shadowing cannot
+-- change which values a stored body uses.
 buildFunctionFamilyBody :: String -> IExpr -> TIExpr -> Int -> Infer [(String, TypeScheme, TIExpr)]
 buildFunctionFamilyBody owner body native previousSites = do
   state <- get
@@ -3732,7 +3733,7 @@ inferIExprInContext expr ctx = case expr of
         -- total for generated expressions.
         sPattern <-
           checkMatcherAtPattern
-            exprCtx matcher matcherTI matcherType targetType CapAny s12
+            exprCtx matcherType targetType CapAny s12
         case matchElse of
           Nothing -> do
             targetTI' <- applySubstToTIExprM sPattern targetTI
@@ -3759,7 +3760,7 @@ inferIExprInContext expr ctx = case expr of
       _ -> do
         (resultTy, clauseTIs, clauseS) <-
           inferMatchClausesWithMatcher
-            exprCtx matcher matcherTI matcherType targetType
+            exprCtx matcher matcherType targetType
             commonResult clauses s12
         (matchElseTI, finalS) <-
           case matchElse of
@@ -3801,7 +3802,7 @@ inferIExprInContext expr ctx = case expr of
             s12 = composeSubst s2 s1
         finalS <-
           checkMatcherAtPattern
-            exprCtx matcher matcherTI matcherType targetType CapAny s12
+            exprCtx matcherType targetType CapAny s12
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
         resultElemTy' <- applySubstWithConstraintsM finalS commonResult
@@ -3815,12 +3816,12 @@ inferIExprInContext expr ctx = case expr of
             firstS = composeSubst s2 (matchPatternSubst firstPattern)
         (firstTI, firstResult, firstFinalS) <-
           finishMatchClause
-            exprCtx matcher matcherTI matcherType targetType
+            exprCtx matcher matcherType targetType
             commonResult firstPattern firstS
         (resultElemTy, reversedClauses, finalS) <-
           foldM
             (inferNextMatchClause
-              exprCtx matcher matcherTI matcherType targetType)
+              exprCtx matcher matcherType targetType)
             (firstResult, [firstTI], firstFinalS)
             restClauses
         targetTI' <- applySubstToTIExprM finalS targetTI
@@ -4615,15 +4616,13 @@ capabilityFromCtor ctx argumentTypes resultType children
 -- equality (rule G-Match of the paper).
 checkMatcherAtPattern
   :: TypeErrorContext
-  -> IExpr
-  -> TIExpr
   -> Type
   -> Type
   -> Capability
   -> Subst
   -> Infer Subst
 checkMatcherAtPattern
-    ctx matcherSource matcherTyped matcherTy targetTy patternCap s0 = do
+    ctx matcherTy targetTy patternCap s0 = do
   matcherTy' <- applySubstWithConstraintsM s0 matcherTy
   patternCap' <- applyCapabilityM s0 patternCap
   targetTy' <- applySubstWithConstraintsM s0 targetTy
@@ -4632,7 +4631,7 @@ checkMatcherAtPattern
   constraints <- getConstraints
   (sPattern, _) <-
     solveApplicationArgument
-      classEnv constraints matcherSource matcherTyped matcherTy'
+      classEnv constraints matcherTy'
       (TMatcher patternCap' targetTy') ctx
       `catchError` \err ->
         case err of
@@ -5272,7 +5271,6 @@ inferMatchPattern ctx matchedType (pattern, bodyExpr) initSubst = do
 finishMatchClause
   :: TypeErrorContext
   -> IExpr
-  -> TIExpr
   -> Type
   -> Type
   -> Type
@@ -5280,14 +5278,14 @@ finishMatchClause
   -> Subst
   -> Infer (TIMatchClause, Type, Subst)
 finishMatchClause
-    ctx matcherSource matcherTyped matcherType matchedType commonResult
+    ctx matcherSource matcherType matchedType commonResult
     inferredPattern initSubst = do
   checkVpScope
     ctx matcherSource
     [(matchPatternSource inferredPattern, matchPatternBody inferredPattern)]
   patternSubst <-
     checkMatcherAtPattern
-      ctx matcherSource matcherTyped matcherType matchedType
+      ctx matcherType matchedType
       (matchPatternCapability inferredPattern) initSubst
   bindings <-
     mapM
@@ -5315,26 +5313,24 @@ finishMatchClause
 inferNextMatchClause
   :: TypeErrorContext
   -> IExpr
-  -> TIExpr
   -> Type
   -> Type
   -> (Type, [TIMatchClause], Subst)
   -> IMatchClause
   -> Infer (Type, [TIMatchClause], Subst)
 inferNextMatchClause
-    ctx matcherSource matcherTyped matcherType matchedType
+    ctx matcherSource matcherType matchedType
     (commonResult, reversedClauses, initSubst) clause = do
   inferredPattern <- inferMatchPattern ctx matchedType clause initSubst
   (typedClause, finalResult, finalSubst) <-
     finishMatchClause
-      ctx matcherSource matcherTyped matcherType matchedType commonResult
+      ctx matcherSource matcherType matchedType commonResult
       inferredPattern (matchPatternSubst inferredPattern)
   return (finalResult, typedClause : reversedClauses, finalSubst)
 
 inferMatchClausesWithMatcher
   :: TypeErrorContext
   -> IExpr
-  -> TIExpr
   -> Type
   -> Type
   -> Type
@@ -5342,7 +5338,7 @@ inferMatchClausesWithMatcher
   -> Subst
   -> Infer (Type, [TIMatchClause], Subst)
 inferMatchClausesWithMatcher
-    ctx matcherSource matcherTyped matcherType matchedType commonResult
+    ctx matcherSource matcherType matchedType commonResult
     clauses initSubst =
   case clauses of
     [] -> return (commonResult, [], initSubst)
@@ -5351,12 +5347,12 @@ inferMatchClausesWithMatcher
         inferMatchPattern ctx matchedType firstClause initSubst
       (firstTyped, firstResult, firstSubst) <-
         finishMatchClause
-          ctx matcherSource matcherTyped matcherType matchedType commonResult
+          ctx matcherSource matcherType matchedType commonResult
           inferredPattern (matchPatternSubst inferredPattern)
       (finalResult, reversedClauses, finalSubst) <-
         foldM
           (inferNextMatchClause
-            ctx matcherSource matcherTyped matcherType matchedType)
+            ctx matcherSource matcherType matchedType)
           (firstResult, [firstTyped], firstSubst)
           restClauses
       typedClauses <-
@@ -6199,7 +6195,7 @@ inferTensorMapApplication function operands ctx = do
       (mkTIExpr finalType (TITensorMap2Expr updatedFunction left right), finalSubst)
     _ -> throwError (UnificationError functionType (foldr TFun result parameters) ctx)
   where
-    checkOperand classEnv constraints (substitution, mapped) (source, operand, parameter) = do
+    checkOperand classEnv constraints (substitution, mapped) (_, operand, parameter) = do
       actual <- normalizeTensorType <$> applySubstWithConstraintsM substitution (tiExprType operand)
       expected <- normalizeTensorType <$> applySubstWithConstraintsM substitution parameter
       let (input, required, mapsTensor) = case actual of
@@ -6208,7 +6204,7 @@ inferTensorMapApplication function operands ctx = do
             _ -> (actual, expected, False)
           currentConstraints = map (applySubstConstraint substitution) constraints
       (checkingSubst, _) <- solveApplicationArgument
-        classEnv currentConstraints source operand input required ctx
+        classEnv currentConstraints input required ctx
       return (composeSubst checkingSubst substitution, mapped || mapsTensor)
 
 -- | Infer application (helper)
@@ -6224,13 +6220,11 @@ inferIApplication funcName funcType args initSubst = do
 solveApplicationArgument
   :: ClassEnv
   -> [Constraint]
-  -> IExpr
-  -> TIExpr
   -> Type
   -> Type
   -> TypeErrorContext
   -> Infer (Subst, Bool)
-solveApplicationArgument classEnv constraints _source _typed inferred expected ctx =
+solveApplicationArgument classEnv constraints inferred expected ctx =
   align True inferred expected
   where
     align allowMap actual0 expected0 = do
@@ -6552,7 +6546,7 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
     isFunction TFun{} = True
     isFunction _ = False
 
-    checkArgument (substitution, flag) (index, sourceArg, typedArg, paramType) = do
+    checkArgument (substitution, flag) (index, _, typedArg, paramType) = do
       updatedArg <- applySubstToTIExprM substitution typedArg
       inferredType <-
         applySubstWithConstraintsM substitution (tiExprType updatedArg)
@@ -6619,12 +6613,12 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
                 -- A lifted position: the element meets the parameter.
                 (elementSubst, _) <-
                   solveApplicationArgument
-                    classEnv allConstraints sourceArg updatedArg
+                    classEnv allConstraints
                     element expectedType ctx
                 return (elementSubst, True)
           _ ->
             solveApplicationArgument
-              classEnv allConstraints sourceArg updatedArg
+              classEnv allConstraints
               selectedType expectedType ctx
       let finalSubst = composeSubst checkingSubst substitution
       return (finalSubst, flag || argumentFlag)

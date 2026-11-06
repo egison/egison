@@ -31,10 +31,10 @@ Egison core 外の拡張だけを記述する。
 
 - [type-class.md](./type-class.md): 型クラス、辞書渡し、スーパークラス、現在の制限。
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値に対する浅い実行時型ディスパッチ。
-- [type-tensor-simple.md](./type-tensor-simple.md): テンソル型と添字記法の基本仕様。
+- [type-tensor-simple.md](./type-tensor-simple.md): 挿入なし型推論・自動挿入型推論・統合型推論，テンソル型と添字記法の基本仕様。
 - [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md): スカラー関数をテンソルへ持ち上げる変換。
 - [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階引数のスカラー関数の自動変換。
-- [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 型推論の要件，実装との対応，検査できる制限。
+- [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 入力全体の優先規則，型推論の要件，実装との対応，残る証明。
 
 ## CAS
 
