@@ -1628,8 +1628,8 @@ unifyTypesWithContext t1 t2 ctx = do
 -- branches. Tensor heads are retained, with rank-zero admission for scalar
 -- values, and the same rule applies inside lists and tuples. Unresolved
 -- value types meet the complete common type, rather than the first scalar
--- encountered in the source. Functions and other type constructors still
--- require equality without erasing any nested Tensor heads.
+-- encountered in the source. Function domains agree by equality; their
+-- results can share a type without changing the supplied functions.
 commonResultType :: [Type] -> TypeErrorContext -> Infer (Type, Subst)
 commonResultType types ctx = do
   current <- mapM (applySubstWithConstraintsM emptySubst) types
@@ -1649,6 +1649,13 @@ commonResultType types ctx = do
           (element, substitution) <- commonResultType
             [ty | TCollection ty <- concrete] ctx
           return (TCollection element, substitution)
+    TFun domain _:_ | all isFunction concrete -> do
+          domainSubst <- foldM (matchDomain domain) emptySubst
+            [parameter | TFun parameter _ <- concrete]
+          (result, resultSubst) <- commonResultType
+            [output | TFun _ output <- concrete] ctx
+          parameter <- applySubstWithConstraintsM resultSubst domain
+          return (TFun parameter result, composeSubst resultSubst domainSubst)
     TTuple first:_ | all (sameTupleArity (length first)) concrete -> do
           let columns = [[fields !! index | TTuple fields <- concrete]
                         | index <- [0 .. length first - 1]]
@@ -1665,6 +1672,8 @@ commonResultType types ctx = do
     isTensor _ = False
     isCollection TCollection{} = True
     isCollection _ = False
+    isFunction TFun{} = True
+    isFunction _ = False
     tensorElement (TTensor element) = element
     tensorElement ty = ty
     sameTupleArity arity (TTuple fields) = length fields == arity
@@ -1690,6 +1699,13 @@ commonResultType types ctx = do
       substitution <- foldM (matchExact first) emptySubst rest
       result <- applySubstWithConstraintsM substitution first
       return (result, substitution)
+
+    matchDomain first substitution next = do
+      (left, right) <- zonkPair first next
+      constraints <- getConstraints
+      classEnv <- getClassEnv
+      matched <- solveExactTypes classEnv constraints left right ctx
+      return (composeSubst matched substitution)
 
     matchExact first substitution next = do
       (left, right) <- zonkPair first next
@@ -1784,6 +1800,26 @@ tensorEqualitySeeds left right = go (normalizeTensorType left) (normalizeTensorT
     pairs ((a,b):rest) = nub
       [composeSubst later first | first <- go a b,
         later <- pairs [(applySubst first x,applySubst first y) | (x,y) <- rest]]
+
+-- | Solve normalized equality without scalar-to-tensor admission. Function
+-- domains must agree before their results can be admitted independently.
+solveExactTypes :: ClassEnv -> [Constraint] -> Type -> Type -> TypeErrorContext -> Infer Subst
+solveExactTypes classEnv constraints left right ctx = do
+  let alternatives = nub [composeSubst substitution seed |
+        seed <- tensorEqualitySeeds left right,
+        Right substitution <- [TU.unifyStrictWithConstraints classEnv
+          (map (applySubstConstraint seed) constraints)
+          (applySubst seed left) (applySubst seed right)]]
+  substitution <- case alternatives of
+    _:_ -> chooseCandidate alternatives
+    [] -> case TU.unifyStrictWithConstraints classEnv constraints left right of
+      Right matched -> return matched
+      Left (TU.OccursCheck variable (TTensor (TVar same))) | variable == same -> do
+        element <- freshVar "tensorElement"
+        return (singletonSubst variable (TTensor element))
+      Left err -> throwUnifyError ctx err
+  recordGlobalSubst ctx substitution
+  return substitution
 
 -- | Solve ordinary equality with the synchronized TypePM relation.  Egison
 -- extensions are selected only by a positive extension witness, such as a
@@ -6274,11 +6310,11 @@ solveApplicationArgument classEnv constraints inferred expected ctx =
       (TInductive name elements, TInductive name' required)
         | name == name', length elements == length required -> alignMany (zip elements required)
       (TFun domain codomain, TFun requiredDomain requiredCodomain) -> do
-        -- A no-insertion typing retains the function's written type.
-        -- Automatic checking may instead reconstruct a callback wrapper.
-        withoutMaps <- gets inferWithoutTensorMaps
-        if withoutMaps then throwUnifyError ctx strictError
-          else alignMany [(requiredDomain, domain), (codomain, requiredCodomain)]
+        -- Result admission keeps the supplied function unchanged. A change
+        -- to its domain needs an actual input map, selected separately.
+        domainSubst <- solveExactTypes classEnv currentConstraints domain requiredDomain ctx
+        (resultSubst, _) <- align False codomain requiredCodomain
+        return (composeSubst resultSubst domainSubst, False)
       _ -> do
         -- Retain ordinary matcher/CAS equality and annotation handling,
         -- but never admit an unaccounted-for Tensor erasure below them.

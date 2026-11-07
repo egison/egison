@@ -3,13 +3,14 @@
 -- primitives happen to accept tensors without an inserted wrapper.
 module TensorInference (tensorInferenceTests) where
 
+import Data.List (isPrefixOf, tails)
 import qualified Data.Set as Set
 import Test.HUnit
 
 import Language.Egison (ConstantExpr(..), defaultOption, fromEvalM)
 import Language.Egison.AST (PDPatternBase(..))
 import Language.Egison.IExpr
-  (IExpr(..), ITopExpr(..), TITopExpr(..), TIExpr(..), TIExprNode(..), Var(..), Index(..), tiExprType)
+  (IExpr(..), ITopExpr(..), TITopExpr(..), TIExpr(..), TIExprNode(..), Var(..), Index(..), tiExprType, stripType)
 import qualified Language.Egison.Type.Env as Env
 import Language.Egison.Type.Infer
   (InferState(..), inferIExpr, inferITopExpr, freshVar, initialInferState, runInferWithWarnings)
@@ -44,6 +45,15 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
            Right after -> assertBool "retained callback has its map" (hasTensorMap after)
        other -> assertFailure (show other)] ++
   map checkCase cases ++
+  map unchangedCase unchangedCases ++
+  [TestLabel "function-list domains remain polymorphic" . TestCase $ do
+     let source = ICollectionExpr [lambda ["x"] (int 0),lambda ["x"] vector]
+     (inferred, _) <- runInferWithWarnings (inferIExpr source) inferenceState
+     case inferred of
+       Right (typed, _) -> case tiExprType typed of
+         TCollection (TFun TVar{} result) -> assertEqual "common Tensor result" tensor result
+         ty -> assertFailure ("unexpected function list type: " ++ show ty)
+       Left err -> assertFailure (show err)] ++
   map rejectCase
     [ ("incompatible explicit scalar operand", ITensorMapExpr (var "toBool") (IConstantExpr (BoolExpr True)))
     , ("incompatible explicit mixed operand", ITensorMap2Expr (var "toBool2") (int 1)
@@ -548,7 +558,7 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
           tensor,Nothing,True)
       , ("a generic callback takes the tensor whole and returns a scalar coefficient",
           call "functionConsumer1" [lambda ["ignored"] (int 1)],
-          tensor,Just (0,arrow [tensor] tensor),False)
+          tensor,Nothing,False)
       , ("a predicate body maps arithmetic while preserving Bool",
           call "filter" [lambda ["x"] (ISeqExpr (call "one" [var "x"]) (IConstantExpr (BoolExpr True))), tensors],
           listTensor, Just (0,arrow [tensor] TBool), True)
@@ -763,6 +773,8 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
               Right after -> do
                 assertEqual "insertion preserves result type" expectedResult (tiExprType after)
                 assertEqual "tensorMap/tensorMap2 insertion" needsMap (hasTensorMap after)
+                assertEqual "no generated tensor construction"
+                  (tensorConstructionCount source) (tensorConstructionCount (stripType after))
                 case callback of
                   Nothing -> return ()
                   Just (index, expectedCallback) ->
@@ -776,6 +788,32 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
                         assertEqual "consumer result agrees with application"
                           expectedResult (resultAfter (length args') (tiExprType fn'))
                       other -> assertFailure ("unexpected higher-order application: " ++ show other)
+
+    unchangedCases =
+      [("function results share a Tensor type in either list order",
+         ICollectionExpr functions) |
+        functions <- [[lambda ["x"] (int 0),lambda ["x"] vector],
+                      [lambda ["x"] vector,lambda ["x"] (int 0)]]] ++
+      [("result admission preserves a function at depth " ++ show depth,
+        call ("resultConsumer" ++ show depth) [var ("function" ++ show depth)]) |
+        depth <- [1 :: Int ..5]] ++
+      [("result admission preserves a generic whole-tensor function",
+         call "functionConsumer1" [lambda ["ignored"] (int 1)]),
+       ("rank-zero argument admission preserves an integer",call "tensorShape" [int 0]),
+       ("rank-zero argument admission preserves a function",call "tensorShape" [var "one"]),
+       ("explicit tensor construction is preserved",ITensorExpr (ICollectionExpr []) (ICollectionExpr [int 0]))]
+
+    unchangedCase (label, source) = TestLabel label . TestCase $ do
+      (inferred, warnings) <- runInferWithWarnings (inferIExpr source) inferenceState
+      assertEqual "inference emits no warnings" [] warnings
+      case inferred of
+        Left err -> assertFailure (show err)
+        Right (before, _) -> do
+          assertEqual "inference preserves the source" (show source) (show (stripType before))
+          inserted <- fromEvalM defaultOption (insertTensorMaps before)
+          case inserted of
+            Left err -> assertFailure (show err)
+            Right after -> assertEqual "admission preserves the source" (show source) (show (stripType after))
 
     rejectCase (label, source) = TestLabel label . TestCase $ do
       (inferred, _) <- runInferWithWarnings (inferIExpr source) inferenceState
@@ -811,6 +849,7 @@ inferenceState = initialInferState { inferEnv =
     (Forall [] [TyVar "a"] [Constraint "AddSemigroup" [a]] (arrow [a, a] a))
     (foldr add Env.emptyEnv (bindings ++ concat
       [[("function" ++ show arity,arrow (replicate arity TInt) TInt),
+        ("resultConsumer" ++ show arity,arrow [arrow (replicate arity TInt) tensor] tensor),
         ("functionConsumer" ++ show arity,arrow [arrow (replicate arity tensor) tensor] tensor),
         ("functionPair" ++ show arity,arrow [TTuple [tensor,arrow (replicate (arity-1) TInt) TInt]] TInt)]
        | arity <- [1 :: Int ..5]])) }
@@ -912,3 +951,6 @@ hasTensorMap expression = case tiExprNode expression of
   TICollectionExpr elements -> any hasTensorMap elements
   TIVectorExpr elements -> any hasTensorMap elements
   _ -> False
+
+tensorConstructionCount :: IExpr -> Int
+tensorConstructionCount = length . filter ("ITensorExpr " `isPrefixOf`) . tails . show

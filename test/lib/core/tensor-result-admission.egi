@@ -1,0 +1,10 @@
+assertEqual "scalar result does not inherit the unused tensor argument's axes"
+  (tensorShape ((head [\x -> 0, \x -> [|0|]]) [|1,2|])) []
+assertEqual "a written vector result retains its own axis"
+  (tensorShape ((head [\x -> [|0|], \x -> 0]) [|1,2|])) [1]
+assertEqual "result admission through a local function"
+  (let f := head [\x -> 0, \x -> [|0|]] in tensorShape (f [|1,2|])) []
+assertEqual "unary input mapping is retained"
+  ((\x -> x+1) [|1,2|]) [|2,3|]
+assertEqual "binary input mapping is retained"
+  ((+) [|1,2|] [|3,4|]) [|4,6|]

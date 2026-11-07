@@ -326,7 +326,7 @@ buildCallbackLiftPlan selected allowUnknown classEnv constraints outerFuncType c
                sameNormalizedType (normalizeTensorType (TTensor resultType)) expectedResult
              mapsReturnedFunctions = case actualFuncType of
                TFun{} -> any isTensorHead
-                 (take (arity-1) (tail (scanl (\ty _ -> applyNArgType ty 1) actualFuncType expectedParams)))
+                 (take (arity-1) (drop 1 (scanl (\ty _ -> applyNArgType ty 1) actualFuncType expectedParams)))
                _ -> False
              isTensorHead TTensor{} = True
              isTensorHead _ = False
@@ -388,17 +388,21 @@ wrapWithTypeDirectedTensorLift classEnv constraints outerFuncType callbackArgInd
           functionVar = Var functionName []
           functionRef = mkVarTIExpr functionName (tiExprType funcExpr)
           applied = buildTypeDirectedTensorLiftBody functionRef resultType callbackParams liftedParams []
-          tensorResult = normalizeTensorType (TTensor resultType)
-          body = if null liftedParams && not (sameNormalizedType (tiExprType applied) tensorResult)
-            then let shape = TIExpr (Forall [] [] [] (TCollection TInt)) (TICollectionExpr [])
-                     cells = TIExpr (Forall [] [] [] (TCollection (tiExprType applied))) (TICollectionExpr [applied])
-                 in TIExpr (Forall [] [] [] tensorResult) (TITensorExpr shape cells)
-            else applied
+          body = applied
           lambdaType = buildFunctionType (map callbackParamOuterType callbackParams) (tiExprType body)
           lambdaScheme = Forall [] [] [] lambdaType
           lambdaNode = TILambdaExpr Nothing (map callbackParamOuterVar callbackParams) body
           wrapper = TIExpr lambdaScheme lambdaNode
-      in if sameNormalizedType lambdaType expectedCallbackType
+          mapsReturnedFunctions = case tiExprType funcExpr of
+            TFun{} -> any isTensorHead
+              (take (length callbackParams - 1)
+                (drop 1 (scanl (\ty _ -> applyNArgType ty 1)
+                  (tiExprType funcExpr) callbackParams)))
+            _ -> False
+          isTensorHead TTensor{} = True
+          isTensorHead _ = False
+      in if (not (null liftedParams) || mapsReturnedFunctions) &&
+             sameNormalizedType lambdaType expectedCallbackType
            then Just $ TIExpr lambdaScheme (TILetExpr [(PDPatVar functionVar, funcExpr)] wrapper)
            else Nothing
 
