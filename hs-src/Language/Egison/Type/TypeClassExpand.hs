@@ -6,8 +6,7 @@ This module expands type class method calls using type information from TIExpr.
 It transforms TIExpr to TIExpr, replacing type class method calls with
 dictionary-based dispatch.
 
-Pipeline: Phase 7 (TypedDesugar) - TypeClassExpand
-This is executed after TensorMapInsertion.  TensorMapInsertion must see the
+TypedDesugar runs this pass after TensorMapInsertion.  TensorMapInsertion must see the
 unexpanded qualified type first; this module then resolves type class methods
 to concrete dictionary-based functions.
 
@@ -20,7 +19,6 @@ Then a call like:
 becomes:
   eqIntegerEq 1 2  (dictionary-based dispatch)
 
-This eliminates the need for runtime dispatch functions like resolveEq.
 -}
 
 module Language.Egison.Type.TypeClassExpand
