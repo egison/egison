@@ -1631,7 +1631,10 @@ unifyTypesWithContext t1 t2 ctx = do
 -- encountered in the source. Function domains agree by equality; their
 -- results can share a type without changing the supplied functions.
 commonResultType :: [Type] -> TypeErrorContext -> Infer (Type, Subst)
-commonResultType types ctx = do
+commonResultType = commonResultTypeAt False
+
+commonResultTypeAt :: Bool -> [Type] -> TypeErrorContext -> Infer (Type, Subst)
+commonResultTypeAt resultPosition types ctx = do
   current <- mapM (applySubstWithConstraintsM emptySubst) types
   let normalized = map normalizeTensorType current
       variables = [ty | ty@TVar{} <- normalized]
@@ -1643,16 +1646,16 @@ commonResultType types ctx = do
         return (ty, emptySubst)
       first:rest -> matchTypes first rest
     _ | any isTensor concrete -> do
-          (element, substitution) <- commonResultType (map tensorElement concrete) ctx
+          (element, substitution) <- commonResultTypeAt resultPosition (map tensorElement concrete) ctx
           return (normalizeTensorType (TTensor element), substitution)
     TCollection{}:_ | all isCollection concrete -> do
-          (element, substitution) <- commonResultType
+          (element, substitution) <- commonResultTypeAt resultPosition
             [ty | TCollection ty <- concrete] ctx
           return (TCollection element, substitution)
     TFun domain _:_ | all isFunction concrete -> do
           domainSubst <- foldM (matchDomain domain) emptySubst
             [parameter | TFun parameter _ <- concrete]
-          (result, resultSubst) <- commonResultType
+          (result, resultSubst) <- commonResultTypeAt True
             [output | TFun _ output <- concrete] ctx
           parameter <- applySubstWithConstraintsM resultSubst domain
           return (TFun parameter result, composeSubst resultSubst domainSubst)
@@ -1680,7 +1683,7 @@ commonResultType types ctx = do
     sameTupleArity _ _ = False
 
     mergeColumn (elements, substitution) column = do
-      (element, next) <- commonResultType column ctx
+      (element, next) <- commonResultTypeAt resultPosition column ctx
       return (elements ++ [element], composeSubst next substitution)
 
     matchVariable common substitution variable = do
@@ -1692,7 +1695,13 @@ commonResultType types ctx = do
       if normalizeTensorType (TTensor current) == normalizeTensorType expected
         then return substitution
         else do
-          next <- unifyTypesWithContext current expected ctx
+          -- Keep rank-zero admission available for a shared unknown input.
+          -- A later use may require the Tensor alternative, so retain both
+          -- choices in the ordinary whole-expression search.
+          receiving <- case (current, expected) of
+            (TVar{}, TTensor component) | resultPosition -> chooseCandidate [component, expected]
+            _ -> return expected
+          next <- unifyTypesWithContext current receiving ctx
           return (composeSubst next substitution)
 
     matchTypes first rest = do
@@ -3794,31 +3803,28 @@ inferIExprInContext expr ctx = case expr of
             return (mkTIExpr resultTy'
                       (TIMatchExpr mode targetTI' matcherTI' [] (Just matchElseTI')), finalS)
       _ -> do
-        (resultTy, clauseTIs, clauseS) <-
+        (clauseTIs, clauseS) <-
           inferMatchClausesWithMatcher
             exprCtx matcher matcherType targetType
-            commonResult clauses s12
-        (matchElseTI, finalS) <-
+            clauses s12
+        (matchElseTI, bodyS) <-
           case matchElse of
             Nothing -> return (Nothing, clauseS)
             Just matchElseExpr -> do
               (rawMatchElseTI, matchElseSubst) <-
                 inferIExprWithContext matchElseExpr exprCtx
-              let preUnifyS = composeSubst matchElseSubst clauseS
-              expectedType <- applySubstWithConstraintsM preUnifyS resultTy
-              matchElseType <-
-                applySubstWithConstraintsM preUnifyS (tiExprType rawMatchElseTI)
-              resultSubst <-
-                unifyTypesWithContext expectedType matchElseType exprCtx
-              let combined = composeSubst resultSubst preUnifyS
-              typedMatchElse <- applySubstToTIExprM combined rawMatchElseTI
-              return (Just typedMatchElse, combined)
+              return (Just rawMatchElseTI, composeSubst matchElseSubst clauseS)
+        bodyTypes <- mapM (applySubstWithConstraintsM bodyS . tiExprType)
+          (map snd clauseTIs ++ maybe [] (:[]) matchElseTI)
+        (resultTy, resultS) <- commonResultType bodyTypes exprCtx
+        let finalS = composeSubst resultS bodyS
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
         clauseTIs' <- mapM (applyMatchClauseSubst finalS) clauseTIs
+        matchElseTI' <- mapM (applySubstToTIExprM finalS) matchElseTI
         resultTy' <- applySubstWithConstraintsM finalS resultTy
         return (mkTIExpr resultTy'
-                  (TIMatchExpr mode targetTI' matcherTI' clauseTIs' matchElseTI), finalS)
+                  (TIMatchExpr mode targetTI' matcherTI' clauseTIs' matchElseTI'), finalS)
   
   -- MatchAll expressions
   IMatchAllExpr mode target matcher clauses -> do
@@ -3850,16 +3856,20 @@ inferIExprInContext expr ctx = case expr of
         (matcherTI, s2) <- inferIExprWithContext matcher exprCtx
         let matcherType = tiExprType matcherTI
             firstS = composeSubst s2 (matchPatternSubst firstPattern)
-        (firstTI, firstResult, firstFinalS) <-
+        (firstTI, firstFinalS) <-
           finishMatchClause
             exprCtx matcher matcherType targetType
-            commonResult firstPattern firstS
-        (resultElemTy, reversedClauses, finalS) <-
+            firstPattern firstS
+        (reversedClauses, bodyS) <-
           foldM
             (inferNextMatchClause
               exprCtx matcher matcherType targetType)
-            (firstResult, [firstTI], firstFinalS)
+            ([firstTI], firstFinalS)
             restClauses
+        bodyTypes <- mapM (applySubstWithConstraintsM bodyS . tiExprType . snd)
+          (reverse reversedClauses)
+        (resultElemTy, resultS) <- commonResultType bodyTypes exprCtx
+        let finalS = composeSubst resultS bodyS
         targetTI' <- applySubstToTIExprM finalS targetTI
         matcherTI' <- applySubstToTIExprM finalS matcherTI
         clauseTIs <-
@@ -5309,12 +5319,11 @@ finishMatchClause
   -> IExpr
   -> Type
   -> Type
-  -> Type
   -> InferredMatchPattern
   -> Subst
-  -> Infer (TIMatchClause, Type, Subst)
+  -> Infer (TIMatchClause, Subst)
 finishMatchClause
-    ctx matcherSource matcherType matchedType commonResult
+    ctx matcherSource matcherType matchedType
     inferredPattern initSubst = do
   checkVpScope
     ctx matcherSource
@@ -5332,18 +5341,11 @@ finishMatchClause
   (bodyTI, s2) <-
     withEnv bindings $
       inferIExprWithContext (matchPatternBody inferredPattern) ctx
-  let preResultSubst = composeSubst s2 patternSubst
-  bodyType <-
-    applySubstWithConstraintsM preResultSubst (tiExprType bodyTI)
-  expectedType <-
-    applySubstWithConstraintsM preResultSubst commonResult
-  resultSubst <- unifyTypesWithContext expectedType bodyType ctx
-  let finalSubst = composeSubst resultSubst preResultSubst
-  finalResult <- applySubstWithConstraintsM finalSubst commonResult
+  -- Join actual body types only after every clause and the optional else
+  -- have been inferred. Earlier bodies must not fix the receiving type.
   return
     ( (matchPatternTyped inferredPattern, bodyTI)
-    , finalResult
-    , finalSubst
+    , composeSubst s2 patternSubst
     )
 
 inferNextMatchClause
@@ -5351,49 +5353,48 @@ inferNextMatchClause
   -> IExpr
   -> Type
   -> Type
-  -> (Type, [TIMatchClause], Subst)
+  -> ([TIMatchClause], Subst)
   -> IMatchClause
-  -> Infer (Type, [TIMatchClause], Subst)
+  -> Infer ([TIMatchClause], Subst)
 inferNextMatchClause
     ctx matcherSource matcherType matchedType
-    (commonResult, reversedClauses, initSubst) clause = do
+    (reversedClauses, initSubst) clause = do
   inferredPattern <- inferMatchPattern ctx matchedType clause initSubst
-  (typedClause, finalResult, finalSubst) <-
+  (typedClause, finalSubst) <-
     finishMatchClause
-      ctx matcherSource matcherType matchedType commonResult
+      ctx matcherSource matcherType matchedType
       inferredPattern (matchPatternSubst inferredPattern)
-  return (finalResult, typedClause : reversedClauses, finalSubst)
+  return (typedClause : reversedClauses, finalSubst)
 
 inferMatchClausesWithMatcher
   :: TypeErrorContext
   -> IExpr
   -> Type
   -> Type
-  -> Type
   -> [IMatchClause]
   -> Subst
-  -> Infer (Type, [TIMatchClause], Subst)
+  -> Infer ([TIMatchClause], Subst)
 inferMatchClausesWithMatcher
-    ctx matcherSource matcherType matchedType commonResult
+    ctx matcherSource matcherType matchedType
     clauses initSubst =
   case clauses of
-    [] -> return (commonResult, [], initSubst)
+    [] -> return ([], initSubst)
     firstClause : restClauses -> do
       inferredPattern <-
         inferMatchPattern ctx matchedType firstClause initSubst
-      (firstTyped, firstResult, firstSubst) <-
+      (firstTyped, firstSubst) <-
         finishMatchClause
-          ctx matcherSource matcherType matchedType commonResult
+          ctx matcherSource matcherType matchedType
           inferredPattern (matchPatternSubst inferredPattern)
-      (finalResult, reversedClauses, finalSubst) <-
+      (reversedClauses, finalSubst) <-
         foldM
           (inferNextMatchClause
             ctx matcherSource matcherType matchedType)
-          (firstResult, [firstTyped], firstSubst)
+          ([firstTyped], firstSubst)
           restClauses
       typedClauses <-
         mapM (applyMatchClauseSubst finalSubst) (reverse reversedClauses)
-      return (finalResult, typedClauses, finalSubst)
+      return (typedClauses, finalSubst)
 
 -- | Infer multiple patterns left-to-right, making left bindings available to right patterns
 -- This enables non-linear patterns like ($p, #(p + 1))

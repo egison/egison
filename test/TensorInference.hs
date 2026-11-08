@@ -10,7 +10,7 @@ import Test.HUnit
 import Language.Egison (ConstantExpr(..), defaultOption, fromEvalM)
 import Language.Egison.AST (PDPatternBase(..))
 import Language.Egison.IExpr
-  (IExpr(..), ITopExpr(..), TITopExpr(..), TIExpr(..), TIExprNode(..), Var(..), Index(..), tiExprType, stripType)
+  (IExpr(..), IPattern(..), PMMode(..), ITopExpr(..), TITopExpr(..), TIExpr(..), TIExprNode(..), Var(..), Index(..), tiExprType, stripType)
 import qualified Language.Egison.Type.Env as Env
 import Language.Egison.Type.Infer
   (InferState(..), inferIExpr, inferITopExpr, freshVar, initialInferState, runInferWithWarnings)
@@ -46,6 +46,83 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
        other -> assertFailure (show other)] ++
   map checkCase cases ++
   map unchangedCase unchangedCases ++
+  [TestLabel "match results admit tensors without changing bodies" . TestCase $ do
+     let matcher = IConstantExpr SomethingExpr
+         makeClauses = map (IWildCard,)
+         bodies = [[int 0,vector],[vector,int 0]]
+         sources =
+           [(IMatchExpr BFSMode (int 1) matcher (makeClauses values) (Just (int 0)), tensor) | values <- bodies] ++
+           [(IMatchExpr BFSMode (int 1) matcher [(IWildCard,first)] (Just second), tensor) | [first,second] <- bodies] ++
+           [(IMatchAllExpr BFSMode (int 1) matcher (makeClauses values), TCollection tensor) | values <- bodies]
+     mapM_ (\(source,expected) -> do
+       (outcome,_) <- runInferWithWarnings (inferIExpr source) inferenceState
+       case outcome of
+         Left err -> assertFailure (show err)
+         Right (before,_) -> do
+           assertEqual "common result type" expected (tiExprType before)
+           inserted <- fromEvalM defaultOption (insertTensorMaps before)
+           case inserted of
+             Left err -> assertFailure (show err)
+             Right after -> assertEqual "unchanged branch expressions" (show source) (show (stripType after))) sources] ++
+  [TestLabel "match results preserve mapped callbacks in both orders" . TestCase $ do
+     let mapped = call "tensorCallbackConsumer" [var "one"]
+         matcher = IConstantExpr SomethingExpr
+         sources = [IMatchExpr BFSMode (int 1) matcher [(IWildCard,first)] (Just second)
+                   | [first,second] <- [[mapped,int 0],[int 0,mapped]]]
+     mapM_ (\source -> do
+       (outcome,_) <- runInferWithWarnings (inferIExpr source) inferenceState
+       case outcome of
+         Left err -> assertFailure (show err)
+         Right (before,_) -> do
+           assertEqual "common result type" tensor (tiExprType before)
+           inserted <- fromEvalM defaultOption (insertTensorMaps before)
+           case inserted of
+             Left err -> assertFailure (show err)
+             Right after -> do
+               assertBool "mapped callback is retained" (hasTensorMap after)
+               assertEqual "no tensor construction" 0 (tensorConstructionCount (stripType after))) sources] ++
+  [TestLabel "a previous integer use does not specialize a returned let-bound identity" . TestCase $ do
+     let bind name value body = ILetExpr [(PDPatVar (Var name []),value)] body
+         use = call "localIdentity" [int 0]
+         bodies = [bind "ignored" use (bind "t" vector (var "localIdentity")),
+                   bind "t" vector (bind "ignored" use (var "localIdentity"))]
+     mapM_ (\body -> do
+       let source = bind "localIdentity" (lambda ["x"] (var "x")) body
+       (outcome,warnings) <- runInferWithWarnings (inferIExpr source) inferenceState
+       assertEqual "inference emits no warnings" [] warnings
+       case outcome of
+         Left err -> assertFailure (show err)
+         Right (typed,_) -> case tiExprType typed of
+           TFun domain@TVar{} result -> assertEqual "identity remains polymorphic" domain result
+           ty -> assertFailure ("specialized identity type: " ++ show ty)) bodies] ++
+  [TestLabel "identity and tensor-returning functions are independent of list order" . TestCase $ do
+     let first = lambda ["x"] vector
+         second = lambda ["x"] (var "x")
+     inferred <- mapM (\items -> runInferWithWarnings (inferIExpr (ICollectionExpr items)) inferenceState)
+       [[first,second],[second,first]]
+     types <- mapM (\(outcome,warnings) -> do
+       assertEqual "inference emits no warnings" [] warnings
+       case outcome of
+         Left err -> assertFailure (show err) >> return TInt
+         Right (typed,_) -> return (tiExprType typed)) inferred
+     case types of
+       [forward,backward] -> do
+         assertEqual "same type in either order" forward backward
+         assertEqual "least scalar domain" (TCollection (TFun TInt tensor)) forward
+       _ -> assertFailure "missing order comparison"] ++
+  [TestLabel "identity and a tensor of its input keep a generic domain" . TestCase $ do
+     let first = lambda ["x"] (IVectorExpr [var "x"])
+         second = lambda ["x"] (var "x")
+     mapM_ (\items -> do
+       (outcome,warnings) <- runInferWithWarnings (inferIExpr (ICollectionExpr items)) inferenceState
+       assertEqual "inference emits no warnings" [] warnings
+       case outcome of
+         Left err -> assertFailure (show err)
+         Right (typed,_) -> case tiExprType typed of
+           TCollection (TFun domain@TVar{} (TTensor element)) ->
+             assertEqual "same input and tensor component" domain element
+           ty -> assertFailure ("unexpected function list type: " ++ show ty))
+       [[first,second],[second,first]]] ++
   [TestLabel "function-list domains remain polymorphic" . TestCase $ do
      let source = ICollectionExpr [lambda ["x"] (int 0),lambda ["x"] vector]
      (inferred, _) <- runInferWithWarnings (inferIExpr source) inferenceState
@@ -794,6 +871,10 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
          ICollectionExpr functions) |
         functions <- [[lambda ["x"] (int 0),lambda ["x"] vector],
                       [lambda ["x"] vector,lambda ["x"] (int 0)]]] ++
+      [("composed result and rank-zero admission preserves either list order",
+         ICollectionExpr functions) |
+        functions <- [[lambda ["x"] (int 0),IVectorExpr [lambda ["x"] vector]],
+                      [IVectorExpr [lambda ["x"] vector],lambda ["x"] (int 0)]]] ++
       [("result admission preserves a function at depth " ++ show depth,
         call ("resultConsumer" ++ show depth) [var ("function" ++ show depth)]) |
         depth <- [1 :: Int ..5]] ++
@@ -947,6 +1028,9 @@ hasTensorMap expression = case tiExprNode expression of
   TISeqExpr first second -> hasTensorMap first || hasTensorMap second
   TILetExpr bindings body -> any (hasTensorMap . snd) bindings || hasTensorMap body
   TILetRecExpr bindings body -> any (hasTensorMap . snd) bindings || hasTensorMap body
+  TIMatchExpr _ target matcher clauses otherwise -> any hasTensorMap
+    (target : matcher : map snd clauses ++ maybe [] (:[]) otherwise)
+  TIMatchAllExpr _ target matcher clauses -> any hasTensorMap (target : matcher : map snd clauses)
   TITupleExpr elements -> any hasTensorMap elements
   TICollectionExpr elements -> any hasTensorMap elements
   TIVectorExpr elements -> any hasTensorMap elements
