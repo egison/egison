@@ -1,0 +1,8 @@
+-- Run with --dump-typed, --dump-ti, or --dump-tc to check typed AST display.
+def answer : Integer := 7
+
+assertEqual "concrete definition remains evaluable" answer 7
+assertEqual "scalar result stays scalar in forward function order"
+  ((head [\x -> 0, \x -> [|0|]]) [|1,2|]) 0
+assertEqual "scalar result stays scalar in reverse function order"
+  ((head (tail [\x -> [|0|], \x -> 0])) [|1,2|]) 0

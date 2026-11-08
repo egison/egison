@@ -933,6 +933,9 @@ prettyTIExprNode node = case node of
               <+> pretty "with" <+> vsep (map prettyDataClause bindings)
           prettyDataClause (dp, e) = pretty "|" <+> pretty (show dp) <+> pretty "->" <+> prettyTIExprWithType e
 
+  TIReshape target expr ->
+    parens (prettyTIExprWithType expr <+> pretty ":" <+> prettyTypeDoc target)
+
   TIRuntimeDispatch className methodName _candidates args ->
     pretty "<runtime-dispatch" <+> pretty className <> pretty "."
         <> pretty methodName <> pretty ">"

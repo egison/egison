@@ -19,8 +19,10 @@ import           TensorInference                (tensorInferenceTests)
 import           Language.Egison
 import           Language.Egison.IExpr          (IExpr (..), IPattern (..),
                                                   ITopExpr (..),
+                                                  TIExpr (..), TIExprNode (..),
                                                   TITopExpr (..),
                                                   Var (..), Index (..), tiExprType)
+import           Language.Egison.Pretty         (prettyStr)
 import qualified Language.Egison.Type.Env       as TypeEnv
 import           Language.Egison.Type.Env       (emptyEnv,
                                                   emptyClassEnv,
@@ -60,6 +62,8 @@ import           Language.Egison.Type.Types     (CapVar (..),
                                                   normalizeMatcherTuples)
 import           Language.Egison.Type.Unify     (unify, unifyCapability,
                                                   unifyWithConstraints)
+import           Language.Egison.Type.TypedDesugar
+                                                 (desugarTypedTopExprT_TypeClassOnly)
 
 main :: IO ()
 main = do
@@ -92,8 +96,33 @@ main = do
          , failedInferAtomicityTests
          , tensorInferenceTests
          , tensorShapeValidationTests
+         , typedPrettyTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
+
+typedPrettyTests :: Test
+typedPrettyTests = TestLabel "typed AST display" . TestList $
+  [ TestLabel "generated reshape in a concrete definition" . TestCase $ do
+      let scheme = Forall [] [] [] TInt
+          source = TIDefine scheme (Var "answer" [])
+            (TIExpr scheme (TIConstantExpr (IntegerExpr 7)))
+      result <- fromEvalM defaultOption (desugarTypedTopExprT_TypeClassOnly source)
+      case result of
+        Right (Just rendered@TIDefine{}) ->
+          assertBool "the dump retains the generated conversion and operand type"
+            ("(((7 : Integer) : Integer) : Integer)" `isInfixOf` prettyStr rendered)
+        other -> assertFailure (show other)
+  , TestLabel "nested reshape retains distinct source and target types" . TestCase $ do
+      let typed ty = TIExpr (Forall [] [] [] ty)
+          target = TFrac TInt
+          operand = typed TMathValue (TIVarExpr "value")
+          converted = typed target (TIReshape target operand)
+          source = typed (TFun TMathValue target)
+            (TILambdaExpr Nothing [Var "value" []] converted)
+      assertEqual "nested annotations are rendered recursively"
+        "(\\value -> (((value : MathValue) : Frac Integer) : Frac Integer) : MathValue -> Frac Integer)"
+        (prettyStr source)
+  ]
 
 -- Runtime shape errors must be distinct from component evaluation errors.
 tensorShapeValidationTests :: Test
