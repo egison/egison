@@ -76,6 +76,7 @@ import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstCo
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.TensorMapInsertion
                    (typeDirectedTensorLiftType, typeDirectedTensorLiftTypes, isTensorLiftableScalarType)
+import           Language.Egison.Type.TensorDemand (demandedParameters)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
@@ -2930,7 +2931,13 @@ inferIExprInContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     -- Later uses can select maps inside the body while preserving its result.
     modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + length params })
-    argTypes <- mapM (const (freshVar "arg")) params
+    -- A parameter whose value flows through arithmetic into a position fixed
+    -- to Tensor (the operand of contract, tensorShape, an index reference, or
+    -- a Tensor parameter of an applied function) is a tensor parameter; the
+    -- arithmetic is then lifted by insertion (design/tensor-demand-propagation.md).
+    environment <- getEnv
+    let demanded = demandedParameters environment (map extractNameFromVar params) body
+    argTypes <- mapM (\flag -> if flag then TTensor <$> freshVar "arg" else freshVar "arg") demanded
     inferLambdaWithArgumentTypes mVar params argTypes body exprCtx
 
   -- Function Application

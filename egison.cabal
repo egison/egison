@@ -140,6 +140,7 @@ Library
                    Language.Egison.Type.Subtype
                    Language.Egison.Type.Subst
                    Language.Egison.Type.TensorMapInsertion
+                   Language.Egison.Type.TensorDemand
                    Language.Egison.Type.TypeClassExpand
                    Language.Egison.Type.Tensor
                    Language.Egison.Type.TypedDesugar

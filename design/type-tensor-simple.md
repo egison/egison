@@ -155,6 +155,11 @@ def mySum xs := foldl (\x y -> x+y) 0 xs
 推論の選んだ S と一致する。形式的な規則は論文の ELAB-SPINE で、持ち上げる位置の集合を
 rank-0 包含の集合 R と同じく「成功する候補のうち最小のもの」として定める。
 
+利用者定義の関数の仮引数が，算術を経て `contractWith` などの固定テンソル位置へ流れる場合は，
+その仮引数をテンソル引数(型 `Tensor a`)として割り当て，算術を `tensorMap2` で持ち上げる。
+`def (.) u v := contractWith (\x y -> x + y) (u * v)` は注釈なしで
+`Tensor a -> Tensor a -> Tensor a` になる。規則と実装は [固定テンソル位置へ流れる算術による仮引数の分類](tensor-demand-propagation.md) を参照する。
+
 ### 入れ子の適用へ伝える期待結果型
 
 呼出し先が要求する引数型を、引数に書かれた関数適用の結果型として使う。
