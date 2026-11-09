@@ -1,0 +1,11 @@
+def input : Matrix MathValue := [|[|1,2|],[|3,4|]|]
+def metric_i_j := generateTensor (\[a,b] -> V.* input_a input_b) [2,2]
+def metric~i~j := M.inverse metric_#_#
+assertEqual "unannotated indexed metric is a tensor"
+  metric_#_# [|[|5,11|],[|11,25|]|]_#_#
+assertEqual "unannotated indexed inverse is a tensor"
+  metric~#~# [|[|25/4,-11/4|],[|-11/4,5/4|]|]~#~#
+def minkowskiDot u v :=
+  u_1 * v_1 - u_2 * v_2 - u_3 * v_3 - u_4 * v_4
+assertEqual "unannotated indexed vector arguments"
+  (minkowskiDot [|1,2,3,4|] [|5,6,7,8|]) (-60)

@@ -66,7 +66,7 @@ Phase 7は2つのサブフェーズに分かれる。TensorMap挿入を先に行
 |---------|------|---------------|
 | `Type/TypedDesugar.hs` | Phase 7のオーケストレーション | `desugarTypedTopExprT_TensorMapOnly`, `desugarTypedTopExprT_TypeClassOnly` |
 | `Type/TensorMapInsertion.hs` | Phase 7a: tensorMap自動挿入 | `insertTensorMaps`, `shouldInsertTensorMap` |
-| `Type/TensorDemand.hs` | 算術を経て固定テンソル位置へ流れるラムダ仮引数の判定(`design/tensor-demand-propagation.md`) | `demandedParameters` |
+| `Type/TensorDemand.hs` | 関数の仮引数型からテンソル入力の候補を求め，推論後の適用型で依存関係を検査(`design/tensor-demand-propagation.md`) | `demandedParameters`, `demandedInferredParameters` |
 | `Type/TypeClassExpand.hs` | Phase 7b: 型クラスメソッド展開（辞書パッシング） | `expandTypeClassMethodsT`, `addDictionaryParametersT`, `applyConcreteConstraintDictionaries` |
 **Phase 7a (TensorMapInsertion)**: スカラー型パラメータにテンソル引数が渡された場合、自動的に `tensorMap` / `tensorMap2` を挿入する。
 

@@ -1,0 +1,99 @@
+-- Inverses and logical matrix blocks, including empty boundary blocks.
+declare symbol x, y
+
+assertEqual "inverse of a one-by-one matrix"
+  (M.inverse [|[|2|]|]) [|[|1 / 2|]|]
+
+assertEqual "inverse of the identity matrix"
+  (M.inverse [|[|1,0|],[|0,1|]|]) [|[|1,0|],[|0,1|]|]
+
+assertEqual "inverse transposes nonsymmetric cofactors"
+  (M.inverse [|[|1,2|],[|3,4|]|]) [|[|-2,1|],[|3/2,-1/2|]|]
+
+def invertible : Matrix MathValue := [|[|1,2,3|],[|0,1,4|],[|5,6,0|]|]
+def identity3 : Matrix MathValue := [|[|1,0,0|],[|0,1,0|],[|0,0,1|]|]
+
+assertEqual "inverse of a three-by-three matrix"
+  (M.inverse invertible) [|[|-24,18,5|],[|20,-15,-4|],[|-5,4,1|]|]
+assertEqual "right inverse" (M.* invertible (M.inverse invertible)) identity3
+assertEqual "left inverse" (M.* (M.inverse invertible) invertible) identity3
+assertEqual "symbolic diagonal inverse"
+  (M.inverse [|[|x,0|],[|0,y|]|]) [|[|1/x,0|],[|0,1/y|]|]
+assertEqual "symbolic one-by-one inverse" (M.inverse [|[|x|]|]) [|[|1/x|]|]
+
+assertEqual "empty blocks retain both dimensions"
+  (map M.blockShape [M.block 0 3 [], M.block 3 0 [], M.block 0 0 []])
+  [[0,3], [3,0], [0,0]]
+assertEqual "zero columns preserve the rows"
+  (M.blockRows (M.block 3 0 [])) [[],[],[]]
+assertEqual "zero rows have no row data"
+  (M.blockRows (M.block 0 3 [])) []
+assertEqual "tensor and block round trip"
+  (M.toTensor (M.toBlock invertible)) invertible
+assertEqual "block and tensor round trip"
+  (M.blockParts (M.toBlock (M.toTensor (M.block 2 3 [1,2,3,4,5,6]))))
+  (2,3,[1,2,3,4,5,6])
+assertEqual "generic block cells"
+  (M.blockParts (M.join (M.block 1 0 []) (M.block 1 2 [True,False])
+                      (M.block 0 0 []) (M.block 0 2 [])))
+  (1,2,[True,False])
+
+assertEqual "quadCons on a single cell retains all empty shapes"
+  (match M.toBlock [|[|7|]|] as matrix with
+    | quadCons $a (emptyBlock #1 #0) (emptyBlock #0 #1) (emptyBlock #0 #0) -> a)
+  7
+assertEqual "quadCons preserves rectangular block shapes and cells"
+  (match M.toBlock [|[|1,2,3|],[|4,5,6|]|] as matrix with
+    | quadCons $a $B $C $D -> (a, M.blockParts B, M.blockParts C, M.blockParts D))
+  (1, (1,2,[2,3]), (1,1,[4]), (1,2,[5,6]))
+assertEqual "recursive matrix decomposition"
+  (match M.toBlock [|[|1,2|],[|3,4|]|] as matrix with
+    | quadCons #1 (quadCons #2 _ _ _) (quadCons #3 _ _ _) (quadCons #4 _ _ _) -> True)
+  True
+assertEqual "quadCons does not decompose an empty block"
+  (match M.block 0 3 [] as matrix with
+    | quadCons _ _ _ _ -> False
+    | emptyBlock #0 #3 -> True)
+  True
+assertEqual "matrix value patterns preserve empty dimensions"
+  (match M.block 0 3 [] as matrix with
+    | #(M.block 3 0 []) -> False
+    | #(M.block 0 3 []) -> True)
+  True
+
+def grid : Matrix MathValue := [|[|1,2,3|],[|4,5,6|],[|7,8,9|]|]
+def deleteCellRowColumn (block: MatrixBlock MathValue) (i: Integer) (j: Integer) : MatrixBlock MathValue :=
+  match block as matrix with
+    | matCons #i #j _ $A $B $C $D -> M.join A B C D
+
+assertEqual "matCons and join cover all corners, edges, and the center"
+  (map (\i -> map (\j -> M.blockParts (deleteCellRowColumn (M.toBlock grid) i j))
+                  (between 1 3)) (between 1 3))
+  [[(2,2,[5,6,8,9]), (2,2,[4,6,7,9]), (2,2,[4,5,7,8])],
+   [(2,2,[2,3,8,9]), (2,2,[1,3,7,9]), (2,2,[1,2,7,8])],
+   [(2,2,[2,3,5,6]), (2,2,[1,3,4,6]), (2,2,[1,2,4,5])]]
+assertEqual "a single-cell minor is an empty square block"
+  (M.blockParts (deleteCellRowColumn (M.toBlock [|[|7|]|]) 1 1))
+  (0,0,[])
+assertEqual "a single-row minor retains its columns"
+  (M.blockParts (deleteCellRowColumn (M.toBlock [|[|1,2,3|]|]) 1 2))
+  (0,2,[])
+assertEqual "a single-column minor retains its rows"
+  (M.blockParts (deleteCellRowColumn (M.toBlock [|[|1|],[|2|],[|3|]|]) 2 1))
+  (2,0,[])
+assertEqual "matCons rejects positions outside the block"
+  (map (\(i,j) -> match M.toBlock grid as matrix with
+                   | matCons #i #j _ _ _ _ _ -> False
+                   else True)
+       [(0,1),(4,1),(1,0),(1,4)])
+  [True,True,True,True]
+assertEqual "joining zero-row blocks preserves total columns"
+  (M.blockParts (M.join (M.block 0 2 []) (M.block 0 3 [])
+                      (M.block 0 2 []) (M.block 0 3 [])))
+  (0,5,[])
+assertEqual "joining zero-column blocks preserves total rows"
+  (M.blockParts (M.join (M.block 2 0 []) (M.block 2 0 [])
+                      (M.block 3 0 []) (M.block 3 0 [])))
+  (5,0,[])
+assertEqual "empty square block determinant" (M.blockDet (M.block 0 0 [])) 1
+assertEqual "nonempty block determinant" (M.blockDet (M.toBlock invertible)) 1

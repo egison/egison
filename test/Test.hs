@@ -96,6 +96,7 @@ main = do
          , failedInferAtomicityTests
          , tensorInferenceTests
          , tensorShapeValidationTests
+         , matrixBlockValidationTests
          , typedPrettyTests
          ]
       ++ map runTestCase (languageTests ++ libTests ++ sampleTests)
@@ -163,6 +164,42 @@ tensorShapeValidationTests = TestLabel "Tensor shape validation" . TestList $
         Left err -> assertBool ("unexpected diagnostic: " ++ show err)
                       (diagnostic `isInfixOf` show err)
         Right _ -> assertFailure ("invalid shape accepted: " ++ source)
+
+-- Logical empty blocks are valid, but their dimensions and conversions are checked.
+matrixBlockValidationTests :: Test
+matrixBlockValidationTests = TestLabel "Matrix block validation" . TestList $
+  [ rejects name source diagnostic
+  | (name, source, diagnostic) <-
+      [ ("nonsquare inverse", "M.inverse [|[|1,2,3|],[|4,5,6|]|]", "M.inverse requires a square matrix")
+      , ("rank-one inverse", "M.inverse [|1,2|]", "M.inverse requires a square matrix")
+      , ("nonsquare determinant", "M.det [|[|1,2|]|]", "M.determinant requires a square matrix")
+      , ("negative block dimensions", "M.block (-1) 2 []", dimensions)
+      , ("wrong block cell count", "M.block 2 2 [1,2,3]", dimensions)
+      , ("raw invalid block", "M.blockShape (MatrixBlock 0 2 [1])", dimensions)
+      , ("rank-one block conversion", "M.toBlock [|1,2|]", "M.toBlock requires a rank-two tensor")
+      , ("zero rows cannot become a tensor", "M.toTensor (M.block 0 3 [])", emptyTensor)
+      , ("zero columns cannot become a tensor", "M.toTensor (M.block 3 0 [])", emptyTensor)
+      , ("empty square cannot become a tensor", "M.toTensor (M.block 0 0 [])", emptyTensor)
+      , ("empty block index", "M.blockAt (M.block 0 3 []) 1 1", "matrix block index out of bounds")
+      , ("slice beyond boundary", "M.blockSlice (M.block 2 2 [1,2,3,4]) 4 1 0 1", "matrix block slice out of bounds")
+      , ("incompatible block edges", "M.join (M.block 0 1 []) (M.block 1 1 [2]) (M.block 1 1 [3]) (M.block 1 1 [4])", "matrix block edges must agree for joining")
+      , ("nonsquare empty block determinant", "M.blockDet (M.block 0 3 [])", "M.blockDet requires a square block")
+      ]
+  ]
+  where
+    dimensions = "matrix block dimensions and cell count must agree"
+    emptyTensor = "an empty matrix block cannot be converted to a tensor"
+    rejects name source diagnostic = TestLabel name . TestCase $ do
+      result <- fromEvalM defaultOption { optNoPrelude = True, optTypeCheckStrict = True } $ do
+        env <- initialEnv
+        expressions <- readTopExprs source
+        _ <- evalTopExprsNoPrint env
+          (map Load coreLibraries ++ [Load "lib/math/normalize.egi"] ++ expressions)
+        return ()
+      case result of
+        Left err -> assertBool ("unexpected diagnostic: " ++ show err)
+                      (diagnostic `isInfixOf` show err)
+        Right _ -> assertFailure ("invalid matrix operation accepted: " ++ source)
 
 cliWarningFlagParsingTests :: Test
 cliWarningFlagParsingTests =
@@ -2235,4 +2272,4 @@ runTestCase file = TestLabel file . TestCase . assertEvalM $ do
   evalTopExprsNoPrint env (allLibExprs ++ exprs)
   where
     assertEvalM :: EvalM a -> Assertion
-    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/type-pm-examples.egi", "test/lib/core/matcher-data-shadowing.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi"] }) m >>= assertString . either show (const "")
+    assertEvalM m = fromEvalM (defaultOption { optTypeCheckStrict = file `elem` ["sample/sat/dp.egi", "test/lib/core/type-pm-examples.egi", "test/lib/core/matcher-data-shadowing.egi", "test/lib/core/sequential-capability.egi", "test/lib/math/tensor-expected-result.egi", "test/lib/math/matrix.egi", "test/lib/core/indexed-definition-constraints.egi", "test/lib/math/symbol-scopes.egi"] }) m >>= assertString . either show (const "")

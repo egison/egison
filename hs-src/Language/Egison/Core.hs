@@ -434,6 +434,7 @@ evalExprShallow env (IWithSymbolsExpr vars expr) = do
     _                             -> return whnf
  where
   isTmpSymbol :: String -> Index EgisonValue -> Bool
+  isTmpSymbol _ DF{} = False
   isTmpSymbol symId index = symId == getSymId (extractIndex index)
 
   -- The axes of the closed symbols are ordered as the symbols are listed in

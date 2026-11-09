@@ -89,7 +89,7 @@ assertEqual "keep x" (polyNFWith [x] [x + y] (y^3)) (- x^3)
 --
 
 assertEqual "the generator survives construction"
-  (show (trigIdeal θ)) "['sin θ^2 + 'cos θ^2 - 1]"
+  (show (trigIdeal θ)) "[('sin θ)^2 + ('cos θ)^2 - 1]"
 
 -- keep sin θ: rewrite everything to a polynomial in sin θ
 assertEqual "sin^4 - cos^4"

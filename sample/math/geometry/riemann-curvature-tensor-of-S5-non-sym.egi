@@ -79,7 +79,7 @@ def C_i_k_l_m := R_i_k_l_m +
                  (scalarCurvature / 2) * (g_i_l . g_k_m - g_i_m . g_k_l)
 
 -- Wodzicki-Chern-Simons class
-def S :=
+def S := withSymbols [s, t, u]
  let (es, os) := evenAndOddPermutations 5 in
    sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) es) -
    sum (map (\σ -> R~u_1_s_(σ 1) . R~s_t_(σ 3)_(σ 2) . R~t_u_(σ 5)_(σ 4)) os)

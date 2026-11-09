@@ -21,7 +21,7 @@ assertEqual "ω"
 -- Curvature 2-form (manual antisymmetrization)
 def ω1 := ω_1
 def ω2 := ω_2
-def Ω12 := (∂/∂ ω2 r - ∂/∂ ω1 θ) / 2
+def Ω12 : MathValue := (∂/∂ ω2 r - ∂/∂ ω1 θ) / 2
 def Ω := [| [| 0, Ω12 |], [| - Ω12, 0 |] |]
 
 assertEqual "Ω"

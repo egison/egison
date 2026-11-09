@@ -2,30 +2,102 @@
 -- Matrices
 --
 
-inductive pattern Matrix a:=
-  | quadCons a (Matrix a) (Matrix a) (Matrix a)
-  | matCons (Any for Integer) (Any for Integer) a (Matrix a) (Matrix a) (Matrix a) (Matrix a)
+-- A block stores row-major cells and keeps both dimensions when empty.
+inductive MatrixBlock a := MatrixBlock Integer Integer [a]
 
-def matrix : Matcher (Matrix MathValue) (Matrix MathValue) :=
+inductive pattern BlockStorage a for MatrixBlock a :=
+  | matrixBlock (Any for Integer) (Any for Integer) [a]
+
+def matrixBlockData {a} (element: Matcher p a) : Matcher (BlockStorage p) (MatrixBlock a) :=
+  algebraicDataMatcher
+    | matrixBlock integer integer (list element)
+
+def M.block {a} (rows: Integer) (cols: Integer) (cells: [a]) : MatrixBlock a :=
+  match assert "matrix block dimensions and cell count must agree"
+          (rows >= 0 && cols >= 0 && length cells = rows * cols) as bool with
+    | #True -> MatrixBlock rows cols cells
+
+def M.blockParts {a} (block: MatrixBlock a) : (Integer, Integer, [a]) :=
+  match block as matrixBlockData something with
+    | matrixBlock $rows $cols $cells ->
+        match assert "matrix block dimensions and cell count must agree"
+                (rows >= 0 && cols >= 0 && length cells = rows * cols) as bool with
+          | #True -> (rows, cols, cells)
+
+def M.blockShape {a} (block: MatrixBlock a) : [Integer] :=
+  let (rows, cols, _) := M.blockParts block in [rows, cols]
+
+def M.blockElements {a} (block: MatrixBlock a) : [a] :=
+  let (_, _, cells) := M.blockParts block in cells
+
+def M.blockRows {a} (block: MatrixBlock a) : [[a]] :=
+  let (rows, cols, cells) := M.blockParts block
+   in map (\i -> take cols (drop ((i - 1) * cols) cells)) (between 1 rows)
+
+def M.blockAt {a} (block: MatrixBlock a) (row: Integer) (col: Integer) : a :=
+  let (rows, cols, cells) := M.blockParts block
+   in match assert "matrix block index out of bounds"
+              (1 <= row && row <= rows && 1 <= col && col <= cols) as bool with
+        | #True -> nth ((row - 1) * cols + col) cells
+
+-- Counts, rather than inclusive ranges, describe empty boundary blocks.
+def M.blockSlice {a} (block: MatrixBlock a) (row: Integer) (col: Integer)
+      (height: Integer) (width: Integer) : MatrixBlock a :=
+  let (rows, cols, cells) := M.blockParts block
+   in match assert "matrix block slice out of bounds"
+              (row >= 1 && col >= 1 && height >= 0 && width >= 0
+               && row + height <= rows + 1 && col + width <= cols + 1) as bool with
+        | #True ->
+            M.block height width
+              (concat (map (\i -> take width (drop ((i - 1) * cols + col - 1) cells))
+                         (between row (row + height - 1))))
+
+def M.toBlock {a} (m: Matrix a) : MatrixBlock a :=
+  match tensorShape m as list integer with
+    | [$rows, $cols] ->
+        M.block rows cols
+          (concat (map (\i -> map (\j -> m_i_j) (between 1 cols)) (between 1 rows)))
+    else match assert "M.toBlock requires a rank-two tensor" False as bool with
+      | #True -> undefined
+
+def M.toTensor {a} (block: MatrixBlock a) : Matrix a :=
+  let (rows, cols, cells) := M.blockParts block
+   in match assert "an empty matrix block cannot be converted to a tensor"
+              (rows > 0 && cols > 0) as bool with
+        | #True -> tensor [rows, cols] cells
+
+inductive pattern MatrixBlock a :=
+  | emptyBlock (Any for Integer) (Any for Integer)
+  | quadCons a (MatrixBlock a) (MatrixBlock a) (MatrixBlock a)
+  | matCons (Any for Integer) (Any for Integer) a (MatrixBlock a) (MatrixBlock a) (MatrixBlock a) (MatrixBlock a)
+
+def matrix : Matcher (MatrixBlock MathValue) (MatrixBlock MathValue) :=
   matcher
+    | emptyBlock $ $ as (integer, integer) with
+      | $tgt ->
+        let (rows, cols, _) := M.blockParts tgt
+         in if rows = 0 || cols = 0 then [(rows, cols)] else []
     | quadCons $ $ $ $ as (mathValue, matrix, matrix, matrix) with
       | $tgt ->
-        match tensorShape tgt as list integer with
-          | $m :: $n :: _ ->
-            [(tgt_1_1, tgt_1_(2, n), tgt_(2, m)_1, tgt_(2, m)_(2, n))]
-          else []
+        let (rows, cols, _) := M.blockParts tgt
+         in if rows > 0 && cols > 0
+              then [(M.blockAt tgt 1 1,
+                     M.blockSlice tgt 1 2 1 (cols - 1),
+                     M.blockSlice tgt 2 1 (rows - 1) 1,
+                     M.blockSlice tgt 2 2 (rows - 1) (cols - 1))]
+              else []
     | matCons #$i #$j $ $ $ $ $ as (mathValue, matrix, matrix, matrix, matrix) with
       | $tgt ->
-        let ns := tensorShape tgt
-            m := nth 1 ns
-            n := nth 2 ns
-         in [ ( tgt_i_j
-            , tgt_(1, i - 1)_(1, j - 1)
-            , tgt_(1, i - 1)_(j + 1, n)
-            , tgt_(i + 1, m)_(1, j - 1)
-            , tgt_(i + 1, m)_(j + 1, n) ) ]
+        let (rows, cols, _) := M.blockParts tgt
+         in if 1 <= i && i <= rows && 1 <= j && j <= cols
+              then [(M.blockAt tgt i j,
+                     M.blockSlice tgt 1 1 (i - 1) (j - 1),
+                     M.blockSlice tgt 1 (j + 1) (i - 1) (cols - j),
+                     M.blockSlice tgt (i + 1) 1 (rows - i) (j - 1),
+                     M.blockSlice tgt (i + 1) (j + 1) (rows - i) (cols - j))]
+              else []
     | #$val as () with
-      | $tgt -> if val = tgt then [()] else []
+      | $tgt -> if M.blockParts val = M.blockParts tgt then [()] else []
     | $ as (something) with
       | $tgt -> [tgt]
 
@@ -76,15 +148,25 @@ def antisym {Field a} (a: Matrix a) : Matrix a :=
       ((a_i_j - a_j_i) / 2))
 
 def M.inverse (m: Matrix MathValue) : Matrix MathValue :=
-  let d := M.det m
-   in generateTensor
-        (\[i, j] ->
-          match m as matrix with
-          | matCons #j #i _ $A $B $C $D ->
-            if isEven (i + j)
-              then M.det (M.join A B C D) / d
-              else - (M.det (M.join A B C D) / d))
-        (tensorShape m)
+  match tensorShape m as list integer with
+    | [$n, #n] ->
+        let d := M.det m
+         in generateTensor
+              (\[i, j] ->
+                if n = 1
+                  then 1 / m_1_1
+                  else let minor := generateTensor
+                             (\[a, b] ->
+                               let row := if a < j then a else a + 1
+                                   col := if b < i then b else b + 1
+                                in m_row_col)
+                             [n - 1, n - 1]
+                        in if isEven (i + j)
+                             then M.det minor / d
+                             else - (M.det minor / d))
+              [n, n]
+    else match assert "M.inverse requires a square matrix" False as bool with
+      | #True -> undefined
 
 def M.* (s: Matrix MathValue) (t: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] (s~i~j . t_j_k)
@@ -104,42 +186,37 @@ def M.power (t: Matrix MathValue) (k: Integer) : Matrix MathValue :=
 def M.comm (m1: Matrix MathValue) (m2: Matrix MathValue) : Matrix MathValue := 
   withSymbols [i, j, k] m1~i~j . m2_j_k - m2~i~j . m1_j_k
 
-def M.join (A: Matrix MathValue) (B: Matrix MathValue) (C: Matrix MathValue) (D: Matrix MathValue)
-  : Matrix MathValue :=
-  let ashape := tensorShape A
-      bshape := tensorShape B
-      cshape := tensorShape C
-      dshape := tensorShape D
-  in let a1 := nth 1 ashape
-         a2 := nth 2 ashape
-         b1 := nth 1 bshape
-         b2 := nth 2 bshape
-         c1 := nth 1 cshape
-         c2 := nth 2 cshape
-         d1 := nth 1 dshape
-         d2 := nth 2 dshape
-     in let m1 := max a1 b1
-            m2 := max a2 c2
-            n1 := max c1 d1
-            n2 := max b2 d2
-        in generateTensor
-             (\match as list integer with
-               | [$i & ?(<= a1), $j & ?(<= a2)] -> A_i_j
-               | [$i & ?(<= m1), $j]            -> B_i_(j - a2)
-               | [$i,            $j & ?(<= m2)] -> C_(i - a1)_j
-               | [$i,            $j]            -> D_(i - m1)_(j - m2))
-             [m1 + n1, m2 + n2]
+def M.join {a} (A: MatrixBlock a) (B: MatrixBlock a)
+      (C: MatrixBlock a) (D: MatrixBlock a) : MatrixBlock a :=
+  let (ar, ac, _) := M.blockParts A
+      (br, bc, _) := M.blockParts B
+      (cr, cc, _) := M.blockParts C
+      (dr, dc, _) := M.blockParts D
+   in match assert "matrix block edges must agree for joining"
+              (ar = br && cr = dr && ac = cc && bc = dc) as bool with
+        | #True ->
+            M.block (ar + cr) (ac + bc)
+              (concat (map2 (++) (M.blockRows A) (M.blockRows B)
+                     ++ map2 (++) (M.blockRows C) (M.blockRows D)))
+
+-- The empty square block has determinant one without constructing a tensor.
+def M.blockDet (block: MatrixBlock MathValue) : MathValue :=
+  match M.blockShape block as list integer with
+    | [#0, #0] -> 1
+    | [$n, #n] -> M.det (M.toTensor block)
+    else match assert "M.blockDet requires a square block" False as bool with
+      | #True -> undefined
 
 --
 -- Determinant
 --
 def M.determinant (m: Matrix MathValue) : MathValue :=
   match tensorShape m as list integer with
-    | [#0, #0] -> 1
     | [$n, #n] ->
       let (es, os) := evenAndOddPermutations' n
        in sum (map (\e -> product (map2 (\i j -> m_i_j) (between 1 n) e)) es) -
             sum (map (\o -> product (map2 (\i j -> m_i_j) (between 1 n) o)) os)
-    else undefined
+    else match assert "M.determinant requires a square matrix" False as bool with
+      | #True -> undefined
 
 def M.det (m: Matrix MathValue) : MathValue := M.determinant m

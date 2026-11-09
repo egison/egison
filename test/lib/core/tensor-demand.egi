@@ -1,31 +1,35 @@
--- Parameters that flow through arithmetic into a position fixed to Tensor
--- are tensor parameters (design/tensor-demand-propagation.md). The product
--- below is the paper's user-defined `.` without type annotations.
+-- Tensor inputs are selected at their uses from the receiving function types.
+-- The product keeps an ordinary definition and a body with mapped inputs.
 def demandDot u v := contractWith (\x y -> x + y) (u * v)
 
-assertEqual "inner product sums the diagonal"
-  (demandDot [|1, 2|]~i [|10, 20|]_i)
-  50
-assertEqual "matching lower indices keep a componentwise product"
-  (demandDot [|1, 2|]_i [|10, 20|]_i)
-  [|10, 40|]_i
-assertEqual "distinct indices give the tensor product"
-  (demandDot [|1, 2|]_i [|10, 20|]_j)
-  [|[|10, 20|], [|20, 40|]|]_i_j
-assertEqual "matrix product contracts the shared index"
-  (demandDot [|[|1, 2|], [|3, 4|]|]_i~j [|[|5, 6|], [|7, 8|]|]_j~k)
-  [|[|19, 22|], [|43, 50|]|]_i~k
-assertEqual "the product composes through foldl"
-  (foldl demandDot [|[|1, 2|], [|3, 4|]|]_i~j [[|[|5, 6|], [|7, 8|]|]_j~k, [|[|1, 0|], [|1, 1|]|]_k~l])
-  [|[|41, 22|], [|93, 50|]|]_i~l
+withSymbols [i, j, k, l]
+  assertEqual "inner product sums the diagonal"
+    (demandDot [|1, 2|]~i [|10, 20|]_i)
+    50
+withSymbols [i, j, k, l]
+  assertEqual "matching lower indices keep a componentwise product"
+    (demandDot [|1, 2|]_i [|10, 20|]_i)
+    [|10, 40|]_i
+withSymbols [i, j, k, l]
+  assertEqual "distinct indices give the tensor product"
+    (demandDot [|1, 2|]_i [|10, 20|]_j)
+    [|[|10, 20|], [|20, 40|]|]_i_j
+withSymbols [i, j, k, l]
+  assertEqual "matrix product contracts the shared index"
+    (demandDot [|[|1, 2|], [|3, 4|]|]_i~j [|[|5, 6|], [|7, 8|]|]_j~k)
+    [|[|19, 22|], [|43, 50|]|]_i~k
+withSymbols [i, j, k, l]
+  assertEqual "the product composes through foldl"
+    (foldl demandDot [|[|1, 2|], [|3, 4|]|]_i~j [[|[|5, 6|], [|7, 8|]|]_j~k, [|[|1, 0|], [|1, 1|]|]_k~l])
+    [|[|41, 22|], [|93, 50|]|]_i~l
 
--- A parameter inside arithmetic passed to tensorShape receives the tensor whole.
+-- A tensor receiver observes the entire mapped result.
 def demandShape x := tensorShape (x + 1)
 assertEqual "arithmetic under tensorShape receives the whole tensor"
   (demandShape [|1, 2|])
   [2]
 
--- Parameters passed bare, literals, and callbacks are not affected.
+-- Ordinary applications and rank-zero inputs retain their types and values.
 assertEqual "a bare parameter at a tensor position is unchanged"
   ((\k -> k [|1, 2|]) (\t -> tensorShape t))
   [2]
@@ -38,3 +42,27 @@ assertEqual "the fold selects its tensor member when required"
 assertEqual "a literal at a map position stays rank zero"
   (tensorMap (\n -> n + 1) 1)
   2
+
+
+def demandInc x := x + 1
+assertEqual "a named helper supplies the mapped result"
+  ((\x -> tensorShape (demandInc x)) [|1, 2|])
+  [2]
+assertEqual "a let-bound intermediate keeps the tensor request"
+  ((\x -> let y := demandInc x in tensorShape y) [|1, 2|])
+  [2]
+assertEqual "the tensor receiver can be aliased"
+  (let shape := tensorShape in (\x -> shape (demandInc x)) [|1, 2|])
+  [2]
+assertEqual "a scalar input uses rank-zero admission"
+  (demandShape 1)
+  []
+assertEqual "an independent scalar result does not request tensor inputs"
+  (let ignore := \_ -> 0 in (\x -> tensorShape (ignore (demandInc x))) [|1, 2|])
+  [|[], []|]
+assertEqual "a retained sum resolves its captured scalar initializer"
+  (sum [[|1, 2|], [|10, 20|]])
+  [|11, 22|]
+assertEqual "a retained product resolves its captured scalar initializer"
+  (product [[|1, 2|], [|10, 20|]])
+  [|10, 40|]

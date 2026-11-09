@@ -233,21 +233,20 @@ transIndex :: [Index EgisonValue] -> [Index EgisonValue] -> Shape -> EvalM Shape
 transIndex is js ns = do
   mapM (\j -> case lookup j (zip is ns) of
                 Just n  -> return n
-                Nothing -> throwError $ Default "cannot transpose becuase of the inconsitent symbolic tensor indices")
+                Nothing -> throwError . Default $
+                  "Tensor transpose index mismatch: source " ++ show is ++
+                  ", target " ++ show js)
        js
 
 tTranspose :: [Index EgisonValue] -> Tensor a -> EvalM (Tensor a)
-tTranspose is t@(Tensor _ _ js) | length is > length js =
-  return t
---tTranspose is t@(Tensor ns _ js) | length is == length js = do
---  ns' <- transIndex js is ns
---  xs' <- mapM (transIndex is js) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
---  return (Tensor ns' xs' is)
 tTranspose is t@(Tensor ns _ js) = do
-  let js' = take (length is) js
-  let ds = complementWithDF ns is
-  ns' <- transIndex (js' ++ ds) (is ++ ds) ns
-  xs' <- mapM (transIndex (is ++ ds) (js' ++ ds)) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
+  -- Named axes can follow anonymous axes. Locate requested axes in the
+  -- complete source layout instead of assuming they occupy its prefix.
+  -- The remaining axes keep their order and become anonymous in the result.
+  let source = js ++ complementWithDF ns js
+      target = is ++ (source \\ is)
+  ns' <- transIndex source target ns
+  xs' <- mapM (transIndex target source) (enumTensorIndices ns') >>= mapM (`tIntRef1` t) . V.fromList
   return (Tensor ns' xs' is)
 
 tTranspose' :: [EgisonValue] -> Tensor a -> EvalM (Tensor a)
@@ -289,11 +288,6 @@ trimAnonymousTail = reverse . dropWhile anonymous . reverse
     anonymous (DF 0 _) = True
     anonymous _ = False
 
--- | Check if an index is a dummy free index
-isDF :: Index a -> Bool
-isDF (DF _ _) = True
-isDF _        = False
-
 -- | Compare DF indices by their ID and sequence numbers
 -- Used for sorting DF indices before removal to ensure correct dimension order
 compareDFNumber :: Index a -> Index a -> Ordering
@@ -321,11 +315,15 @@ removeDF (Value (TensorData tensor)) = Value . TensorData <$> removeDFFromTensor
 removeDF whnf = return whnf
 
 tMap :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
-tMap f (Tensor ns xs js') = do
+tMap f tensor = tMapPreservingIndices f tensor >>= removeDFFromTensor
+
+-- Keep temporary wedge axes until the complete operation has been assembled.
+tMapPreservingIndices :: (a -> EvalM b) -> Tensor a -> EvalM (Tensor b)
+tMapPreservingIndices f (Tensor ns xs js') = do
   let js = js' ++ complementWithDF ns js'
   xs' <- V.mapM f xs
-  removeDFFromTensor (Tensor ns xs' js)
-tMap f (Scalar x) = Scalar <$> f x
+  return (Tensor ns xs' js)
+tMapPreservingIndices f (Scalar x) = Scalar <$> f x
 
 tMap2 :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
@@ -337,7 +335,7 @@ tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let cns = take (length cjs) (tShape t1')
   rts1 <- mapM (`tIntRef` t1') (enumTensorIndices cns)
   rts2 <- mapM (`tIntRef` t2') (enumTensorIndices cns)
-  rts' <- zipWithM (tProduct f) rts1 rts2
+  rts' <- zipWithM (tProductPreservingIndices f) rts1 rts2
   let firstRT = case rts' of
                   (r:_) -> r
                   []    -> error "tProduct: rts' empty (impossible)"
@@ -379,7 +377,10 @@ tDiagIndex js =
     ]
 
 tProduct :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
-tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
+tProduct f left right = tProductPreservingIndices f left right >>= removeDFFromTensor
+
+tProductPreservingIndices :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
+tProductPreservingIndices f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   let js1 = js1' ++ complementWithDF ns1 js1'
   let js2 = js2' ++ complementWithDF ns2 js2'
   let (cjs1, cjs2, tjs1, tjs2) = h js1 js2
@@ -400,13 +401,13 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
       let (cns1, _) = splitAt (length cjs1) (tShape t1')
       rts' <- mapM (\is -> do rt1 <- tIntRef is t1'
                               rt2 <- tIntRef is t2'
-                              tProduct f rt1 rt2)
+                              tProductPreservingIndices f rt1 rt2)
                    (enumTensorIndices cns1)
       let firstRT = case rts' of
                       (r:_) -> r
                       []    -> error "tDiag: rts' empty (impossible)"
       let ret = Tensor (cns1 ++ tShape firstRT) (V.concat (map tToVector rts')) (map toSupSub cjs1 ++ tIndex firstRT)
-      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret >>= removeDFFromTensor
+      tTranspose (uniq (map toSupSub cjs1 ++ tjs1 ++ tjs2)) ret
  where
   h :: [Index EgisonValue] -> [Index EgisonValue] -> ([Index EgisonValue], [Index EgisonValue], [Index EgisonValue], [Index EgisonValue])
   h js1 js2 = let cjs = filter (\j -> any (p j) js2) js1 in
@@ -418,9 +419,9 @@ tProduct f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do
   uniq :: [Index EgisonValue] -> [Index EgisonValue]
   uniq []     = []
   uniq (x:xs) = x:uniq (delete x xs)
-tProduct f (Scalar x) t@Tensor{} = tMap (f x) t
-tProduct f t@Tensor{} (Scalar x) = tMap (`f` x) t
-tProduct f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
+tProductPreservingIndices f (Scalar x) t@Tensor{} = tMapPreservingIndices (f x) t
+tProductPreservingIndices f t@Tensor{} (Scalar x) = tMapPreservingIndices (`f` x) t
+tProductPreservingIndices f (Scalar x1) (Scalar x2) = Scalar <$> f x1 x2
 
 tContract :: Tensor a -> EvalM [Tensor a]
 tContract t = do

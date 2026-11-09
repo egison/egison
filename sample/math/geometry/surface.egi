@@ -3,8 +3,8 @@
 declare symbol x, y
 def f := function (x, y)
 
-def v1 := [|1, 0, ∂/∂ (f x y) x|]
-def v2 := [|0, 1, ∂/∂ (f x y) y|]
+def v1 := [|1, 0, pd/pd (f x y) x|]
+def v2 := [|0, 1, pd/pd (f x y) y|]
 
 assertEqual "tangent vector v1"
   v1

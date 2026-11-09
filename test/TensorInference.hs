@@ -44,6 +44,46 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
            Left err -> assertFailure (show err)
            Right after -> assertBool "retained callback has its map" (hasTensorMap after)
        other -> assertFailure (show other)] ++
+  [TestLabel "tensor callbacks retain maps inside their receiving body" . TestCase $ do
+     let combine = lambda ["x","y"] (call "tensorIdentity" [call "two" [var "x",var "y"]])
+         indexed = IIndexedExpr False vector [Sub (var "mathIndex")]
+         sources = [call "foldl1" [combine,tensors],
+           ILetRecExpr [(PDPatVar (Var "combine" []),combine)] (call "foldl1" [var "combine",tensors]),
+           ILetRecExpr [(PDPatVar (Var "combine" []),combine)]
+             (call "foldl" [var "combine",indexed,ICollectionExpr [indexed,indexed]])]
+         finalCall typed = case tiExprNode typed of
+           TILetExpr _ body -> finalCall body
+           TILetRecExpr _ body -> finalCall body
+           _ -> typed
+     mapM_ (\source -> do
+       (inferred,_) <- runInferWithWarnings (inferIExpr source) inferenceState
+       case inferred of
+         Left err -> assertFailure (show err)
+         Right (typed,_) -> case tiExprNode (finalCall typed) of
+           TIApplyExpr _ (callback:_) -> assertEqual "callback itself receives whole tensors"
+             (arrow [tensor,tensor] tensor) (tiExprType callback)
+           other -> assertFailure (show other)) sources] ++
+  [TestLabel "retained tensor bodies preserve captured scalar method constraints" . TestCase $ do
+     let combine = lambda ["u","v"] (call "tensorCombine"
+           [lambda ["x","y"] (call "constrainedAdd" [var "x",var "y"]),
+            call "two" [var "u",var "v"]])
+         source = ILetRecExpr [(PDPatVar (Var "combine" []),combine)]
+           (call "foldl" [var "combine",vector,tensors])
+         methodTypes expression = case tiExprNode expression of
+           TIVarExpr "constrainedAdd" -> [tiExprType expression]
+           TIApplyExpr function arguments -> concatMap methodTypes (function:arguments)
+           TILambdaExpr _ _ body -> methodTypes body
+           TILetExpr bindings body -> concatMap methodTypes (body:map snd bindings)
+           TILetRecExpr bindings body -> concatMap methodTypes (body:map snd bindings)
+           _ -> []
+     (inferred,_) <- runInferWithWarnings (inferIExpr source) inferenceState
+     case inferred of
+       Left err -> assertFailure (show err)
+       Right (typed,_) -> do
+         let methods = methodTypes typed
+         assertBool "the retained body still calls the scalar method" (not (null methods))
+         assertBool "class-constrained methods never acquire tensor inputs"
+           (all (\ty -> case ty of TFun TTensor{} _ -> False; _ -> True) methods)] ++
   map checkCase cases ++
   map unchangedCase unchangedCases ++
   [TestLabel "match results admit tensors without changing bodies" . TestCase $ do
@@ -255,6 +295,39 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
             [(PDPatVar (Var "ys" []), ITensorMapExpr (lambda ["x"] (call "f" [var "x"])) vector)]
             (call "f" [vector]))) [lambda ["x"] (int 0)],
           TInt, Nothing, True)
+      , ("a typed tensor receiver requests a mapped helper result",
+          IApplyExpr (lambda ["x"] (call "tensorShape" [call "one" [var "x"]])) [vector],
+          TCollection TInt,Nothing,True)
+      , ("a tensor request follows an immutable intermediate",
+          IApplyExpr (lambda ["x"] (ILetExpr [(PDPatVar (Var "y" []),call "one" [var "x"])]
+            (call "tensorShape" [var "y"]))) [vector],
+          TCollection TInt,Nothing,True)
+      , ("a tensor request follows a recursive-group intermediate",
+          IApplyExpr (lambda ["x"] (ILetRecExpr [(PDPatVar (Var "y" []),call "one" [var "x"])]
+            (call "tensorShape" [var "y"]))) [vector],
+          TCollection TInt,Nothing,True)
+      , ("a stored function selects its tensor body at a use",
+          ILetRecExpr [(PDPatVar (Var "shape" []),lambda ["x"]
+            (call "tensorShape" [call "one" [var "x"]]))] (call "shape" [vector]),
+          TCollection TInt,Nothing,True)
+      , ("a stored tensor receiver can be aliased",
+          ILetExpr [(PDPatVar (Var "shape" []),var "tensorShape")]
+            (IApplyExpr (lambda ["x"] (call "shape" [call "one" [var "x"]])) [vector]),
+          TCollection TInt,Nothing,True)
+      , ("tensor data selects a supplied function body",
+          call "foldl1" [lambda ["x","y"] (call "tensorIdentity" [call "two" [var "x",var "y"]]),tensors],
+          tensor,Nothing,True)
+      , ("tensor data selects a stored supplied function body",
+          ILetRecExpr [(PDPatVar (Var "combine" []),lambda ["x","y"]
+            (call "tensorIdentity" [call "two" [var "x",var "y"]]))]
+            (call "foldl1" [var "combine",tensors]),
+          tensor,Nothing,True)
+      , ("an unused result does not justify a tensor input",
+          IApplyExpr (lambda ["x"] (call "tensorShape" [call "consumeAny" [call "one" [var "x"]]])) [vector],
+          TTensor (TCollection TInt),Nothing,True)
+      , ("a tensor receiver preserves the ordinary standalone definition",
+          lambda ["x"] (call "tensorShape" [call "one" [var "x"]]),
+          arrow [TInt] (TCollection TInt),Nothing,False)
       , ("a later list use resolves scalar completion at tensorShape",
           IApplyExpr (lambda ["x"] (ITupleExpr [call "tensorShape" [var "x"],IJoinExpr (var "x") (ICollectionExpr [])])) [scalars],
           TTuple [TCollection TInt,TCollection TInt],Nothing,False)
@@ -954,6 +1027,7 @@ inferenceState = initialInferState { inferEnv =
       , ("dataCallback", arrow [a, arrow [a] TInt] TInt)
       , ("iterate", arrow [arrow [a] a, a] (TCollection a))
       , ("tensorIdentity", arrow [tensor] tensor)
+      , ("tensorCombine", arrow [arrow [tensor,tensor] tensor,tensor] tensor)
       , ("filter", arrow [arrow [a] TBool, TCollection a] (TCollection a))
       , ("mapDataFirst", arrow [TCollection a, arrow [a] b] (TCollection b))
       , ("pairMap", arrow [arrow [a] b, TTuple [a, a]] (TTuple [b, b]))

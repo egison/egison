@@ -76,7 +76,7 @@ import           Language.Egison.Type.Subst (Subst(..), applySubst, applySubstCo
 import           Language.Egison.Type.Tensor (normalizeTensorType)
 import           Language.Egison.Type.TensorMapInsertion
                    (typeDirectedTensorLiftType, typeDirectedTensorLiftTypes, isTensorLiftableScalarType)
-import           Language.Egison.Type.TensorDemand (demandedParameters)
+import           Language.Egison.Type.TensorDemand (demandedParameters, demandedInferredParameters)
 import           Language.Egison.Type.Types
 import qualified Language.Egison.Type.Types as Types
 import           Language.Egison.Type.Unify as TU
@@ -148,8 +148,10 @@ permissiveInferConfig = InferConfig
 
 -- | Inference state
 data InferState = InferState
-  { inferCandidateMode :: Bool
+  { inferTensorUseInputs :: [Bool]
+  , inferCandidateMode :: Bool
   , inferWithoutTensorMaps :: Bool -- Explicit source maps remain permitted.
+  , inferUnchangedApplications :: [(TIExpr, [TIExpr])]
   , inferFamilyBuilding :: Bool
   , inferDeferredIndices :: [(Type,[Type],Type,Bool,TypeErrorContext)]
   , inferDeferredConversions :: [(Type, Type, TypeErrorContext)]
@@ -239,8 +241,10 @@ initialInferState = initialInferStateWithConfig defaultInferConfig
 -- | Create initial state with config
 initialInferStateWithConfig :: InferConfig -> InferState
 initialInferStateWithConfig cfg = InferState
-  { inferCandidateMode = False
+  { inferTensorUseInputs = []
+  , inferCandidateMode = False
   , inferWithoutTensorMaps = False
+  , inferUnchangedApplications = []
   , inferFamilyBuilding = False
   , inferDeferredIndices = []
   , inferDeferredConversions = []
@@ -2406,8 +2410,9 @@ chooseCandidate candidates = do
       inferDecisionLog = inferDecisionLog st ++ [(choice, length candidates, inferDefinitionPreference st)] }
     return (candidates !! choice)
 
--- Definition choices precede choices for one use. Within each tier, try
--- fewer alternatives before extending a longer decision prefix.
+-- Choices of a retained body at its use precede choices inside that body.
+-- Ordinary definition choices use the same tier. Within each tier, try fewer
+-- alternatives before extending a longer decision prefix.
 withDefinitionPreference :: Infer a -> Infer a
 withDefinitionPreference action = do
   old <- gets inferDefinitionPreference
@@ -2436,6 +2441,33 @@ validateScalarRequirements previous = do
     unless (isTensorLiftableScalarType (inferClassEnv state) constraints resolved) $
       throwError (TE.TypeMismatch resolved resolved
         "automatic callback conversion requires a scalar component type" context)
+
+-- Deferred indices and class constraints can settle a callback's domain after
+-- its application was checked. Recheck the resolved types before accepting a
+-- no-insertion candidate, using the same conversion test as insertion.
+validateUnchangedApplications :: Int -> Infer ()
+validateUnchangedApplications previous = do
+  applications <- gets (drop previous . inferUnchangedApplications)
+  classes <- getClassEnv
+  constraints <- getConstraints
+  forM_ applications $ \(function, arguments) -> do
+    resolvedFunction <- applySubstToTIExprM emptySubst function
+    resolvedArguments <- mapM (applySubstToTIExprM emptySubst) arguments
+    let functionType = tiExprType resolvedFunction
+        parameters (TFun domain result) = domain : parameters result
+        parameters _ = []
+    forM_ (zip3 [0..] (parameters functionType) resolvedArguments) $ \(index, expected, argument) -> do
+      let actual = tiExprType argument
+          callbackMap = case typeDirectedTensorLiftType False classes constraints
+            functionType index expected argument of
+              Just converted -> converted /= actual
+              Nothing -> False
+          inputMap = case (actual, expected) of
+            (TTensor{}, TTensor{}) -> False
+            (TTensor{}, _) -> isTensorLiftableScalarType classes constraints expected
+            _ -> False
+      when (callbackMap || inputMap) $ throwError (TE.TypeMismatch actual expected
+        "resolved application requires automatic tensorMap insertion" emptyContext)
 
 callbackComponentRequirements :: Type -> Type -> [Type]
 callbackComponentRequirements (TFun actual rest) (TFun selected selectedRest) =
@@ -2645,7 +2677,8 @@ searchFirst action = do
             outcome <- catchError (Right <$> (action <*
               solveDeferredIndices (length (inferDeferredIndices saved)) <*
               solveDeferredConversions (length (inferDeferredConversions saved)) <*
-              validateScalarRequirements (length (inferScalarRequirements saved)))) (return . Left)
+              validateScalarRequirements (length (inferScalarRequirements saved)) <*
+              validateUnchangedApplications (length (inferUnchangedApplications saved)))) (return . Left)
             final <- get
             case outcome of
               Right value -> do
@@ -2653,6 +2686,7 @@ searchFirst action = do
                   inferDecisionInput = inferDecisionInput saved,
                   inferDecisionLog = inferDecisionLog saved,
                   inferScalarRequirements = inferScalarRequirements saved,
+                  inferUnchangedApplications = inferUnchangedApplications saved,
                   inferDeferredConversions = inferDeferredConversions saved,
                   inferDeferredIndices = inferDeferredIndices saved }
                 return value
@@ -2757,10 +2791,16 @@ instantiateFunctionRecipe owner recipe context = do
   oldRecursion <- gets inferRecipeRecursion
   oldBlocked <- gets inferBlockedFamilies
   oldPreference <- gets inferDefinitionPreference
-  let captures = recipeCaptures recipe
-      bindings = [(alias, scheme) | (_, alias, scheme) <- captures]
-      source = ILetExpr [(PDPatVar (Var original []), IVarExpr alias) |
-        (original, alias, _) <- captures] (recipeExpression recipe)
+  -- Local constrained bindings share one instance: dictionary arguments for
+  -- captured constants must be solved by the same uses as their body types.
+  captures <- forM (recipeCaptures recipe) $ \(original, alias, scheme@(Forall _ _ constraints _)) -> do
+    captured <- if null constraints then return scheme else do
+      (instantiated, ty) <- instantiateSchemeInState scheme
+      addConstraints instantiated
+      return (Forall [] [] instantiated ty)
+    return (original, alias, captured)
+  let bindings = [(original, scheme) | (original, _, scheme) <- captures]
+      source = recipeExpression recipe
       recursiveNames = case recipeExpression recipe of
         ILetRecExpr group _ -> Set.fromList (concatMap (primitivePatternNames . fst) group)
         _ -> Set.empty
@@ -2771,15 +2811,22 @@ instantiateFunctionRecipe owner recipe context = do
         inferDefinitionPreference = oldPreference })
   restoreInferStateAfter restore $ withEnv bindings $ do
     current <- getEnv
-    setEnv (foldl (\env (alias, members) -> registerFunctionFamily alias members env)
-      current (recipeFamilies recipe))
+    setEnv (foldl (\env (original, alias, _) -> registerFunctionFamily original
+      (maybe [] id (lookup alias (recipeFamilies recipe))) env) current captures)
     modify (\state -> state { inferCandidateMode = True, inferFamilyBuilding = False,
       inferDefinitionPreference = False,
       inferRecipeRecursion = not (Set.null recursiveNames),
       inferBlockedFamilies = Set.insert owner (Set.union recursiveNames oldBlocked) })
     (typed, substitution) <- inferIExprWithContext source context
     resolved <- applySubstToTIExprM substitution typed
-    return (resolved, substitution)
+    -- Captures keep their saved schemes, including scalar class constraints.
+    -- Re-inferring aliases as ordinary local lets would discard those scheme
+    -- constraints and could make a scalar method appear tensor-valued.
+    let captured = [(PDPatVar (Var original []), TIExpr scheme (TIVarExpr alias)) |
+          (original, alias, scheme) <- captures]
+        wrapped = if null captured then resolved else
+          TIExpr (tiScheme resolved) (TILetExpr captured resolved)
+    return (wrapped, substitution)
 
 installFunctionFamily :: String -> [(String, TypeScheme, TIExpr)] -> Infer ()
 installFunctionFamily owner members = do
@@ -2787,6 +2834,70 @@ installFunctionFamily owner members = do
   let extended = foldl (\env (name, scheme, _) -> extendEnv (Var name []) scheme env) environment members
   setEnv (registerFunctionFamily owner [name | (name, _, _) <- members, isPrefixOf "$tensorFamily$" name] extended)
 
+
+-- Requirements come from the function body and its captured parameter types.
+recipeTensorInputs :: TypeEnv -> FunctionRecipe -> [Bool]
+recipeTensorInputs environment recipe =
+  functionTensorInputs captured (recipeExpression recipe)
+  where
+    captured = foldl (\env (name, _, scheme) -> extendEnv (Var name []) scheme env)
+      environment (recipeCaptures recipe)
+
+functionTensorInputs :: TypeEnv -> IExpr -> [Bool]
+functionTensorInputs environment (ILambdaExpr _ names body) =
+  demandedParameters environment (map extractNameFromVar names) body
+functionTensorInputs environment (IVarExpr name) =
+  -- An existing tensor parameter already receives the whole input directly.
+  -- Rebuilding its body cannot improve that use and can duplicate recursive
+  -- definitions. Only scalar/open parameters need retained body alternatives.
+  zipWith (&&) demanded (ordinaryInputs ++ repeat True)
+  where
+    demanded = foldl (\left right -> take (max (length left) (length right))
+      (zipWith (||) (left ++ repeat False) (right ++ repeat False))) []
+      [recipeTensorInputs environment recipe |
+        member <- lookupFunctionFamily name environment,
+        Just recipe <- [lookupFunctionRecipe member environment]]
+    ordinaryInputs = case lookupEnv (Var name []) environment of
+      Just (Forall _ _ _ ty) -> inputs ty
+      Nothing -> []
+    inputs (TFun domain result) = (case domain of TTensor{} -> False; _ -> True) : inputs result
+    inputs _ = []
+functionTensorInputs environment (ILetRecExpr bindings (IVarExpr name)) =
+  case [body | (PDPatVar (Var bound []), body) <- bindings, name == bound] of
+    [body@ILambdaExpr{}] -> functionTensorInputs environment body
+    _ -> []
+functionTensorInputs _ _ = []
+
+-- Try a retained body at the actual tensor inputs before lifting the call.
+-- Candidate decisions belong to the enclosing search, so later constraints
+-- can reconsider a body without replaying a different decision prefix.
+-- The whole-expression no-insertion phase does not request body alternatives.
+inferApplicationAtUse :: IExpr -> [IExpr] -> TypeErrorContext -> Infer (TIExpr, Subst)
+inferApplicationAtUse function arguments context = do
+  environment <- getEnv
+  withoutMaps <- gets inferWithoutTensorMaps
+  let required = functionTensorInputs environment function
+      ordinary = do
+        (typed, substitution) <- inferIExprWithContext function context
+        inferIApplicationWithContext typed (tiExprType typed) arguments substitution context
+  if withoutMaps || not (or required) then ordinary else do
+    saved <- get
+    inferred <- (searchFirst $ do
+      typedArguments <- mapM (\argument -> inferIExprWithContext argument context) arguments
+      solveDeferredIndices (length (inferDeferredIndices saved))
+      forM typedArguments $ \(typed, substitution) -> do
+        actual <- applySubstWithConstraintsM substitution (tiExprType typed)
+        return (case actual of TTensor{} -> True; _ -> False))
+      `catchError` \_ -> return []
+    nextFresh <- gets inferCounter
+    put saved { inferCounter = nextFresh }
+    selected <- if or (zipWith (&&) inferred required)
+      then withDefinitionPreference (chooseCandidate [True,False]) else return False
+    if not selected then ordinary else do
+      modify (\state -> state { inferTensorUseInputs = inferred })
+      (typed, substitution) <- inferIExprWithContext function context
+      modify (\state -> state { inferTensorUseInputs = inferTensorUseInputs saved })
+      inferIApplicationWithContext typed (tiExprType typed) arguments substitution context
 
 -- | Infer type for IExpr with context information
 -- Returns the typed internal expression.
@@ -2818,8 +2929,14 @@ inferIExprInContext expr ctx = case expr of
         withoutMaps <- gets inferWithoutTensorMaps
         -- The no-insertion phase checks the written binding. Selecting a
         -- generated definition alternative belongs to automatic insertion.
-        selected <- if candidateMode && not withoutMaps
-          then chooseCandidate (name : members) else return name
+        inputs <- gets inferTensorUseInputs
+        let preferred = [member | member <- members,
+              Just recipe <- [lookupFunctionRecipe member environment],
+              or (zipWith (&&) inputs (recipeTensorInputs environment recipe))]
+        selected <- if not withoutMaps && not (null preferred)
+          then chooseCandidate preferred
+          else if candidateMode && not withoutMaps
+            then chooseCandidate (name : members) else return name
         case lookupFunctionRecipe selected environment of
           Just recipe -> do
             let owner = takeWhile (/= '$') (drop (length "$tensorFamily$") selected)
@@ -2931,29 +3048,34 @@ inferIExprInContext expr ctx = case expr of
     let exprCtx = withExpr (prettyStr expr) ctx
     -- Later uses can select maps inside the body while preserving its result.
     modify (\state -> state { inferCandidateSiteCount = inferCandidateSiteCount state + length params })
-    -- A parameter whose value flows through arithmetic into a position fixed
-    -- to Tensor (the operand of contract, tensorShape, an index reference, or
-    -- a Tensor parameter of an applied function) is a tensor parameter; the
-    -- arithmetic is then lifted by insertion (design/tensor-demand-propagation.md).
     environment <- getEnv
+    inputs <- gets inferTensorUseInputs
+    modify (\state -> state { inferTensorUseInputs = [] })
     let demanded = demandedParameters environment (map extractNameFromVar params) body
-    argTypes <- mapM (\flag -> if flag then TTensor <$> freshVar "arg" else freshVar "arg") demanded
-    inferLambdaWithArgumentTypes mVar params argTypes body exprCtx
+        selected = zipWith (&&) demanded (inputs ++ repeat False)
+    argTypes <- mapM (\flag -> if flag then TTensor <$> freshVar "arg" else freshVar "arg") selected
+    (typed, substitution) <- inferLambdaWithArgumentTypes mVar params argTypes body exprCtx
+    if not (or selected) then return (typed, substitution) else do
+      resolved <- applySubstToTIExprM substitution typed
+      let supported = case tiExprNode resolved of
+            TILambdaExpr _ _ inferredBody ->
+              demandedInferredParameters environment (map extractNameFromVar params) inferredBody
+            _ -> repeat False
+      unless (and (zipWith (\requested accepted -> not requested || accepted) selected supported)) $
+        throwError (TE.TypeMismatch (tiExprType typed) (tiExprType resolved)
+          "The proposed tensor inputs do not reach a tensor parameter through mapped applications" exprCtx)
+      return (resolved, substitution)
 
   -- Function Application
   IApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    let funcType = tiExprType funcTI
-    inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    inferApplicationAtUse func args exprCtx
 
   -- Wedge apply expression (exterior product)
   IWedgeApplyExpr func args -> do
     let exprCtx = withExpr (prettyStr expr) ctx
-    (funcTI, s1) <- inferIExprWithContext func exprCtx
-    let funcType = tiExprType funcTI
     -- Wedge application is similar to normal application
-    (resultTI, finalS) <- inferIApplicationWithContext funcTI funcType args s1 exprCtx
+    (resultTI, finalS) <- inferApplicationAtUse func args exprCtx
     -- Convert TIApplyExpr to TIWedgeApplyExpr to preserve wedge semantics
     let resultScheme = tiScheme resultTI
     case tiExprNode resultTI of
@@ -6389,9 +6511,23 @@ inferIApplicationWithContext funcTIExpr funcType args initSubst ctx = do
 inferApplicationArgument :: Type -> IExpr -> TypeErrorContext -> Infer (TIExpr, Subst)
 inferApplicationArgument expected expression ctx = do
   required <- applySubstWithConstraintsM emptySubst expected
-  case expression of
+  environment <- getEnv
+  withoutMaps <- gets inferWithoutTensorMaps
+  let tensorInputs (TFun domain result) = (case domain of TTensor{} -> True; _ -> False) : tensorInputs result
+      tensorInputs _ = []
+      suppliedInputs = tensorInputs required
+      usesBody = not withoutMaps && or (zipWith (&&) suppliedInputs (functionTensorInputs environment expression))
+  selectBody <- if usesBody then withDefinitionPreference (chooseCandidate [True,False]) else return False
+  if selectBody then do
+    saved <- get
+    let restore = modify (\state -> state { inferTensorUseInputs = inferTensorUseInputs saved })
+    restoreInferStateAfter restore $ do
+      modify (\state -> state { inferTensorUseInputs = suppliedInputs })
+      inferIExprWithContext expression ctx
+  else case expression of
     IApplyExpr function arguments
-      | canPropagateExpectedResult required ->
+      | canPropagateExpectedResult required
+      , not (or (functionTensorInputs environment function)) ->
           fst <$> withSequenceTargets Nothing (do
             let exprCtx = withExpr (prettyStr expression) ctx
             (functionTI, functionSubst) <- inferIExprWithContext function exprCtx
@@ -6511,8 +6647,7 @@ inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx = do
       `catchError` \_ -> return Nothing
   case initialUnifier of
     Just (shapeSubst, shapeFlag) -> do
-      argResults <- zipWithM (\parameter argument ->
-        inferApplicationArgument parameter argument ctx) paramVars args
+      argResults <- inferArgumentsAtParameters classEnv constraints paramVars args ctx
       let argTIExprs = map fst argResults
           argSubst = foldr composeSubst
             (composeSubst shapeSubst initSubst) (map snd argResults)
@@ -6542,6 +6677,41 @@ inferNativeApplicationArguments funcTIExpr funcType args initSubst ctx = do
             , finalSubst
             )
         _ -> throwError $ UnificationError appliedFuncType expectedFuncType ctx
+
+-- Solve known data arguments before inferring retained function bodies.
+-- Callback parameter types can then reflect tensor accumulators and elements.
+-- The ordinary argument pass remains an alternative in the enclosing search.
+inferArgumentsAtParameters :: ClassEnv -> [Constraint] -> [Type] -> [IExpr]
+  -> TypeErrorContext -> Infer [(TIExpr, Subst)]
+inferArgumentsAtParameters classes constraints parameters arguments context = do
+  environment <- getEnv
+  withoutMaps <- gets inferWithoutTensorMaps
+  let delayed = map (or . functionTensorInputs environment) arguments
+      ordinary = zipWithM (\parameter argument -> inferApplicationArgument parameter argument context)
+        parameters arguments
+  if withoutMaps || not (or delayed) then ordinary else do
+    let contextual = do
+          earlierIndices <- gets (length . inferDeferredIndices)
+          prepared <- forM (zip3 delayed parameters arguments) $ \(later, parameter, argument) ->
+            if later then return Nothing else Just <$> inferApplicationArgument parameter argument context
+          solveDeferredIndices earlierIndices
+          let known = [(parameter, result) | (parameter, Just result) <- zip parameters prepared]
+          tensorFirst <- forM known $ \item@(_, (typed, substitution)) -> do
+            ty <- applySubstWithConstraintsM substitution (tiExprType typed)
+            return (case ty of TTensor{} -> False; TCollection TTensor{} -> False; _ -> True, item)
+          forM_ (map snd (sortOn fst tensorFirst)) $ \(parameter, (typed, substitution)) -> do
+            actual <- applySubstWithConstraintsM substitution (tiExprType typed)
+            expected <- applySubstWithConstraintsM substitution parameter
+            case (actual, expected) of
+              (TFun{}, _) -> return ()
+              (_, TFun{}) -> return ()
+              _ -> solveApplicationArgument classes constraints actual expected context >> return ()
+          forM (zip3 parameters arguments prepared) $ \(parameter, argument, ready) ->
+            case ready of
+              Just result -> return result
+              Nothing -> inferApplicationArgument parameter argument context
+    selected <- withDefinitionPreference (chooseCandidate [True,False])
+    if selected then contextual else ordinary
 
 -- | Check tensor-bearing or unresolved data first, then callbacks, then
 -- remaining scalar data. This also covers definitions such as map constant xs.
@@ -6765,6 +6935,8 @@ finishApplication classEnv funcConstraints resultType funcTIExpr
   when (withoutMaps && tensorFlag) $
     throwError (TE.TypeMismatch resultType resultType
       "application requires automatic tensorMap insertion" emptyContext)
+  when withoutMaps $ modify (\state -> state { inferUnchangedApplications =
+    inferUnchangedApplications state ++ [(funcTIExpr,argTIExprs)] })
   baseResultType <- applySubstWithConstraintsM finalSubst resultType
   let finalType
         | tensorFlag && not (Types.isTensorType baseResultType) =
@@ -7609,8 +7781,12 @@ inferITopExprBody topExpr = case topExpr of
 
         -- Resolve constraints based on available instances
         classEnv <- getClassEnv
-        let exprTI'' = resolveConstraintsInTIExpr classEnv subst exprTI'
-            updatedConstraints = map (resolveConstraintWithInstances classEnv subst) constraints
+        global <- gets inferGlobalSubst
+        -- Deferred index constraints can resolve class variables after the
+        -- local delta was produced. Generalize only their final images.
+        let resolvedSubst = composeSubst global subst
+            exprTI'' = resolveConstraintsInTIExpr classEnv resolvedSubst exprTI'
+            updatedConstraints = map (resolveConstraintWithInstances classEnv resolvedSubst) constraints
             -- Filter out constraints on concrete types (non-type-variables)
             -- Concrete constraints don't need to be generalized since the type is already determined
             isTypeVarConstraint c = any isTypeVarType' (constraintTypes c)
@@ -7801,8 +7977,10 @@ inferITopExprBody topExpr = case topExpr of
 
             -- Resolve constraints based on available instances
             classEnv <- getClassEnv
-            let exprTI'' = resolveConstraintsInTIExpr classEnv finalSubst exprTI'
-                updatedConstraints = map (resolveConstraintWithInstances classEnv finalSubst) constraints
+            global <- gets inferGlobalSubst
+            let resolvedSubst = composeSubst global finalSubst
+                exprTI'' = resolveConstraintsInTIExpr classEnv resolvedSubst exprTI'
+                updatedConstraints = map (resolveConstraintWithInstances classEnv resolvedSubst) constraints
                 -- Filter out constraints on concrete types (non-type-variables)
                 isTypeVarConstraint c = any isTypeVarT (constraintTypes c)
                 isTypeVarT (TVar _) = True

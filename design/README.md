@@ -32,6 +32,7 @@ Egison core 外の拡張だけを記述する。
 - [type-class.md](./type-class.md): 型クラス、辞書渡し、スーパークラス、現在の制限。
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値に対する浅い実行時型ディスパッチ。
 - [type-tensor-simple.md](./type-tensor-simple.md): 挿入なし型推論・自動挿入型推論・統合型推論，テンソル型と添字記法の基本仕様。
+- [tensor-demand-propagation.md](./tensor-demand-propagation.md): 関数の仮引数型と使用箇所からテンソル入力を選ぶ規則。
 - [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md): スカラー関数をテンソルへ持ち上げる変換。
 - [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階引数のスカラー関数の自動変換。
 - [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 入力全体の優先規則，型推論の要件，実装との対応，残る証明。
@@ -42,6 +43,7 @@ Egison core 外の拡張だけを記述する。
 - [type-cas-tower-implementation.md](./type-cas-tower-implementation.md): CAS タワーの仕様と実装箇所の対応。
 - [type-cas-quotient.md](./type-cas-quotient.md): 型タワーと独立した CAS 商型。
 - [cas-simplification.md](./cas-simplification.md): グレブナー基底を含む CAS 簡約。
+- [matrix.md](./matrix.md): 逆行列と，空の部分行列を含む分解・結合。
 - [function-symbol.md](./function-symbol.md): 関数シンボル、微分索引、代入。
 - [cas-tower-usecases/](./cas-tower-usecases/): CAS タワーと商型の実行可能な検収例。
 

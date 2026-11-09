@@ -1,68 +1,60 @@
-# 固定テンソル位置へ流れる算術による仮引数の分類
+# 関数の型に基づくテンソル入力の選択
 
-利用者が型注釈を書かずに定義した関数について、仮引数をスカラー関数の引数(成分ごとに持ち上げる)とテンソル関数の引数(テンソル全体を受け取る)のどちらに分類するかを決める規則の追加である。三用語(挿入なし型推論・自動挿入型推論・統合型推論)の定義は [テンソル型と添字記法](type-tensor-simple.md)、用語は `EgisonTERM.md` §9 に従う。
+関数の仮引数型，階数0の受入れ，成分ごとの適用を共通の規則で扱う。階数0の受入れとは，スカラーを式や値を変えずに軸のないテンソルとして使うことである。成分ごとの適用には `tensorMap` または `tensorMap2` を挿入する。用語は `EgisonTERM.md` §9，型推論全体は [テンソル型と添字記法](type-tensor-simple.md) に従う。
 
-## 背景
+## 型と候補
 
-論文(type-tensor-paper §tensor-product)は、利用者定義の積
+入力式全体に挿入なしの型付けがあれば，その式を保つ。定義の通常の型は，本体の通常の型推論で求める。例えば整数の演算を使う `\x -> tensorShape (x + 1)` の通常の型は `Integer -> [Integer]` であり，スカラー入力での使用も保持する。
+
+定義には本体と捕捉した型を保持する。使用時の制約に応じて，本体内の適用を成分ごとに行う候補も検査する。ある部分式の通常の型が求まっただけでは，後続の使用に必要な候補を捨てない。局所的に量化した型変数は使用ごとに新しくし，捕捉した単相の型は共有する。
+
+## テンソルの要求を伝える範囲
+
+`Tensor a` を仮引数型として持つ関数は，その位置でテンソル全体を受け取る。基本操作と利用者定義の関数に同じ条件を使う。演算子の名前や，算術式であるかどうかは条件に含めない。
+
+成分ごとの適用では，結果がテンソルとして必要になると，その適用で実際に写像する入力にも要求を伝えられる。`let` の値とその参照，同じ束縛を指す別名も接続する。関数の型を解いた後に，この依存関係が成立することを検査する。テンソル値の入力から写像結果への伝播と，固定された仮引数から入力へ戻す要求の伝播は区別する。一方の入力の値から，結果を経由して他方の入力へ要求を回り込ませない。通常の直接適用で引数と返り値が無関係なら，返り値への要求を引数に伝えない。リストの要素や関数の返り値を無条件にたどることもしない。
+
+添字参照の対象が仮引数である場合も，テンソル全体を受け取る候補を保持する．例えば
+`def inner u v := u_1 * v_1 - u_2 * v_2` をベクトルへ適用すると，関数内で成分を選択する．
+ベクトルを先に成分へ分けてから `u_1` を評価する変換は選ばない．
+`test/lib/core/indexed-definition-constraints.egi` で数値添字を使う内積を検査する．
+
+## 適用の優先関係
+
+入力式全体に挿入なしの型付けがない場合，使用箇所の制約を満たす候補の間で，直接適用，階数0の受入れ，成分ごとの適用の順に比較する。関数本体の通常の型を優先するために，使用箇所で直接渡せるテンソルを先に成分へ分けない。既にテンソルを仮引数に持つ定義は，その通常の型で直接使う。適用方法が同じ候補については，余分なテンソル型を選ばず，型と制約の標準化した表現で比較する。
+
+例えば，`inc : Integer -> Integer` に対して，
 
 ```egison
-def (.) u v := contractWith (\x y -> x + y) (u * v)
+(\x -> tensorShape (inc x)) [|1,2|]
+(\x -> let y := inc x in tensorShape y) [|1,2|]
 ```
 
-について「`contractWith` がテンソル全体を要求するので `.` の仮引数はテンソル引数になり、注釈なしで役割が決まる」と述べ、`[|1,2|]~i . [|10,20|]_i = 50`、`A_i~j . B_j~k` の行列積などをこれに依存して説明する。しかし 2026-11-09 の照合で、Egison と Lean の両実装がこの定義を `t -> t -> Tensor t`(スカラー引数)と推論し、`dot [|1,2|]~i [|10,20|]_i` が 50 でなく `[|10,40|]` になることが分かった。
+はどちらも `[2]` を返す。`x` をテンソル全体として受け取り，本体で `inc` を成分ごとに適用し，その結果全体を `tensorShape` に渡す。
 
-原因は規則そのものにある。`u * v : Integer` は**階数 0 の受入れ**(整数などのスカラーを、式を変えずに軸のないテンソルとして受け取る規則)で `contractWith` の `Tensor a` 位置へ挿入なしで渡せる。統合型推論は入力式全体で挿入なし型推論を優先するので、`u`・`v` はスカラー引数に決まる。`u`・`v` をテンソル引数とする読みは `*` に `tensorMap2` の挿入を要し、自動挿入型推論の側に落ちて選ばれない。使用箇所では `dot` 自体がスカラー関数として成分ごとに持ち上がり、内側の `contractWith` は階数 0 の値に作用して何もしない。Egison のライブラリ(`lib/math/algebra/tensor.egi`)は `(t1: Tensor a) (t2: Tensor a)` と型注釈を書いて内積を実現している。
+一方，`ignore : a -> Integer` が引数を使わずスカラーを返す場合，`tensorShape (ignore (inc x))` の返り値への要求だけでは `x` のテンソル入力を正当化しない。`\x -> x` は `a -> a`，`\k -> k [|1,2|]` は `(Tensor Integer -> a) -> a` のままである。`tensorShape 1` は階数0の受入れで `[]` を返す。
 
-## 規則
+## テンソルの積
 
-**固定テンソル位置**とは、型が `Tensor ...` に固定されている仮引数の位置である。基本操作の型(`contractWith` の第 2 引数、`tensorMap` の第 2 引数、`tensorMap2` の第 2・3 引数、`tensorShape`・`tensorIndices`・`dfOrder`・`flipIndices` の引数、`transpose` の第 2 引数、添字参照の対象)がこれにあたる。テンソル構築式 `[| ... |]` の成分の位置は含めない(成分には階数 0 のスカラーも置けるため)。Egison では `contractWith`・`tensorShape` などがライブラリ関数または環境中の関数として与えられるので、環境にある関数の型スキームで `Tensor` に固定された仮引数の位置(注釈つきのライブラリ定義と、推論済みの定義を含む)も固定テンソル位置とする。Lean の形式化では基本操作だけを対象とし、`let` で定義した関数の推論された `Tensor` 仮引数へ算術を渡す場合は対象外とする(この差は、Egison のライブラリ関数が Lean では基本操作であることによる)。
+Egison のライブラリの型は次のとおりである。
 
-**算術連鎖**とは、二項算術演算子(`+`、`-`、`*`、`/` とそれらのプライム版、`^`)の適用を根とし、算術演算子の適用だけをたどって到達する部分式の木である。演算子の適用でない部分式を葉と呼ぶ。
+```text
+contract     : Tensor a -> [Tensor a]
+contractWith : (Tensor a -> Tensor a -> Tensor a) -> Tensor a -> Tensor a
+```
 
-**要求される仮引数**: ラムダ式 `\x1 ... xn -> body` の仮引数 `xi` は、`body` の中に、固定テンソル位置の実引数が算術連鎖であり、その葉のいずれかが `xi`(同じ束縛)である箇所があるとき、要求される仮引数である。内側の束縛で同名の変数が隠されている箇所は数えない。
+`contractWith reducer t` は `foldl1 reducer (contract t)` として定義する。利用者定義の積も同じ適用規則で扱う。
 
-**型付け**: 要求される仮引数の型を `Tensor α`(`α` は新しい型変数)で割り当てる。要求されない仮引数は従来どおり `α` である。それ以外の規則(算術の最小の持ち上げ、階数 0 の受入れ、関数引数の変換候補、候補の選択)は変えない。要求される仮引数を含む算術は、既存の持ち上げ規則によって `tensorMap`・`tensorMap2` に持ち上がる。
+```egison
+def dot u v := contractWith (\x y -> x + y) (u * v)
+```
 
-**根拠(論文の support)**: 固定テンソル位置の起点から、算術連鎖を逆向きにたどって要求される仮引数の型位置へ辺を張る。これにより要求される仮引数の `Tensor` は起点のある型選択になる。
+テンソル引数で使う候補では，`contractWith` の仮引数型が積の結果全体を要求する。本体の積を成分ごとに計算してから縮約するため，上下で同じ添字を持つベクトルの内積と，行列積の両方を表現できる。スカラー入力を受け取る通常の候補も保持する。
 
-規則は仮引数の分類だけを変える。リテラルや閉じた式の階数 0 の受入れ(`tensorMap f 1`、`foldl (+) 0 ts` の `0`)、関数値の階数 0 の受入れ(`ignore (\x -> x)`)、仮引数をそのまま固定テンソル位置へ渡す場合(`\t -> tensorShape t`、`contractWith combine v`、`\k -> k [|1,2|]`)は変わらない。スカラーを返す関数の適用(`tensorShape (f x)`)は算術連鎖に含めない。
+## 実装と検査
 
-## 例
+`Type/TensorDemand.hs` は，型がテンソル入力を要求する位置から，本体の候補を求める。`Infer.hs` は実引数の型に合う候補を使用時に推論し，推論後の適用型に基づいて，要求が実際の成分ごとの適用を通っているか検査する。候補の選択は式全体の探索に記録し，後続の制約に適合しなければ型代入・制約・診断を復元して別の候補を検査する。添字と型クラスの制約を解いた後に，挿入なしの候補のすべての適用を再検査する。捕捉した関数の型スキームには型クラスの制約も保持する。`TensorMapInsertion.hs` は確定した型から写像を挿入する。
 
-| 定義 | 従来 | この規則 |
-| --- | --- | --- |
-| `\u v -> contractWith (\x y -> x + y) (u * v)` | `Integer -> Integer -> Tensor Integer` | `Tensor Integer -> Tensor Integer -> Tensor Integer`、生成項は `contractWith (+) (tensorMap2 (\x y -> x * y) u v)` |
-| `dot [\|1,2\|]~i [\|10,20\|]_i` | `[\|10,40\|]` | `50` |
-| `dot [\|1,2\|]_i [\|10,20\|]_i` | `[\|10,40\|]` | `[\|10,40\|]` |
-| `dot [\|1,2\|]_i [\|10,20\|]_j` | `[\|[\|10,20\|],[\|20,40\|]\|]` | 同じ |
-| `dot A_i~j B_j~k`(2×2) | 階数 3 の未縮約の積 | `[\|[\|19,22\|],[\|43,50\|]\|]` |
-| `foldl dot A_i~j [B_j~k, C_k~l]` と `dot (dot A B) C` | 階数 4 の未縮約の積 | `[\|[\|41,22\|],[\|93,50\|]\|]` |
-| `\x -> tensorShape (x + 1)` | `Integer -> [Integer]`(使用時に成分ごと) | `Tensor Integer -> [Integer]`、`(\x -> tensorShape (x + 1)) [\|1,2\|]` は `[2]` |
-| `\x y -> contractWith (+) (x * y + 1)` | `Integer -> Integer -> Tensor Integer` | `Tensor Integer -> Tensor Integer -> Tensor Integer` |
-| `\k -> k [\|1,2\|]`、`\t -> tensorShape t`、付録 B.3 の `f4`(`combine x x` は関数適用) | — | 変わらない |
-| `\xs -> foldl (+) 0 xs`、`\xs -> map (\x -> x+1) xs`、表 2 の 14 例 | — | 変わらない |
+Lean の `SourceSupportTraversal` は型の位置を頂点とするグラフで同じ要求を検査する。`demandFlows` は写像する入力だけに結果からの辺を追加する。`State.bodyGraph` は値と要求の伝播を区別して本体の入力を検査する。`SourceAutomaticInference` は使用を先に比較する順序を定義し，独立した型付け規則に対する候補の網羅，選択された型と挿入結果の一意性を証明する。入力式全体の挿入なし型付けの優先は `SourceCompletedInference` が扱う。
 
-2026-11-09 の影響調査(type-tensor-paper `tmp/review-2026-11-09/impact/`)では、Lean 側の 376 例(論文の全例・表 2・`tests/`・`audits/`・数値例)で変わるのは論文の `.` の 10 例だけ、Egison 側の 193 ファイルと `test/TensorInference.hs` の 183 項目には変わる定義はなかった(ライブラリの `(.)` などは注釈つき)。
-
-要求される仮引数が同じ定義の別の箇所でスカラーとして必要になる場合(たとえば整数のリストの要素として消費される場合)は型エラーになる。調査した範囲にそのような定義はない。必要になれば、従来のスカラーの読みを定義の候補(族の一員)として残す拡張で対応する。
-
-## 実装
-
-### Egison
-
-`Language.Egison.Type.TensorDemand`(新規)の `demandedParameters :: TypeEnv -> [String] -> IExpr -> [Bool]` が、ラムダ本体から要求される仮引数を求める。固定テンソル位置は、`ITensorContractExpr`・`ITensorMapExpr`・`ITensorMap2Expr`・`ITensorMap2WedgeExpr`・添字参照(`IIndexedExpr`・`ISubrefsExpr`・`ISuprefsExpr`・`IUserrefsExpr`)・`ITransposeExpr`・`IFlipIndicesExpr` の対象位置と、環境(`lookupEnv`)にある変数を関数位置とする適用で型スキームの仮引数が `TTensor` の位置である。内側のラムダ・let・パターン・`withSymbols` で束縛し直された名前は除く。
-
-`Type/Infer.hs` のラムダの推論(`ILambdaExpr`、注釈のない場合)で、要求される仮引数に `TTensor` を付けた新しい型変数を割り当てる。注釈つきの仮引数(`inferLambdaWithArgumentTypes` に期待型が渡る場合)は変えない。挿入(`TensorMapInsertion`)は変更せず、テンソル型の仮引数に対する算術は既存の判定で `tensorMap2` になる。
-
-検証: `test/TensorInference.hs` に `.` の定義の型、内積・行列積・`foldl` の連鎖の値、`tensorShape (x + 1)`、変わらない例(`\k -> k [|1,2|]`、`foldl (+) 0`)を加える。`cabal test`、`sample/math` の実行、`type-tensor-mech/tests/local_inference.py --egison-dir ../egison` で Lean との一致を確認する。
-
-### Lean(type-tensor-mech)
-
-ラムダの規則(`SourceGeneration.Generates.lambda`、`SourceDirectGeneration.Generates.lambda` など)に、`BinderStep` の直後の決定的な段階 `DemandStep body` を加える。本体から要求される仮引数を判定する構文的な関数が真のとき、割り当てたばかりの型行と文脈の型 `α` を `Tensor α` に置き換える(新しい型変数は増やさない)。固定テンソル位置は基本操作のテンプレート(`primitiveTemplate`)の `Tensor` 位置と構成子宣言のフィールドとする。要求の根拠は `SourceSupportTraversal.walk` に、固定位置の起点から算術連鎖の葉の仮引数への辺として加える。列挙(`Enumeration`)にも同じ段階を加え、`source_sound`・`source_complete`・改名・整形式性・挿入・選択・評価の各定理のラムダの場合を更新する。通常の HM 保存は、テンソル構文のない式では要求が生じないことの補題で保つ。
-
-検証: `lake build --wfail`、`make test`、影響調査の検出器(`impact/Detect.lean`)と 376 例で変更前後の差分が `.` の例だけであること、論文側 `checks/check_table2.py --require-all`。
-
-### 論文(type-tensor-paper)
-
-G-Lam の規則に仮引数の分類の前提を加え、固定テンソル位置・算術連鎖・要求される仮引数を本文で定義する。support のグラフに要求の辺を加える。§tensor-product の記述は現行のまま成り立つようになる。付録 B.3 の `f4` の記述など、この規則と無関係に実装と食い違う箇所は別途直す。英語版・日本語版の両方を更新する。
+`test/TensorInference.hs` は通常の定義型，補助関数，別名，途中の束縛，要求が伝わらない場合を検査する。`test/lib/core/tensor-demand.egi` は内積，行列積，成分積と高階関数での実行を検査する。論文と Lean の整数モデルでは，縮約の基本操作を `contractWith : (a -> a -> a) -> Tensor a -> Tensor a` として表す。Egison のライブラリの分解操作 `contract` と区別する。

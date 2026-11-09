@@ -1,0 +1,21 @@
+assertEqual "close a named inner axis after an anonymous outer axis"
+  (withSymbols [i] [|[|1,2|]_i,[|3,4|]_i|])
+  [|[|1,2|],[|3,4|]|]
+assertEqual "preserve anonymous axes when no local symbol occurs"
+  (withSymbols [unused] [|[|1,2|],[|3,4|]|])
+  [|[|1,2|],[|3,4|]|]
+
+def scopeIdentity : Matrix MathValue := [|[|1,0|],[|0,1|]|]
+def scopeFormCoefficients : Tensor MathValue :=
+  [|[|[|1,2,3|],[|4,5,6|]|],[|[|7,8,9|],[|10,11,12|]|]|]
+def scopeTransformed~i_j : Tensor MathValue :=
+  withSymbols [k] scopeFormCoefficients~i_k . scopeIdentity~k_j
+assertEqual "indexed form matrix retains the component axes after contraction"
+  scopeTransformed~#_# scopeFormCoefficients~#_#
+
+def scopeWedgeInput : Tensor MathValue := [|[|[|1,2|],[|3,4|]|],[|[|5,6|],[|7,8|]|]|]
+def scopeWedge~i_j : Tensor MathValue :=
+  withSymbols [k] scopeWedgeInput~i_k ∧ scopeWedgeInput~k_j
+assertEqual "form axes survive contraction inside a wedge product"
+  scopeWedge~#_#
+  [|[|[|[|16,20|],[|22,28|]|],[|[|24,28|],[|34,40|]|]|],[|[|[|40,52|],[|46,60|]|],[|[|64,76|],[|74,88|]|]|]|]~#_#

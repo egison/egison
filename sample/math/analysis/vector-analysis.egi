@@ -1,4 +1,4 @@
-declare symbol x, y, z
+declare symbol x, y, z, j
 
 def f1 := function (x)
 def g1 := function (x)
