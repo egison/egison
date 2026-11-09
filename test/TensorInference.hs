@@ -84,6 +84,24 @@ tensorInferenceTests = TestLabel "Tensor inference and insertion" $ TestList $
          assertBool "the retained body still calls the scalar method" (not (null methods))
          assertBool "class-constrained methods never acquire tensor inputs"
            (all (\ty -> case ty of TFun TTensor{} _ -> False; _ -> True) methods)] ++
+  [TestLabel "partial tensor bodies keep the remaining input at map uses" . TestCase $ do
+     let combine = lambda ["u","v"] (call "tensorIdentity" [call "two" [var "u",var "v"]])
+         partial = IApplyExpr combine [vector]
+         sources = [call "map" [partial,tensors],
+           ILetExpr [(PDPatVar (Var "p" []),partial)] (call "map" [var "p",tensors]),
+           ILetRecExpr [(PDPatVar (Var "p" []),partial)] (call "map" [var "p",tensors])]
+         finalCall typed = case tiExprNode typed of
+           TILetExpr _ body -> finalCall body
+           TILetRecExpr _ body -> finalCall body
+           _ -> typed
+     mapM_ (\source -> do
+       (inferred,_) <- runInferWithWarnings (inferIExpr source) inferenceState
+       case inferred of
+         Left err -> assertFailure (show err)
+         Right (typed,_) -> case tiExprNode (finalCall typed) of
+           TIApplyExpr _ (callback:_) -> assertEqual "the remaining input is a whole tensor"
+             (arrow [tensor] tensor) (tiExprType callback)
+           other -> assertFailure (show other)) sources] ++
   map checkCase cases ++
   map unchangedCase unchangedCases ++
   [TestLabel "match results admit tensors without changing bodies" . TestCase $ do

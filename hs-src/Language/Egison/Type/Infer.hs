@@ -2840,7 +2840,9 @@ recipeTensorInputs :: TypeEnv -> FunctionRecipe -> [Bool]
 recipeTensorInputs environment recipe =
   functionTensorInputs captured (recipeExpression recipe)
   where
-    captured = foldl (\env (name, _, scheme) -> extendEnv (Var name []) scheme env)
+    captured = foldl (\env (name, alias, scheme) ->
+      registerFunctionFamily name (maybe [] id (lookup alias (recipeFamilies recipe)))
+        (extendEnv (Var name []) scheme env))
       environment (recipeCaptures recipe)
 
 functionTensorInputs :: TypeEnv -> IExpr -> [Bool]
@@ -2865,7 +2867,12 @@ functionTensorInputs environment (IVarExpr name) =
 functionTensorInputs environment (ILetRecExpr bindings (IVarExpr name)) =
   case [body | (PDPatVar (Var bound []), body) <- bindings, name == bound] of
     [body@ILambdaExpr{}] -> functionTensorInputs environment body
+    [body] | Set.null (Set.intersection (iexprFreeVarRefs body)
+        (Set.fromList (concatMap (primitivePatternNames . fst) bindings))) ->
+      functionTensorInputs environment body
     _ -> []
+functionTensorInputs environment (IApplyExpr function arguments) =
+  drop (length arguments) (functionTensorInputs environment function)
 functionTensorInputs _ _ = []
 
 -- Try a retained body at the actual tensor inputs before lifting the call.
@@ -2876,6 +2883,7 @@ inferApplicationAtUse :: IExpr -> [IExpr] -> TypeErrorContext -> Infer (TIExpr, 
 inferApplicationAtUse function arguments context = do
   environment <- getEnv
   withoutMaps <- gets inferWithoutTensorMaps
+  remaining <- gets inferTensorUseInputs
   let required = functionTensorInputs environment function
       ordinary = do
         (typed, substitution) <- inferIExprWithContext function context
@@ -2883,6 +2891,9 @@ inferApplicationAtUse function arguments context = do
   if withoutMaps || not (or required) then ordinary else do
     saved <- get
     inferred <- (searchFirst $ do
+      -- The surrounding use constrains the result function, not these
+      -- argument expressions. Prefix its inputs with the supplied arguments.
+      modify (\state -> state { inferTensorUseInputs = [] })
       typedArguments <- mapM (\argument -> inferIExprWithContext argument context) arguments
       solveDeferredIndices (length (inferDeferredIndices saved))
       forM typedArguments $ \(typed, substitution) -> do
@@ -2891,13 +2902,16 @@ inferApplicationAtUse function arguments context = do
       `catchError` \_ -> return []
     nextFresh <- gets inferCounter
     put saved { inferCounter = nextFresh }
-    selected <- if or (zipWith (&&) inferred required)
+    let inputs = take (length arguments) (inferred ++ repeat False) ++ remaining
+    selected <- if or (zipWith (&&) inputs required)
       then withDefinitionPreference (chooseCandidate [True,False]) else return False
     if not selected then ordinary else do
-      modify (\state -> state { inferTensorUseInputs = inferred })
+      modify (\state -> state { inferTensorUseInputs = inputs })
       (typed, substitution) <- inferIExprWithContext function context
-      modify (\state -> state { inferTensorUseInputs = inferTensorUseInputs saved })
-      inferIApplicationWithContext typed (tiExprType typed) arguments substitution context
+      let restore = modify (\state -> state { inferTensorUseInputs = inferTensorUseInputs saved })
+      restoreInferStateAfter restore $ do
+        modify (\state -> state { inferTensorUseInputs = [] })
+        inferIApplicationWithContext typed (tiExprType typed) arguments substitution context
 
 -- | Infer type for IExpr with context information
 -- Returns the typed internal expression.

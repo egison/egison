@@ -76,7 +76,7 @@ gtimeout 600 cabal test 2>&1 | tee /tmp/cabal-test.log
 grep -E "Warning:|Type error:|Evaluation error:|Unbound variable" /tmp/cabal-test.log | head -30
 ```
 
-`grep` の結果が空になっていることが理想。何か出ていれば原因を特定して直す。
+拒否を期待するテスト（`tensorShapeValidationTests`・`matrixBlockValidationTests` など）は，期待する診断の内容をテスト内で照合している．そのテストの成功と期待診断であることを確認し，それ以外の warning・error は原因を特定して直す．ログの文字列の有無だけでは成否を判定しない．
 
 ### 4. 設計ドキュメントの更新
 
