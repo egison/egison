@@ -15,6 +15,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
   成功時にパターン変数へ値を束縛する処理であることを初出で説明する．実際の宣言と掲載内容を比べる作業は「一致確認」と書く（2026-10-12）．
 - 決定の経緯: 2026-10-01 に論文の用語を統一した（ユーザー決定）．2026-10-03 に「添字（indices）」などの言い換えと，
   最汎・全域・作業リストの定義を加え，matcher tuple の日本語を「マッチャーのタプル」に統一した．
+- テンソル論文（`~/PL/type-tensor-paper`）の用語は §9 にまとめ，使わない語は §7 の二つ目の表に置く．2026-11-10 に統一した（ユーザー決定）．
 
 ## 1. パターンマッチ
 
@@ -121,7 +122,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | fuel | 燃料 | 評価の上限．単一化の step bound は別の語として残す． |
 | runtime safety | 実行時安全性 | 型の付いたプログラムが動的型エラーを起こさないこと．「実行安全性」とは書かない． |
 | progress | 進行性 | 実行が完了していなければ，次の実行ステップが存在すること．「前進」とは書かない． |
-| dynamic type error | 動的型エラー | 実行時の型エラー．stuck は Lean の評価器の結果名としてだけ書く．shape error は使わない． |
+| dynamic type error | 動的型エラー | 実行時の型エラー．stuck は Lean の評価器の結果名としてだけ書く．動的型エラーの意味で shape error は使わない（テンソル論文の形状エラーは §9.4）． |
 | delayed computation | 遅延計算 | suspension とは書かない． |
 | evaluated result | 評価結果 | cache／cached とは書かない． |
 | weak-head value | 弱頭値 | |
@@ -195,7 +196,7 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | public | 使わない |
 | interface | 「パターンがマッチャーに要求するもの」「マッチャーが提供するもの」と言い換える |
 | solver（SAT solver 以外） | unifier（単一化器） |
-| stuck（Lean の結果名以外），shape error | dynamic type error（動的型エラー） |
+| stuck（Lean の結果名以外），shape error（動的型エラーの意味） | dynamic type error（動的型エラー）．テンソル論文の shape error（形状エラー）は §9.4 の別の語 |
 | occurrence（マッチ結果の意味） | successful matching result（成功するマッチ結果）．occurrence は要素の出現などの普通の意味だけ． |
 | structural constructor／structural position | pattern constructor／constructor position．structural は値の構造比較だけに使う． |
 | complete（全体の意味） | whole／full（whole match expressions など） |
@@ -221,9 +222,35 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | constructor signature | signature（シグネチャ） |
 | 実行安全性 | 実行時安全性 |
 | corpus／コーパス（評価・検査に使うプログラムの集合） | programs used for evaluation（評価対象のプログラム集合）／programs checked（検査対象のプログラム群） |
-| callback | decomposition function |
+| callback（パターンマッチの分解を行う関数を指す語として） | decomposition function |
 | payload | 使わない |
 | 開発コード名（milestone 5.x，Paper 1，mech4，theorem axis，artifact 5.x，D14 など） | 内容で述べる．先行研究は「Egi と Nishiwaki~\cite{...}」のように内容と引用で指す |
+
+テンソル論文（§9）で使わない語と言い換え（2026-11-10）．上の表の public，solver，「全体」の意味の complete なども同論文に適用する．
+
+| 使わない語 | 代わりに使う語 |
+| --- | --- |
+| 独立した規則・導出・判断，independent（型推論の手続きを参照しないという意味） | declarative typing rules（宣言的な型付け規則）．数値計算や具体化の「独立」は普通の意味で使ってよい |
+| 候補，candidate（一つの式への型の与え方の意味） | typing（型付け）／derivation（導出） |
+| 候補群，変換候補，本体の候補，通常の候補，追加の候補，テンプレート，雛形，member，native，alternative，family，template | definition candidates（定義の候補），original body（元の本体），body after insertion（挿入後の本体） |
+| コールバック，渡された関数，高階引数，関数引数，callback，supplied function | function argument（引数として渡す関数，渡す関数） |
+| 変換関数，adapted function | converted function（変換後の関数） |
+| 変換（総称の意味），自動変換，テンソルの変換，変換結果，adapt，transformation | insertion（挿入），挿入後の式．「変換」は「渡す関数の変換」にだけ使う |
+| 写像，暗黙の写像，写像する，map（挿入する操作を指す名詞・動詞） | `tensorMap` の挿入，成分ごとに適用する（apply componentwise），持ち上げ（lifting） |
+| 受入れ，受け入れ，昇格，admission（階数 0 の意味） | rank-0 inclusion（階数 0 の包含） |
+| seed | origin（起点） |
+| supported，grounded，テンソルの要求（用語として），demand | justified／justification（根拠のある／根拠） |
+| 固定されたテンソル仮引数，fixed tensor parameter | parameter of tensor type（テンソル型の仮引数） |
+| 一般的な導出，generic derivation | general derivation（一般の導出） |
+| 保存型，保存した型，内部の型，注釈（推論の内部データの意味），saved types | types of subexpressions（部分式の型）．「保存」は型の保存と保存性にだけ使う |
+| 報告型，候補型，報告する，reported type | inferred type（推論した型），「推論する」「返す」 |
+| 優先型，最優先の型 | preferred type（優先される型） |
+| 生成項，生成した項，生成式，generated term | generated expression（生成した式） |
+| 最大の連続適用，適用全体，適用の列，spine | application chain（連続適用） |
+| 直接適用，階数 0 の受入れ，成分ごとの適用，コールバック（適用モードの名前として） | 通常，階数 0，持ち上げ，関数の変換 |
+| 優先規則，優先関係，選択規則 | priority order（優先順位） |
+| 補完，completion（挿入の意味．「補完済みの定義」など） | insertion（挿入）．「補完」は添字補完にだけ使う |
+| 公開入口，公開推論，public entry point | combined inference（統合型推論） |
 
 ## 8. 規則名と操作名
 
@@ -235,19 +262,62 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 
 ## 9. テンソルの型推論と評価
 
-テンソル論文の本文・要旨・図表では，操作の名前と，何を保証するかを具体的に述べる．
+テンソル論文（`~/PL/type-tensor-paper`）の本文・要旨・図表では，操作の名前と，何を保証するかを具体的に述べる．
+2026-11-10 に，同論文の用語を以下のとおり統一した（ユーザー決定）．一つの概念に一つの語を使い，初出で定義する．
+同論文で使わない語は §7 の二つ目の表にまとめる．Lean（`~/PL/type-tensor-mech`）と Egison インタプリタの識別子は変えず，
+`PublicInference` などの成果物の実名は，付録の対応表ではそのまま使う．
+
+### 9.1 型推論と挿入
 
 | 英語 | 日本語 | 意味・注意 |
 | --- | --- | --- |
-| inference without insertion | 挿入なし型推論 | 入力式に `tensorMap` などの操作や関数の自動変換を追加せず，型を求める．利用者が明示した `tensorMap` は使える．通常の Hindley–Milner 型推論とは区別する． |
-| inference with automatic insertion | 自動挿入型推論 | `tensorMap` などの追加や関数の自動変換を許し，型と実行する式を求める．必ず何かを挿入するという意味ではない． |
-| combined inference | 統合型推論 | 入力式全体に対して挿入なし型推論を優先し，それが失敗した場合に自動挿入型推論を使う利用者向けの処理．Lean の入口は `Algebraic.inferAndInsert`．本文で「公開推論」と呼ばず，実装の識別子は変更しない． |
-| scalar function / tensor function | スカラー関数／テンソル関数 | スカラー関数はスカラー（整数などの個々の成分の値）に対する関数で，テンソルに適用すると成分ごとに持ち上げる（`tensorMap`・`tensorMap2` を挿入する）．テンソル関数はテンソル全体を引数として受け取る関数（`contractWith` など）．どちらになるかは，その使用で選んだ候補の仮引数型で決まる．利用者定義の積 `.` も通常のスカラー入力の候補を保持し，テンソルでの使用では本体内に写像する候補を選ぶ．初出で両方を定義する． |
+| insertion | 挿入 | `tensorMap`・`tensorMap2` の呼び出しを式に加えること．適用を成分ごとの適用にする場合（持ち上げ）と，引数として渡す関数を包む場合（渡す関数の変換）があり，定義の本体の中に加える場合も含めて，その総称として使う．「変換」は総称に使わない． |
+| inference without insertion | 挿入なし型推論 | 入力式に挿入を行わずに型を求める．利用者が明示した `tensorMap` は使える．通常の Hindley–Milner 型推論とは区別する． |
+| inference with automatic insertion | 自動挿入型推論 | 挿入を許し，型と実行する式を求める．必ず何かを挿入するという意味ではない． |
+| combined inference | 統合型推論 | 入力式全体に対して挿入なし型推論を優先し，それが失敗した場合に自動挿入型推論を使う利用者向けの処理．Lean の入口は `Algebraic.inferAndInsert`．本文で「公開推論」「公開入口」と呼ばず，実装の識別子は変更しない． |
+| lifting | 持ち上げ | スカラー型の仮引数にテンソルを渡す適用を，成分ごとの適用として型付けすること．`tensorMap`・`tensorMap2` の挿入で実現する．適用モードと持ち上げ集合の名前にも使う． |
+| function argument | 引数として渡す関数 | 別の関数に引数として渡す関数（`foldl (+) 0 xs` の `(+)`）．初出でこう書き，二度目から「渡す関数」と書く． |
+| conversion of a function argument | 渡す関数の変換 | 渡すスカラー関数を，テンソルを受け取って成分ごとに適用する関数に置き換える挿入（`(+)` を `\u v -> tensorMap2 (+) u v` にする）．置き換えた関数は converted function（変換後の関数）と書く．「変換」はこの語にだけ使う． |
+| rank-0 inclusion | 階数 0 の包含 | スカラー型 κ の値を，値も式も変えずに `Tensor κ` 型の値（階数 0 のテンソル）として扱うこと． |
+| generated expression | 生成した式 | 挿入の結果として実行する式．「項」とは書かない．挿入の前後を対比するときは「挿入前の式」「挿入後の式」と書いてよい． |
+| scalar function / tensor function | スカラー関数／テンソル関数 | スカラー関数はスカラー（整数などの個々の成分の値）に対する関数で，テンソルに適用すると持ち上げる（`tensorMap`・`tensorMap2` を挿入して成分ごとに適用する）．テンソル関数はテンソル全体を引数として受け取る関数（`contractWith` など）．どちらになるかは，その使用で選んだ定義の候補の仮引数型で決まる．利用者定義の積 `.` は，スカラー入力の元の本体と，本体内の乗算に `tensorMap2` を挿入したテンソル入力の挿入後の本体を定義の候補として保持し，テンソルでの使用では挿入後の本体を選ぶ．初出で両方を定義する． |
+
+### 9.2 型付け規則と導出
+
+| 英語 | 日本語 | 意味・注意 |
+| --- | --- | --- |
+| declarative typing rules | 宣言的な型付け規則 | 型推論の手続きを参照せずに，式にどの型と挿入を認めるかを定める規則．論文 1 の宣言的型付け（§2）と同じ語を使い，「独立した規則」とは書かない． |
+| source typing / core typing | ソースの型付け／コアの型付け | ソースの型付けは，挿入を認める位置を定める宣言的な型付け規則．コアの型付けは，`tensorMap` が明示された式（挿入前後の式）と実行時の値の型付け Γ ⊢ e : τ． |
+| typing / derivation | 型付け／導出 | 一つの式への型と挿入の与え方．例で説明する節では「型付け」，規則の節では「導出」と書く．一つの式に複数ありうる．これを「候補」とは呼ばない． |
+| general derivation | 一般の導出 | 適用モードなどの選択を固定して，型の等式を最汎に解いた導出（Γ ⊢g e : τ ▷ H）．generic は汎用パターン（§1）にだけ使うので，generic derivation とは書かない． |
+| definition candidates | 定義の候補 | 一つの定義が保持する本体．original body（元の本体）と body after insertion（挿入後の本体．本体の中に挿入を行ったもの）からなり，使用箇所ごとに一つを選ぶ．「候補」はこの意味だけに使う． |
+| expanded source | 展開したソース | 定義の各参照で定義の候補を一つ選び，渡す関数の変換を選んで，それらを書き込んだ式（e ⇝ q の q）． |
+| types of subexpressions | 部分式の型 | 導出が式の各部分式に与えた型の列（H，A）．「保存型」「注釈」とは書かない．型注釈は利用者が書く型だけを指す（§2）． |
+| inferred type | 推論した型 | 統合型推論が返す型．「報告型」「報告する」とは書かない． |
+| preferred type | 優先される型 | 選んだ導出の型の具体化（述語 Preferred）． |
+| priority order | 優先順位 | 複数の導出から一つを選ぶための，導出の間の順序． |
+| origin | 起点 | ソースに書かれたテンソル操作（テンソル構築式，`tensorMap`・`tensorMap2`，添字参照，`contractWith` など）が `Tensor` 型にする，型の位置． |
+| justification / justified | 根拠／根拠のある | 型のある位置を `Tensor` 型にするとき，起点からその位置まで，型の等式と定義の使用をたどって届くこと．その条件を「根拠の条件」と呼び，論文の述語は Justified と書く（Lean の `supported_iff` などはそのまま）．「テンソルの要求」は用語にせず，「`Tensor` 型を要求する」と動詞で書く． |
+| parameter of tensor type | テンソル型の仮引数 | 型が `Tensor` 型に決まっている仮引数（`contractWith` の第二引数など）． |
+
+### 9.3 適用
+
+| 英語 | 日本語 | 意味・注意 |
+| --- | --- | --- |
+| application chain | 連続適用 | 関数に引数を続けて適用した式 f e₁ … eₙ で，外側にさらに適用が続かないもの．挿入はこの単位で決める．spine とは書かない（関数名 `liftSpine` はそのまま使う）． |
+| application mode | 適用モード | 連続適用の各引数の扱い．ordinary（通常），rank 0（階数 0），lifting（持ち上げ），function conversion（関数の変換）の四つ．優先順位の説明でも同じ名前を使う． |
+
+### 9.4 テンソルの式，操作，添字，評価
+
+| 英語 | 日本語 | 意味・注意 |
+| --- | --- | --- |
 | tensor construction | テンソル構築式 | `[\|e1,...,ek\|]` のように，成分となる式を並べてテンソルを作る式．Egison の `[e1,...,ek]` はリストを表す．初出で記法を説明する．literal／リテラルとだけ書かない． |
-| `tensorMap` / `tensorMap2` | 操作名をそのまま使う | テンソルのスカラー成分ごとに関数を適用する操作と，その二引数版．プログラマが書いた呼び出しと自動挿入した呼び出しを区別する場合も，操作名を述べる．「明示的写像」「写像だけを挿入する」とだけ書かない． |
+| `tensorMap` / `tensorMap2` | 操作名をそのまま使う | テンソルのスカラー成分ごとに関数を適用する操作と，その二引数版．プログラマが書いた呼び出しと挿入した呼び出しを区別する場合も，操作名を述べる．操作の動作は「成分ごとに適用する（apply componentwise）」と書き，名詞・動詞の「写像」は使わない． |
 | `Integer` | 整数型 | テンソル論文の数値型．任意精度の整数に対する加算・減算・乗算を扱う．Leanでは `Int` で表す． |
 | symbolic index | シンボリックな添字 | 軸に付ける名前と，上付き・下付き・上下両方の印の組．添字を指して「ラベル」「軸ラベル」「シンボル」とは書かない． |
 | numeric index | 数値添字 | テンソルの一つの軸に沿って成分を選ぶ番号．ソースの添字は1から数える．シンボリックな添字は軸に名前を付ける．数値添字にも上下の印を付けられるが，成分選択はその印によらない．幾何学の座標とは区別する． |
 | index tuple | 添字の組 | 各軸における整数の位置を並べたもの．配列の内部表現では0から数えることを明記する． |
+| index completion | 添字補完 | 省略した添字に名前を補うこと．uniform completion（一様補完）は対応する位置で名前を共有し，disjoint completion（非共有補完）は互いに異なる名前を与える．「補完」はこの意味だけに使う． |
 | typing of evaluation results | 評価結果の型付け | 値呼びの大ステップ意味論で，$e : t$ かつ $e \Downarrow v$ ならば $v : t$ となる性質．結果は値または定義済みの実行時エラー．大ステップ評価の結果についての保証であり，小ステップの型保存・進行性とは区別する． |
 | termination, array bounds, and fresh index names | 停止性，配列参照の範囲，添字名の衝突回避 | 添字処理の実装についての個別の保証を述べる．階数や数値添字の範囲を型で管理する保証と混同しない．「安全性」とだけ書かない． |
+| shape error | 形状エラー | 形状や添字列が合わないテンソルの構築・演算が返す実行時エラー．論文 1 で動的型エラーの言い換えとして使わないと決めた shape error（§7）とは別の概念であり，テンソル論文ではこの意味で使う． |
