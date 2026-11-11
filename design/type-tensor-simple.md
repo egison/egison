@@ -210,7 +210,7 @@ inc [|1,2|]
 -- [|11,12|] : Tensor Integer
 ```
 
-三引数以上では，添字の整列を保って `tensorMap` と `tensorMap2` を組み合わせる．もともとテンソル全体を受け取る引数には，全体を渡す．スカラー入力に対する `tensorMap`・`tensorMap2` は通常の適用として働く．
+三引数以上では，添字の整列を保つように `tensorMap2` を複数組み合わせる．もともとテンソル全体を受け取る引数には，全体を渡す．スカラー入力に対する `tensorMap`・`tensorMap2` は通常の適用として働く．
 
 ```egison
 inc [|1,2|]                         -- tensorMap inc [|1,2|]
