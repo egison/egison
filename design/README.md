@@ -36,6 +36,7 @@ Egison core 外の拡張だけを記述する。
 - [tensor-map-insertion-simple.md](./tensor-map-insertion-simple.md): スカラー関数をテンソルへ持ち上げる変換。
 - [tensor-map-higher-order-lift.md](./tensor-map-higher-order-lift.md): 高階引数のスカラー関数の自動変換。
 - [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 入力全体の優先規則，型推論の要件，実装との対応，残る証明。
+- [tensor-mark-types.md](./tensor-mark-types.md): 【提案】テンソルになりうる位置を型に印として記録する設計。決定事項，規則，期待する結果，Egison・論文・Lean をまとめて直すための作業の指示。
 
 ## CAS
 
