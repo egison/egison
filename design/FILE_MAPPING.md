@@ -2,6 +2,8 @@
 
 このドキュメントは、Egisonの各処理フェーズがどのファイルで実装されているかを示します。
 
+以下の対応表は**現行実装**を示す．印を使うテンソル型推論は未実装であり，新しい規則は [設計仕様](type-tensor-simple.md)，現行との差は [仕様と実装の対応](tensor-inference-boundaries.md) にある．今後変更する箇所は末尾の「テンソル型推論の移行で変更する箇所」に分ける．
+
 ## フェーズ別ファイル構成
 
 ### Phase 0: 構文解析
@@ -66,7 +68,7 @@ Phase 7は2つのサブフェーズに分かれる。TensorMap挿入を先に行
 |---------|------|---------------|
 | `Type/TypedDesugar.hs` | Phase 7のオーケストレーション | `desugarTypedTopExprT_TensorMapOnly`, `desugarTypedTopExprT_TypeClassOnly` |
 | `Type/TensorMapInsertion.hs` | Phase 7a: tensorMap自動挿入 | `insertTensorMaps`, `shouldInsertTensorMap` |
-| `Type/TensorDemand.hs` | 関数の仮引数型からテンソル入力の候補を求め，推論後の適用型で依存関係を検査(`design/tensor-demand-propagation.md`) | `demandedParameters`, `demandedInferredParameters` |
+| `Type/TensorDemand.hs` | 現行方式で関数の仮引数型からテンソル入力の候補を求め，推論後の適用型で依存関係を検査する．新設計との対応は [仕様と実装の対応](tensor-inference-boundaries.md) | `demandedParameters`, `demandedInferredParameters` |
 | `Type/TypeClassExpand.hs` | Phase 7b: 型クラスメソッド展開（辞書パッシング） | `expandTypeClassMethodsT`, `addDictionaryParametersT`, `applyConcreteConstraintDictionaries` |
 **Phase 7a (TensorMapInsertion)**: スカラー型パラメータにテンソル引数が渡された場合、自動的に `tensorMap` / `tensorMap2` を挿入する。
 
@@ -260,3 +262,18 @@ tensorMap挿入後に引数の型（スカラー vs テンソル）が確定す�
 ### 辞書パッシング（Haskellスタイル）
 
 型クラスの辞書はハッシュテーブルで表現される。各辞書はメソッドの実装に加え、スーパークラスの辞書への参照を `__super_ClassName` キーで保持する。関数の制約パラメータは `deExpandConstraints` で最小化され、メソッドアクセスはスーパークラスチェーン経由で行われる。
+
+## テンソル型推論の移行で変更する箇所
+
+以下は今後の変更先であり，まだ実装していない．設計の正本は [type-tensor-simple.md](type-tensor-simple.md)，作業順序は [tensor-mark-types.md](tensor-mark-types.md) にある．パスは `hs-src/Language/Egison/` からの相対パスである．
+
+| ファイル | 新設計で担う処理 |
+| --- | --- |
+| `Type/Types.hs`，`Type/Subst.hs`，`Type/Unify.hs` | 印，印の正規化と制約，型の代入との関係．縮約結果へのトップレベル注釈の照合は維持する |
+| `Type/Env.hs`，`Type/Infer.hs` | 定義を一度だけ型付けし，型・印・共有制約を記録する．使用時の本体の再推論を廃止し，実際に渡す関数への挿入を決める |
+| `Type/TensorDemand.hs` | テンソル型の位置に構築式の成分を加え，仮引数の型を決めるための型の関係を扱う |
+| `Type/TensorMapInsertion.hs` | 決定した印に従う挿入，実際に渡す関数を一度だけ包む処理，必要な定義の印の値ごとの本体の生成 |
+| `Type/Pretty.hs` | 印を含む推論型の表示 |
+| `Type/TypeClassExpand.hs` | 挿入後の要素型に対応する辞書の選択との接続を確認する |
+
+テンソルの形状や添字の実行時検査は，既存の `Tensor.hs` と評価器の処理へ接続する．型が受理する構築式の変更に合わせて検査を更新するが，階数や軸長を静的な型へ追加しない．
