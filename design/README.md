@@ -32,9 +32,9 @@ Egison core 外の拡張だけを記述する。
 
 - [type-class.md](./type-class.md): 型クラス、辞書渡し、スーパークラス、現在の制限。
 - [runtime-type-dispatch.md](./runtime-type-dispatch.md): CAS 値に対する浅い実行時型ディスパッチ。
-- [type-tensor-simple.md](./type-tensor-simple.md): **テンソルの設計仕様の正本**．型とテンソル印，型推論と挿入，高階関数，型注釈，形状，添字，期待結果を統合する．テンソル印を使う新しい型推論は未実装．
+- [type-tensor-simple.md](./type-tensor-simple.md): **テンソルの設計仕様の正本**．型と持ち上げの許可，型推論と挿入，高階関数，型注釈，形状，添字，期待結果を統合する．持ち上げの許可 `↑` を推論する新しい型推論は未実装．
 - [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 現行実装との差，Egison・論文・Lean の対応，検証する性質と既存の検査．
-- [tensor-flag-types.md](./tensor-flag-types.md): **移行作業**．設計確認後の試作，実装，論文，Lean の更新手順と完了条件．
+- [tensor-lifting-tasks.md](./tensor-lifting-tasks.md): **移行作業**．持ち上げの許可の判定，制約の具体化，実装・証明の課題と完了条件．
 
 テンソルの設計を確認するときは `type-tensor-simple.md` を読む．§4 はスカラー関数にテンソルを渡す場合，§5 は高階関数にスカラー関数を渡す場合の挿入を説明する．§2 の型の一覧，§5.1 の `filter` の通常の型と述語の受理・拒否，§7 の型注釈，§8 の挿入なし型付け，§12 の期待結果も合わせて確認できる．実装状況と未完了の作業は，続く二文書に分けている．
 

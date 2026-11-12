@@ -2,7 +2,7 @@
 
 このドキュメントは、Egisonの各処理フェーズがどのファイルで実装されているかを示します。
 
-以下の対応表は**現行実装**を示す．テンソル印を使うテンソル型推論は未実装であり，新しい規則は [設計仕様](type-tensor-simple.md)，現行との差は [仕様と実装の対応](tensor-inference-boundaries.md) にある．今後変更する箇所は末尾の「テンソル型推論の移行で変更する箇所」に分ける．
+以下の対応表は**現行実装**を示す．持ち上げの許可 `↑` を推論するテンソル型推論は未実装であり，新しい規則は [設計仕様](type-tensor-simple.md)，現行との差は [仕様と実装の対応](tensor-inference-boundaries.md) にある．今後変更する箇所は末尾の「テンソル型推論の移行で変更する箇所」に分ける．
 
 ## フェーズ別ファイル構成
 
@@ -265,15 +265,15 @@ tensorMap挿入後に引数の型（スカラー vs テンソル）が確定す�
 
 ## テンソル型推論の移行で変更する箇所
 
-以下は今後の変更先であり，まだ実装していない．設計の正本は [type-tensor-simple.md](type-tensor-simple.md)，作業順序は [tensor-flag-types.md](tensor-flag-types.md) にある．パスは `hs-src/Language/Egison/` からの相対パスである．
+以下は今後の変更先であり，まだ実装していない．設計の正本は [type-tensor-simple.md](type-tensor-simple.md)，作業順序は [tensor-lifting-tasks.md](tensor-lifting-tasks.md) にある．パスは `hs-src/Language/Egison/` からの相対パスである．
 
 | ファイル | 新設計で担う処理 |
 | --- | --- |
-| `Type/Types.hs`，`Type/Subst.hs`，`Type/Unify.hs` | テンソル印，テンソル印の正規化と制約，型の代入との関係．縮約結果へのトップレベル注釈の照合は維持する |
-| `Type/Env.hs`，`Type/Infer.hs` | 定義を一度だけ型付けし，型・テンソル印・共有制約を記録する．使用時の本体の再推論を廃止し，実際に渡す関数への挿入を決める |
+| `Type/Types.hs`，`Type/Subst.hs`，`Type/Unify.hs` | 持ち上げの許可，型・包含・変換の制約，型の代入との関係．縮約結果へのトップレベル注釈の照合は維持する |
+| `Type/Env.hs`，`Type/Infer.hs` | 定義を一度だけ型付けし，型・許可・共有制約を記録する．使用時の本体の再推論を廃止し，実際に渡す関数への挿入を決める |
 | `Type/TensorDemand.hs` | テンソル型の位置に構築式の成分を加え，仮引数の型を決めるための型の関係を扱う |
-| `Type/TensorMapInsertion.hs` | 決定したテンソル印に従う挿入，実際に渡す関数を一度だけ包む処理，必要な定義のテンソル印の値ごとの本体の生成 |
-| `Type/Pretty.hs` | テンソル印を含む推論型の表示 |
+| `Type/TensorMapInsertion.hs` | 解いた型と変換条件に従う挿入，実際に渡す関数を一度だけ包む処理，必要な具体化ごとの本体の生成 |
+| `Type/Pretty.hs` | `↑` と未解決の制約を含む推論型の表示 |
 | `Type/TypeClassExpand.hs` | 挿入後の要素型に対応する辞書の選択との接続を確認する |
 
 テンソルの形状や添字の実行時検査は，既存の `Tensor.hs` と評価器の処理へ接続する．型が受理する構築式の変更に合わせて検査を更新するが，階数や軸長を静的な型へ追加しない．
