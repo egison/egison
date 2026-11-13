@@ -12,10 +12,8 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
   論文・ドキュメント・ユーザーへの報告に持ち込まない．
 - 用語を変えたら，このファイルと，`~/PL/type-pm-paper` の `CLAUDE.md`・`AGENTS.md`・`example-correspondence.md` を合わせて更新する．
 - 日本語で matching は「パターンマッチ」と書き，「照合」とは書かない．条件を調べるだけでなく，
-  成功時にパターン変数へ値を束縛する処理であることを初出で説明する．実際の宣言と掲載内容を比べる作業は「一致確認」と書く（2026-10-12）．
-- 決定の経緯: 2026-10-01 に論文の用語を統一した（ユーザー決定）．2026-10-03 に「添字（indices）」などの言い換えと，
-  最汎・全域・作業リストの定義を加え，matcher tuple の日本語を「マッチャーのタプル」に統一した．
-- テンソル論文（`~/PL/type-tensor-paper`）の用語は §9 にまとめ，使わない語は §7 の二つ目の表に置く．2026-11-10 に統一した（ユーザー決定）．
+  成功時にパターン変数へ値を束縛する処理であることを初出で説明する．実際の宣言と掲載内容を比べる作業は「一致確認」と書く．
+- テンソル論文（`~/PL/type-tensor-paper`）の用語は §9 にまとめ，使わない語は §7 の二つ目の表に置く．
 
 ## 1. パターンマッチ
 
@@ -27,7 +25,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | matcher definition | マッチャー定義 | matcher式とそのマッチャー節の全体． |
 | matcher clause | マッチャー節 | `pp as e with dataClauses` の形の節． |
 | primitive-pattern pattern | プリミティブパターンパターン | マッチャー節の左辺．ハイフン付きで書く．メタ変数は pp． |
-| pattern hole | パターンホール | プリミティブパターンパターン中の `$`．ネクストパターンを受け取る位置．根にあってもフィールドにあってもどのパターンも受け付ける（根のパターンホールがコンストラクタパターンを除くという規則はない．2026-10-06）． |
+| pattern hole | パターンホール | プリミティブパターンパターン中の `$`．ネクストパターンを受け取る位置．根にあってもフィールドにあってもどのパターンも受け付ける． |
 | value-pattern pattern | バリューパターンパターン | `#$val`．利用者のバリューパターンの値を束縛する． |
 | next pattern / next matcher / next targets | ネクストパターン／ネクストマッチャー／ネクストターゲット | パターンホールごとに次のパターンマッチに渡すもの． |
 | next-matcher expression | ネクストマッチャー式 | マッチャー節の `as` の後の式．構文上の制限はなく，型だけを要求する． |
@@ -62,7 +60,7 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | --- | --- | --- |
 | capability | 能力 | κ．マッチャーが解釈できるパターン族を表す． |
 | Any | Any | パターンコンストラクタを一つも許さない能力．`something` の能力． |
-| `(Any for T)` | `(Any for T)` | パターンコンストラクタのフィールドで，ターゲット型 T の上の能力 Any を表す．フィールドには能力を書き，ターゲット型は能力から補うが，Any だけはターゲット型を定めないので `for` で型を添える．型だけのフィールド（`even Integer`）は書けない（2026-10-06）． |
+| `(Any for T)` | `(Any for T)` | パターンコンストラクタのフィールドで，ターゲット型 T の上の能力 Any を表す．フィールドには能力を書き，ターゲット型は能力から補うが，Any だけはターゲット型を定めないので `for` で型を添える．型だけのフィールド（`even Integer`）は書けない． |
 | target type | ターゲット型 | τ．マッチャーが調べる値の型． |
 | matcher type | マッチャー型 | `Matcher κ τ`．κ と τ は「能力とターゲット型」と呼ぶ（「添字」とは書かない）． |
 | pattern type | パターン型 | ⟨κ, τ, Δ⟩．パターンが要求する能力とターゲット型と，導入する束縛． |
@@ -141,46 +139,46 @@ Egison の論文（英語版・日本語版），Lean による機械化（`~/PL
 | position | 位置 | ソース列の要素の位置．「添字（index）」とは書かない． |
 | AI coding assistant | AI のコーディング支援ツール | Lean の証明を書いた Claude（Anthropic）と Codex（OpenAI）．論文では §4 の冒頭の段落の末尾で述べる． |
 
-Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数の略記を使う（2026-10-01 決定）．
+Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数の略記を使う．
 
-| 旧名 | 新名 |
+| 対象 | 識別子 |
 | --- | --- |
-| header（`HeaderTyping`，`firstHeader`） | `PPat`（`PPatTyping`，`firstClause`） |
-| data pattern（`DataPatternTyping`） | `DPat`（`DPatTyping`） |
-| `Arm` | `DataClause` |
-| `Clause`（`Clause.general`） | `MatcherClause`（`MatcherClause.mk`） |
-| `PPat.capture`，`captureDiscipline` | `PPat.value`（束縛は `valueBindings`），`valueBeforeHole` |
-| `Expr.matcherLit` | `Expr.matcher` |
-| product／prod（`Ty.product`） | tuple（`Ty.mkTuple`） |
-| `Result.stuck`（`*_never_stuck`） | `dynamicTypeError`（`*_no_dynamic_type_error`） |
-| `Suspension`，`cached` | `DelayedComputation`，`evaluated` |
-| occurrence（`MatchingOccurrence`） | path result（`MatchingPathResult`） |
-| `Cursor` | `LazyStream` |
-| `Bundle` | `MatcherTuple` |
-| `DataFormer`／`PatternFormer` | `DataType`／`PatternFamily` |
-| `Dual`（`DualScheme`） | `RequirementPair`（`PatternCtorScheme`） |
-| `ObservationalEq` | `NormalizedEq` |
-| fallback | else |
+| プリミティブパターンパターン | `PPat`，`PPatTyping`，`firstClause` |
+| プリミティブデータパターン | `DPat`，`DPatTyping` |
+| プリミティブデータマッチ節 | `DataClause` |
+| マッチャー節 | `MatcherClause`，`MatcherClause.mk` |
+| バリューパターンと束縛の条件 | `PPat.value`，`valueBindings`，`valueBeforeHole` |
+| マッチャー式 | `Expr.matcher` |
+| タプル型 | `Ty.mkTuple` |
+| 動的型エラーとその不在 | `dynamicTypeError`，`*_no_dynamic_type_error` |
+| 遅延計算と評価結果 | `DelayedComputation`，`evaluated` |
+| 探索経路で区別したマッチ結果 | `MatchingPathResult` |
+| 遅延列 | `LazyStream` |
+| マッチャーのタプル | `MatcherTuple` |
+| データ型とパターン族 | `DataType`，`PatternFamily` |
+| 要求対とパターンコンストラクタのスキーム | `RequirementPair`，`PatternCtorScheme` |
+| 正規化後の等しさ | `NormalizedEq` |
+| 通常節に結果がない場合の節 | `else` |
 
 静的条件は真偽値の関数 `staticChecks` と命題 `StaticConditions` の二つで表し，`staticConditions_iff_staticChecks` が両者の同値を示す．
 
 ## 6. Egison インタプリタ（Haskell）の識別子
 
-識別子，コメント，利用者向けメッセージまで同じ語に揃える（2026-10-01 決定）．CLI のオプション名は外部仕様なので変えない．
+識別子，コメント，利用者向けメッセージまで同じ語に揃える．CLI のオプション名は外部仕様なので変えない．
 
-| 旧名 | 新名 |
+| 対象 | 識別子 |
 | --- | --- |
-| `Dual` | `RequirementPair`（`requirementCapability`／`requirementTarget`） |
-| `DualScheme` | `PatFuncScheme`（`patFuncCapBinders`／`patFuncTyBinders`／`patFuncParams`／`patFuncResult`） |
-| `TypeFormer` | `DataType`（`DataTypeId`／`dataTypeOf`／`mkDataType`） |
-| capability former | `CapabilityConstructor…` |
-| primitive-pattern pattern の header | `PPat`（`inferPPat`） |
-| arm | `PD…`／`dataClauses`（`dataClausesExhaustive`，`MatcherDataClausesNotExhaustive`） |
-| `MatchCapturedValuePatScope` | `MatchValuePatternScope` |
-| `…MatcherProducts` | `…MatcherTuples` |
-| match の fallback | `matchElse…` |
-| Unify.hs の producer／consumer | `rigid`／`quantified` |
-| 生成型変数名の接頭辞 headerCap／dualCap | ppatCap／requirementCap |
+| 要求対 | `RequirementPair`，`requirementCapability`，`requirementTarget` |
+| パターン関数スキーム | `PatFuncScheme`，`patFuncCapBinders`，`patFuncTyBinders`，`patFuncParams`，`patFuncResult` |
+| データ型 | `DataType`，`DataTypeId`，`dataTypeOf`，`mkDataType` |
+| 能力コンストラクタ | `CapabilityConstructor…` |
+| プリミティブパターンパターン | `PPat`，`inferPPat` |
+| プリミティブデータマッチ節と網羅性 | `PD…`，`dataClauses`，`dataClausesExhaustive`，`MatcherDataClausesNotExhaustive` |
+| バリューパターンのスコープ | `MatchValuePatternScope` |
+| マッチャーのタプル | `…MatcherTuples` |
+| 通常節に結果がない場合の処理 | `matchElse…` |
+| 単一化で区別する変数 | `rigid`，`quantified` |
+| 生成する能力変数の名前の接頭辞 | `ppatCap`，`requirementCap` |
 
 ## 7. 使わない語と言い換え
 
@@ -204,7 +202,7 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | observed type（単一化） | 解を適用する結果型 |
 | header | primitive-pattern pattern |
 | arm | primitive-data-match clause |
-| Int（組み込みの整数型．論文の型の表記） | Integer（Egison の型名に合わせる．Lean の識別子 `Ty.int` はそのまま．規則名 T-Int・G-Int は整数リテラルの規則の名前なので残す．2026-10-07） |
+| Int（組み込みの整数型．論文の型の表記） | Integer（Egison の型名に合わせる．Lean の識別子 `Ty.int` はそのまま．規則名 T-Int・G-Int は整数リテラルの規則の名前なので残す） |
 | essential clause（一般のマッチャー節の意味） | general matcher clause（一般のマッチャー節）．essential は序論の「本質的なループ」と紛れる |
 | refinement clause（特殊化したマッチャー節の意味） | specialized matcher clause（特殊化したマッチャー節）．refinement は refinement type と紛れ，結果の多重性を変える節もあるので不正確 |
 | capture | value-pattern pattern |
@@ -226,13 +224,12 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | payload | 使わない |
 | 開発コード名（milestone 5.x，Paper 1，mech4，theorem axis，artifact 5.x，D14 など） | 内容で述べる．先行研究は「Egi と Nishiwaki~\cite{...}」のように内容と引用で指す |
 
-テンソル論文（§9）で使わない語と言い換え（2026-11-10）．上の表の public，solver，「全体」の意味の complete なども同論文に適用する．
+テンソル論文（§9）で使わない語と言い換え．上の表の public，solver，「全体」の意味の complete なども同論文に適用する．
 
 | 使わない語 | 代わりに使う語 |
 | --- | --- |
 | 独立した規則・導出・判断，independent（型推論の手続きを参照しないという意味） | declarative typing rules（宣言的な型付け規則）．数値計算や具体化の「独立」は普通の意味で使ってよい |
 | 候補，candidate（一つの式への型の与え方の意味） | typing（型付け）／derivation（導出） |
-| 候補群，変換候補，本体の候補，通常の候補，追加の候補，テンプレート，雛形，member，native，alternative，family，template | definition candidates（定義の候補），original body（元の本体），body after insertion（挿入後の本体） |
 | コールバック，渡された関数，高階引数，関数引数，callback，supplied function | function argument（引数として渡す関数，渡す関数） |
 | 変換関数，adapted function | converted function（変換後の関数） |
 | 変換（総称の意味），自動変換，テンソルの変換，変換結果，adapt，transformation | insertion（挿入），挿入後の式．「変換」は「渡す関数の変換」にだけ使う |
@@ -244,11 +241,9 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 | 一般的な導出，generic derivation | general derivation（一般の導出） |
 | 保存型，保存した型，内部の型，注釈（推論の内部データの意味），saved types | types of subexpressions（部分式の型）．「保存」は型の保存と保存性にだけ使う |
 | 報告型，候補型，報告する，reported type | inferred type（推論した型），「推論する」「返す」 |
-| 優先型，最優先の型 | preferred type（優先される型） |
 | 生成項，生成した項，生成式，generated term | generated expression（生成した式） |
 | 最大の連続適用，適用全体，適用の列，spine | application chain（連続適用） |
 | 直接適用，階数 0 の受入れ，成分ごとの適用，コールバック（適用モードの名前として） | 通常，階数 0，持ち上げ，関数の変換 |
-| 優先規則，優先関係，選択規則 | priority order（優先順位） |
 | 補完，completion（挿入の意味．「補完済みの定義」など） | insertion（挿入）．「補完」は添字補完にだけ使う |
 | 公開入口，公開推論，public entry point | combined inference（統合型推論） |
 
@@ -264,8 +259,7 @@ Lean の識別子は論文の語に合わせ，長い語は論文のメタ変数
 
 テンソル論文（`~/PL/type-tensor-paper`）の本文・要旨・図表では，操作の名前と，何を保証するかを具体的に述べる．
 同論文では以下の用語を用いる．一つの概念に一つの語を使い，初出で定義する．
-同論文で使わない語は §7 の二つ目の表にまとめる．Lean（`~/PL/type-tensor-mech`）と Egison インタプリタの識別子は変えず，
-`PublicInference` などの成果物の実名は，付録の対応表ではそのまま使う．
+同論文で使わない語は §7 の二つ目の表にまとめる．実装を参照する場合は，コードにある識別子をそのまま使う．
 
 規則の正本は [テンソルの設計仕様](design/type-tensor-simple.md) である．持ち上げの許可 `↑` を定義から推論し，関数を渡すときには記録した型と制約だけで判断する．Egison と Lean の識別子は，実装の説明に必要な場合に限ってそのまま記す．仕様の実装・証明状況とは区別する．
 
