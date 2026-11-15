@@ -35,7 +35,7 @@ Egison の変更先は [FILE_MAPPING.md](FILE_MAPPING.md)，現行の処理の�
 | 積，テンソル型の位置からの入力の決定 | `test/lib/core/tensor-demand.egi`，`indexed-definition-constraints.egi` |
 | 形状と添字，生成関数が返すテンソルの組立て | `test/lib/math/tensor.egi`，`tensor-assembly.egi` |
 | 名前のない軸と添字の有効範囲，微分形式 | `test/lib/math/symbol-scopes.egi`，`mini-test/9921-appended-index-prefix.egi` |
-| Lean の規則と Egison との比較 | `type-tensor-mech/tests/algebraic.py`，`local_inference.py`，`tensor_demand.py` |
+| Lean の規則の検査 | `type-tensor-mech/tests/algebraic.py`，`tensor_demand.py`，`specification_alignment.py` |
 | テンソル公開操作の正常結果とエラー | `type-tensor-mech/tests/egison-tensor-operations.json` |
 
 特に次を確認する．
