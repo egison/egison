@@ -50,11 +50,10 @@ Integer↑ -> Integer
 この型の関数は，適用時の `tensorMap` 挿入によって，次の型を求められる場所でも使える．
 
 ```text
-Integer*p -> Integer*p
 Tensor Integer -> Tensor Integer
 ```
 
-`p=0` ではそのまま使い，`p=1` では関数全体を包む．
+整数への通常の適用ではそのまま使い，テンソル入力を要求する位置では関数全体を包む．
 
 ```text
 inc [|1,2|]
@@ -139,13 +138,17 @@ foldl (\acc t -> acc + tensorRank t) 0 [[|1,2|],[|3,4|]]
 
 `sum xs := foldl (+) 0 xs` は加算の変換を保存し，`sum : [Integer*p]↑ -> Integer*p` を持つ．`mapInc xs := map inc xs` も要素の入出力に同じ条件を使う．
 
-一つの関数の仮引数は全使用・転送・再帰で同じ具体化した型と値を共有する．
+一つの関数の仮引数は全使用・転送・再帰で同じ具体化した型・値・入力の許可を共有する．挿入操作は記録した使用位置ごとに決める．
 
 ```text
 gp k xs := (map k xs, k 0)
 gp inc [[|1,2|]]
-  -- ([[|2,3|]], 1) : ([Tensor Integer], Tensor Integer)
+  -- body with shared k = inc:
+  --   (map (\t -> tensorMap k t) [[|1,2|]], k 0)
+  -- ([[|2,3|]], 1) : ([Tensor Integer], Integer)
 ```
+
+`k : Integer↑ -> Integer` を共有し，包むのは `map` へ渡す引数だけである．`k 0` は通常の適用として整数を返す．一つの使用位置で包んだ関数によって，別の使用位置の仮引数を置き換えない．本体は一度型付けして挿入位置を保存し，各位置の操作を辞書で渡す．
 
 一般化は，周囲に捕捉されていない型変数と条件変数を使用ごとに新しくする．再帰中の型は一般化しない．`foldl (+)` の部分適用でも条件を保持し，`(foldl (+)) 0 xs` と同じ挿入を選ぶ．
 
