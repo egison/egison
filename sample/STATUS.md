@@ -194,6 +194,6 @@ Cabalからの起動を含めて秒単位で計測した経過時間である．
 - 数学サンプル全体の一覧は `sample-timings.txt`，復旧後の継続検査の対象は
   `working-samples.txt` を使う．`scripts/run-sample-suite.sh` は引数なしなら前者を使う．
 
-設計は[テンソル型と添字記法](../design/type-tensor-simple.md)，
+設計は[テンソル型と添字記法](../design/tensor-types.md)，
 [行列の逆行列と部分行列](../design/matrix.md)，
 [数式処理の型システム](../design/type-cas.md)を参照する．
