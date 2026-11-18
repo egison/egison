@@ -20,7 +20,7 @@ Egison の変更先は [FILE_MAPPING.md](FILE_MAPPING.md)，現行の処理の�
 
 ## 2. 論文と Lean
 
-[論文](../../type-tensor-paper/main.tex) は，仕様の例と六群の証明目標を述べる設計稿である．[Lean](../../type-tensor-mech/README.md) の現行入口は `TensorFlags.inferAndInsert` である．この識別子は実装の所在を示すもので，`↑` の推論が完成したことを示さない．証明の接続は [残課題](../../type-tensor-mech/docs/open-problems.md)，既存の変換の定理は [証明の対応](../../type-tensor-mech/docs/details.md) に記す．
+[論文](../../type-tensor-paper/main.tex) は，仕様の例と六群の証明目標を述べる設計稿である．[Lean](../../type-tensor-mech/README.md) の公開入口は `Conditional.Symbolic.Source.infer` である．ソース，数値 JSON，Python の回帰は同じ推論・辞書生成・評価を使う．整数入力の条件付き署名も公開表示へ接続している．全ソースの許可推論と主要型性，一般署名，旧証明の置換は [残課題](../../type-tensor-mech/docs/open-problems.md)，証明済みの定理は [証明の対応](../../type-tensor-mech/docs/details.md) に記す．
 
 型保存，完全性，主要型性，通常の型構造と計算の保存，共有，添字・形状の対応について，論文の主張を満たすまで実装と証明を接続する．Egison のライブラリの `contract`・`contractWith` と Lean の基本操作は，還元関数の入力と結果，空でない列の畳込み，型付けと評価を対応させる．
 
