@@ -178,6 +178,8 @@ h [|1,2|] [|10,20|]
 
 ## 7. テンソル全体・注釈・実行
 
+宣言に明記された `Tensor` は一般化で条件付き型に置き換えない．`contract : Tensor a -> [Tensor a]` の入力と結果の要素，`generateTensor : ([Integer] -> a) -> [Integer] -> Tensor a` の結果は，そのまま `Tensor` を保つ．関数をテンソルの成分として格納する場合には，外側の `Tensor` と成分の関数型を区別する．前節の `h` は `Integer*p -> Tensor (Integer*q -> Integer*(p∨q))` のままとし，成分の関数の返り値を一律に `Tensor Integer` に固定しない．
+
 `tensorShape` はテンソル全体を受け取る．`\x -> tensorShape (x+1)` のテンソル型の要求は算術への挿入条件に伝わり，`Tensor Integer -> [Integer]` となる．整数 `5` を渡せば階数0として `[]` を，ベクトルを渡せばその形状を返す．この要求を，引数を無視する関数へ無条件に伝えない．
 
 ```text
