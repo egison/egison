@@ -35,7 +35,7 @@ Egison core 外の拡張だけを記述する。
 - [tensor-types.md](./tensor-types.md): **テンソルの設計仕様の正本**．型と持ち上げの許可，型推論と挿入，高階関数，型注釈，形状，添字，期待結果を統合する．持ち上げの許可 `↑` を推論する型推論は未実装．
 - [tensor-inference-boundaries.md](./tensor-inference-boundaries.md): 実装・証明の状態，Egison・論文・Lean の対応，検証する性質と既存の検査．
 
-テンソルの設計は [tensor-types.md](tensor-types.md)，Lean の実装・証明計画は [設計書](../../type-tensor-mech/docs/design.md) を参照する．`↑` は適用する関数の引数位置，`*p` は条件付きテンソル型を表す．実装状況は [仕様と実装の対応](tensor-inference-boundaries.md) に記す．
+テンソルの設計は [tensor-types.md](tensor-types.md)，Lean の実装・証明計画は [設計書](../../type-tensor-mech/docs/design.md) を参照する．`↑` は適用する関数の引数位置，`^p` は条件付きテンソル型を表す．実装状況は [仕様と実装の対応](tensor-inference-boundaries.md) に記す．
 
 ## CAS
 
