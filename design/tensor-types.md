@@ -37,13 +37,15 @@ mapInc : [Integer^p]↑ -> [Integer^p]
 foldl  : (b^p -> a^q -> b^p)↑ -> b^p -> [a^q]↑ -> b^p
 sum    : [Integer^p]↑ -> Integer^p
 
-discard : (a^p -> b)↑ -> a^p -> Bool
+discard : (a^p -> b^q)↑ -> a^p -> Bool
 length  : [Integer^p]↑ -> Integer
 ```
 
 `tensorShape` や `contractWith` はテンソル全体について定義され，引数の型に `Tensor` を明記する．整数も値を変えずに階数0のテンソルとして渡せるので，例えば `tensorShape 7` は空の形状 `[]` を返す．`generateTensor` はテンソルを構築するので，結果の型に `Tensor` が付く．一方，`id` は受け取った値をそのまま返し，`zip` は二つのリストの要素をそのまま組に入れる．型変数にテンソル型を代入すれば両方の用途を表せる．
 
-`length` はここでは整数または整数テンソルを要素とするリストについて示す．通常の多相的な `length : [a]↑ -> Integer` の具体化として読める．`zip` の `a` と `b`，`discard` の `b` にもテンソル型を代入できるので，そのためだけに `^` を加える必要はない．
+`length` はここでは整数または整数テンソルを要素とするリストについて示す．通常の多相的な `length : [a]↑ -> Integer` の具体化として読める．`zip` の `a` と `b` にもテンソル型を代入できるので，そのためだけに `^` を加える必要はない．
+
+仮引数として受け取る関数の型には，持ち上げた関数を受け取れるかどうかを書く．`(a^p -> b^q)` は，その型に合う関数か，渡す関数自身の `↑` でその型に持ち上げられる関数を受け取ることを表す．受け取る関数の入力に `^p` を書くときは，結果が型変数ならそれにも `^q` を書く．`map` と `discard` の `(a^p -> b^q)` がこれに当たる．本体がテンソルを渡すので入力が `Tensor` に決まる場合も，結果には `^q` を書く（§5 の `twin`）．`filter` の述語 `(a -> Bool)` のように，持ち上げた関数の結果が適合しない関数の型には，どちらの印も付けない．`id` と `zip` は関数を受け取らないので，型変数は印のないままである．
 
 ## 3. 適用と関数の受け渡し
 
@@ -98,7 +100,7 @@ discard [|inc, inc|] 1
   -- [|True,True|] : Tensor Bool
 ```
 
-最初の例では `a=Integer,p=1,b=Tensor Integer` を選ぶ．`inc` の変換によって `discard` 自身の結果までテンソル化する必要はない．後の例は `discard` の第一引数の許可を使う別の適用である．
+最初の例では `a=b=Integer`，`p=q=1` を選ぶ．`inc` の変換によって `discard` 自身の結果までテンソル化する必要はない．後の例は `discard` の第一引数の許可を使う別の適用である．
 
 ## 4. 等値比較と本体内の成分ごとの適用
 
@@ -171,7 +173,7 @@ filter predScalar [[|10,11|]] -- 型エラー（条件式が Tensor Bool）
 `^p` の付いた入力には次のものがある．
 
 - `(==)` の入力．
-- 仮引数として受け取った関数の入力（`map` の `(a^p -> b^q)`，`discard` の `(a^p -> b)`）．`filter` の述語 `(a -> Bool)` のように，持ち上げた関数の結果が適合しない位置の入力には付かない．
+- 仮引数として受け取った関数の入力（`map` と `discard` の `(a^p -> b^q)`）．`filter` の述語 `(a -> Bool)` のように，持ち上げた関数の結果が適合しない位置の入力には付かない．
 - 要素が `^p` のリストを受け取る関数の入力（`mapInc` の `[Integer^p]`）．
 - `^p` の入力を持つ利用者定義の関数の入力（`pred1`）．
 
@@ -194,7 +196,7 @@ pairId : Integer↑ -> (Integer, Integer)
 pairId [|1,2|]           -- [|(2,1),(3,2)|]
 
 applyBoth k x := (x+1, k x)                     -- 受け取った関数 k の入力は a^p
-applyBoth : (Integer^p -> b)↑ -> Integer^p -> (Integer^p, b)
+applyBoth : (Integer^p -> b^q)↑ -> Integer^p -> (Integer^p, b^q)
 applyBoth tensorShape [|1,2|]  -- ([|2,3|], [2])
 applyBoth inc [|1,2|]          -- ([|2,3|], [|2,3|])
 
