@@ -1,6 +1,6 @@
 # テンソル型と適用時の持ち上げ
 
-この文書は型と挿入の設計仕様の正本である．例は仕様上の期待結果を示す．Lean の実装計画は [設計書](../../type-tensor-mech/docs/design.md)，既存コードとの対応は [実装状況](tensor-inference-boundaries.md) に記す．
+この文書は型と挿入の設計仕様の正本である．例は仕様上の期待結果を示す．各設計判断の理由は，論文（`~/PL/type-tensor-paper`）の「設計判断とその理由」の節に，未解決の問題は同じ論文の「未解決の問題」の節にまとめている．Lean の実装計画は [設計書](../../type-tensor-mech/docs/design.md)，既存コードとの対応は [実装状況](tensor-inference-boundaries.md) に記す．
 
 ## 1. 型の記法
 
@@ -22,9 +22,12 @@ id [|1,2|]  -- [|1,2|] : Tensor Integer，挿入なし
 ## 2. 基本の型
 
 ```text
-min         : Integer↑ -> Integer↑ -> Integer
+(+), (-), (*) : Integer↑ -> Integer↑ -> Integer
+(<), (>)      : Integer↑ -> Integer↑ -> Bool
+min, max    : Integer↑ -> Integer↑ -> Integer
 inc         : Integer↑ -> Integer
 tensorShape : Tensor a -> [Integer]
+tensorRank  : Tensor a -> Integer
 contract    : Tensor a -> [Tensor a]
 generateTensor : ([Integer] -> a) -> [Integer] -> Tensor a
 pred1       : Integer^p -> Bool
@@ -38,12 +41,12 @@ foldl  : (b^p -> a^q -> b^p)↑ -> b^p -> [a^q]↑ -> b^p
 sum    : [Integer^p]↑ -> Integer^p
 
 discard : (a^p -> b^q)↑ -> a^p -> Bool
-length  : [Integer^p]↑ -> Integer
+length  : [a]↑ -> Integer
 ```
 
 `tensorShape` や `contractWith` はテンソル全体について定義され，引数の型に `Tensor` を明記する．整数も値を変えずに階数0のテンソルとして渡せるので，例えば `tensorShape 7` は空の形状 `[]` を返す．`generateTensor` はテンソルを構築するので，結果の型に `Tensor` が付く．一方，`id` は受け取った値をそのまま返し，`zip` は二つのリストの要素をそのまま組に入れる．型変数にテンソル型を代入すれば両方の用途を表せる．
 
-`length` はここでは整数または整数テンソルを要素とするリストについて示す．通常の多相的な `length : [a]↑ -> Integer` の具体化として読める．`zip` の `a` と `b` にもテンソル型を代入できるので，そのためだけに `^` を加える必要はない．
+`length` はリストの要素を使わないので，要素型は印のない型変数である．`zip` の `a` と `b` と同じく，この型変数にもテンソル型を代入できるので，そのために `^` を加える必要はない．
 
 仮引数として受け取る関数の型には，持ち上げた関数を受け取れるかどうかを書く．`(a^p -> b^q)` は，その型に合う関数か，渡す関数自身の `↑` でその型に持ち上げられる関数を受け取ることを表す．受け取る関数の入力に `^p` を書くときは，結果が型変数ならそれにも `^q` を書く．`map` と `discard` の `(a^p -> b^q)` がこれに当たる．本体がテンソルを渡すので入力が `Tensor` に決まる場合も，結果には `^q` を書く（§5 の `twin`）．`filter` の述語 `(a -> Bool)` のように，持ち上げた関数の結果が適合しない関数の型には，どちらの印も付けない．`id` と `zip` は関数を受け取らないので，型変数は印のないままである．
 
@@ -100,14 +103,14 @@ discard [|inc, inc|] 1
   -- [|True,True|] : Tensor Bool
 ```
 
-最初の例では `a=b=Integer`，`p=q=1` を選ぶ．`inc` の変換によって `discard` 自身の結果までテンソル化する必要はない．後の例は `discard` の第一引数の許可を使う別の適用である．
+最初の例では `a=b=Integer`，`p=q=1` を選ぶ．`inc` の変換によって `discard` 自身の結果までテンソル化する必要はない．後の例は `discard` の第一引数の許可を使う別の適用である．同じように，`count k xs := length (map k xs)` は `(a^p -> b^q)↑ -> [a^p]↑ -> Integer` を持ち，`count inc [[|1,2|]]` はテンソルの結果のリストを捨てて整数 `1` を返す．
 
 ## 4. 等値比較と本体内の成分ごとの適用
 
 ### 等値比較が共有する型
 
 ```text
-(==) : Eq (a^p) => a^p -> a^p -> Bool
+(==) : {Eq a^p} a^p -> a^p -> Bool
 pred1 x := x * 2 - 10 == x
 pred1 : Integer^p -> Bool
 
@@ -117,9 +120,32 @@ filter pred1 [9,10,11]                          -- [10]
 filter pred1 [[|9,10|],[|10,10|],[|10,11|]]    -- [[|10,10|]]
 ```
 
-`Eq t` は型 `t` の二つの値を比較できるという制約である．`(==)` は一つの型について二つの値を受け取り，一つの `Bool` を返す．標準のテンソル用の実装には `Eq t => Eq (Tensor t)` という条件がある．`p=1` の比較をこの実装で行うには要素型の比較が必要であり，`Eq t` があれば `p=0` と `p=1` の両方を扱える．このため `(==)` の入力を `a^p` と書く．`^p` の付いた入力はテンソルを全体として受け取り，`↑` の付いた入力のように関数全体を成分ごとに適用する対象にはならない．`a=Integer` の使用箇所での型は `Integer^p -> Integer^p -> Bool` である．[標準ライブラリの等値比較](../lib/core/base.egi)
+`Eq t` は型 `t` の二つの値を比較できるという制約である．型の波括弧には，使用時に満たすべきクラス制約を列挙する．`(==)` は一つの型について二つの値を受け取り，一つの `Bool` を返す．標準のテンソル用のインスタンスは `instance {Eq t} Eq (Tensor t)` であり，要素型の比較を前提とする．`p=1` の比較をこの実装で行うには要素型の比較が必要であり，`Eq t` があれば `p=0` と `p=1` の両方を扱える．このため `(==)` の入力を `a^p` と書く．`^p` の付いた入力はテンソルを全体として受け取り，`↑` の付いた入力のように関数全体を成分ごとに適用する対象にはならない．`a=Integer` の使用箇所での型は `Integer^p -> Integer^p -> Bool` である．[標準ライブラリの等値比較](../lib/core/base.egi)
 
 `pred1` の算術から成分型が `Integer` に決まる．`x` と算術結果は `(==)` の `^p` の付いた入力に渡るので，同じ条件 `p` を持つ．`p=0` では整数の乗算・減算に続いて整数同士を比較する．`p=1` では乗算・減算を成分ごとに行い，最後にテンソル用の等値比較を一度呼ぶ．例えば `[|10,11|]` なら左辺は `[|10,12|]` となり，全体を比較した結果は `False` である．どちらの比較も利用できるので，`pred1` の公開型に未解決の `Eq` 制約は残らない．定義からこの型を推論でき，`filter` が要求する一つの真偽値を返せる．成分ごとの真偽値が欲しい場合は `predScalar (x : Integer) := x*2-10 == x` と書くと，同じ入力から `[|True,False|]` が得られる．
+
+### 型クラスとインスタンスの選択
+
+利用者はクラスを宣言し，型ごとにインスタンスを定義できる．インスタンスは，型と挿入を決めた後に，静的な型から選ぶ．
+
+```text
+class Score a where
+  score (x: a) : Integer
+instance Score Integer where
+  score x := 1
+instance Score (Tensor Integer) where
+  score x := 2
+
+(score 0, score (0 : Tensor Integer))   -- (1,2)
+```
+
+二つの引数の値はどちらも `0` である．一つ目の型は `Integer`，二つ目は注釈によって `Tensor Integer` であり（階数0の包含），静的な型の違いによって別の実装が選ばれる．
+
+定義は，クラス制約を呼出し側に残せる．`same x y := x == y` の型は `{Eq a^p} a^p -> a^p -> Bool` である．インスタンスが一つもないクラス `Label` のメソッド `label (x: a) : Bool` を使う `f x := label x` も，型 `{Label a} a -> Bool` を持つ．型に残せる制約は，型変数を少なくとも一つ含み，その型変数がすべて表示する型に現れるものに限る．具体的な型での閉じた使用では，呼出し側の仮定は空である．
+
+クラス制約 `C t` は，正規化した静的な型 `t` をインスタンス宣言と照合して解く．インスタンスの頭部（クラス名に続く型）が代入によって一致しうる二つの宣言は拒否する．各前提は，頭部の真部分に現れる型変数についての制約に限る．ちょうど一つのインスタンスが一致し，その前提がすべて導出できるとき，解決は成功する．
+
+未解決の点がある．`score 0` のように，引数をそれ自身の型でも階数0の包含でも受け取れ，インスタンスがその二つの型を区別する場合に，どちらの具体化を選ぶかを規則として定めていない．意図する値は，`Integer` のインスタンスによる `1` である．
 
 ### 本体内のどこに `tensorMap` を挿入するか
 
@@ -357,7 +383,7 @@ tensorMap (\x -> [|x,x+10|]) [|1,2|]
   -- [|[|1,11|],[|2,12|]|]
 ```
 
-添字の縮約・軸の並替え・名前の範囲・微分形式の規則は [実装との対応](tensor-inference-boundaries.md) と論文のテンソル添字記法の節に従う．追加添字は先頭の連続した名前付き軸を保持して処理する．`withSymbols` は導入した名前だけを除き，名前のない軸の形状と成分を保持する．内部配列の0の軸長と，公開構築で許す正の軸長を区別する．数式シンボルは `declare symbol` で宣言する．
+添字の縮約・軸の並替え・名前の範囲・微分形式の規則は，[実装との対応](tensor-inference-boundaries.md) と，テンソル添字記法の先行論文（"Scalar and Tensor Parameters for Importing Tensor Index Notation including Einstein Summation Notation"，"Simplified Index Rules for Integrating Tensor Index Notation into Programming Languages with Static Type Systems"）に従う．論文（`~/PL/type-tensor-paper`）には，例に必要な範囲だけを「準備」の節と縮約の節に書いている．背景の節のファイル（`sections/background.tex` と，そこから読み込む三つのファイル）は残してあるが，本文には当面含めていない．追加添字は先頭の連続した名前付き軸を保持して処理する．`withSymbols` は導入した名前だけを除き，名前のない軸の形状と成分を保持する．内部配列の0の軸長と，公開構築で許す正の軸長を区別する．数式シンボルは `declare symbol` で宣言する．
 
 ## 8. 証明と検証の到達点
 
