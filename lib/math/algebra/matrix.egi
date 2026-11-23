@@ -54,9 +54,8 @@ def M.blockSlice {a} (block: MatrixBlock a) (row: Integer) (col: Integer)
 
 def M.toBlock {a} (m: Matrix a) : MatrixBlock a :=
   match tensorShape m as list integer with
-    | [$rows, $cols] ->
-        M.block rows cols
-          (concat (map (\i -> map (\j -> m_i_j) (between 1 cols)) (between 1 rows)))
+    | [] -> M.block 1 1 (tensorToList m)
+    | [$rows, $cols] -> M.block rows cols (tensorToList m)
     else match assert "M.toBlock requires a rank-two tensor" False as bool with
       | #True -> undefined
 
@@ -149,21 +148,18 @@ def antisym {Field a} (a: Matrix a) : Matrix a :=
 
 def M.inverse (m: Matrix MathValue) : Matrix MathValue :=
   match tensorShape m as list integer with
+    | [] -> 1 / head (tensorToList m)
     | [$n, #n] ->
         let d := M.det m
          in generateTensor
               (\[i, j] ->
-                if n = 1
-                  then 1 / m_1_1
-                  else let minor := generateTensor
-                             (\[a, b] ->
-                               let row := if a < j then a else a + 1
-                                   col := if b < i then b else b + 1
-                                in m_row_col)
-                             [n - 1, n - 1]
-                        in if isEven (i + j)
-                             then M.det minor / d
-                             else - (M.det minor / d))
+                let minor := generateTensor
+                      (\[a, b] ->
+                        let row := if a < j then a else a + 1
+                            col := if b < i then b else b + 1
+                         in m_row_col)
+                      [n - 1, n - 1]
+                 in if isEven (i + j) then M.det minor / d else - (M.det minor / d))
               [n, n]
     else match assert "M.inverse requires a square matrix" False as bool with
       | #True -> undefined
@@ -212,6 +208,7 @@ def M.blockDet (block: MatrixBlock MathValue) : MathValue :=
 --
 def M.determinant (m: Matrix MathValue) : MathValue :=
   match tensorShape m as list integer with
+    | [] -> head (tensorToList m)
     | [$n, #n] ->
       let (es, os) := evenAndOddPermutations' n
        in sum (map (\e -> product (map2 (\i j -> m_i_j) (between 1 n) e)) es) -

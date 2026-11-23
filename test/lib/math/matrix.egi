@@ -79,7 +79,7 @@ assertEqual "a single-row minor retains its columns"
   (M.blockParts (deleteCellRowColumn (M.toBlock [|[|1,2,3|]|]) 1 2))
   (0,2,[])
 assertEqual "a single-column minor retains its rows"
-  (M.blockParts (deleteCellRowColumn (M.toBlock [|[|1|],[|2|],[|3|]|]) 2 1))
+  (M.blockParts (deleteCellRowColumn (M.toBlock (tensor [3,1] [1,2,3])) 2 1))
   (2,0,[])
 assertEqual "matCons rejects positions outside the block"
   (map (\(i,j) -> match M.toBlock grid as matrix with

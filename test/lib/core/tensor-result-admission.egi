@@ -1,7 +1,7 @@
 assertEqual "scalar result does not inherit the unused tensor argument's axes"
   (tensorShape ((head [\x -> 0, \x -> [|0|]]) [|1,2|])) []
 assertEqual "a written vector result retains its own axis"
-  (tensorShape ((head [\x -> [|0|], \x -> 0]) [|1,2|])) [1]
+  (tensorShape ((head [\x -> [|0,0|], \x -> 0]) [|1,2|])) [2]
 assertEqual "result admission through a local function"
   (let f := head [\x -> 0, \x -> [|0|]] in tensorShape (f [|1,2|])) []
 assertEqual "unary input mapping is retained"

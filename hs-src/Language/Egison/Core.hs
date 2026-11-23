@@ -784,7 +784,7 @@ evalWHNF (ITuple [ref]) = evalRefDeep ref
 evalWHNF (ITuple refs) = Tuple <$> mapM evalRefDeep refs
 evalWHNF (ITensor (Tensor ns whnfs js)) = do
   vals <- V.mapM evalRefDeep whnfs
-  return $ TensorData $ Tensor ns vals js
+  fromTensor (Tensor ns vals js)
 evalWHNF coll = Collection <$> (collectionToRefs coll >>= fromMList >>= mapM evalRefDeep . Sq.fromList)
 
 addscript :: (Index EgisonValue, Tensor a) -> Tensor a
@@ -1684,7 +1684,7 @@ checkPositiveTensorShape shape =
   when (any (<= 0) shape) $
     throwError (Default "Tensor axis lengths must be positive")
 
--- A rank-zero tensor is its sole component; a shape [1] stays rank one.
+-- The empty outer shape returns its component directly, including a tensor.
 newITensor :: Shape -> [ObjectRef] -> EvalM WHNFData
 newITensor [] [ref] = evalRef ref
 newITensor s refs = normalizeTensorWHNF (ITensor (Tensor s (V.fromList refs) []))
@@ -1718,9 +1718,7 @@ normalizeTensorWHNF (ITensor (Tensor shape refs indices))
           labels
             | null innerIndices = indices
             | otherwise = renumber 1 (full shape indices ++ full innerShape innerIndices)
-      if null dimensions && V.length cells == 1
-        then evalRef (V.head cells)
-        else return (ITensor (Tensor dimensions cells labels))
+      fromTensor (Tensor dimensions cells labels)
   where
     component (ITensor (Tensor ns xs js)) = return (ns, xs, js)
     component value = do

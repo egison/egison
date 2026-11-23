@@ -6732,19 +6732,20 @@ inferArgumentsAtParameters classes constraints parameters arguments context = do
 -- Delaying a scalar fold/scan initializer lets the callback's tensor result
 -- determine the accumulator type; the initializer is admitted at rank zero.
 -- With fully known scalar data, check data before callbacks to retain precise
--- scalar types. Applications without callbacks retain source order.
+-- scalar types. At a shared class parameter, a tensor instance can also
+-- receive a scalar at rank zero. Choose it before a scalar fixes that type.
 checkApplicationArguments
   :: ClassEnv -> [Constraint] -> Type -> [IExpr] -> [TIExpr] -> [Type]
   -> Subst -> Bool -> Set.Set Int -> TypeErrorContext -> Infer (Subst, Bool)
 checkApplicationArguments classEnv constraints funcType sources typedArgs params initialSubst initialFlag forced ctx = do
   rankedArgs <- mapM rankArgument (zip4 [0..] sources typedArgs params)
-  let hasTensorData = any ((== 0) . fst) rankedArgs
+  let hasTensorData = any ((<= 0) . fst) rankedArgs
       hasCallback = any ((== 1) . fst) rankedArgs
       hasTensorCallback = any (containsTensorSignature . tiExprType) typedArgs
       orderedArgs
         | (hasTensorData || hasTensorCallback) && hasCallback = map snd (sortOn fst rankedArgs)
         | hasCallback = map snd (sortOn (\(rank, _) -> rank == 1) rankedArgs)
-        | otherwise = map snd rankedArgs
+        | otherwise = map snd (sortOn (\(rank, _) -> rank >= 0) rankedArgs)
   foldM checkArgument (initialSubst, initialFlag) orderedArgs
   where
     rankArgument argument@(_, _, typedArg, paramType) = do
@@ -6757,6 +6758,9 @@ checkApplicationArguments classEnv constraints funcType sources typedArgs params
             (constraints ++ contextConstraints)
       let rank
             | isFunction actual || isFunction expected = 1 :: Int
+            | TTensor{} <- actual, TVar{} <- expected
+            , any (elem expected . constraintTypes) currentConstraints
+            , Right _ <- TU.unifyStrictWithConstraints classEnv currentConstraints actual expected = -1
             -- A constrained scalar variable, such as `zero`, is an
             -- initializer rather than unresolved tensor data.
             | TVar _ <- actual

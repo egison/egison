@@ -157,22 +157,25 @@ def nabla : Tensor MathValue -> Vector MathValue -> Tensor MathValue := ∇
 def grad : Tensor MathValue -> Vector MathValue -> Tensor MathValue := ∇
 
 def taylorExpansion (f: MathValue) (x: MathValue) (a: MathValue) : [MathValue] :=
-  multivariateTaylorExpansion f [|x|] [|a|]
+  map2 (\n g -> substitute [(x,a)] g * (x - a) ^ n / fact n)
+       nats0 (iterate (\g -> d/d g x) f)
 
 def maclaurinExpansion (f: MathValue) (x: MathValue) : [MathValue] := taylorExpansion f x 0
 
 def multivariateTaylorExpansion (f: MathValue) (xs: Vector MathValue) (ys: Vector MathValue)
   : [MathValue] :=
-  withSymbols [h]
-    let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
-     in map2
-          (*)
-          (map 1#(1 / fact $1) nats0)
-          (map
-             (compose
-                1#(V.substitute xs ys $1)
-                1#(V.substitute hs (withSymbols [i] xs_i - ys_i) $1))
-             (iterate (compose 1#(∇ $1 xs) 1#(V.* hs $1)) f))
+  if tensorShape xs = [] && tensorShape ys = []
+    then taylorExpansion f (head (tensorToList xs)) (head (tensorToList ys))
+    else withSymbols [h]
+      let hs := generateTensor (\[x] -> h_x) (tensorShape xs)
+       in map2
+            (*)
+            (map 1#(1 / fact $1) nats0)
+            (map
+               (compose
+                  1#(V.substitute xs ys $1)
+                  1#(V.substitute hs (withSymbols [i] xs_i - ys_i) $1))
+               (iterate (compose 1#(∇ $1 xs) 1#(V.* hs $1)) f))
 
 def multivariateMaclaurinExpansion (f: MathValue) (xs: Vector MathValue) : [MathValue] :=
   multivariateTaylorExpansion f xs (tensorMap 1#0 xs)

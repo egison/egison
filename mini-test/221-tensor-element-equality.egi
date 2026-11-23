@@ -10,11 +10,25 @@ assertEqual "tensor equality checks the last component"
   ([|(1,True),(2,False)|] == [|(1,False),(3,False)|]) False
 assertEqual "tensor inequality uses the same element instance"
   ([|(1,True)|] /= [|(1,False)|]) False
+assertEqual "singleton on the left" ([|10|] == 10) True
+assertEqual "singleton on the right" (10 == [|10|]) True
+assertEqual "equal singleton inequality" (10 /= [|10|]) False
+assertEqual "unequal singleton component" ([|11|] /= 10) True
+assertEqual "a scalar and a vector with repeated components" (10 == [|10,10|]) False
+assertEqual "mixed operands use the element instance"
+  ((1,True) == [|(1,False)|]) True
+assertEqual "one component across two axes" (tensor [1,1] [10] == 10) True
+assertEqual "a singleton literal is a scalar" (tensorShape [|10|], typeOf [|10|]) ([], "Integer")
+assertEqual "singleton generation uses its original coordinate"
+  (generateTensor (\[i,j] -> 9 + i * j) [1,1]) 10
+assertEqual "singleton arithmetic returns a scalar" (tensorShape ([|10|] + 1)) []
+assertEqual "selection keeps the remaining axis until the last coordinate"
+  ((tensor [2,1] [10,20])_2_1, tensorShape ((tensor [2,1] [10,20])_2)) (20, [])
 assertEqual "same cells with different shapes"
   (tensor [1,2] [1,2] == tensor [2,1] [1,2]) False
 withSymbols [i]
   (assertEqual "same indices and equal components"
-    ([|(1,True)|]_i == [|(1,False)|]_i) True)
+    ([|(1,True),(2,True)|]_i == [|(1,False),(2,False)|]_i) True)
 withSymbols [i, j]
   (assertEqual "different index names"
     ([|1,2|]_i == [|1,2|]_j) True)

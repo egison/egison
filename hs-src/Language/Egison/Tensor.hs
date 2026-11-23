@@ -78,15 +78,21 @@ class TensorComponent a b | a -> b where
   fromTensor :: Tensor b -> EvalM a
   toTensor :: a -> EvalM (Tensor b)
 
+-- Keep full axis information during tensor operations. At the value boundary
+-- a valid one-cell array denotes its component, whatever its rank.
+scalarComponent :: Tensor a -> Maybe a
+scalarComponent (Scalar x) = Just x
+scalarComponent (Tensor shape cells _)
+  | all (== 1) shape && V.length cells == 1 = cells V.!? 0
+  | otherwise = Nothing
+
 instance TensorComponent EgisonValue EgisonValue where
-  fromTensor t@Tensor{} = return $ TensorData t
-  fromTensor (Scalar x) = return x
+  fromTensor t = maybe (return (TensorData t)) return (scalarComponent t)
   toTensor (TensorData t) = return t
   toTensor x              = return $ Scalar x
 
 instance TensorComponent WHNFData ObjectRef where
-  fromTensor t@Tensor{} = return $ ITensor t
-  fromTensor (Scalar x) = evalRef x
+  fromTensor t = maybe (return (ITensor t)) evalRef (scalarComponent t)
   toTensor (ITensor t) = return t
   toTensor x           = Scalar <$> newEvaluatedObjectRef x
 

@@ -1,5 +1,5 @@
 -- An empty generateTensor shape denotes rank zero and returns its sole
--- component directly.  Rank-one shapes must retain their tensor wrapper.
+-- component directly, as does every positive shape with one component.
 
 def scalar := generateTensor (\[] -> 42) []
 
@@ -15,9 +15,9 @@ assertEqual "rank-zero generator returns a tensor-valued component unchanged"
   (generateTensor (\[] -> [|1, 2|]) [])
   [|1, 2|]
 
-assertEqual "rank-one singleton remains a tensor"
+assertEqual "rank-one singleton returns its component"
   (typeOf (generateTensor (\[i] -> i) [1]))
-  "Tensor"
+  "Integer"
 
 -- Zero-length axes are checked as expected rejections in tensorShapeValidationTests.
 assertEqual "positive rank-two generator retains both axes"
