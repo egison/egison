@@ -17,7 +17,10 @@ withSymbols [i]
     ([|(1,True)|]_i == [|(1,False)|]_i) True)
 withSymbols [i, j]
   (assertEqual "different index names"
-    ([|1,2|]_i == [|1,2|]_j) False)
+    ([|1,2|]_i == [|1,2|]_j) True)
 withSymbols [i]
   (assertEqual "subscript and superscript"
-    ([|1,2|]_i == [|1,2|]~i) False)
+    ([|1,2|]_i == [|1,2|]~i) True)
+withSymbols [i, j]
+  (assertEqual "different indices with unequal components"
+    ([|1,2|]_i /= [|2,1|]~j) True)
