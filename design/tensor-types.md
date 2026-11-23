@@ -119,10 +119,13 @@ class Eq a where
 instance Eq Integer where
   (==) x y := x = y
 instance {Eq a} Eq (Tensor a) where
-  (==) t1 t2 := t1 = t2
+  (==) t1 t2 :=
+    (tensorShape t1 = tensorShape t2) &&
+    (tensorIndices t1 = tensorIndices t2) &&
+    all (uncurry (==)) (zip (tensorToList t1) (tensorToList t2))
 ```
 
-`Eq t` は型 `t` の二つの値を比較できるという制約である．型の波括弧には，使用時に満たすべきクラス制約を列挙する．
+`Eq t` は型 `t` の二つの値を比較できるという制約である．型の波括弧には，使用時に満たすべきクラス制約を列挙する．テンソルのインスタンスは形状と添字が一致することを確かめた上で，`tensorToList` で並べた成分を `zip` で位置ごとに組にする．すべての組について要素型 `a` の `(==)` が成り立つとき，テンソルの比較結果は `True` となる．
 
 メソッドの入力のうち，型がクラスの型変数であるものの扱いは，そのクラスに `Tensor` のインスタンスが宣言されているかどうかで決まる．
 

@@ -33,7 +33,10 @@ instance Marker Integer
 
 ```egison
 instance {Eq a} Eq (Tensor a) where
-  (==) x y := tensorEq x y
+  (==) t1 t2 :=
+    (tensorShape t1 = tensorShape t2) &&
+    (tensorIndices t1 = tensorIndices t2) &&
+    all (uncurry (==)) (zip (tensorToList t1) (tensorToList t2))
 
 def member {Eq a} (x: a) (xs: [a]) : Bool := ...
 ```

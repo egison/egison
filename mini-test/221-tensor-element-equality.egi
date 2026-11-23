@@ -1,0 +1,23 @@
+-- Compare readings by value. The Bool records whether a reading was estimated.
+instance Eq (Integer, Bool) where
+  (==) x y := fst x = fst y
+  (/=) x y := not (x == y)
+
+assertEqual "element equality" ((1,True) == (1,False)) True
+assertEqual "tensor equality uses the element instance"
+  ([|(1,True),(2,False)|] == [|(1,False),(2,True)|]) True
+assertEqual "tensor equality checks the last component"
+  ([|(1,True),(2,False)|] == [|(1,False),(3,False)|]) False
+assertEqual "tensor inequality uses the same element instance"
+  ([|(1,True)|] /= [|(1,False)|]) False
+assertEqual "same cells with different shapes"
+  (tensor [1,2] [1,2] == tensor [2,1] [1,2]) False
+withSymbols [i]
+  (assertEqual "same indices and equal components"
+    ([|(1,True)|]_i == [|(1,False)|]_i) True)
+withSymbols [i, j]
+  (assertEqual "different index names"
+    ([|1,2|]_i == [|1,2|]_j) False)
+withSymbols [i]
+  (assertEqual "subscript and superscript"
+    ([|1,2|]_i == [|1,2|]~i) False)
