@@ -120,11 +120,11 @@ instance Eq Integer where
   (==) x y := x = y
 instance {Eq a} Eq (Tensor a) where
   (==) t1 t2 :=
-    (tensorShape t1 = tensorShape t2) &&
-    all (uncurry (==)) (zip (tensorToList t1) (tensorToList t2))
+    sameIndexedShape t1 t2 &&
+    all id (tensorToList (tensorMap2 (==) t1 t2))
 ```
 
-`Eq t` は型 `t` の二つの値を比較できるという制約である．型の波括弧には，使用時に満たすべきクラス制約を列挙する．テンソルの添字の名前や上下は比較結果に影響しない．テンソルのインスタンスは形状が一致することを確かめた上で，`tensorToList` で並べた成分を `zip` で位置ごとに組にする．すべての組について要素型 `a` の `(==)` が成り立つとき，テンソルの比較結果は `True` となる．
+`Eq t` は型 `t` の二つの値を比較できるという制約である．型の波括弧には，使用時に満たすべきクラス制約を列挙する．`sameIndexedShape` は，共通の添字が指す軸どうしの長さを比べる．無名の軸は出現順に対応付ける．残った軸の長さの列も元の順序で一致すれば，形状は等しい．次に `tensorMap2 (==)` で添字に従って成分を比較する．`t1_i_j == t2_j_i` は，第 `i` 行第 `j` 列の成分を第 `j` 行第 `i` 列の成分と比べる．異なる名前の軸は独立に動く．`all id` は，得られた真偽値がすべて真のときに `True` を返す．
 
 メソッドの入力のうち，型がクラスの型変数であるものの扱いは，そのクラスに `Tensor` のインスタンスが宣言されているかどうかで決まる．
 

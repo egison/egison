@@ -130,6 +130,7 @@ builtinTypes = concat
       , ("mapFracAll", Forall [] [] [] $
           TFun (TFun TMathValue TMathValue) (TFun TMathValue TMathValue))
       , ("tensorShape", forallA $ TFun (TTensor (TVar a)) (TCollection TInt))
+      , ("sameIndexedShape", forallA $ TFun (TTensor (TVar a)) (TFun (TTensor (TVar a)) TBool))
       , ("tensorIndices", forallA $
           TFun (TTensor (TVar a)) (TCollection (TInductive "TensorIndex" [])))
       , ("tensorToList", forallA $ TFun (TTensor (TVar a)) (TCollection (TVar a)))

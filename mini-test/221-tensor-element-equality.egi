@@ -30,11 +30,46 @@ withSymbols [i]
   (assertEqual "same indices and equal components"
     ([|(1,True),(2,True)|]_i == [|(1,False),(2,False)|]_i) True)
 withSymbols [i, j]
-  (assertEqual "different index names"
-    ([|1,2|]_i == [|1,2|]_j) True)
+  (assertEqual "independent indices compare all four pairs"
+    ([|1,2|]_i == [|1,2|]_j) False)
 withSymbols [i]
   (assertEqual "subscript and superscript"
     ([|1,2|]_i == [|1,2|]~i) True)
 withSymbols [i, j]
   (assertEqual "different indices with unequal components"
     ([|1,2|]_i /= [|2,1|]~j) True)
+
+def t1 := [|[|1,2|],[|3,4|]|]
+def t2 := [|[|1,3|],[|2,4|]|]
+withSymbols [i,j]
+  (assertEqual "equality aligns a transposed matrix in both directions"
+    (t1_i_j == t2_j_i, t2_j_i == t1_i_j) (True, True))
+withSymbols [i,j]
+  (assertEqual "an off-diagonal mismatch survives alignment"
+    (t1_i_j /= t1_j_i) True)
+withSymbols [i,j]
+  (assertEqual "independent indices with all pairs equal"
+    ([|1,1|]_i == [|1,1|]_j) True)
+
+def rect := tensor [2,3] [1,1,1,1,1,1]
+withSymbols [i,j,k]
+  (assertEqual "shared index has different lengths despite equal shapes"
+    (rect_i_j == rect_k_i, rect_k_i == rect_i_j) (False, False))
+
+def a := tensor [2,3] [1,2,3,4,5,6]
+def b := tensor [3,2] [1,4,2,5,3,6]
+withSymbols [i,j]
+  (assertEqual "rectangular transpose aligns shapes before comparing cells"
+    (a_i_j == b_j_i, b_j_i == a_i_j) (True, True))
+withSymbols [i,j]
+  (assertEqual "assigning both row axes the same index compares unequal lengths"
+    (a_i_j == b_i_j) False)
+withSymbols [i,j]
+  (assertEqual "a changed cell of the rectangular transpose"
+    (a_i_j == (tensor [3,2] [1,4,2,5,3,0])_j_i) False)
+withSymbols [i,j,k]
+  (assertEqual "partly shared indices compare all pairs at each shared coordinate"
+    ((tensor [2,3] [1,1,1,2,2,2])_i_j == (tensor [3,2] [1,2,1,2,1,2])_k_i) True)
+withSymbols [i,j,k]
+  (assertEqual "unmatched axes must also have the same lengths"
+    (rect_i_j == (tensor [4,2] [1,1,1,1,1,1,1,1])_k_i) False)

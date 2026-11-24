@@ -23,6 +23,7 @@ module Language.Egison.Tensor
     , removeDF
     , tMap
     , tMap2
+    , sameIndexedShape
     , tProduct
     , tContract
     , tContract'
@@ -330,6 +331,21 @@ tMapPreservingIndices f (Tensor ns xs js') = do
   xs' <- V.mapM f xs
   return (Tensor ns xs' js)
 tMapPreservingIndices f (Scalar x) = Scalar <$> f x
+
+-- Compare shapes in a common index order without transposing the cells.
+-- Axes paired by tMap2 have to agree in length. Compare the remaining
+-- dimensions in their original order on each side.
+sameIndexedShape :: (Shape, [Index EgisonValue]) -> (Shape, [Index EgisonValue]) -> Bool
+sameIndexedShape left right =
+  length leftAxes == length rightAxes &&
+  and [n == m | (i, n) <- leftAxes, (j, m) <- rightAxes, paired i j] &&
+  remaining leftAxes rightAxes == remaining rightAxes leftAxes
+ where
+  axes (ns, js) = zip (js ++ complementWithDF ns js) ns
+  leftAxes = axes left
+  rightAxes = axes right
+  paired i j = i == j || reverseIndex i == j
+  remaining xs ys = [n | (i, n) <- xs, not (any (paired i . fst) ys)]
 
 tMap2 :: (a -> b -> EvalM c) -> Tensor a -> Tensor b -> EvalM (Tensor c)
 tMap2 f (Tensor ns1 xs1 js1') (Tensor ns2 xs2 js2') = do

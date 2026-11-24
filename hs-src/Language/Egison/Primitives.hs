@@ -43,6 +43,7 @@ import           Language.Egison.Primitives.IO
 import           Language.Egison.Primitives.String
 import           Language.Egison.Primitives.Types
 import           Language.Egison.Primitives.Utils
+import qualified Language.Egison.Tensor            as Tensor
 
 primitiveEnv :: IO Env
 primitiveEnv = do
@@ -120,6 +121,7 @@ primitives =
         ]
       lazyPrimitives =
         [ ("tensorShape", tensorShape')
+        , ("sameIndexedShape", sameIndexedShape')
         , ("tensorIndices", tensorIndices')
         , ("tensorToList", tensorToList')
         , ("dfOrder", dfOrder')
@@ -137,6 +139,16 @@ tensorShape' = lazyOneArg tensorShape''
   tensorShape'' (ITensor (Tensor ns _ _)) =
     return . Value . Collection . Sq.fromList $ map toEgison ns
   tensorShape'' _ = return . Value . Collection $ Sq.fromList []
+
+sameIndexedShape' :: String -> LazyPrimitiveFunc
+sameIndexedShape' name args = case args of
+  [left, right] -> return (Value (Bool (Tensor.sameIndexedShape (layout left) (layout right))))
+  [left] -> return (Value (LazyPrimitiveFunc (sameIndexedShape' name . (left :))))
+  _ -> throwErrorWithTrace (ArgumentsNumPrimitive name 2 (length args))
+ where
+  layout (ITensor (Tensor ns _ js)) = (ns, js)
+  layout (Value (TensorData (Tensor ns _ js))) = (ns, js)
+  layout _ = ([], [])
 
 tensorIndices' :: String -> LazyPrimitiveFunc
 tensorIndices' = lazyOneArg tensorIndices''
